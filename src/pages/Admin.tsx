@@ -138,8 +138,8 @@ function GoalKickers() {
     if (!pastedUrl) { setError('Paste a PlayHQ goal kickers/statistics URL.'); return }
     setBusy(true)
     try {
-      const result = await admin.importGoalKickers({ url: pastedUrl, sourceUrl: pastedUrl })
-      setMessage(result.note)
+      const result = await admin.importUrl(pastedUrl)
+      setMessage(result.workflowRunUrl ? `PlayHQ import dispatched. Workflow: ${result.workflowRunUrl}` : 'PlayHQ import dispatched. Goal Kickers will appear after the workflow completes.')
       await load()
     } catch (e) {
       const response = (e as Error & { response?: unknown }).response
