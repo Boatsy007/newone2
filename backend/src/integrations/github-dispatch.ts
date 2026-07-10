@@ -67,11 +67,12 @@ export interface WorkflowRunInfo {
  * can track it. Returns the (best-effort) newest run for the workflow on the ref.
  */
 export async function dispatchWorkflow(workflowFile: string, inputs: Record<string, string> = {}): Promise<{ dispatched: true; run: WorkflowRunInfo | null; htmlUrl: string }> {
-  const { repo, ref } = githubConfig()
+  const { repo, ref, hasToken } = githubConfig()
   const dispatchUrl = `${API}/repos/${repo}/actions/workflows/${workflowFile}/dispatches`
 
   const before = await latestRun(workflowFile).catch(() => null)
 
+  logger.info('GitHubDispatch: dispatch request', { repo, ref, workflowFile, dispatchUrl, hasToken, inputs })
   const res = await fetch(dispatchUrl, { method: 'POST', headers: headers(), body: JSON.stringify({ ref, inputs }) })
   if (res.status !== 204) {
     const body = await res.text().catch(() => '')
