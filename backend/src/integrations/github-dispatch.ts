@@ -10,7 +10,7 @@
  *
  * Configuration (server env — never logged, never returned to the client):
  *   GITHUB_DISPATCH_TOKEN   fine-grained PAT with "Actions: read & write" on the repo
- *   GITHUB_REPO             "owner/repo" (default: Boatsy007/CNCA)
+ *   GITHUB_REPO             "owner/repo" (or derive from GITHUB_REPOSITORY / Vercel git env)
  *   GITHUB_REF              branch to run the workflow on (default: work)
  *
  * If the token is missing, dispatch() throws a clear, non-sensitive error so the
@@ -25,8 +25,13 @@ const API = 'https://api.github.com'
 export interface DispatchConfig { repo: string; ref: string; hasToken: boolean }
 
 export function githubConfig(): DispatchConfig {
+  const vercelRepo = process.env.VERCEL_GIT_REPO_OWNER && process.env.VERCEL_GIT_REPO_SLUG
+    ? `${process.env.VERCEL_GIT_REPO_OWNER}/${process.env.VERCEL_GIT_REPO_SLUG}`
+    : undefined
+  const repo = process.env.GITHUB_REPO ?? process.env.GITHUB_REPOSITORY ?? vercelRepo
+  if (!repo) throw new Error('GitHub Actions dispatch is not configured: missing repository. Set GITHUB_REPO, GITHUB_REPOSITORY, or both VERCEL_GIT_REPO_OWNER and VERCEL_GIT_REPO_SLUG.')
   return {
-    repo: process.env.GITHUB_REPO ?? 'Boatsy007/CNCA',
+    repo,
     ref:  process.env.GITHUB_REF  ?? 'work',
     hasToken: !!process.env.GITHUB_DISPATCH_TOKEN,
   }
@@ -43,7 +48,7 @@ function headers(): Record<string, string> {
     'Authorization': `Bearer ${token()}`,
     'Accept':        'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent':    'CNCA-Admin/1.0',
+    'User-Agent':    'PlayFooty-Admin/1.0',
   }
 }
 
