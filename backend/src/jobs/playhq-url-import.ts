@@ -33,11 +33,12 @@ import { computeAutomaticStrength, finalStrength, strengthScoreFromRating } from
 import { overrideForLeague }       from '../config/league-overrides.js'
 import { getISOWeekLabel }         from '../utils/week-label.js'
 import { logger }                  from '../utils/logger.js'
-import { fetchPage, parseLadder, parseFixtures, parseResults, type FixtureRow, type ResultRow, type LadderRow } from '../football/url-ingest.js'
+import { fetchPage, parseLadder, parseFixtures, parseResults, parseGoalKickers, type FixtureRow, type ResultRow, type LadderRow, type GoalKickerRow } from '../football/url-ingest.js'
 
 const GRADE  = 'A Grade'
 const SEASON = '2026'
 const AFL_PLAYHQ_RE = /(?:^|\/)afl(?:\/|$)/i
+const PLAYHQ_STATISTICS_RE = /\/statistics(?:$|[?#])/i
 
 export interface ImportReport {
   status:       'SUCCESS' | 'NO_DATA' | 'FAILED'
@@ -86,6 +87,10 @@ export async function importFromUrl(rawUrl: string, opts: { rerank?: boolean } =
 
   const directFootballLadderUrl = parsed.ladderUrl
   if (/^afl$/i.test(parsed.tenant ?? '')) {
+    if (PLAYHQ_STATISTICS_RE.test(rawUrl)) {
+      if (directFootballLadderUrl) return importFootballLeagueFromPlayHq(directFootballLadderUrl, rawUrl, { ...opts, statisticsUrl: rawUrl })
+      return { ...emptyReport('FAILED'), url: rawUrl, kind: parsed.kind, error: 'PlayHQ AFL goal kicker imports require a grade statistics URL so the football importer can locate the matching ladder and league.' }
+    }
     if (directFootballLadderUrl) return importFootballLeagueFromPlayHq(directFootballLadderUrl, rawUrl, opts)
     return { ...emptyReport('FAILED'), url: rawUrl, kind: parsed.kind, error: 'PlayHQ AFL football imports require a grade or ladder URL so the football importer can classify the data as FOOTBALL.' }
   }
@@ -342,10 +347,10 @@ const num = (v: unknown, fallback = 0) => Number.isFinite(Number(v)) ? Number(v)
 const points = (goals?: number, behinds?: number, total?: number) => Number.isFinite(Number(total)) ? Number(total) : num(goals) * 6 + num(behinds)
 const visibleFootballLeagueFields = { sport: FOOTBALL_SPORT, isActive: true, enabled: true, hidden: false, archivedAt: null, status: 'ACTIVE', approvalStatus: 'APPROVED', primaryDataSource: 'PLAYHQ_SCRAPER', scrapeEnabled: true } as const
 
-async function importFootballLeagueFromPlayHq(ladderUrl: string, rawUrl: string, opts: { rerank?: boolean } = {}): Promise<ImportReport> {
+async function importFootballLeagueFromPlayHq(ladderUrl: string, rawUrl: string, opts: { rerank?: boolean; statisticsUrl?: string } = {}): Promise<ImportReport> {
   const report = emptyReport('SUCCESS')
   report.url = rawUrl
-  report.kind = 'LADDER'
+  report.kind = opts.statisticsUrl ? 'GOAL_KICKERS' : 'LADDER'
 
   const parsed = parsePlayHQUrl(ladderUrl)
   const baseUrl = ladderUrl.replace(/\/ladder\/?$/i, '')
@@ -398,6 +403,20 @@ async function importFootballLeagueFromPlayHq(ladderUrl: string, rawUrl: string,
   await recordFootballImport(league.id, 'LADDER', ladderUrl, ladder.rows.length, ladderWritten, ladder.confidence, 'COMMITTED', { strategy: ladder.strategy, warnings: ladder.warnings, rows: ladder.rows })
   console.log(`[playhq-football] clubs/ladder written: clubs=${clubByName.size} ladderRows=${ladderWritten}`)
 
+  let goalKickerRows = 0, goalKickersWritten = 0
+  if (opts.statisticsUrl) {
+    const statisticsPage = await fetchPage(opts.statisticsUrl, 45_000)
+    const goalKickers = parseGoalKickers(statisticsPage)
+    goalKickerRows = goalKickers.rows.length
+    report.confidence = Math.max(report.confidence, goalKickers.confidence)
+    report.warnings.push(...goalKickers.warnings)
+    for (const row of goalKickers.rows) {
+      if (await upsertFootballGoalKicker(league.id, league.name, season, grade, row, clubByName, opts.statisticsUrl)) goalKickersWritten++
+    }
+    await recordFootballImport(league.id, 'GOAL_KICKERS', opts.statisticsUrl, goalKickerRows, goalKickersWritten, goalKickers.confidence, goalKickerRows ? 'COMMITTED' : 'PREVIEWED', { strategy: goalKickers.strategy, warnings: goalKickers.warnings, rows: goalKickers.rows }, goalKickerRows ? undefined : 'No goal kicker rows parsed from PlayHQ statistics URL')
+    console.log(`[playhq-football] goal kickers parsed=${goalKickerRows}; written=${goalKickersWritten}`)
+  }
+
   const roundUrls = discoverRoundUrls(baseUrl, ladderPage.body)
   console.log(`[playhq-football] round URLs discovered/generated: ${roundUrls.length}`)
   let fixtureRows = 0, resultRows = 0, fixturesWritten = 0, resultsWritten = 0
@@ -424,7 +443,7 @@ async function importFootballLeagueFromPlayHq(ladderUrl: string, rawUrl: string,
     report.rankingRecalculated = true
     report.clubsRanked = clubsRanked
   }
-  console.log(`[playhq-football] database records written: ladder=${ladderWritten} fixtures=${fixturesWritten} results=${resultsWritten} rankings=${report.rankingRecalculated}`)
+  console.log(`[playhq-football] database records written: ladder=${ladderWritten} goalKickers=${goalKickersWritten} fixtures=${fixturesWritten} results=${resultsWritten} rankings=${report.rankingRecalculated}`)
   return report
 }
 
@@ -472,6 +491,22 @@ async function upsertFootballLadder(leagueId: string, season: string, grade: str
   return true
 }
 
+async function upsertFootballGoalKicker(leagueId: string, leagueName: string, season: string, grade: string, r: GoalKickerRow, clubs: Map<string, string>, sourceUrl: string): Promise<boolean> {
+  const playerName = r.playerName.trim()
+  const clubName = r.clubName.trim()
+  const rowSeason = r.season ?? season
+  const rowGrade = r.grade ?? grade
+  const goals = num(r.goals)
+  if (!playerName || !clubName || goals < 0) return false
+  const clubId = clubs.get(clubName.toLowerCase()) ?? (await prisma.club.findFirst({ where: { name: { equals: clubName, mode: 'insensitive' }, sport: FOOTBALL_SPORT, archivedAt: null }, select: { id: true } }))?.id ?? null
+  await prisma.footballGoalKicker.upsert({
+    where: { season_grade_playerName_clubName_leagueName: { season: rowSeason, grade: rowGrade, playerName, clubName, leagueName } },
+    create: { playerName, clubId, clubName, leagueId, leagueName, season: rowSeason, grade: rowGrade, goals, matches: r.matches == null ? null : num(r.matches), sourceUrl: r.sourceUrl ?? sourceUrl, sourceType: 'PLAYHQ', importedAt: new Date() },
+    update: { clubId, leagueId, leagueName, goals, matches: r.matches == null ? null : num(r.matches), sourceUrl: r.sourceUrl ?? sourceUrl, sourceType: 'PLAYHQ', importedAt: new Date() },
+  })
+  return true
+}
+
 async function upsertFootballFixture(leagueId: string, season: string, grade: string, r: FixtureRow, clubs: Map<string, string>): Promise<boolean> {
   await prisma.footballFixture.upsert({
     where: { leagueId_season_grade_round_homeName_awayName: { leagueId, season, grade, round: r.round ?? 'Round TBC', homeName: r.homeName, awayName: r.awayName } },
@@ -490,7 +525,7 @@ async function upsertFootballResult(leagueId: string, season: string, grade: str
   return true
 }
 
-async function recordFootballImport(leagueId: string | null, dataType: 'LADDER' | 'FIXTURES' | 'RESULTS', sourceUrl: string, found: number, imported: number, confidence: number, status: string, payload: unknown, error?: string): Promise<void> {
+async function recordFootballImport(leagueId: string | null, dataType: 'LADDER' | 'FIXTURES' | 'RESULTS' | 'GOAL_KICKERS', sourceUrl: string, found: number, imported: number, confidence: number, status: string, payload: unknown, error?: string): Promise<void> {
   if (!leagueId) return
   await prisma.footballDataImport.upsert({
     where: { leagueId_sourceType_dataType_payloadHash: { leagueId, sourceType: 'PLAYHQ_SCRAPER', dataType, payloadHash: stableHash({ sourceUrl, dataType }) } },
