@@ -73,6 +73,7 @@ export async function dispatchWorkflow(workflowFile: string, inputs: Record<stri
   const before = await latestRun(workflowFile).catch(() => null)
 
   logger.info('GitHubDispatch: dispatch request', { repo, ref, workflowFile, dispatchUrl, hasToken, inputs })
+  await logWorkflowDiagnostic(repo).catch(() => undefined)
   const res = await fetch(dispatchUrl, { method: 'POST', headers: headers(), body: JSON.stringify({ ref, inputs }) })
   if (res.status !== 204) {
     const body = await res.text().catch(() => '')
@@ -90,6 +91,19 @@ export async function dispatchWorkflow(workflowFile: string, inputs: Record<stri
   }
   const htmlUrl = run?.htmlUrl ?? `https://github.com/${repo}/actions/workflows/${workflowFile}`
   return { dispatched: true, run, htmlUrl }
+}
+
+async function logWorkflowDiagnostic(repo: string): Promise<void> {
+  const res = await fetch(`${API}/repos/${repo}/actions/workflows`, { headers: headers() })
+  const json = await res.json().catch(() => null) as { workflows?: Array<Record<string, unknown>> } | null
+  const workflow = json?.workflows?.find(w => String(w.path ?? '').endsWith('.github/workflows/playhq-url-import.yml'))
+  logger.info('GitHubDispatch: workflow diagnostic', {
+    status: res.status,
+    workflowId: workflow ? Number(workflow.id) : null,
+    workflowName: workflow ? String(workflow.name ?? '') : null,
+    workflowPath: workflow ? String(workflow.path ?? '') : null,
+    workflowState: workflow ? String(workflow.state ?? '') : null,
+  })
 }
 
 /** Most recent run for a workflow on the configured ref. */
