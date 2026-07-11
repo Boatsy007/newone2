@@ -1,28 +1,33 @@
-name: PlayHQ URL Import / Sync
+name: PlayHQ Import
 
-# Phase 1 + Phase 10: import a league from ANY pasted PlayHQ URL, sync a single
-# league by id, or sync every league that has a stored PlayHQ URL. Browser-backed
-# (Playwright/Chromium) and writes to the database, then re-ranks nationally.
+# Import a league from a pasted PlayHQ URL, sync a single league,
+# or sync every league that has a stored PlayHQ URL.
+# Runs with Playwright/Chromium, writes to the database,
+# uploads diagnostics, and then re-ranks nationally.
+
 on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'PlayHQ URL to import (association / competition / season / grade / ladder). Leave blank to sync instead.'
+        description: 'PlayHQ URL to import. Leave blank to sync instead.'
         required: false
         default: ''
         type: string
+
       sync_league_id:
-        description: 'Sync a single league by its id (re-scrape its stored URL). Blank = none.'
+        description: 'Sync a single league by its ID. Leave blank for none.'
         required: false
         default: ''
         type: string
+
       sync_all:
-        description: 'Sync every league that has a stored PlayHQ URL (weekly refresh).'
+        description: 'Sync every league that has a stored PlayHQ URL.'
         required: false
         default: false
         type: boolean
+
       dry_run:
-        description: 'Dispatch/connectivity dry run for league sync (no scraper import)'
+        description: 'Dispatch/connectivity dry run with no scraper import.'
         required: false
         default: false
         type: boolean
@@ -32,31 +37,43 @@ jobs:
     name: PlayHQ URL import / sync + rank
     runs-on: ubuntu-latest
     timeout-minutes: 240
+
     env:
-      DATABASE_URL:  ${{ secrets.DATABASE_URL }}
-      DIRECT_URL:    ${{ secrets.DIRECT_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
       ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
       PLAYFOOTY_RENDER_PLAYHQ: "1"
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'npm', cache-dependency-path: 'backend/package-lock.json' }
-      - name: Install dependencies
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
         working-directory: backend
         run: npm ci
+
       - name: Generate Prisma client
         working-directory: backend
         run: npx prisma generate
+
       - name: Install Playwright Chromium
         working-directory: backend
         run: npx playwright install chromium --with-deps
-      - name: Run URL import / sync
+
+      - name: Run PlayHQ import or sync
         working-directory: backend
         env:
           IMPORT_URL: ${{ inputs.url }}
-          SYNC_ID:    ${{ inputs.sync_league_id }}
-          SYNC_ALL:   ${{ inputs.sync_all }}
-          DRY_RUN:    ${{ inputs.dry_run }}
+          SYNC_ID: ${{ inputs.sync_league_id }}
+          SYNC_ALL: ${{ inputs.sync_all }}
+          DRY_RUN: ${{ inputs.dry_run }}
           PLAYFOOTY_ARTIFACT_DIR: ../artifacts/playhq
         run: |
           if [ -n "$IMPORT_URL" ]; then
@@ -71,7 +88,9 @@ jobs:
             npx tsx src/jobs/playhq-url-import-trigger.ts --sync-all
           else
             echo "Nothing to do — provide url, sync_league_id, or sync_all."
+            exit 1
           fi
+
       - name: Upload PlayHQ diagnostics
         if: always()
         uses: actions/upload-artifact@v4
