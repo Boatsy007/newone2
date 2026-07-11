@@ -2,8 +2,8 @@ name: PlayHQ Import
 
 # Import a league from a pasted PlayHQ URL, sync a single league,
 # or sync every league that has a stored PlayHQ URL.
-# Runs with Playwright/Chromium, writes to the database,
-# uploads diagnostics, and then re-ranks nationally.
+# Runs pending Prisma migrations, installs Playwright/Chromium,
+# writes to the database, uploads diagnostics, and re-ranks nationally.
 
 on:
   workflow_dispatch:
@@ -62,6 +62,10 @@ jobs:
       - name: Generate Prisma client
         working-directory: backend
         run: npx prisma generate
+
+      - name: Apply pending Prisma migrations
+        working-directory: backend
+        run: npx prisma migrate deploy
 
       - name: Install Playwright Chromium
         working-directory: backend
