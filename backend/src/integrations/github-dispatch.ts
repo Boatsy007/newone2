@@ -67,13 +67,11 @@ export interface WorkflowRunInfo {
  * can track it. Returns the (best-effort) newest run for the workflow on the ref.
  */
 export async function dispatchWorkflow(workflowFile: string, inputs: Record<string, string> = {}): Promise<{ dispatched: true; run: WorkflowRunInfo | null; htmlUrl: string }> {
-  const { repo, ref, hasToken } = githubConfig()
+  const { repo, ref } = githubConfig()
   const dispatchUrl = `${API}/repos/${repo}/actions/workflows/${workflowFile}/dispatches`
 
   const before = await latestRun(workflowFile).catch(() => null)
 
-  logger.info('GitHubDispatch: dispatch request', { repo, ref, workflowFile, dispatchUrl, hasToken, inputs })
-  await logWorkflowDiagnostic(repo).catch(() => undefined)
   const res = await fetch(dispatchUrl, { method: 'POST', headers: headers(), body: JSON.stringify({ ref, inputs }) })
   if (res.status !== 204) {
     const body = await res.text().catch(() => '')
@@ -91,32 +89,6 @@ export async function dispatchWorkflow(workflowFile: string, inputs: Record<stri
   }
   const htmlUrl = run?.htmlUrl ?? `https://github.com/${repo}/actions/workflows/${workflowFile}`
   return { dispatched: true, run, htmlUrl }
-}
-
-async function logWorkflowDiagnostic(repo: string): Promise<void> {
-  let status: number | undefined
-  try {
-    const res = await fetch(`${API}/repos/${repo}/actions/workflows`, { headers: headers() })
-    status = res.status
-    const body = await res.text()
-    let json: { workflows?: Array<Record<string, unknown>> } | null = null
-    try {
-      json = JSON.parse(body) as { workflows?: Array<Record<string, unknown>> }
-    } catch (err) {
-      logger.info('GitHubDispatch: workflow diagnostic', { status, error: err instanceof Error ? err.message : String(err), responseBody: body.slice(0, 500) })
-      return
-    }
-    for (const workflow of json?.workflows ?? []) {
-      logger.info('GitHubDispatch: workflow diagnostic', {
-        id: Number(workflow.id),
-        name: String(workflow.name ?? ''),
-        path: String(workflow.path ?? ''),
-        state: String(workflow.state ?? ''),
-      })
-    }
-  } catch (err) {
-    logger.info('GitHubDispatch: workflow diagnostic', { status, error: err instanceof Error ? err.message : String(err), responseBody: '' })
-  }
 }
 
 /** Most recent run for a workflow on the configured ref. */
