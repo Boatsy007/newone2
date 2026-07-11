@@ -106,14 +106,14 @@ async function logWorkflowDiagnostic(repo: string): Promise<void> {
       logger.info('GitHubDispatch: workflow diagnostic', { status, error: err instanceof Error ? err.message : String(err), responseBody: body.slice(0, 500) })
       return
     }
-    const workflow = json?.workflows?.find(w => String(w.path ?? '').endsWith('.github/workflows/playhq-url-import.yml'))
-    logger.info('GitHubDispatch: workflow diagnostic', {
-      status,
-      workflowId: workflow ? Number(workflow.id) : null,
-      workflowName: workflow ? String(workflow.name ?? '') : null,
-      workflowPath: workflow ? String(workflow.path ?? '') : null,
-      workflowState: workflow ? String(workflow.state ?? '') : null,
-    })
+    for (const workflow of json?.workflows ?? []) {
+      logger.info('GitHubDispatch: workflow diagnostic', {
+        id: Number(workflow.id),
+        name: String(workflow.name ?? ''),
+        path: String(workflow.path ?? ''),
+        state: String(workflow.state ?? ''),
+      })
+    }
   } catch (err) {
     logger.info('GitHubDispatch: workflow diagnostic', { status, error: err instanceof Error ? err.message : String(err), responseBody: '' })
   }
