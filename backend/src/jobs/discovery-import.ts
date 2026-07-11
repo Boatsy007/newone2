@@ -10,7 +10,7 @@
  * leagues keep their manual strength.
  *
  * Requires the Phase-4 additive migration to have been applied
- * (prisma/migrations/manual/2026_discovery_fields.sql).
+ * (manual-migrations/2026_discovery_fields.sql).
  *
  * Usage:
  *   tsx src/jobs/discovery-import.ts --max-associations=5
