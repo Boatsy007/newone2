@@ -94,16 +94,29 @@ export async function dispatchWorkflow(workflowFile: string, inputs: Record<stri
 }
 
 async function logWorkflowDiagnostic(repo: string): Promise<void> {
-  const res = await fetch(`${API}/repos/${repo}/actions/workflows`, { headers: headers() })
-  const json = await res.json().catch(() => null) as { workflows?: Array<Record<string, unknown>> } | null
-  const workflow = json?.workflows?.find(w => String(w.path ?? '').endsWith('.github/workflows/playhq-url-import.yml'))
-  logger.info('GitHubDispatch: workflow diagnostic', {
-    status: res.status,
-    workflowId: workflow ? Number(workflow.id) : null,
-    workflowName: workflow ? String(workflow.name ?? '') : null,
-    workflowPath: workflow ? String(workflow.path ?? '') : null,
-    workflowState: workflow ? String(workflow.state ?? '') : null,
-  })
+  let status: number | undefined
+  try {
+    const res = await fetch(`${API}/repos/${repo}/actions/workflows`, { headers: headers() })
+    status = res.status
+    const body = await res.text()
+    let json: { workflows?: Array<Record<string, unknown>> } | null = null
+    try {
+      json = JSON.parse(body) as { workflows?: Array<Record<string, unknown>> }
+    } catch (err) {
+      logger.info('GitHubDispatch: workflow diagnostic', { status, error: err instanceof Error ? err.message : String(err), responseBody: body.slice(0, 500) })
+      return
+    }
+    const workflow = json?.workflows?.find(w => String(w.path ?? '').endsWith('.github/workflows/playhq-url-import.yml'))
+    logger.info('GitHubDispatch: workflow diagnostic', {
+      status,
+      workflowId: workflow ? Number(workflow.id) : null,
+      workflowName: workflow ? String(workflow.name ?? '') : null,
+      workflowPath: workflow ? String(workflow.path ?? '') : null,
+      workflowState: workflow ? String(workflow.state ?? '') : null,
+    })
+  } catch (err) {
+    logger.info('GitHubDispatch: workflow diagnostic', { status, error: err instanceof Error ? err.message : String(err), responseBody: '' })
+  }
 }
 
 /** Most recent run for a workflow on the configured ref. */
