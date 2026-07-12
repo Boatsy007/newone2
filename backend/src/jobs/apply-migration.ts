@@ -1,7 +1,7 @@
 /**
  * Additive migration applier (pooler-safe).
  * ─────────────────────────────────────────────────────────────────────────────
- * Runs prisma/migrations/manual/2026_discovery_fields.sql over the SAME
+ * Runs manual-migrations/2026_discovery_fields.sql over the SAME
  * connection the app uses (Prisma Client in pgbouncer/transaction-pool mode).
  *
  * We deliberately DON'T use `prisma db execute` / the schema engine: it needs a
@@ -18,7 +18,7 @@
 import { readFileSync } from 'fs'
 import { prisma } from '../db/client.js'
 
-const file = process.argv[2] ?? 'prisma/migrations/manual/2026_discovery_fields.sql'
+const file = process.argv[2] ?? 'manual-migrations/2026_discovery_fields.sql'
 
 /** Strip line comments (-- …) and split into individual SQL statements. */
 function statements(sql: string): string[] {
