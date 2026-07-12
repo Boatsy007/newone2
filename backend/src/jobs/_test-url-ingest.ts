@@ -5,6 +5,7 @@
 import { parseResults, parseFixtures, parseLadder, type FetchedPage } from '../football/url-ingest.js'
 
 const page = (body: string, contentType = 'text/html'): FetchedPage => ({ url: 'x', ok: true, status: 200, contentType, body })
+const capturedPage = (json: unknown): FetchedPage => page(`<html><body><script id="__PLAYFOOTY_CAPTURED_JSON__" type="application/json">${JSON.stringify([json])}</script></body></html>`)
 
 async function main() {
   const checks: [string, boolean][] = []
@@ -34,6 +35,86 @@ async function main() {
   const jl = JSON.stringify({ ladder: [{ team: { name: 'A FC' }, position: 1, played: 5, wins: 5, points: 20, pointsFor: 450, pointsAgainst: 210 }] })
   const l1 = parseLadder(page(jl, 'application/json'))
   checks.push(['json ladder: 1 row', l1.rows.length === 1 && l1.rows[0].points === 20 && l1.rows[0].position === 1])
+
+  // 4a) PlayHQ captured GraphQL ladder: current ladder rows live under nested
+  // GraphQL objects with team.name plus statistic rows; sport metadata like
+  // { name: "afl" } must never be accepted as a ladder club.
+  const teams = [
+    'Wangaratta Rovers Seniors',
+    'Wangaratta Seniors',
+    'Myrtleford Seniors',
+    'Wodonga Seniors',
+    'Yarrawonga Seniors',
+    'Lavington Seniors',
+    'North Albury Seniors',
+    'Albury Seniors',
+    'Corowa Rutherglen Seniors',
+    'Wodonga Raiders Seniors',
+  ]
+  const playHqLadder = {
+    data: {
+      tenant: { name: 'afl', points: 1 },
+      grade: {
+        ladder: {
+          rows: teams.map((name, i) => ({
+            position: i + 1,
+            team: { name },
+            statistics: [
+              { name: 'P', value: 9 },
+              { name: 'W', value: Math.max(0, 9 - i) },
+              { name: 'L', value: i },
+              { name: 'D', value: 0 },
+              { name: 'Byes', value: 0 },
+              { name: 'PF', value: 720 - i * 20 },
+              { name: 'PA', value: 400 + i * 15 },
+              { name: '%', value: 180 - i * 5 },
+              { name: 'PTS', value: Math.max(0, 36 - i * 4) },
+              { name: 'Adjusted', value: 0 },
+            ],
+          })),
+        },
+      },
+    },
+  }
+  const l2 = parseLadder(capturedPage(playHqLadder))
+  checks.push(['playhq ladder: 10 rows parsed', l2.rows.length === 10])
+  checks.push(['playhq ladder: Wangaratta Rovers present', l2.rows.some(r => r.clubName === 'Wangaratta Rovers Seniors')])
+  checks.push(['playhq ladder: Wodonga Raiders present', l2.rows.some(r => r.clubName === 'Wodonga Raiders Seniors')])
+  checks.push(['playhq ladder: no afl row', !l2.rows.some(r => r.clubName.toLowerCase() === 'afl')])
+
+  // 4b) PlayHQ captured GraphQL fixtures/results: nested home/away sides carry
+  // team, score and round metadata.
+  const playHqRound = {
+    data: {
+      round: {
+        name: 'Round 9',
+        matches: [
+          {
+            round: { name: 'Round 9' },
+            scheduledAt: '2026-06-06T14:00:00+10:00',
+            venue: { name: 'Wangaratta Showgrounds' },
+            home: { team: { name: 'Wangaratta Rovers Seniors' }, score: { goals: 12, behinds: 8, total: 80 } },
+            away: { team: { name: 'Wodonga Raiders Seniors' }, score: { goals: 9, behinds: 10, total: 64 } },
+            status: 'FINAL',
+          },
+        ],
+        upcoming: [
+          {
+            round: { name: 'Round 9' },
+            scheduledAt: '2026-06-07T14:00:00+10:00',
+            venue: { name: 'Lavington Sports Ground' },
+            home: { team: { name: 'Lavington Seniors' } },
+            away: { team: { name: 'Albury Seniors' } },
+            status: 'SCHEDULED',
+          },
+        ],
+      },
+    },
+  }
+  const r3 = parseResults(capturedPage(playHqRound))
+  const f2 = parseFixtures(capturedPage(playHqRound))
+  checks.push(['playhq results: Round 9 teams parsed', r3.rows.length === 1 && r3.rows[0].homeName === 'Wangaratta Rovers Seniors' && r3.rows[0].awayName === 'Wodonga Raiders Seniors' && r3.rows[0].homePoints === 80])
+  checks.push(['playhq fixtures: Round 9 teams parsed', f2.rows.length === 1 && f2.rows[0].homeName === 'Lavington Seniors' && f2.rows[0].awayName === 'Albury Seniors'])
 
   // 5) Empty page → graceful, no fabrication
   const e1 = parseResults(page('<html><body>Loading…</body></html>'))
