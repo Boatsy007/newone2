@@ -12,19 +12,14 @@ import { publicRateLimit } from '../middleware/rate-limit.js'
 const router = Router()
 
 // GET /api/leagues
-// Keep this query deliberately narrow and resilient. The public directory should
-// still render leagues even if an optional relation/count is temporarily broken.
+// The public directory intentionally returns every league row. Visibility/status
+// fields are administrative metadata and must not hide existing leagues here.
 router.get('/', publicRateLimit, cachePublic(60), async (req, res) => {
   try {
     const { state } = req.query as Record<string, string>
 
     const leagues = await prisma.league.findMany({
-      where: {
-        sport: 'FOOTBALL',
-        isActive: true,
-        archivedAt: null,
-        ...(state ? { state: { code: state } } : {}),
-      },
+      where: state ? { state: { code: state } } : undefined,
       select: {
         id: true,
         name: true,
@@ -91,7 +86,7 @@ router.get('/search/global', publicRateLimit, cachePublic(120), async (req, res)
     const run = await prisma.rankingRun.findFirst({ where: { status: 'COMPLETED' }, orderBy: { completedAt: 'desc' } })
     const teams = run
       ? await prisma.rankingEntry.findMany({
-          where:   { runId: run.id, clubName: { contains: q, mode: 'insensitive' as const }, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } },
+          where:   { runId: run.id, clubName: { contains: q, mode: 'insensitive' as const } },
           orderBy: { rank: 'asc' },
           take:    12,
           select:  { clubId: true, clubName: true, leagueName: true, state: true, rank: true },
@@ -99,7 +94,7 @@ router.get('/search/global', publicRateLimit, cachePublic(120), async (req, res)
       : []
 
     const leagues = await prisma.league.findMany({
-      where:   { sport: 'FOOTBALL', isActive: true, archivedAt: null, name: { contains: q, mode: 'insensitive' as const } },
+      where:   { name: { contains: q, mode: 'insensitive' as const } },
       orderBy: { strengthScore: 'desc' },
       take:    12,
       select:  { id: true, name: true, strengthScore: true, state: { select: { code: true } } },
@@ -121,13 +116,8 @@ router.get('/search/global', publicRateLimit, cachePublic(120), async (req, res)
 // GET /api/leagues/:id
 router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
   try {
-    const league = await prisma.league.findFirst({
-      where: {
-        id: req.params.id,
-        sport: 'FOOTBALL',
-        isActive: true,
-        archivedAt: null,
-      },
+    const league = await prisma.league.findUnique({
+      where: { id: req.params.id },
       select: {
         id: true,
         name: true,
