@@ -284,6 +284,7 @@ function walk<T>(root: unknown, pick: (o: Record<string, unknown>) => T | null, 
 
 const asNum = (v: unknown): number | undefined => {
   if (v == null || v === '') return undefined
+  if (typeof v !== 'number' && typeof v !== 'string') return undefined
   const n = Number(String(v).replace(/[^\d.-]/g, ''))
   return Number.isFinite(n) ? n : undefined
 }
@@ -296,6 +297,12 @@ const teamName = (v: unknown): string | undefined => {
   return undefined
 }
 const normalKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9%]+/g, '')
+const genericTeamNames = new Set(['afl', 'football', 'ladder', 'fixture', 'fixtures', 'statistics', 'stats', 'sport', 'tenant', 'team', 'club'])
+const plausibleTeamName = (name: string): boolean => {
+  const n = clean(name)
+  const key = n.toLowerCase()
+  return n.length >= 3 && !genericTeamNames.has(key) && !/^\d+$/.test(n) && !/^https?:\/\//i.test(n)
+}
 function metric(obj: unknown, keys: string[], seen = new Set<unknown>()): number | undefined {
   if (!obj || typeof obj !== 'object' || seen.has(obj)) return undefined
   seen.add(obj)
@@ -331,26 +338,60 @@ function metric(obj: unknown, keys: string[], seen = new Set<unknown>()): number
 }
 
 // ── structured (JSON / __NEXT_DATA__) extraction ──────────────────────────────
+function nested(obj: unknown, ...keys: string[]): unknown {
+  if (!obj || typeof obj !== 'object') return undefined
+  const o = obj as Record<string, unknown>
+  for (const key of keys) {
+    if (o[key] != null) return o[key]
+  }
+  return undefined
+}
+
+function roundName(v: unknown): string | undefined {
+  if (typeof v === 'number') return `Round ${v}`
+  if (typeof v === 'string' && v.trim()) return clean(v)
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>
+    return roundName(o.name ?? o.displayName ?? o.label ?? o.roundName ?? o.number ?? o.roundNumber)
+  }
+  return undefined
+}
+
+function scoreFromSide(side: unknown): { goals?: number; behinds?: number; total?: number } | null {
+  if (!side || typeof side !== 'object') return null
+  const o = side as Record<string, unknown>
+  return parseScoreValue(o.score ?? o.points ?? o.total ?? o.result ?? o.matchScore ?? o.latestScore)
+    ?? parseScoreValue({ goals: o.goals ?? o.goalCount, behinds: o.behinds ?? o.behindCount, total: o.total ?? o.points ?? o.scoreTotal })
+}
+
+function teamFromSide(side: unknown, fallback?: unknown): string | undefined {
+  return teamName(fallback) ?? teamName(side) ?? teamName(nested(side, 'team', 'club', 'participant', 'competitor'))
+}
+
 function resultsFromJson(root: unknown): ResultRow[] {
   return walk<ResultRow>(root, o => {
-    const home = teamName(o.homeTeam ?? o.home ?? o.homeTeamName ?? o.homeName ?? o.homeCompetitor ?? o.homeSide)
-    const away = teamName(o.awayTeam ?? o.away ?? o.awayTeamName ?? o.awayName ?? o.awayCompetitor ?? o.awaySide)
+    const homeSide = nested(o, 'home', 'homeTeam', 'homeCompetitor', 'homeSide', 'homeParticipant')
+    const awaySide = nested(o, 'away', 'awayTeam', 'awayCompetitor', 'awaySide', 'awayParticipant')
+    const home = teamFromSide(homeSide, o.homeTeamName ?? o.homeName)
+    const away = teamFromSide(awaySide, o.awayTeamName ?? o.awayName)
     if (!home || !away) return null
-    const hs = parseScoreValue(o.homeScore ?? o.homePoints ?? o.homeResult ?? o.home)
-    const as = parseScoreValue(o.awayScore ?? o.awayPoints ?? o.awayResult ?? o.away)
-    const hg = asNum(o.homeGoals) ?? hs?.goals, hb = asNum(o.homeBehinds) ?? hs?.behinds, hp = asNum(o.homeScore ?? o.homePoints) ?? hs?.total
-    const ag = asNum(o.awayGoals) ?? as?.goals, ab = asNum(o.awayBehinds) ?? as?.behinds, ap = asNum(o.awayScore ?? o.awayPoints) ?? as?.total
+    const hs = parseScoreValue(o.homeScore ?? o.homePoints ?? o.homeResult ?? o.home) ?? scoreFromSide(homeSide)
+    const as = parseScoreValue(o.awayScore ?? o.awayPoints ?? o.awayResult ?? o.away) ?? scoreFromSide(awaySide)
+    const hg = asNum(o.homeGoals) ?? asNum(nested(homeSide, 'goals', 'goalCount')) ?? hs?.goals, hb = asNum(o.homeBehinds) ?? asNum(nested(homeSide, 'behinds', 'behindCount')) ?? hs?.behinds, hp = asNum(o.homeScore ?? o.homePoints) ?? hs?.total
+    const ag = asNum(o.awayGoals) ?? asNum(nested(awaySide, 'goals', 'goalCount')) ?? as?.goals, ab = asNum(o.awayBehinds) ?? asNum(nested(awaySide, 'behinds', 'behindCount')) ?? as?.behinds, ap = asNum(o.awayScore ?? o.awayPoints) ?? as?.total
     if (hg == null && hp == null && ag == null && ap == null) return null // fixtures, not results
-    return { homeName: home, awayName: away, homeGoals: hg, homeBehinds: hb, homePoints: hp, awayGoals: ag, awayBehinds: ab, awayPoints: ap, round: str(o.round ?? o.roundName), matchDate: str(o.date ?? o.startDate ?? o.matchDate ?? o.startTime), time: str(o.time ?? o.matchTime), venue: teamName(o.venue ?? o.venueName), status: str(o.status ?? o.matchStatus) }
+    return { homeName: home, awayName: away, homeGoals: hg, homeBehinds: hb, homePoints: hp, awayGoals: ag, awayBehinds: ab, awayPoints: ap, round: roundName(o.round ?? o.roundName ?? o.roundNumber), matchDate: str(o.date ?? o.startDate ?? o.matchDate ?? o.startTime ?? o.scheduledAt ?? o.scheduledStartTime), time: str(o.time ?? o.matchTime ?? o.startTime), venue: teamName(o.venue ?? o.venueName ?? o.ground), status: str(o.status ?? o.matchStatus ?? o.state ?? o.gameStatus) }
   })
 }
 function fixturesFromJson(root: unknown): FixtureRow[] {
   return walk<FixtureRow>(root, o => {
-    const home = teamName(o.homeTeam ?? o.home ?? o.homeTeamName ?? o.homeName ?? o.homeCompetitor ?? o.homeSide)
-    const away = teamName(o.awayTeam ?? o.away ?? o.awayTeamName ?? o.awayName ?? o.awayCompetitor ?? o.awaySide)
+    const homeSide = nested(o, 'home', 'homeTeam', 'homeCompetitor', 'homeSide', 'homeParticipant')
+    const awaySide = nested(o, 'away', 'awayTeam', 'awayCompetitor', 'awaySide', 'awayParticipant')
+    const home = teamFromSide(homeSide, o.homeTeamName ?? o.homeName)
+    const away = teamFromSide(awaySide, o.awayTeamName ?? o.awayName)
     if (!home || !away) return null
-    if (parseScoreValue(o.homeScore ?? o.homePoints ?? o.homeResult) || parseScoreValue(o.awayScore ?? o.awayPoints ?? o.awayResult)) return null
-    return { homeName: home, awayName: away, round: str(o.round ?? o.roundName), matchDate: str(o.date ?? o.startDate ?? o.matchDate ?? o.startTime), time: str(o.time ?? o.startTime ?? o.matchTime), venue: teamName(o.venue ?? o.venueName), status: str(o.status ?? o.matchStatus) ?? 'upcoming' }
+    if (parseScoreValue(o.homeScore ?? o.homePoints ?? o.homeResult) || parseScoreValue(o.awayScore ?? o.awayPoints ?? o.awayResult) || scoreFromSide(homeSide) || scoreFromSide(awaySide)) return null
+    return { homeName: home, awayName: away, round: roundName(o.round ?? o.roundName ?? o.roundNumber), matchDate: str(o.date ?? o.startDate ?? o.matchDate ?? o.startTime ?? o.scheduledAt ?? o.scheduledStartTime), time: str(o.time ?? o.startTime ?? o.matchTime), venue: teamName(o.venue ?? o.venueName ?? o.ground), status: str(o.status ?? o.matchStatus ?? o.state ?? o.gameStatus) ?? 'upcoming' }
   })
 }
 
@@ -437,10 +478,10 @@ function dedupeGoalKickers(rows: GoalKickerRow[]): GoalKickerRow[] {
 
 function ladderFromJson(root: unknown): LadderRow[] {
   const rows = walk<LadderRow>(root, o => {
-    const club = teamName(o.team ?? o.club ?? o.competitor ?? o.organisation ?? o.participant ?? o.clubName ?? o.teamName ?? o.name)
+    const club = teamName(o.team ?? o.club ?? o.competitor ?? o.organisation ?? o.participant ?? o.clubName ?? o.teamName)
     const played = metric(o, ['played', 'games', 'gamesPlayed', 'P', 'GP'])
     const pts = metric(o, ['points', 'premiershipPoints', 'competitionPoints', 'PTS'])
-    if (!club || (played == null && pts == null && metric(o, ['wins', 'won', 'W']) == null)) return null
+    if (!club || !plausibleTeamName(club) || (played == null && pts == null && metric(o, ['wins', 'won', 'W']) == null)) return null
     return {
       clubName: club,
       position: metric(o, ['position', 'rank', 'pos']),
@@ -459,6 +500,11 @@ function ladderFromJson(root: unknown): LadderRow[] {
     }
   })
   return dedupeLadderRows(rows)
+}
+
+function meaningfulLadderNumbers(row: LadderRow): number {
+  const values = [row.position, row.played, row.wins, row.losses, row.draws, row.byes, row.pointsFor, row.pointsAgainst, row.percentage, row.points, row.forfeits, row.disqualified, row.adjustedPoints]
+  return values.filter(v => v != null && Number.isFinite(v)).length
 }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? clean(v) : undefined)
@@ -513,15 +559,16 @@ function ladderFromCellRows(rows: string[][]): LadderRow[] {
   const numAt = (r: string[], i: number) => i >= 0 ? asNum(r[i]) : undefined
   const out = rows.slice(headerAt + 1).map((r, i): LadderRow | null => {
     const clubName = clean(r[teamIdx] ?? '')
-    if (!clubName || /^(team|club)$/i.test(clubName) || /^\d+$/.test(clubName)) return null
+    if (!clubName || !plausibleTeamName(clubName)) return null
     const row: LadderRow = { clubName, position: numAt(r, posIdx) ?? i + 1, played: numAt(r, playedIdx), wins: numAt(r, winsIdx), losses: numAt(r, lossesIdx), draws: numAt(r, drawsIdx), byes: numAt(r, byeIdx), pointsFor: numAt(r, forIdx), pointsAgainst: numAt(r, againstIdx), percentage: numAt(r, pctIdx), points: numAt(r, pointsIdx), forfeits: numAt(r, forfeitIdx), disqualified: numAt(r, dqIdx), adjustedPoints: numAt(r, adjustedIdx) }
-    return row.played != null || row.points != null || row.wins != null ? row : null
+    return meaningfulLadderNumbers(row) >= 2 ? row : null
   }).filter((r): r is LadderRow => !!r)
   return out.length >= 4 ? out : []
 }
 function dedupeLadderRows(rows: LadderRow[]): LadderRow[] {
   const seen = new Set<string>()
   return rows.filter(r => {
+    if (!plausibleTeamName(r.clubName) || meaningfulLadderNumbers(r) < 2) return false
     const key = r.clubName.toLowerCase()
     if (seen.has(key)) return false
     seen.add(key)
