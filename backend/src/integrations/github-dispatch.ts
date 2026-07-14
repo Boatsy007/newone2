@@ -3,31 +3,22 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * PlayHQ scraping needs a real headless browser (Playwright/Chromium), which
  * cannot run inside a Vercel serverless function. Instead, admin actions
- * (PlayHQ URL import, league sync, discovery scrape) DISPATCH a GitHub Actions
- * workflow — the workflow runs the browser-backed job on GitHub's runners and
- * writes to the same database. The admin panel stays one-click and polls the
- * run status back.
- *
- * Configuration (server env — never logged, never returned to the client):
- *   GITHUB_DISPATCH_TOKEN   fine-grained PAT with "Actions: read & write" on the repo
- *   GITHUB_REPO             "owner/repo" (default: Boatsy007/newone2)
- *   GITHUB_REF              branch to run the workflow on (default: newone1)
- *
- * If the token is missing, dispatch() throws a clear, non-sensitive error so the
- * admin UI can tell the operator to configure it — it never falls back to
- * running Playwright in-process.
+ * dispatch a GitHub Actions workflow that runs the browser-backed job and writes
+ * to the same database.
  */
 
 import { logger } from '../utils/logger.js'
 
 const API = 'https://api.github.com'
+const DISPATCH_REPO = 'Boatsy007/newone2'
+const DISPATCH_REF = 'newone1'
 
 export interface DispatchConfig { repo: string; ref: string; hasToken: boolean }
 
 export function githubConfig(): DispatchConfig {
   return {
-    repo: process.env.GITHUB_REPO ?? 'Boatsy007/newone2',
-    ref:  process.env.GITHUB_REF  ?? 'newone1',
+    repo: DISPATCH_REPO,
+    ref: DISPATCH_REF,
     hasToken: !!process.env.GITHUB_DISPATCH_TOKEN,
   }
 }
@@ -40,21 +31,21 @@ function token(): string {
 
 function headers(): Record<string, string> {
   return {
-    'Authorization': `Bearer ${token()}`,
-    'Accept':        'application/vnd.github+json',
+    Authorization: `Bearer ${token()}`,
+    Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent':    'PlayFooty-Admin/1.0',
+    'User-Agent': 'PlayFooty-Admin/1.0',
   }
 }
 
 export interface WorkflowRunInfo {
-  id:         number
-  status:     string
+  id: number
+  status: string
   conclusion: string | null
-  htmlUrl:    string
-  createdAt:  string
-  name:       string
-  event:      string
+  htmlUrl: string
+  createdAt: string
+  name: string
+  event: string
 }
 
 export async function dispatchWorkflow(workflowFile: string, inputs: Record<string, string> = {}): Promise<{ dispatched: true; run: WorkflowRunInfo | null; htmlUrl: string }> {
@@ -63,19 +54,29 @@ export async function dispatchWorkflow(workflowFile: string, inputs: Record<stri
 
   const before = await latestRun(workflowFile).catch(() => null)
 
-  const res = await fetch(dispatchUrl, { method: 'POST', headers: headers(), body: JSON.stringify({ ref, inputs }) })
+  const res = await fetch(dispatchUrl, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ ref, inputs }),
+  })
+
   if (res.status !== 204) {
     const body = await res.text().catch(() => '')
-    throw new Error(`GitHub dispatch failed (${res.status}): ${body.slice(0, 300)}`)
+    throw new Error(`GitHub dispatch failed (${res.status}) for ${repo}@${ref}/${workflowFile}: ${body.slice(0, 300)}`)
   }
+
   logger.info('GitHubDispatch: workflow dispatched', { workflowFile, repo, ref, inputKeys: Object.keys(inputs) })
 
   let run: WorkflowRunInfo | null = null
   for (let i = 0; i < 6; i++) {
-    await new Promise(r => setTimeout(r, 1500))
+    await new Promise(resolve => setTimeout(resolve, 1500))
     const newest = await latestRun(workflowFile).catch(() => null)
-    if (newest && (!before || newest.id !== before.id)) { run = newest; break }
+    if (newest && (!before || newest.id !== before.id)) {
+      run = newest
+      break
+    }
   }
+
   const htmlUrl = run?.htmlUrl ?? `https://github.com/${repo}/actions/workflows/${workflowFile}`
   return { dispatched: true, run, htmlUrl }
 }
@@ -89,7 +90,7 @@ export async function listRuns(workflowFile: string, perPage = 10): Promise<Work
   const { repo, ref } = githubConfig()
   const url = `${API}/repos/${repo}/actions/workflows/${workflowFile}/runs?branch=${encodeURIComponent(ref)}&per_page=${perPage}`
   const res = await fetch(url, { headers: headers() })
-  if (!res.ok) throw new Error(`GitHub list runs failed (${res.status})`)
+  if (!res.ok) throw new Error(`GitHub list runs failed (${res.status}) for ${repo}@${ref}/${workflowFile}`)
   const json = await res.json() as { workflow_runs?: Array<Record<string, unknown>> }
   return (json.workflow_runs ?? []).map(mapRun)
 }
@@ -103,12 +104,12 @@ export async function getRun(runId: number): Promise<WorkflowRunInfo> {
 
 function mapRun(r: Record<string, unknown>): WorkflowRunInfo {
   return {
-    id:         Number(r.id),
-    status:     String(r.status ?? 'unknown'),
+    id: Number(r.id),
+    status: String(r.status ?? 'unknown'),
     conclusion: (r.conclusion as string | null) ?? null,
-    htmlUrl:    String(r.html_url ?? ''),
-    createdAt:  String(r.created_at ?? ''),
-    name:       String(r.name ?? ''),
-    event:      String(r.event ?? ''),
+    htmlUrl: String(r.html_url ?? ''),
+    createdAt: String(r.created_at ?? ''),
+    name: String(r.name ?? ''),
+    event: String(r.event ?? ''),
   }
 }
