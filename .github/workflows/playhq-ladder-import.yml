@@ -1,0 +1,94 @@
+name: PlayHQ Ladder Import
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'PlayHQ ladder URL to import. Leave blank to sync instead.'
+        required: false
+        default: ''
+        type: string
+      sync_league_id:
+        description: 'Sync a single league by its ID. Leave blank for none.'
+        required: false
+        default: ''
+        type: string
+      sync_all:
+        description: 'Sync every league that has a stored PlayHQ URL.'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: 'Dispatch/connectivity dry run with no scraper import.'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  import:
+    name: PlayHQ ladder import / sync + rank
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+      PLAYFOOTY_RENDER_PLAYHQ: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Apply pending Prisma migrations
+        working-directory: backend
+        run: npx prisma migrate deploy
+
+      - name: Install Playwright Chromium
+        working-directory: backend
+        run: npx playwright install chromium --with-deps
+
+      - name: Run PlayHQ ladder import or sync
+        working-directory: backend
+        env:
+          IMPORT_URL: ${{ inputs.url }}
+          SYNC_ID: ${{ inputs.sync_league_id }}
+          SYNC_ALL: ${{ inputs.sync_all }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          PLAYFOOTY_ARTIFACT_DIR: ../artifacts/playhq
+        run: |
+          if [ -n "$IMPORT_URL" ]; then
+            npx tsx src/jobs/playhq-url-import-trigger.ts "--url=$IMPORT_URL"
+          elif [ -n "$SYNC_ID" ]; then
+            if [ "$DRY_RUN" = "true" ]; then
+              npx tsx src/jobs/playhq-url-import-trigger.ts "--sync=$SYNC_ID" --dry-run
+            else
+              npx tsx src/jobs/playhq-url-import-trigger.ts "--sync=$SYNC_ID"
+            fi
+          elif [ "$SYNC_ALL" = "true" ]; then
+            npx tsx src/jobs/playhq-url-import-trigger.ts --sync-all
+          else
+            echo "Nothing to do — provide url, sync_league_id, or sync_all."
+            exit 1
+          fi
+
+      - name: Upload PlayHQ diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playhq-url-import-diagnostics
+          path: artifacts/playhq
+          if-no-files-found: ignore
