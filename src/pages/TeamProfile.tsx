@@ -63,7 +63,12 @@ function LeadingGoalKickerCard({ club }: { club: ClubWithGoalKicker }) {
   if (!leader) return null
   return <section style={{ maxWidth: 1180, margin: '0 auto', padding: '0 20px 24px' }} aria-label="Leading goal kicker">
     <div className="gn-card" style={{ padding: '18px 20px', borderTop: '3px solid #d71920', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap' }}>
-      <div><div className="font-condensed" style={{ color: '#d71920', fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 7 }}>Leading goal kicker</div><strong className="font-display" style={{ display: 'block', fontSize: 'clamp(1.5rem, 3vw, 2.2rem)', lineHeight: 1 }}>{leader.playerName}</strong><small className="font-condensed" style={{ color: '#65758b', display: 'block', marginTop: 6 }}>{leader.matches != null ? `${leader.matches} games · ` : ''}{leader.clubName}</small></div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+        <div style={{ width: 58, height: 58, borderRadius: 16, background: '#f4f6fa', border: '1px solid #dbe3ee', display: 'grid', placeItems: 'center', overflow: 'hidden', flex: '0 0 auto', color: '#d71920', fontWeight: 900 }}>
+          {club.logoUrl ? <img src={club.logoUrl} alt={`${club.clubName} logo`} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }} /> : club.clubName.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+        </div>
+        <div style={{ minWidth: 0 }}><div className="font-condensed" style={{ color: '#d71920', fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 7 }}>Leading goal kicker</div><strong className="font-display" style={{ display: 'block', fontSize: 'clamp(1.5rem, 3vw, 2.2rem)', lineHeight: 1 }}>{leader.playerName}</strong><small className="font-condensed" style={{ color: '#65758b', display: 'block', marginTop: 6 }}>{leader.matches != null ? `${leader.matches} games · ` : ''}{leader.clubName}</small></div>
+      </div>
       <div style={{ textAlign: 'right' }}><strong className="font-display" style={{ display: 'block', fontSize: 'clamp(2rem, 5vw, 3.2rem)', lineHeight: .9, color: '#062a5f' }}>{leader.goals}</strong><span className="font-condensed" style={{ color: '#65758b', fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Goals</span></div>
     </div>
   </section>
