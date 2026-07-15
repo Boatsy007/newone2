@@ -16,6 +16,7 @@ interface GoalKickerRow {
   playerName: string
   clubName: string
   clubId: string | null
+  clubLogoUrl: string | null
   leagueName: string
   leagueId: string | null
   season: string
@@ -32,6 +33,13 @@ async function fetchGoalKickers(mode: Mode): Promise<GoalKickersResponse> {
   const res = await fetch(`/api/goal-kickers?mode=${mode}&limit=100`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<GoalKickersResponse>
+}
+
+function ClubLogo({ row, size = 34 }: { row: GoalKickerRow; size?: number }) {
+  const initials = row.clubName.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase()
+  return <span className="gk-club-logo" style={{ width: size, height: size }} aria-hidden="true">
+    {row.clubLogoUrl ? <img src={row.clubLogoUrl} alt="" /> : initials}
+  </span>
 }
 
 export default function GoalKickers() {
@@ -74,9 +82,8 @@ export default function GoalKickers() {
       </header>
 
       {leader && <section className="leader-card">
-        <span>Current leader</span>
-        <strong>#{leader.rank} {leader.playerName}</strong>
-        <small>{leader.clubName} · {leader.leagueName} · {leader.goals} goals</small>
+        <ClubLogo row={leader} size={54} />
+        <div><span>Current leader</span><strong>#{leader.rank} {leader.playerName}</strong><small>{leader.clubName} · {leader.leagueName} · {leader.goals} goals</small></div>
       </section>}
 
       <section className="gk-board" aria-label="Country goal kicking ladder">
@@ -89,7 +96,7 @@ export default function GoalKickers() {
           {rows.map(row => <div className="goal-row" key={`${row.season}-${row.grade ?? 'all'}-${row.playerName}-${row.clubName}-${row.leagueName}`}>
             <b>#{row.rank}</b>
             <strong>{row.playerName}</strong>
-            <span>{row.clubName}</span>
+            <span className="club-cell"><ClubLogo row={row} /><span>{row.clubName}</span></span>
             <span>{row.leagueName}</span>
             <b>{row.goals}</b>
             {mode === 'adjusted' && <b>{row.adjustedGoals.toFixed(1)}</b>}
@@ -99,7 +106,7 @@ export default function GoalKickers() {
     </main>
     <Footer />
     <style>{`
-      .gk-page{max-width:1180px;margin:0 auto;padding:24px 18px 58px}.gk-hero{border:1px solid ${LINE};border-radius:20px;background:linear-gradient(135deg,#fff,#f7faff);box-shadow:0 14px 34px rgba(6,42,95,.08);padding:28px;margin-bottom:18px}.live-pill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;background:rgba(215,25,32,.12);color:${PINK};padding:6px 9px;font-size:10px;font-weight:950;letter-spacing:.13em;text-transform:uppercase}.live-pill span{width:7px;height:7px;border-radius:50%;background:${PINK};box-shadow:0 0 0 5px rgba(215,25,32,.14)}.gk-hero h1{font-size:clamp(3rem,8vw,6.5rem);line-height:.85;margin:14px 0 12px;text-transform:uppercase;letter-spacing:-.075em;color:${NAVY}}.gk-hero p{margin:0;color:#42526a;font-size:17px;max-width:780px}.mode-toggle{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.mode-toggle button{border:1px solid ${LINE};border-radius:999px;background:#fff;color:${NAVY};font-weight:950;padding:11px 16px;cursor:pointer}.mode-toggle button.active{background:${PINK};border-color:${PINK};color:#fff}.leader-card,.gk-board{border:1px solid ${LINE};border-radius:18px;background:#fff;box-shadow:0 14px 34px rgba(6,42,95,.08);overflow:hidden;margin-bottom:18px}.leader-card{padding:20px}.leader-card span{display:block;color:${PINK};font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.15em}.leader-card strong{display:block;color:${NAVY};font-size:30px;line-height:1;margin-top:8px}.leader-card small{display:block;color:${MUTED};font-weight:800;margin-top:8px}.board-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid ${LINE};background:#f8fafc;color:${MUTED};font-weight:850}.board-head b{font-size:22px;color:${NAVY}}.board-head em{margin-left:auto;color:${PINK};font-style:normal;font-weight:950;text-transform:uppercase;font-size:12px}.goal-table{display:grid}.goal-row{display:grid;grid-template-columns:72px minmax(160px,1.2fr) minmax(140px,1fr) minmax(150px,1fr) 80px 100px;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid #edf1f6}.goal-row:not(:has(span:last-child:nth-child(6))){grid-template-columns:72px minmax(160px,1.2fr) minmax(140px,1fr) minmax(150px,1fr) 80px}.goal-row.labels{background:#fbfdff;color:${MUTED};font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.12em}.goal-row b{color:${NAVY};font-size:18px}.goal-row strong{color:${TEXT};font-size:17px}.goal-row span{color:${MUTED};font-weight:800}.empty{min-height:180px;display:grid;place-items:center;color:${MUTED};font-weight:950;text-transform:uppercase;letter-spacing:.12em;text-align:center}.empty.error{color:${PINK}}@media(max-width:760px){.gk-page{padding:14px 12px 42px}.gk-hero{padding:20px}.gk-hero h1{font-size:3.4rem}.goal-row,.goal-row:not(:has(span:last-child:nth-child(6))){grid-template-columns:52px minmax(0,1fr) 70px;gap:8px}.goal-row.labels span:nth-child(3),.goal-row.labels span:nth-child(4),.goal-row span:nth-child(3),.goal-row span:nth-child(4),.goal-row b:nth-child(6){display:none}.goal-row strong{font-size:16px}.board-head em{display:none}}
+      .gk-page{max-width:1180px;margin:0 auto;padding:24px 18px 58px}.gk-hero{border:1px solid ${LINE};border-radius:20px;background:linear-gradient(135deg,#fff,#f7faff);box-shadow:0 14px 34px rgba(6,42,95,.08);padding:28px;margin-bottom:18px}.live-pill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;background:rgba(215,25,32,.12);color:${PINK};padding:6px 9px;font-size:10px;font-weight:950;letter-spacing:.13em;text-transform:uppercase}.live-pill span{width:7px;height:7px;border-radius:50%;background:${PINK};box-shadow:0 0 0 5px rgba(215,25,32,.14)}.gk-hero h1{font-size:clamp(3rem,8vw,6.5rem);line-height:.85;margin:14px 0 12px;text-transform:uppercase;letter-spacing:-.075em;color:${NAVY}}.gk-hero p{margin:0;color:#42526a;font-size:17px;max-width:780px}.mode-toggle{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.mode-toggle button{border:1px solid ${LINE};border-radius:999px;background:#fff;color:${NAVY};font-weight:950;padding:11px 16px;cursor:pointer}.mode-toggle button.active{background:${PINK};border-color:${PINK};color:#fff}.leader-card,.gk-board{border:1px solid ${LINE};border-radius:18px;background:#fff;box-shadow:0 14px 34px rgba(6,42,95,.08);overflow:hidden;margin-bottom:18px}.leader-card{padding:20px;display:flex;align-items:center;gap:14px}.leader-card span{display:block;color:${PINK};font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.15em}.leader-card strong{display:block;color:${NAVY};font-size:30px;line-height:1;margin-top:8px}.leader-card small{display:block;color:${MUTED};font-weight:800;margin-top:8px}.gk-club-logo{border-radius:10px;background:#f4f6fa;border:1px solid ${LINE};display:inline-grid;place-items:center;overflow:hidden;flex:0 0 auto;color:${PINK};font-size:11px;font-weight:950}.gk-club-logo img{width:100%;height:100%;object-fit:contain;padding:3px}.club-cell{display:flex!important;align-items:center;gap:9px;min-width:0}.club-cell>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.board-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid ${LINE};background:#f8fafc;color:${MUTED};font-weight:850}.board-head b{font-size:22px;color:${NAVY}}.board-head em{margin-left:auto;color:${PINK};font-style:normal;font-weight:950;text-transform:uppercase;font-size:12px}.goal-table{display:grid}.goal-row{display:grid;grid-template-columns:72px minmax(160px,1.2fr) minmax(170px,1fr) minmax(150px,1fr) 80px 100px;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid #edf1f6}.goal-row:not(:has(span:last-child:nth-child(6))){grid-template-columns:72px minmax(160px,1.2fr) minmax(170px,1fr) minmax(150px,1fr) 80px}.goal-row.labels{background:#fbfdff;color:${MUTED};font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.12em}.goal-row b{color:${NAVY};font-size:18px}.goal-row strong{color:${TEXT};font-size:17px}.goal-row span{color:${MUTED};font-weight:800}.empty{min-height:180px;display:grid;place-items:center;color:${MUTED};font-weight:950;text-transform:uppercase;letter-spacing:.12em;text-align:center}.empty.error{color:${PINK}}@media(max-width:760px){.gk-page{padding:14px 12px 42px}.gk-hero{padding:20px}.gk-hero h1{font-size:3.4rem}.goal-row,.goal-row:not(:has(span:last-child:nth-child(6))){grid-template-columns:52px minmax(0,1fr) 70px;gap:8px}.goal-row.labels span:nth-child(3),.goal-row.labels span:nth-child(4),.goal-row span:nth-child(3),.goal-row span:nth-child(4),.goal-row b:nth-child(6){display:none}.goal-row strong{font-size:16px}.board-head em{display:none}}
     `}</style>
   </div>
 }
