@@ -20,15 +20,15 @@ router.get('/', publicRateLimit, cachePublic(600), async (req, res) => {
       if (visibleRows > 0) { run = candidate; break }
     }
     if (!run) {
-      const clubs = await prisma.club.findMany({ where: clubWhere, select: { id: true, name: true, state: { select: { code: true } }, leagueSeasons: { where: { isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } }, select: { league: { select: { name: true } } }, take: 1 } }, orderBy: { name: 'asc' }, take: 200 })
-      return res.json({ data: clubs.map(c => ({ clubId: c.id, clubName: c.name, leagueName: c.leagueSeasons[0]?.league?.name ?? '—', state: c.state?.code ?? '—', rank: null, powerRating: null, logoUrl: null })), meta: { weekLabel: null, season: season ?? null, total: clubs.length, source: 'clubs' } })
+      const clubs = await prisma.club.findMany({ where: clubWhere, select: { id: true, name: true, logoUrl: true, state: { select: { code: true } }, leagueSeasons: { where: { isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } }, select: { league: { select: { name: true } } }, take: 1 } }, orderBy: { name: 'asc' }, take: 200 })
+      return res.json({ data: clubs.map(c => ({ clubId: c.id, clubName: c.name, leagueName: c.leagueSeasons[0]?.league?.name ?? '—', state: c.state?.code ?? '—', rank: null, powerRating: null, logoUrl: c.logoUrl })), meta: { weekLabel: null, season: season ?? null, total: clubs.length, source: 'clubs' } })
     }
-    const entries = await prisma.rankingEntry.findMany({ where: { runId: run.id, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true }, club: { sport: 'FOOTBALL', archivedAt: null, isActive: true }, ...(state ? { state } : {}), ...(league ? { leagueName: { contains: league, mode: 'insensitive' as const } } : {}) }, orderBy: { rank: 'asc' }, take: 200 })
+    const entries = await prisma.rankingEntry.findMany({ where: { runId: run.id, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true }, club: { sport: 'FOOTBALL', archivedAt: null, isActive: true }, ...(state ? { state } : {}), ...(league ? { leagueName: { contains: league, mode: 'insensitive' as const } } : {}) }, include: { club: { select: { logoUrl: true } } }, orderBy: { rank: 'asc' }, take: 200 })
     if (entries.length === 0) {
-      const clubs = await prisma.club.findMany({ where: clubWhere, select: { id: true, name: true, state: { select: { code: true } }, leagueSeasons: { where: { isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } }, select: { league: { select: { name: true } } }, take: 1 } }, orderBy: { name: 'asc' }, take: 200 })
-      return res.json({ data: clubs.map((c, index) => ({ clubId: c.id, clubName: c.name, leagueName: c.leagueSeasons[0]?.league?.name ?? '—', state: c.state?.code ?? '—', rank: index + 1, powerRating: null, logoUrl: null })), meta: { weekLabel: run.weekLabel, season: run.season, total: clubs.length, source: 'clubs-fallback' } })
+      const clubs = await prisma.club.findMany({ where: clubWhere, select: { id: true, name: true, logoUrl: true, state: { select: { code: true } }, leagueSeasons: { where: { isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } }, select: { league: { select: { name: true } } }, take: 1 } }, orderBy: { name: 'asc' }, take: 200 })
+      return res.json({ data: clubs.map((c, index) => ({ clubId: c.id, clubName: c.name, leagueName: c.leagueSeasons[0]?.league?.name ?? '—', state: c.state?.code ?? '—', rank: index + 1, powerRating: null, logoUrl: c.logoUrl })), meta: { weekLabel: run.weekLabel, season: run.season, total: clubs.length, source: 'clubs-fallback' } })
     }
-    res.json({ data: entries.map(e => ({ clubId: e.clubId, clubName: e.clubName, leagueName: e.leagueName, state: e.state, rank: e.rank, powerRating: e.powerRating, logoUrl: null })), meta: { weekLabel: run.weekLabel, season: run.season, total: entries.length, source: 'rankings' } })
+    res.json({ data: entries.map(e => ({ clubId: e.clubId, clubName: e.clubName, leagueName: e.leagueName, state: e.state, rank: e.rank, powerRating: e.powerRating, logoUrl: e.club.logoUrl })), meta: { weekLabel: run.weekLabel, season: run.season, total: entries.length, source: 'rankings' } })
   } catch { res.status(500).json({ error: 'Internal server error' }) }
 })
 
@@ -37,7 +37,7 @@ const QUALIFY_CUTOFF = 32
 router.get('/:id', publicRateLimit, cachePublic(600), async (req, res) => {
   try {
     const clubId = req.params.id
-    const club = await prisma.club.findFirst({ where: { id: clubId, sport: 'FOOTBALL', archivedAt: null, isActive: true }, select: { id: true, name: true, region: true, state: { select: { code: true, name: true } } } })
+    const club = await prisma.club.findFirst({ where: { id: clubId, sport: 'FOOTBALL', archivedAt: null, isActive: true }, select: { id: true, name: true, region: true, logoUrl: true, primaryColour: true, secondaryColour: true, websiteUrl: true, facebookUrl: true, instagramUrl: true, description: true, townName: true, state: { select: { code: true, name: true } } } })
     const cls = await prisma.clubLeagueSeason.findFirst({ where: { clubId, isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } }, orderBy: { season: 'desc' }, select: { leagueId: true, season: true, played: true, wins: true, losses: true, draws: true, goalsFor: true, goalsAgainst: true, percentage: true, points: true, league: { select: { id: true, name: true, strengthScore: true, strengthTier: true } } } })
     if (!club && !cls) return res.status(404).json({ error: 'Club not found' })
 
@@ -49,7 +49,7 @@ router.get('/:id', publicRateLimit, cachePublic(600), async (req, res) => {
     const leagueId = currentEntry?.leagueId ?? cls?.leagueId ?? null
     const season = currentEntry?.rankingRun.season ?? cls?.season ?? null
     const clubName = currentEntry?.clubName ?? club?.name ?? 'Unknown Club'
-    const ladderRows = leagueId && season ? await prisma.clubLeagueSeason.findMany({ where: { leagueId, season, isActive: true }, orderBy: [{ points: 'desc' }, { percentage: 'desc' }, { club: { name: 'asc' } }], select: { clubId: true, played: true, wins: true, losses: true, draws: true, percentage: true, points: true, club: { select: { name: true } } } }) : []
+    const ladderRows = leagueId && season ? await prisma.clubLeagueSeason.findMany({ where: { leagueId, season, isActive: true }, orderBy: [{ points: 'desc' }, { percentage: 'desc' }, { club: { name: 'asc' } }], select: { clubId: true, played: true, wins: true, losses: true, draws: true, percentage: true, points: true, club: { select: { name: true, logoUrl: true } } } }) : []
 
     let recentForm: unknown[] = []
     let componentScores: Record<string, unknown> = {}
@@ -76,11 +76,11 @@ router.get('/:id', publicRateLimit, cachePublic(600), async (req, res) => {
       goalsAgainst: cls?.goalsAgainst ?? 0, percentage: cls?.percentage ?? 0, ladderPosition: ladderIndex >= 0 ? ladderIndex + 1 : null,
       leagueStrengthScore: league?.strengthScore ?? null, leagueStrengthTier: league?.strengthTier ?? null,
       recentForm, componentScores, weekLabel: currentEntry?.rankingRun.weekLabel ?? null, season,
-      history: [], town: null, region: club?.region ?? null, stateName: club?.state?.name ?? null, logoUrl: null,
-      primaryColour: null, secondaryColour: null, websiteUrl: null, facebookUrl: null, instagramUrl: null, bio: null,
+      history: [], town: club?.townName ?? null, region: club?.region ?? null, stateName: club?.state?.name ?? null, logoUrl: club?.logoUrl ?? null,
+      primaryColour: club?.primaryColour ?? null, secondaryColour: club?.secondaryColour ?? null, websiteUrl: club?.websiteUrl ?? null, facebookUrl: club?.facebookUrl ?? null, instagramUrl: club?.instagramUrl ?? null, bio: club?.description ?? null,
       ranking: rank == null ? null : { rank, powerRating: currentEntry?.powerRating ?? null, movement: currentEntry?.rankMovement ?? null },
       leadingGoalKicker, fixtures: [], results: [], teams: [],
-      ladder: ladderRows.map((r, index) => ({ clubId: r.clubId, clubName: r.club.name, position: index + 1, played: r.played, wins: r.wins, losses: r.losses, draws: r.draws, percentage: r.percentage, points: r.points, isThisClub: r.clubId === clubId })),
+      ladder: ladderRows.map((r, index) => ({ clubId: r.clubId, clubName: r.club.name, logoUrl: r.club.logoUrl, position: index + 1, played: r.played, wins: r.wins, losses: r.losses, draws: r.draws, percentage: r.percentage, points: r.points, isThisClub: r.clubId === clubId })),
     } })
   } catch (err) { res.status(500).json({ error: 'Internal server error', detail: String(err) }) }
 })
