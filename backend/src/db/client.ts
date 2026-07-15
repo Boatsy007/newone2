@@ -84,14 +84,34 @@ function sanitiseRankingEntryArgs(args: unknown): unknown {
   return next
 }
 
-function rankingEntryDelegate(client: PrismaClient): unknown {
-  const delegate = client.rankingEntry as unknown as Record<string | symbol, unknown>
+function sanitiseClubArgs(args: unknown): unknown {
+  if (!args || typeof args !== 'object') return args
+  const next = { ...(args as Record<string, unknown>) }
+  if (next.select && typeof next.select === 'object') {
+    const select = { ...(next.select as Record<string, unknown>) }
+    const rankingEntries = select.rankingEntries
+    if (rankingEntries && typeof rankingEntries === 'object') {
+      const rankingArgs = { ...(rankingEntries as Record<string, unknown>) }
+      if (rankingArgs.select && typeof rankingArgs.select === 'object') {
+        const rankingSelect = { ...(rankingArgs.select as Record<string, unknown>) }
+        delete rankingSelect.weekLabel
+        delete rankingSelect.season
+        rankingArgs.select = rankingSelect
+      }
+      select.rankingEntries = rankingArgs
+    }
+    next.select = select
+  }
+  return next
+}
+
+function proxiedDelegate(delegate: Record<string | symbol, unknown>, sanitise: (args: unknown) => unknown): unknown {
   return new Proxy(delegate, {
     get(target, prop) {
       const value = target[prop]
       if (typeof value !== 'function') return value
       if (prop === 'findFirst' || prop === 'findMany' || prop === 'findUnique') {
-        return (args: unknown) => (value as (args: unknown) => unknown).call(target, sanitiseRankingEntryArgs(args))
+        return (args: unknown) => (value as (args: unknown) => unknown).call(target, sanitise(args))
       }
       return (value as Function).bind(target)
     },
@@ -101,7 +121,8 @@ function rankingEntryDelegate(client: PrismaClient): unknown {
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, prop) {
     const client = getPrisma()
-    if (prop === 'rankingEntry') return rankingEntryDelegate(client)
+    if (prop === 'rankingEntry') return proxiedDelegate(client.rankingEntry as unknown as Record<string | symbol, unknown>, sanitiseRankingEntryArgs)
+    if (prop === 'club') return proxiedDelegate(client.club as unknown as Record<string | symbol, unknown>, sanitiseClubArgs)
     return (client as unknown as Record<string | symbol, unknown>)[prop]
   },
 })
