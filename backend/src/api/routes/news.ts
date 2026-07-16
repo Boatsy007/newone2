@@ -17,7 +17,7 @@ const FEATURE_ARTICLE = {
   title: 'Wildcats stun Saints as premiership race blows wide open',
   subtitle: 'Cowwarr lose top spot and fall to third as Woodside climb from ninth to seventh in the PlayFooty rankings.',
   summary: 'Woodside ended Cowwarr’s unbeaten run with a 28-point win, sending the Saints from first to third nationally while the Wildcats rose from ninth to seventh.',
-  heroSeed: 'woodside-cowwarr-upset-2026',
+  heroSeed: '/news/woodside-cowwarr.jpg',
   tags: {
     state: 'VIC',
     league: 'North Gippsland Football Netball League',
