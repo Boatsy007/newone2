@@ -157,7 +157,7 @@ function NationalRankings({ entries, loading, weekLabel, generatedAt }: { entrie
     {loading && Array.from({ length: 12 }).map((_, i) => <div className="rank-row rank-loading" key={i} />)}
     {!loading && top.map(e => <Link key={e.clubId} to={teamPath(e.clubId)} className="rank-row">
       <span className="rank-no">{e.rank}</span>
-      <TeamLogo name={e.clubName} size={e.rank <= 3 ? 42 : 34} />
+      <TeamLogo name={e.clubName} src={e.logoUrl ?? undefined} size={e.rank <= 3 ? 42 : 34} />
       <span className="club-copy"><strong>{e.clubName}</strong><small>{e.leagueName} · {e.state} · {recordLabel(e)}</small></span>
       <Movement value={e.rankMovement} />
       <span className="form"><FormPips form={e.recentForm} /></span>
@@ -218,7 +218,7 @@ function StrongestLeagueCard({ league }: { league: LeagueRow | null }) { if (!le
 function MoversCard({ risers, fallers, loading }: { risers: RankingEntry[]; fallers: RankingEntry[]; loading: boolean }) {
   const movers = [...risers.slice(0, 3), ...fallers.slice(0, 2)]
   if (!loading && movers.length === 0) return null
-  return <article className="side-card"><CardTitle title="Biggest Movers" to="/rankings" />{loading ? <p className="empty-copy">Loading movement…</p> : movers.map(e => <Link className="mover-line" key={e.clubId} to={teamPath(e.clubId)}><TeamLogo name={e.clubName} size={28} /><span>{e.clubName}</span><Movement value={e.rankMovement} compact /></Link>)}</article>
+  return <article className="side-card"><CardTitle title="Biggest Movers" to="/rankings" />{loading ? <p className="empty-copy">Loading movement…</p> : movers.map(e => <Link className="mover-line" key={e.clubId} to={teamPath(e.clubId)}><TeamLogo name={e.clubName} src={e.logoUrl ?? undefined} size={28} /><span>{e.clubName}</span><Movement value={e.rankMovement} compact /></Link>)}</article>
 }
 
 function MobileStrongestLeagues({ leagues, loading }: { leagues: RankedLeague[]; loading: boolean }) { if (!loading && !leagues.length) return null; return <section className="mobile-leagues"><h2>Strongest leagues</h2>{loading ? <p>Loading…</p> : leagues.map(l => <Link key={l.id} to={leaguePath(l.id)} className="mobile-league-row"><LeagueMark league={l} /><span><b>#{l.nationalRank} {l.name}</b><small>{l.state} · {l.clubCount} clubs</small></span><StarStrength stars={strengthStars(l.strengthScore)} size={10} /></Link>)}</section> }
