@@ -25,7 +25,7 @@ const FEATURE_ARTICLE = {
   },
   author: 'PlayFooty',
   weekLabel: '2026-W29',
-  date: '2026-07-16T00:00:00.000Z',
+  date: '2026-07-16',
   seoTitle: 'Woodside beat Cowwarr as North Gippsland race opens up | PlayFooty',
   seoDescription: 'Woodside defeated Cowwarr by 28 points, ending the Saints’ unbeaten run and reshaping the national rankings.',
   body: [
