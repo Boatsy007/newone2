@@ -16,6 +16,7 @@ import NewsArticle from './pages/NewsArticle.tsx'
 import Championship from './pages/Championship.tsx'
 import About from './pages/About.tsx'
 import Admin from './pages/Admin.tsx'
+import AdminHighlights from './pages/AdminHighlights.tsx'
 import Highlights from './pages/Highlights.tsx'
 
 function ScrollToTop() {
@@ -42,6 +43,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/directory" element={<Directory />} />
         <Route path="/about" element={<About />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/admin/highlights" element={<AdminHighlights />} />
         <Route path="/championship" element={<Championship />} />
         <Route path="/club-packages" element={<Navigate to="/" replace />} />
       </Routes>
