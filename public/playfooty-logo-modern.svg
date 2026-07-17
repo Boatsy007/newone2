@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-labelledby="title desc" preserveAspectRatio="xMidYMid meet">
   <title id="title">PlayFooty</title>
   <desc id="desc">PLAY in bright blue on a black block, FOOTY in white.</desc>
   <g transform="skewX(-8)">
