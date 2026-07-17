@@ -13,13 +13,13 @@ export const TEXT = '#111111'
 export const MUTE = 'rgba(17,17,17,0.5)'
 export const FAINT = 'rgba(17,17,17,0.34)'
 export const LINE = 'rgba(17,17,17,0.09)'
-export const PINK = '#d71920'
-export const GOLD = '#f4c14d'
-export const GOLD_DK = '#a8760a'
+export const PINK = '#2daaf5'
+export const GOLD = '#2daaf5'
+export const GOLD_DK = '#0878bd'
 export const UP = '#16a34a'
 export const DOWN = '#dc2626'
-export const BAND = '#f7f6f3'
-export const CYANISH = '#0e7490'
+export const BAND = '#f5f8fb'
+export const CYANISH = '#2daaf5'
 
 /** Section shell: consistent width, rhythm and optional alternate band. */
 export function Section({ children, band, id, pad = true }: { children: ReactNode; band?: boolean; id?: string; pad?: boolean }) {
@@ -78,34 +78,5 @@ export function Reveal({ children, delay = 0, style }: { children: ReactNode; de
 
 /** Skeleton bar (shimmer respects reduced motion via CSS). */
 export function Skel({ w = '100%', h = 16, r = 10, style }: { w?: number | string; h?: number; r?: number; style?: CSSProperties }) {
-  return <span className="gn-skel" aria-hidden style={{ display: 'block', width: w, height: h, borderRadius: r, ...style }} />
-}
-
-/** Category / meta tag pill. */
-export function Tag({ children, color = PINK }: { children: ReactNode; color?: string }) {
-  return (
-    <span className="font-condensed" style={{
-      display: 'inline-flex', alignItems: 'center', fontSize: 10.5, fontWeight: 800,
-      letterSpacing: '0.16em', textTransform: 'uppercase', padding: '4px 10px',
-      borderRadius: 999, color, background: `color-mix(in srgb, ${color} 10%, #ffffff)`,
-      border: `1px solid color-mix(in srgb, ${color} 30%, #ffffff)`, whiteSpace: 'nowrap',
-    }}>{children}</span>
-  )
-}
-
-/** Movement pill: green up, red down, quiet steady. */
-export function Move({ delta, size = 12 }: { delta: number; size?: number }) {
-  if (!delta) return <span className="font-condensed" aria-label="no movement" style={{ color: FAINT, fontSize: size, fontWeight: 800 }}>&middot;</span>
-  const up = delta > 0
-  return (
-    <span className="font-condensed" aria-label={`${up ? 'up' : 'down'} ${Math.abs(delta)} places`} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 800, fontSize: size,
-      color: up ? UP : DOWN, letterSpacing: '0.04em',
-    }}>
-      <svg width={size - 2} height={size - 2} viewBox="0 0 10 10" aria-hidden style={{ transform: up ? 'none' : 'rotate(180deg)' }}>
-        <path d="M5 0 L10 7 L0 7 Z" fill="currentColor" />
-      </svg>
-      {Math.abs(delta)}
-    </span>
-  )
+  return <span className="gn-skel" style={{ display: 'block', width: w, height: h, borderRadius: r, ...style }} />
 }
