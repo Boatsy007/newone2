@@ -11,6 +11,7 @@ import { goalKickersRouter } from './api/routes/goal-kickers.js'
 import { newsRouter } from './api/routes/news.js'
 import { highlightsRouter } from './api/routes/highlights.js'
 import { clubPortalAccessRouter } from './api/routes/club-portal-access.js'
+import { followsRouter } from './api/routes/follows.js'
 import { adminDashboardRouter } from './admin/dashboard.js'
 import { adminSettingsRouter } from './admin/settings.js'
 import { adminManageRouter } from './admin/manage.js'
@@ -57,6 +58,7 @@ app.use('/api/goal-kickers', goalKickersRouter)
 app.use('/api/news', newsRouter)
 app.use('/api/highlights', highlightsRouter)
 app.use('/api/club-portal', clubPortalAccessRouter)
+app.use('/api/follows', followsRouter)
 app.use('/api/claims', claimsRouter)
 app.use('/api/portal', portalRouter)
 app.use('/api/results', resultsRouter)
