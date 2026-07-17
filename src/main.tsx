@@ -11,6 +11,7 @@ import PlayerProfile from './pages/PlayerProfile.tsx'
 import MatchCentre from './pages/MatchCentre.tsx'
 import MatchDetail from './pages/MatchDetail.tsx'
 import Notifications from './pages/Notifications.tsx'
+import SupporterFeed from './pages/SupporterFeed.tsx'
 import TeamProfile from './pages/TeamProfile.tsx'
 import LeagueProfile from './pages/LeagueProfile.tsx'
 import Leagues from './pages/Leagues.tsx'
@@ -80,6 +81,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/player/:playerId" element={<PlayerProfile/>}/>
     <Route path="/matches" element={<MatchCentre/>}/>
     <Route path="/match/:kind/:matchId" element={<MatchDetail/>}/>
+    <Route path="/feed" element={<SupporterFeed/>}/>
     <Route path="/notifications" element={<Notifications/>}/>
     <Route path="/highlights" element={<Highlights/>}/>
     <Route path="/team/:clubId" element={<TeamProfile/>}/>
