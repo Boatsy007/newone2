@@ -3,40 +3,51 @@ import { Link, useSearchParams } from 'react-router-dom'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
 
+type ClubPortalProfile = {
+  history?: string | null
+  president?: string | null
+  secretary?: string | null
+  email?: string | null
+  phone?: string | null
+  ground?: string | null
+  address?: string | null
+  trainingNights?: string | null
+  clubColours?: string | null
+  websiteUrl?: string | null
+  facebookUrl?: string | null
+  instagramUrl?: string | null
+  membershipLink?: string | null
+  volunteerLink?: string | null
+}
+
 type ClubPortalSession = {
   club: { id: string; name: string; logoUrl?: string | null }
-  profile: Record<string, unknown>
+  profile: ClubPortalProfile
   access: { email: string; expiresAt: string }
 }
 
-type PortalField = {
-  key: string
-  label: string
-  inputType: 'text' | 'email' | 'url' | 'textarea'
+const EMPTY_PROFILE: Required<Record<keyof ClubPortalProfile, string>> = {
+  history: '',
+  president: '',
+  secretary: '',
+  email: '',
+  phone: '',
+  ground: '',
+  address: '',
+  trainingNights: '',
+  clubColours: '',
+  websiteUrl: '',
+  facebookUrl: '',
+  instagramUrl: '',
+  membershipLink: '',
+  volunteerLink: '',
 }
-
-const PORTAL_FIELDS: PortalField[] = [
-  { key: 'history', label: 'Club bio', inputType: 'textarea' },
-  { key: 'president', label: 'President', inputType: 'text' },
-  { key: 'secretary', label: 'Secretary', inputType: 'text' },
-  { key: 'email', label: 'Club email', inputType: 'email' },
-  { key: 'phone', label: 'Phone', inputType: 'text' },
-  { key: 'ground', label: 'Home ground', inputType: 'text' },
-  { key: 'address', label: 'Address', inputType: 'text' },
-  { key: 'trainingNights', label: 'Training nights', inputType: 'text' },
-  { key: 'clubColours', label: 'Club colours', inputType: 'text' },
-  { key: 'websiteUrl', label: 'Website', inputType: 'url' },
-  { key: 'facebookUrl', label: 'Facebook', inputType: 'url' },
-  { key: 'instagramUrl', label: 'Instagram', inputType: 'url' },
-  { key: 'membershipLink', label: 'Membership link', inputType: 'url' },
-  { key: 'volunteerLink', label: 'Volunteer link', inputType: 'url' },
-]
 
 export default function ClubPortal() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') ?? ''
   const [session, setSession] = useState<ClubPortalSession | null>(null)
-  const [form, setForm] = useState<Record<string, string>>({})
+  const [form, setForm] = useState({ ...EMPTY_PROFILE })
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -46,21 +57,39 @@ export default function ClubPortal() {
       setLoading(false)
       return
     }
-    fetch(`/api/club-portal/session?token=${encodeURIComponent(token)}`)
+
+    void fetch(`/api/club-portal/session?token=${encodeURIComponent(token)}`)
       .then(async response => {
-        const json = await response.json()
-        if (!response.ok) throw new Error(json.error ?? 'Unable to open club portal')
-        return json.data as ClubPortalSession
+        const json = await response.json() as { data?: ClubPortalSession; error?: string }
+        if (!response.ok || !json.data) throw new Error(json.error ?? 'Unable to open club portal')
+        return json.data
       })
       .then(data => {
         setSession(data)
-        const next: Record<string, string> = {}
-        for (const field of PORTAL_FIELDS) next[field.key] = String(data.profile[field.key] ?? '')
-        setForm(next)
+        setForm({
+          history: data.profile.history ?? '',
+          president: data.profile.president ?? '',
+          secretary: data.profile.secretary ?? '',
+          email: data.profile.email ?? '',
+          phone: data.profile.phone ?? '',
+          ground: data.profile.ground ?? '',
+          address: data.profile.address ?? '',
+          trainingNights: data.profile.trainingNights ?? '',
+          clubColours: data.profile.clubColours ?? '',
+          websiteUrl: data.profile.websiteUrl ?? '',
+          facebookUrl: data.profile.facebookUrl ?? '',
+          instagramUrl: data.profile.instagramUrl ?? '',
+          membershipLink: data.profile.membershipLink ?? '',
+          volunteerLink: data.profile.volunteerLink ?? '',
+        })
       })
       .catch((error: Error) => setMessage(error.message))
       .finally(() => setLoading(false))
   }, [token])
+
+  const setField = (field: keyof typeof form, value: string) => {
+    setForm(current => ({ ...current, [field]: value }))
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -104,16 +133,20 @@ export default function ClubPortal() {
                   <small>Access expires {new Date(session.access.expiresAt).toLocaleDateString('en-AU')}</small>
                 </div>
                 <div className="portal-grid">
-                  {PORTAL_FIELDS.map(field => (
-                    <label key={field.key} className={field.inputType === 'textarea' ? 'wide' : ''}>
-                      {field.label}
-                      {field.inputType === 'textarea' ? (
-                        <textarea rows={6} value={form[field.key] ?? ''} onChange={event => setForm(current => ({ ...current, [field.key]: event.target.value }))} />
-                      ) : (
-                        <input type={field.inputType} value={form[field.key] ?? ''} onChange={event => setForm(current => ({ ...current, [field.key]: event.target.value }))} />
-                      )}
-                    </label>
-                  ))}
+                  <label className="wide">Club bio<textarea rows={6} value={form.history} onChange={event => setField('history', event.target.value)} /></label>
+                  <label>President<input value={form.president} onChange={event => setField('president', event.target.value)} /></label>
+                  <label>Secretary<input value={form.secretary} onChange={event => setField('secretary', event.target.value)} /></label>
+                  <label>Club email<input type="email" value={form.email} onChange={event => setField('email', event.target.value)} /></label>
+                  <label>Phone<input value={form.phone} onChange={event => setField('phone', event.target.value)} /></label>
+                  <label>Home ground<input value={form.ground} onChange={event => setField('ground', event.target.value)} /></label>
+                  <label>Address<input value={form.address} onChange={event => setField('address', event.target.value)} /></label>
+                  <label>Training nights<input value={form.trainingNights} onChange={event => setField('trainingNights', event.target.value)} /></label>
+                  <label>Club colours<input value={form.clubColours} onChange={event => setField('clubColours', event.target.value)} /></label>
+                  <label>Website<input type="url" value={form.websiteUrl} onChange={event => setField('websiteUrl', event.target.value)} /></label>
+                  <label>Facebook<input type="url" value={form.facebookUrl} onChange={event => setField('facebookUrl', event.target.value)} /></label>
+                  <label>Instagram<input type="url" value={form.instagramUrl} onChange={event => setField('instagramUrl', event.target.value)} /></label>
+                  <label>Membership link<input type="url" value={form.membershipLink} onChange={event => setField('membershipLink', event.target.value)} /></label>
+                  <label>Volunteer link<input type="url" value={form.volunteerLink} onChange={event => setField('volunteerLink', event.target.value)} /></label>
                 </div>
                 <button type="submit">Save club profile</button>
               </form>
