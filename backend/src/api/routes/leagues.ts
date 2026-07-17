@@ -24,7 +24,7 @@ router.get('/', publicRateLimit, cachePublic(3600), async (req, res) => {
         ...(state ? { state: { code: state } } : {}),
       },
       select: {
-        id: true, name: true, strengthScore: true, lastSyncedAt: true,
+        id: true, name: true, logoUrl: true, strengthScore: true, lastSyncedAt: true,
         state:   { select: { code: true, name: true } },
         _count:  { select: { clubSeasons: true } },
       },
@@ -35,6 +35,7 @@ router.get('/', publicRateLimit, cachePublic(3600), async (req, res) => {
       data: leagues.map(l => ({
         id:             l.id,
         name:           l.name,
+        logoUrl:        l.logoUrl,
         state:          l.state.code,
         stateName:      l.state.name,
         strengthScore:  l.strengthScore,
@@ -62,6 +63,7 @@ router.get('/:id', publicRateLimit, cachePublic(3600), async (req, res) => {
       select: {
         id: true,
         name: true,
+        logoUrl: true,
         strengthScore: true,
         strengthTier: true,
         lastSyncedAt: true,
@@ -111,7 +113,7 @@ router.get('/:id', publicRateLimit, cachePublic(3600), async (req, res) => {
         regionName: null,
         currentSeason: latestSeason?.season ?? null,
         lastSyncedAt: league.lastSyncedAt,
-        logoUrl: null,
+        logoUrl: league.logoUrl,
         primarySource: null,
         weekLabel: null,
         totalRanked: 0,
