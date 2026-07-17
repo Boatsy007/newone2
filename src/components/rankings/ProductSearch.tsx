@@ -1,10 +1,7 @@
 /**
- * Mounts the global search overlay (Cmd/Ctrl+K) on product pages, without adding
- * any nav chrome — the site menu stays the shared event-style Nav everywhere.
+ * Search now mounts once inside the shared public navigation.
+ * Keep this compatibility component because existing public pages already render it.
  */
-import GlobalSearch, { useSearchController } from './GlobalSearch'
-
 export default function ProductSearch() {
-  const controller = useSearchController()
-  return <GlobalSearch controller={controller} />
+  return null
 }
