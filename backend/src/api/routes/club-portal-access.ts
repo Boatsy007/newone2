@@ -10,50 +10,28 @@ const editableProfileFields = [
   'email', 'phone', 'trainingNights', 'homeCourt', 'clubColours', 'history', 'foundedYear',
   'committee', 'president', 'secretary', 'coach', 'assistantCoach', 'membershipLink', 'volunteerLink',
 ] as const
-
 let ready: Promise<void> | null = null
 export function ensureClubPortalAccessTable() {
   if (!ready) ready = prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "club_portal_access" (
-    "id" TEXT PRIMARY KEY,
-    "club_id" TEXT NOT NULL,
-    "user_id" TEXT,
-    "email" TEXT NOT NULL,
-    "token_hash" TEXT NOT NULL UNIQUE,
-    "expires_at" TIMESTAMPTZ NOT NULL,
-    "last_used_at" TIMESTAMPTZ,
-    "revoked_at" TIMESTAMPTZ,
-    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`).then(async () => {
-    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "club_portal_access_club_idx" ON "club_portal_access" ("club_id", "revoked_at")`)
-  }).catch(error => { ready = null; throw error })
+    "id" TEXT PRIMARY KEY, "club_id" TEXT NOT NULL, "user_id" TEXT, "email" TEXT NOT NULL,
+    "token_hash" TEXT NOT NULL UNIQUE, "expires_at" TIMESTAMPTZ NOT NULL,
+    "last_used_at" TIMESTAMPTZ, "revoked_at" TIMESTAMPTZ, "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`).then(async () => { await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "club_portal_access_club_idx" ON "club_portal_access" ("club_id", "revoked_at")`) }).catch(error => { ready = null; throw error })
   return ready
 }
-
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
-
 export async function issueClubPortalAccess(clubId: string, email: string, userId?: string | null) {
   await ensureClubPortalAccessTable()
   const token = randomBytes(32).toString('hex')
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO club_portal_access (id, club_id, user_id, email, token_hash, expires_at)
-     VALUES ($1,$2,$3,$4,$5,$6)`,
-    randomUUID(), clubId, userId ?? null, email.trim().toLowerCase(), hashToken(token), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-  )
+  await prisma.$executeRawUnsafe(`INSERT INTO club_portal_access (id, club_id, user_id, email, token_hash, expires_at) VALUES ($1,$2,$3,$4,$5,$6)`, randomUUID(), clubId, userId ?? null, email.trim().toLowerCase(), hashToken(token), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
   return token
 }
-
 async function resolveAccess(token: string) {
   await ensureClubPortalAccessTable()
-  const rows = await prisma.$queryRawUnsafe<Array<{ id: string; clubId: string; userId: string | null; email: string; expiresAt: Date }>>(
-    `SELECT id, club_id AS "clubId", user_id AS "userId", email, expires_at AS "expiresAt"
-     FROM club_portal_access WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > NOW() LIMIT 1`,
-    hashToken(token),
-  )
+  const rows = await prisma.$queryRawUnsafe<Array<{ id: string; clubId: string; userId: string | null; email: string; expiresAt: Date }>>(`SELECT id, club_id AS "clubId", user_id AS "userId", email, expires_at AS "expiresAt" FROM club_portal_access WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > NOW() LIMIT 1`, hashToken(token))
   return rows[0] ?? null
 }
-
 router.use(publicRateLimit)
-
 router.get('/session', async (req, res) => {
   const token = typeof req.query.token === 'string' ? req.query.token : ''
   if (!token) return res.status(400).json({ error: 'access token required' })
@@ -65,7 +43,6 @@ router.get('/session', async (req, res) => {
   await prisma.$executeRawUnsafe(`UPDATE club_portal_access SET last_used_at = NOW() WHERE id = $1`, access.id)
   res.json({ data: { club, profile, access: { email: access.email, expiresAt: access.expiresAt } } })
 })
-
 router.patch('/profile', async (req, res) => {
   const token = typeof req.body?.token === 'string' ? req.body.token : ''
   const access = token ? await resolveAccess(token) : null
@@ -82,10 +59,9 @@ router.patch('/profile', async (req, res) => {
   if ('instagramUrl' in updates) coreUpdates.instagramUrl = updates.instagramUrl
   if ('history' in updates) coreUpdates.description = updates.history
   if (Object.keys(coreUpdates).length) await prisma.club.update({ where: { id: access.clubId }, data: coreUpdates })
-  await logChanges('Club', access.clubId, before, updates, { actorType: 'USER', actorId: access.userId, source: 'CLUB_PORTAL' })
+  await logChanges('Club', access.clubId, before, updates, { actorType: 'USER', actorId: access.userId })
   res.json({ data: profile, message: 'Club profile saved' })
 })
-
 router.post('/revoke', async (req, res) => {
   const token = typeof req.body?.token === 'string' ? req.body.token : ''
   if (!token) return res.status(400).json({ error: 'access token required' })
@@ -93,5 +69,4 @@ router.post('/revoke', async (req, res) => {
   await prisma.$executeRawUnsafe(`UPDATE club_portal_access SET revoked_at = NOW() WHERE token_hash = $1`, hashToken(token))
   res.json({ data: { revoked: true } })
 })
-
 export { router as clubPortalAccessRouter }
