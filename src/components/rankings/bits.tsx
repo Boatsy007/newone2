@@ -98,14 +98,19 @@ function crestHash(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h 
 export function TeamLogo({ name, size = 34, src }: { name: string; size?: number; src?: string }) {
   const initials = (name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
   const [a, b] = CREST_DUOS[crestHash(name || '') % CREST_DUOS.length]
+  const hasLogo = Boolean(src)
   return (
     <span aria-hidden style={{
-      width: size, height: size, flexShrink: 0, borderRadius: '50%', display: 'inline-grid', placeItems: 'center',
-      overflow: 'hidden', background: src ? '#fff' : `linear-gradient(135deg, ${a}, ${b})`,
-      border: '1px solid rgba(17,17,17,0.1)', boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.25)',
+      width: size, height: size, flexShrink: 0,
+      borderRadius: hasLogo ? 0 : '50%',
+      display: 'inline-grid', placeItems: 'center',
+      overflow: hasLogo ? 'visible' : 'hidden',
+      background: hasLogo ? 'transparent' : `linear-gradient(135deg, ${a}, ${b})`,
+      border: hasLogo ? 'none' : '1px solid rgba(17,17,17,0.1)',
+      boxShadow: hasLogo ? 'none' : 'inset 0 1px 2px rgba(255,255,255,0.25)',
     }}>
       {src
-        ? <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        ? <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
         : <span className="font-display" style={{ color: '#fff', fontSize: size * 0.42, lineHeight: 1, letterSpacing: '0.02em' }}>{initials}</span>}
     </span>
   )
