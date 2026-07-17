@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { ArrowRight, CalendarDays, Newspaper, Trophy } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { ArrowRight, CalendarDays, Newspaper } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Nav from './components/layout/Nav'
 import Footer from './components/layout/Footer'
@@ -133,7 +133,7 @@ function TopClubs({ entries, loading }: { entries: RankingEntry[]; loading: bool
   </section>
 }
 
-function FeaturePanel({ eyebrow, accent, copy, to, cta, article, icon }: { eyebrow: string; accent: string; copy: string; to: string; cta: string; article?: Article; icon: React.ReactNode }) {
+function FeaturePanel({ eyebrow, accent, copy, to, cta, article, icon }: { eyebrow: string; accent: string; copy: string; to: string; cta: string; article?: Article; icon: ReactNode }) {
   return <Link to={to} className="pf-feature-panel">
     {article && <EditorialImage seed={article.heroSeed} ratio="16 / 9" rounded={0} />}
     <div className="pf-feature-overlay" />
