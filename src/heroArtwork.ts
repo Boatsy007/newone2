@@ -30,6 +30,21 @@ style.textContent = `
     z-index: 2;
   }
 
+  .pf-goal-row > b {
+    font-weight: 900 !important;
+  }
+
+  .pf-goal-row > em {
+    font-weight: 900 !important;
+    font-size: 28px !important;
+  }
+
+  .pf-goal-row small .pf-goal-club-meta {
+    display: inline !important;
+    color: #46515f;
+    font-weight: 800;
+  }
+
   @media (max-width: 980px) {
     .pf-hero-player-image {
       inset: 0 0 74px 0;
@@ -53,6 +68,14 @@ style.textContent = `
       object-fit: contain;
       object-position: center bottom;
     }
+
+    .pf-goal-row > b {
+      font-size: 27px !important;
+    }
+
+    .pf-goal-row > em {
+      font-size: 31px !important;
+    }
   }
 `
 document.head.appendChild(style)
@@ -72,9 +95,27 @@ function mountHeroArtwork() {
   return true
 }
 
-if (!mountHeroArtwork()) {
-  const observer = new MutationObserver(() => {
-    if (mountHeroArtwork()) observer.disconnect()
+function polishGoalKickerMetadata() {
+  document.querySelectorAll<HTMLElement>('.pf-goal-row small:not([data-pf-polished])').forEach(meta => {
+    const parts = (meta.textContent ?? '').split(' · ')
+    const clubName = parts.shift()?.trim()
+    const leagueName = parts.join(' · ').trim()
+    if (!clubName || !leagueName) return
+
+    meta.textContent = ''
+    const club = document.createElement('strong')
+    club.className = 'pf-goal-club-meta'
+    club.textContent = clubName
+    meta.append(club, document.createTextNode(` · ${leagueName}`))
+    meta.dataset.pfPolished = 'true'
   })
-  observer.observe(document.documentElement, { childList: true, subtree: true })
 }
+
+mountHeroArtwork()
+polishGoalKickerMetadata()
+
+const observer = new MutationObserver(() => {
+  mountHeroArtwork()
+  polishGoalKickerMetadata()
+})
+observer.observe(document.documentElement, { childList: true, subtree: true })
