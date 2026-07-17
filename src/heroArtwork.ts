@@ -45,10 +45,10 @@ style.textContent = `
     }
 
     .pf-hero-player-image {
-      inset: -150px -55% 72px -55%;
-      width: 210%;
-      height: calc(100% + 80px);
-      object-position: center top;
+      inset: 0 -65% 72px -65%;
+      width: 230%;
+      height: calc(100% - 72px);
+      object-position: center bottom;
     }
   }
 `
