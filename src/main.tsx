@@ -8,6 +8,8 @@ import Directory from './pages/Directory.tsx'
 import FullRankings from './pages/FullRankings.tsx'
 import GoalKickers from './pages/GoalKickers.tsx'
 import PlayerProfile from './pages/PlayerProfile.tsx'
+import MatchCentre from './pages/MatchCentre.tsx'
+import MatchDetail from './pages/MatchDetail.tsx'
 import TeamProfile from './pages/TeamProfile.tsx'
 import LeagueProfile from './pages/LeagueProfile.tsx'
 import Leagues from './pages/Leagues.tsx'
@@ -73,6 +75,8 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/rankings" element={<FullRankings/>}/>
     <Route path="/goal-kickers" element={<GoalKickers/>}/>
     <Route path="/player/:playerId" element={<PlayerProfile/>}/>
+    <Route path="/matches" element={<MatchCentre/>}/>
+    <Route path="/match/:kind/:matchId" element={<MatchDetail/>}/>
     <Route path="/highlights" element={<Highlights/>}/>
     <Route path="/team/:clubId" element={<TeamProfile/>}/>
     <Route path="/claim-club/:clubId" element={<ClaimClub/>}/>
