@@ -52,13 +52,13 @@ router.patch('/profile', async (req, res) => {
   for (const field of editableProfileFields) if (field in body) updates[field] = body[field] === '' ? null : body[field]
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No editable profile fields supplied' })
   const before = await prisma.clubProfile.upsert({ where: { clubId: access.clubId }, create: { clubId: access.clubId }, update: {} })
-  const profile = await prisma.clubProfile.update({ where: { clubId: access.clubId }, data: updates })
+  const profile = await prisma.clubProfile.update({ where: { clubId: access.clubId }, data: updates as never })
   const coreUpdates: Record<string, unknown> = {}
   if ('websiteUrl' in updates) coreUpdates.websiteUrl = updates.websiteUrl
   if ('facebookUrl' in updates) coreUpdates.facebookUrl = updates.facebookUrl
   if ('instagramUrl' in updates) coreUpdates.instagramUrl = updates.instagramUrl
   if ('history' in updates) coreUpdates.description = updates.history
-  if (Object.keys(coreUpdates).length) await prisma.club.update({ where: { id: access.clubId }, data: coreUpdates })
+  if (Object.keys(coreUpdates).length) await prisma.club.update({ where: { id: access.clubId }, data: coreUpdates as never })
   await logChanges('Club', access.clubId, before, updates, { actorType: 'USER', actorId: access.userId })
   res.json({ data: profile, message: 'Club profile saved' })
 })
