@@ -1,29 +1,26 @@
 /**
  * CNCA Rankings API Server
- * ─────────────────────────────────────────────────────────────────────────────
- * Express server exposing the rankings data API and admin endpoints.
- * Deployed as a Vercel serverless function (api/index.ts re-exports this).
  */
-
-import express                 from 'express'
-import cors                    from 'cors'
-import { rankingsRouter }      from './api/routes/rankings.js'
-import { clubsRouter }         from './api/routes/clubs.js'
-import { leaguesRouter }       from './api/routes/leagues.js'
-import { directoryRouter }     from './api/routes/directory.js'
-import { goalKickersRouter }   from './api/routes/goal-kickers.js'
-import { newsRouter }          from './api/routes/news.js'
-import { highlightsRouter }    from './api/routes/highlights.js'
+import express from 'express'
+import cors from 'cors'
+import { rankingsRouter } from './api/routes/rankings.js'
+import { clubsRouter } from './api/routes/clubs.js'
+import { leaguesRouter } from './api/routes/leagues.js'
+import { directoryRouter } from './api/routes/directory.js'
+import { goalKickersRouter } from './api/routes/goal-kickers.js'
+import { newsRouter } from './api/routes/news.js'
+import { highlightsRouter } from './api/routes/highlights.js'
+import { clubPortalAccessRouter } from './api/routes/club-portal-access.js'
 import { adminDashboardRouter } from './admin/dashboard.js'
-import { adminSettingsRouter }  from './admin/settings.js'
-import { adminManageRouter }    from './admin/manage.js'
-import { adminOcrRouter }       from './admin/ocr.js'
-import { adminPlatformRouter }  from './admin/platform.js'
-import { adminClaimingRouter }  from './admin/claiming.js'
-import { adminNewsroomRouter }  from './admin/newsroom.js'
-import { adminQualityRouter }   from './admin/quality.js'
-import { adminResultsRouter }   from './admin/results.js'
-import { adminHistoryRouter }   from './admin/history.js'
+import { adminSettingsRouter } from './admin/settings.js'
+import { adminManageRouter } from './admin/manage.js'
+import { adminOcrRouter } from './admin/ocr.js'
+import { adminPlatformRouter } from './admin/platform.js'
+import { adminClaimingRouter } from './admin/claiming.js'
+import { adminNewsroomRouter } from './admin/newsroom.js'
+import { adminQualityRouter } from './admin/quality.js'
+import { adminResultsRouter } from './admin/results.js'
+import { adminHistoryRouter } from './admin/history.js'
 import { adminChampionshipsRouter } from './admin/championships.js'
 import { adminCommercialRouter } from './admin/commercial.js'
 import { adminNotificationsRouter } from './admin/notifications.js'
@@ -33,22 +30,18 @@ import { adminSeasonRouter } from './admin/season.js'
 import { adminPlayhqRouter } from './admin/playhq.js'
 import { adminHighlightsRouter } from './admin/highlights.js'
 import { resultsRouter, fixturesRouter, clubMatchRouter, leagueMatchRouter } from './api/routes/results.js'
-import { historyRouter }        from './api/routes/history.js'
-import { championshipsRouter }  from './api/routes/championships.js'
+import { historyRouter } from './api/routes/history.js'
+import { championshipsRouter } from './api/routes/championships.js'
 import { sponsorsRouter, commercialRouter, commercialClubRouter, commercialLeagueRouter } from './api/routes/sponsors.js'
 import { notificationsRouter } from './api/routes/notifications.js'
 import { analyticsRouter } from './api/routes/analytics.js'
-import { claimsRouter }         from './api/routes/claims.js'
-import { portalRouter }         from './api/routes/portal.js'
-import { logger }              from './utils/logger.js'
+import { claimsRouter } from './api/routes/claims.js'
+import { portalRouter } from './api/routes/portal.js'
+import { logger } from './utils/logger.js'
 
-const app  = express()
+const app = express()
 const PORT = parseInt(process.env.PORT ?? '3001', 10)
-
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-}))
+app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }))
 app.use('/admin/ocr', express.json({ limit: '20mb' }))
 app.use('/admin/platform/csv', express.json({ limit: '20mb' }))
 app.use('/admin/platform/leagues', express.json({ limit: '8mb' }))
@@ -56,85 +49,57 @@ app.use('/admin/platform/clubs', express.json({ limit: '8mb' }))
 app.use('/admin/season', express.json({ limit: '25mb' }))
 app.use(express.json({ limit: '1mb' }))
 
-app.use('/api/rankings',  rankingsRouter)
-app.use('/api/clubs',     clubsRouter)
-app.use('/api/leagues',   leaguesRouter)
+app.use('/api/rankings', rankingsRouter)
+app.use('/api/clubs', clubsRouter)
+app.use('/api/leagues', leaguesRouter)
 app.use('/api/directory', directoryRouter)
 app.use('/api/goal-kickers', goalKickersRouter)
-app.use('/api/news',      newsRouter)
+app.use('/api/news', newsRouter)
 app.use('/api/highlights', highlightsRouter)
-
-app.use('/api/claims',    claimsRouter)
-app.use('/api/portal',    portalRouter)
-
-app.use('/api/results',   resultsRouter)
-app.use('/api/fixtures',  fixturesRouter)
-app.use('/api/clubs',     clubMatchRouter)
-app.use('/api/leagues',   leagueMatchRouter)
-
+app.use('/api/club-portal', clubPortalAccessRouter)
+app.use('/api/claims', claimsRouter)
+app.use('/api/portal', portalRouter)
+app.use('/api/results', resultsRouter)
+app.use('/api/fixtures', fixturesRouter)
+app.use('/api/clubs', clubMatchRouter)
+app.use('/api/leagues', leagueMatchRouter)
 app.use('/api/championships', championshipsRouter)
-app.use('/api/sponsors',    sponsorsRouter)
-app.use('/api/commercial',  commercialRouter)
-app.use('/api/clubs',       commercialClubRouter)
-app.use('/api/leagues',     commercialLeagueRouter)
+app.use('/api/sponsors', sponsorsRouter)
+app.use('/api/commercial', commercialRouter)
+app.use('/api/clubs', commercialClubRouter)
+app.use('/api/leagues', commercialLeagueRouter)
 app.use('/api/notifications', notificationsRouter)
 app.use('/api/analytics', analyticsRouter)
-
 app.use('/api', rankingsRouter)
 app.use('/api/history', historyRouter)
-app.use('/api/history', (req, res, next) => {
-  req.url = `/history${req.url}`
-  clubsRouter(req, res, next)
-})
+app.use('/api/history', (req, res, next) => { req.url = `/history${req.url}`; clubsRouter(req, res, next) })
 
-app.use('/admin',          adminDashboardRouter)
+app.use('/admin', adminDashboardRouter)
 app.use('/admin/settings', adminSettingsRouter)
-app.use('/admin/manage',   adminManageRouter)
-app.use('/admin/ocr',      adminOcrRouter)
+app.use('/admin/manage', adminManageRouter)
+app.use('/admin/ocr', adminOcrRouter)
 app.use('/admin/platform', adminPlatformRouter)
 app.use('/admin/claiming', adminClaimingRouter)
 app.use('/admin/newsroom', adminNewsroomRouter)
-app.use('/admin/quality',  adminQualityRouter)
-app.use('/admin/results',  adminResultsRouter)
-app.use('/admin/history',  adminHistoryRouter)
+app.use('/admin/quality', adminQualityRouter)
+app.use('/admin/results', adminResultsRouter)
+app.use('/admin/history', adminHistoryRouter)
 app.use('/admin/championships', adminChampionshipsRouter)
 app.use('/admin/commercial', adminCommercialRouter)
 app.use('/admin/notifications', adminNotificationsRouter)
 app.use('/admin/analytics', adminAnalyticsRouter)
-app.use('/admin/ladder',   adminLadderRouter)
-app.use('/admin/season',   adminSeasonRouter)
-app.use('/admin/playhq',   adminPlayhqRouter)
+app.use('/admin/ladder', adminLadderRouter)
+app.use('/admin/season', adminSeasonRouter)
+app.use('/admin/playhq', adminPlayhqRouter)
 app.use('/admin/highlights', adminHighlightsRouter)
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', version: process.env.npm_package_version ?? '1.0.0' })
-})
-
+app.get('/health', (_req, res) => res.json({ status: 'ok', version: process.env.npm_package_version ?? '1.0.0' }))
 app.get('/api/debug', async (_req, res) => {
-  const hasDbUrl    = !!process.env.DATABASE_URL
-  const hasDirectUrl = !!process.env.DIRECT_URL
-  const hasAdminKey = !!process.env.ADMIN_API_KEY
+  const hasDbUrl = !!process.env.DATABASE_URL, hasDirectUrl = !!process.env.DIRECT_URL, hasAdminKey = !!process.env.ADMIN_API_KEY
   let dbPing: string
-  try {
-    const { PrismaClient } = await import('@prisma/client')
-    const pc = new PrismaClient()
-    await pc.$queryRaw`SELECT 1`
-    await pc.$disconnect()
-    dbPing = 'ok'
-  } catch (e) {
-    dbPing = String(e)
-  }
+  try { const { PrismaClient } = await import('@prisma/client'); const pc = new PrismaClient(); await pc.$queryRaw`SELECT 1`; await pc.$disconnect(); dbPing = 'ok' } catch (e) { dbPing = String(e) }
   res.json({ hasDbUrl, hasDirectUrl, hasAdminKey, dbPing })
 })
-
-app.use((_req, res) => {
-  res.status(404).json({ error: 'Not found' })
-})
-
-if (process.env.VERCEL !== '1') {
-  app.listen(PORT, () => {
-    logger.info(`CNCA Rankings API listening on port ${PORT}`)
-  })
-}
-
+app.use((_req, res) => res.status(404).json({ error: 'Not found' }))
+if (process.env.VERCEL !== '1') app.listen(PORT, () => logger.info(`CNCA Rankings API listening on port ${PORT}`))
 export default app
