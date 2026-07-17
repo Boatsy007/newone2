@@ -68,38 +68,62 @@ async function buildEntityFeed(follow: Follow): Promise<FeedItem[]> {
   } catch { return [] }
 }
 
+function resultHeadline(homeName: string, homePoints: number, awayName: string, awayPoints: number) {
+  if (homePoints === awayPoints) return `${homeName} drew with ${awayName}, ${homePoints}–${awayPoints}`
+  return homePoints > awayPoints
+    ? `${homeName} defeated ${awayName}, ${homePoints}–${awayPoints}`
+    : `${awayName} defeated ${homeName}, ${awayPoints}–${homePoints}`
+}
+
 async function clubFeed(clubId: string): Promise<FeedItem[]> {
   const [club, fixtures, results, ranking] = await Promise.all([
     prisma.club.findUnique({ where: { id: clubId }, select: { name: true } }),
     prisma.footballFixture.findMany({ where: { OR: [{ homeClubId: clubId }, { awayClubId: clubId }] }, orderBy: { matchDate: 'asc' }, take: 3 }),
-    prisma.footballResult.findMany({ where: { OR: [{ homeClubId: clubId }, { awayClubId: clubId }], published: true }, orderBy: { matchDate: 'desc' }, take: 3 }),
+    prisma.footballResult.findMany({ where: { OR: [{ homeClubId: clubId }, { awayClubId: clubId }], published: true }, orderBy: { matchDate: 'desc' }, take: 5 }),
     prisma.rankingEntry.findFirst({ where: { clubId }, orderBy: { createdAt: 'desc' }, select: { rank: true, powerRating: true, createdAt: true } }).catch(() => null),
   ])
   const name = club?.name ?? 'Followed club'
   const items: FeedItem[] = []
-  if (ranking) items.push({ id: `club-rank-${clubId}-${ranking.createdAt.toISOString()}`, type: 'RANKING', title: `${name} ranking update`, body: `National rank #${ranking.rank} with a ${ranking.powerRating.toFixed(1)} power rating.`, entityType: 'CLUB', entityId: clubId, href: `/team/${clubId}`, createdAt: ranking.createdAt.toISOString() })
-  fixtures.forEach(row => items.push({ id: `fixture-${row.id}`, type: 'FIXTURE', title: `${row.homeName} v ${row.awayName}`, body: `${row.leagueId ? 'Upcoming fixture' : 'Fixture'}${row.round ? ` · ${row.round}` : ''}${row.venue ? ` · ${row.venue}` : ''}`, entityType: 'CLUB', entityId: clubId, href: `/match/fixture/${row.id}?source=football`, createdAt: (row.matchDate ?? row.updatedAt).toISOString() }))
-  results.forEach(row => items.push({ id: `result-${row.id}`, type: 'RESULT', title: `${row.homeName} ${row.homePoints}–${row.awayPoints} ${row.awayName}`, body: `Final result${row.round ? ` · ${row.round}` : ''}`, entityType: 'CLUB', entityId: clubId, href: `/match/result/${row.id}?source=football`, createdAt: (row.matchDate ?? row.updatedAt).toISOString() }))
+  if (ranking) items.push({ id: `club-rank-${clubId}-${ranking.createdAt.toISOString()}`, type: 'RANKING', title: `${name} are ranked #${ranking.rank} nationally`, body: `Their latest PlayFooty power rating is ${ranking.powerRating.toFixed(1)}.`, entityType: 'CLUB', entityId: clubId, href: `/team/${clubId}`, createdAt: ranking.createdAt.toISOString() })
+  fixtures.forEach(row => items.push({ id: `fixture-${row.id}`, type: 'FIXTURE', title: `${name}'s next match: ${row.homeName} v ${row.awayName}`, body: `${row.round ? `${row.round} · ` : ''}${row.venue ?? 'Venue to be confirmed'}`, entityType: 'CLUB', entityId: clubId, href: `/match/fixture/${row.id}?source=football`, createdAt: (row.matchDate ?? row.updatedAt).toISOString() }))
+  results.forEach(row => items.push({ id: `result-${row.id}`, type: 'RESULT', title: resultHeadline(row.homeName, row.homePoints, row.awayName, row.awayPoints), body: `${row.round ? `${row.round} · ` : ''}Final score`, entityType: 'CLUB', entityId: clubId, href: `/match/result/${row.id}?source=football`, createdAt: (row.matchDate ?? row.updatedAt).toISOString() }))
   return items
 }
 
 async function leagueFeed(leagueId: string): Promise<FeedItem[]> {
   const [league, fixtures, results] = await Promise.all([
     prisma.league.findUnique({ where: { id: leagueId }, select: { name: true, updatedAt: true } }),
-    prisma.footballFixture.findMany({ where: { leagueId }, orderBy: { matchDate: 'asc' }, take: 5 }),
-    prisma.footballResult.findMany({ where: { leagueId, published: true }, orderBy: { matchDate: 'desc' }, take: 5 }),
+    prisma.footballFixture.findMany({ where: { leagueId }, orderBy: { matchDate: 'asc' }, take: 8 }),
+    prisma.footballResult.findMany({ where: { leagueId, published: true }, orderBy: { matchDate: 'desc' }, take: 20 }),
   ])
   const name = league?.name ?? 'Followed league'
-  const items: FeedItem[] = [{ id: `league-${leagueId}`, type: 'LEAGUE', title: `${name} updates`, body: 'Fixtures, results and ladder updates from this competition.', entityType: 'LEAGUE', entityId: leagueId, href: `/league/${leagueId}`, createdAt: (league?.updatedAt ?? new Date(0)).toISOString() }]
-  fixtures.forEach(row => items.push({ id: `fixture-${row.id}`, type: 'FIXTURE', title: `${row.homeName} v ${row.awayName}`, body: `${name}${row.round ? ` · ${row.round}` : ''}`, entityType: 'LEAGUE', entityId: leagueId, href: `/match/fixture/${row.id}?source=football`, createdAt: (row.matchDate ?? row.updatedAt).toISOString() }))
-  results.forEach(row => items.push({ id: `result-${row.id}`, type: 'RESULT', title: `${row.homeName} ${row.homePoints}–${row.awayPoints} ${row.awayName}`, body: `${name} final result`, entityType: 'LEAGUE', entityId: leagueId, href: `/match/result/${row.id}?source=football`, createdAt: (row.matchDate ?? row.updatedAt).toISOString() }))
+  const items: FeedItem[] = []
+
+  const latestRound = results.find(row => row.round)?.round ?? null
+  const latestRoundResults = latestRound ? results.filter(row => row.round === latestRound) : results.slice(0, 5)
+  if (latestRoundResults.length) {
+    const newest = latestRoundResults.reduce((latest, row) => {
+      const value = row.matchDate ?? row.updatedAt
+      return value > latest ? value : latest
+    }, new Date(0))
+    items.push({ id: `league-results-${leagueId}-${latestRound ?? 'latest'}-${newest.toISOString()}`, type: 'LEAGUE_RESULTS', title: `${name} results are in${latestRound ? ` for ${latestRound}` : ''}`, body: `${latestRoundResults.length} final result${latestRoundResults.length === 1 ? '' : 's'} available.`, entityType: 'LEAGUE', entityId: leagueId, href: `/matches?league=${encodeURIComponent(leagueId)}&tab=results`, createdAt: newest.toISOString() })
+  }
+
+  const nextRound = fixtures.find(row => row.round)?.round ?? null
+  const nextRoundFixtures = nextRound ? fixtures.filter(row => row.round === nextRound) : fixtures.slice(0, 5)
+  if (nextRoundFixtures.length) {
+    const first = nextRoundFixtures[0]
+    items.push({ id: `league-fixtures-${leagueId}-${nextRound ?? 'next'}-${first.updatedAt.toISOString()}`, type: 'LEAGUE_FIXTURES', title: `${name} fixtures are set${nextRound ? ` for ${nextRound}` : ''}`, body: `${nextRoundFixtures.length} upcoming match${nextRoundFixtures.length === 1 ? '' : 'es'} listed.`, entityType: 'LEAGUE', entityId: leagueId, href: `/matches?league=${encodeURIComponent(leagueId)}&tab=fixtures`, createdAt: (first.matchDate ?? first.updatedAt).toISOString() })
+  }
+
+  results.slice(0, 5).forEach(row => items.push({ id: `result-${row.id}`, type: 'RESULT', title: resultHeadline(row.homeName, row.homePoints, row.awayName, row.awayPoints), body: `${name}${row.round ? ` · ${row.round}` : ''}`, entityType: 'LEAGUE', entityId: leagueId, href: `/match/result/${row.id}?source=football`, createdAt: (row.matchDate ?? row.updatedAt).toISOString() }))
   return items
 }
 
 async function playerFeed(playerId: string): Promise<FeedItem[]> {
   const player = await prisma.footballGoalKicker.findUnique({ where: { id: playerId } })
   if (!player) return []
-  return [{ id: `player-${player.id}-${player.updatedAt.toISOString()}`, type: 'PLAYER', title: `${player.playerName} goal-kicking update`, body: `${player.goals} goals${player.matches ? ` from ${player.matches} matches` : ''} for ${player.clubName}.`, entityType: 'PLAYER', entityId: playerId, href: `/player/${playerId}`, createdAt: player.updatedAt.toISOString() }]
+  return [{ id: `player-${player.id}-${player.updatedAt.toISOString()}`, type: 'PLAYER', title: `${player.playerName} has moved to ${player.goals} goals`, body: `${player.matches ? `${player.goals} goals from ${player.matches} matches` : `${player.goals} goals this season`} for ${player.clubName} in ${player.leagueName}.`, entityType: 'PLAYER', entityId: playerId, href: `/player/${playerId}`, createdAt: player.updatedAt.toISOString() }]
 }
 
 export { router as followsRouter }
