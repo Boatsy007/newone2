@@ -45,7 +45,7 @@ style.textContent = `
     }
 
     .pf-hero-player-image {
-      inset: auto auto 52px 54%;
+      inset: auto auto 52px calc(54% + 24px);
       width: 175%;
       height: auto;
       max-width: none;
