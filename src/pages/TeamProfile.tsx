@@ -1,7 +1,6 @@
 /**
- * Club page: each club's premium digital home. Feed is the default view and
- * Stats preserves the existing ranking, ladder and performance sections.
- * Every figure remains sourced from the existing live club response.
+ * Club page: each club's premium digital home. Section tabs expose the
+ * existing live club content without changing its data sources or route.
  */
 import { lazy, Suspense, useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -17,11 +16,20 @@ const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ de
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
 const ClubNews = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubNews })))
 
-type ClubTab = 'feed' | 'stats'
+type ClubTab = 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
+
+const CLUB_TABS: { id: ClubTab; label: string }[] = [
+  { id: 'news', label: 'Club news' },
+  { id: 'information', label: 'Information' },
+  { id: 'photos', label: 'Photos' },
+  { id: 'sponsors', label: 'Sponsors' },
+  { id: 'stats', label: 'Stats' },
+  { id: 'related', label: 'Related clubs' },
+]
 
 export default function TeamProfile() {
   const { clubId = '' } = useParams()
-  const [activeTab, setActiveTab] = useState<ClubTab>('feed')
+  const [activeTab, setActiveTab] = useState<ClubTab>('news')
   const club = useAsync<ClubProfile>(() => fetchClub(clubId), [clubId])
   const explain = useAsync<ClubExplanation | null>(
     () => fetchClubExplain(clubId).catch(() => null),
@@ -51,74 +59,75 @@ export default function TeamProfile() {
           <>
             <ClubHero club={data} />
             <nav className="club-profile-tabs" aria-label="Club profile sections">
-              <div role="tablist" aria-label={`${data.clubName} profile views`}>
-                <button type="button" role="tab" aria-selected={activeTab === 'feed'} className={activeTab === 'feed' ? 'active' : ''} onClick={() => setActiveTab('feed')}>Feed</button>
-                <button type="button" role="tab" aria-selected={activeTab === 'stats'} className={activeTab === 'stats' ? 'active' : ''} onClick={() => setActiveTab('stats')}>Stats</button>
+              <div role="tablist" aria-label={`${data.clubName} profile sections`}>
+                {CLUB_TABS.map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    className={activeTab === tab.id ? 'active' : ''}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
             </nav>
 
-            {activeTab === 'feed' && (
-              <div className="club-profile-area club-feed-area" role="tabpanel">
-                <div className="club-profile-main club-feed-main">
-                  <div className="club-feed-intro">
-                    <span>Club feed</span>
-                    <strong>{data.clubName}</strong>
-                    <p>Latest club stories, updates and profile information.</p>
-                  </div>
-                  <div className="club-feed-card">
-                    <Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}>
-                      <ClubNews club={data} />
-                    </Suspense>
-                  </div>
-                  <div className="club-feed-card"><ClubInfo club={data} /></div>
-                  <div className="club-feed-card"><ClubGallery club={data} /></div>
-                  <div className="club-feed-card"><ClubSponsors club={data} /></div>
+            <div className="club-section-bg">
+              <div className="club-profile-area" role="tabpanel">
+                <div className="club-profile-main">
+                  {activeTab === 'news' && (
+                    <div className="club-feed-card">
+                      <Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}>
+                        <ClubNews club={data} />
+                      </Suspense>
+                    </div>
+                  )}
+
+                  {activeTab === 'information' && <div className="club-feed-card"><ClubInfo club={data} /></div>}
+                  {activeTab === 'photos' && <div className="club-feed-card"><ClubGallery club={data} /></div>}
+                  {activeTab === 'sponsors' && <div className="club-feed-card"><ClubSponsors club={data} /></div>}
+
+                  {activeTab === 'stats' && (
+                    <div className="club-stats-stack">
+                      <ClubSnapshot club={data} />
+                      <Suspense fallback={<div style={{ minHeight: 320 }} aria-hidden />}>
+                        <ClubJourney club={data} />
+                      </Suspense>
+                      <Suspense fallback={<div style={{ minHeight: 300 }} aria-hidden />}>
+                        <ClubWhy club={data} reasoning={explain.data?.reasoning} />
+                      </Suspense>
+                      <ClubLadder club={data} />
+                      <ClubClaim club={data} />
+                    </div>
+                  )}
+
+                  {activeTab === 'related' && <div className="club-feed-card"><RelatedClubs club={data} /></div>}
                 </div>
                 <aside className="club-profile-sidebar"><ClubSidebar club={data} /></aside>
               </div>
-            )}
-
-            {activeTab === 'stats' && (
-              <div role="tabpanel" className="club-stats-panel">
-                <ClubSnapshot club={data} />
-                <div className="club-profile-area">
-                  <div className="club-profile-main">
-                    <Suspense fallback={<div style={{ minHeight: 320 }} aria-hidden />}>
-                      <ClubJourney club={data} />
-                    </Suspense>
-                    <Suspense fallback={<div style={{ minHeight: 300 }} aria-hidden />}>
-                      <ClubWhy club={data} reasoning={explain.data?.reasoning} />
-                    </Suspense>
-                    <ClubLadder club={data} />
-                    <RelatedClubs club={data} />
-                    <ClubClaim club={data} />
-                  </div>
-                  <aside className="club-profile-sidebar"><ClubSidebar club={data} /></aside>
-                </div>
-              </div>
-            )}
+            </div>
 
             <style>{`
               .club-profile-tabs{position:sticky;top:0;z-index:8;background:#fff;border-bottom:1px solid #e3e7ec;box-shadow:0 4px 14px rgba(17,24,39,.04)}
-              .club-profile-tabs>div{max-width:1180px;margin:0 auto;display:flex;gap:8px;padding:0 20px}
-              .club-profile-tabs button{position:relative;min-width:112px;min-height:58px;padding:0 22px;border:0;background:transparent;color:#687385;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:24px;letter-spacing:.035em;text-transform:uppercase;cursor:pointer}
-              .club-profile-tabs button:after{content:'';position:absolute;left:18px;right:18px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:transparent}
+              .club-profile-tabs>div{max-width:1180px;margin:0 auto;display:flex;gap:2px;padding:0 20px;overflow-x:auto;scrollbar-width:none}
+              .club-profile-tabs>div::-webkit-scrollbar{display:none}
+              .club-profile-tabs button{position:relative;flex:0 0 auto;min-height:58px;padding:0 18px;border:0;background:transparent;color:#687385;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:21px;letter-spacing:.035em;text-transform:uppercase;white-space:nowrap;cursor:pointer}
+              .club-profile-tabs button:after{content:'';position:absolute;left:14px;right:14px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:transparent}
               .club-profile-tabs button.active{color:#050505}.club-profile-tabs button.active:after{background:#42b8ff}
-              .club-profile-area{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:30px 20px 48px}
-              .club-feed-area{background:#f3f5f7;max-width:none;padding-left:max(20px,calc((100% - 1180px)/2));padding-right:max(20px,calc((100% - 1180px)/2))}
-              .club-profile-main>section,.club-feed-card>section{padding-left:0!important;padding-right:0!important}
-              .club-profile-main>section>div,.club-feed-card>section>div{max-width:none!important}
-              .club-feed-main{display:grid;gap:18px}.club-feed-card{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
-              .club-feed-intro{padding:22px 24px;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
-              .club-feed-intro span{display:block;color:#42b8ff;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}
-              .club-feed-intro strong{display:block;margin-top:5px;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:34px;line-height:1;text-transform:uppercase}
-              .club-feed-intro p{margin:8px 0 0;color:#687385;font-size:14px}
-              .club-profile-sidebar{position:sticky;top:78px}.club-stats-panel{background:#fff}
+              .club-section-bg{background:#f3f5f7;min-height:420px}
+              .club-profile-area{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:28px 20px 48px}
+              .club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-left:0!important;padding-right:0!important}
+              .club-profile-main>section>div,.club-feed-card>section>div,.club-stats-stack>section>div{max-width:none!important}
+              .club-feed-card{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
+              .club-stats-stack{display:grid;gap:18px}.club-stats-stack>section{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
+              .club-profile-sidebar{position:sticky;top:78px}
               @media (max-width:980px){
-                .club-profile-tabs{top:0}.club-profile-tabs>div{padding:0 14px}.club-profile-tabs button{min-height:54px;min-width:96px;font-size:22px}
-                .club-profile-area,.club-feed-area{display:block;padding:18px 14px 36px}.club-profile-sidebar{position:static;margin-top:18px}
-                .club-profile-main>section,.club-feed-card>section{padding-top:20px!important;padding-bottom:20px!important}
-                .club-feed-intro{padding:19px 18px}.club-feed-intro strong{font-size:30px}
+                .club-profile-tabs>div{padding:0 10px}.club-profile-tabs button{min-height:54px;padding:0 14px;font-size:19px}.club-profile-tabs button:after{left:10px;right:10px}
+                .club-profile-area{display:block;padding:18px 14px 36px}.club-profile-sidebar{position:static;margin-top:18px}
+                .club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-top:20px!important;padding-bottom:20px!important}
               }
             `}</style>
           </>
@@ -134,6 +143,7 @@ function seoTitle(d: ClubProfile): string {
   if (d.rank != null) return `${d.clubName} Football: #${d.rank} in Australia, Ladder & Form ${yr} | PlayFooty`
   return `${d.clubName} Football: Profile, Ladder & Results ${yr} | PlayFooty`
 }
+
 function seoDesc(d: ClubProfile): string {
   const where = [d.town, d.leagueName?.replace(/\s*-\s*a grade.*/i, ''), d.stateName ?? d.state].filter(Boolean).join(', ')
   const bits = [`${d.clubName} community football on PlayFooty${where ? ` (${where})` : ''}.`]
