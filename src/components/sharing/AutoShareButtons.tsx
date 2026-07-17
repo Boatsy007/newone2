@@ -86,6 +86,7 @@ export default function AutoShareButtons() {
 
   return <style>{`
     .pf-share-host{position:relative!important}
+    .pf-number-one.pf-share-host{position:absolute!important}
     .pf-auto-share{position:absolute;right:8px;top:8px;z-index:8;display:flex;align-items:center;gap:5px;border:1px solid rgba(5,5,5,.14);border-radius:999px;background:rgba(255,255,255,.94);color:#050505;padding:7px 9px;box-shadow:0 5px 16px rgba(0,0,0,.12);font-family:'Barlow Condensed',Arial,sans-serif;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;backdrop-filter:blur(8px)}
     .pf-auto-share svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.pf-auto-share circle{fill:currentColor;stroke:none}
     .pf-auto-share:hover,.pf-auto-share:focus-visible{background:#2daaf5;outline:none}.pf-auto-share.creating{opacity:.7;cursor:wait}
