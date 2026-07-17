@@ -1,5 +1,12 @@
 export type FollowEntity = 'CLUB' | 'LEAGUE' | 'PLAYER'
-export type Follow = { entityType: FollowEntity; entityId: string }
+export type Follow = {
+  entityType: FollowEntity
+  entityId: string
+  name?: string
+  subtitle?: string | null
+  href?: string
+  logoUrl?: string | null
+}
 export type FeedItem = { id: string; type: string; title: string; body: string; entityType: string; entityId: string; href: string; createdAt: string }
 
 const SUPPORTER_KEY = 'playfooty-supporter-id'
@@ -32,7 +39,7 @@ export async function setFollow(entityType: FollowEntity, entityId: string, enab
 
 export async function loadFeed(): Promise<FeedItem[]> {
   const response = await fetch(`/api/follows/feed?supporterId=${encodeURIComponent(getSupporterId())}`)
-  if (!response.ok) throw new Error('Unable to load notifications')
+  if (!response.ok) throw new Error('Unable to load supporter feed')
   const payload = await response.json() as { data?: FeedItem[] }
   return Array.isArray(payload.data) ? payload.data : []
 }
