@@ -11,6 +11,8 @@ const SHAREABLE = [
   /^\/highlights(?:\/[^/]+)?$/,
 ]
 
+const PROFILE_PAGE = /^\/(team|league|player)\/[^/]+$/
+
 function isShareable(path: string) {
   return SHAREABLE.some(pattern => pattern.test(path))
 }
@@ -28,6 +30,14 @@ export default function AutoShareButtons() {
   const { pathname } = useLocation()
 
   useEffect(() => {
+    document.querySelectorAll('.pf-auto-share').forEach(control => control.remove())
+    document.querySelectorAll<HTMLElement>('[data-pf-share-enhanced="true"]').forEach(host => {
+      delete host.dataset.pfShareEnhanced
+      host.classList.remove('pf-share-host')
+    })
+
+    if (PROFILE_PAGE.test(pathname)) return
+
     let timer = 0
     const enhance = () => {
       window.clearTimeout(timer)
