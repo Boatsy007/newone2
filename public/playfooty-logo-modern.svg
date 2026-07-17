@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-labelledby="title desc">
+  <title id="title">PlayFooty</title>
+  <desc id="desc">PLAY in bright blue on a black block, FOOTY in white.</desc>
+  <g transform="skewX(-8)">
+    <rect x="20" y="25" width="330" height="130" rx="2" fill="#050505"/>
+    <text x="48" y="127" fill="#42B8FF" font-family="Arial Black, Impact, sans-serif" font-size="102" font-weight="900" letter-spacing="-7">PLAY</text>
+    <text x="370" y="127" fill="#FFFFFF" font-family="Arial Black, Impact, sans-serif" font-size="102" font-weight="900" letter-spacing="-7">FOOTY</text>
+  </g>
+</svg>
