@@ -9,6 +9,10 @@ style.textContent = `
     overflow: hidden;
   }
 
+  .pf-home > .pf-band {
+    display: none !important;
+  }
+
   .pf-hero-art .pf-speed-lines,
   .pf-hero-art .pf-player-shape {
     display: none !important;
