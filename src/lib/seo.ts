@@ -1,7 +1,6 @@
 /**
  * Dynamic SEO for the SPA — sets <title>, meta description, canonical,
- * Open Graph / Twitter tags, and an optional JSON-LD structured-data block.
- * Runs on mount/update and restores nothing (each page sets its own).
+ * Open Graph / Twitter tags, an automated share card and optional JSON-LD.
  */
 import { useEffect } from 'react'
 
@@ -30,27 +29,39 @@ function upsertLink(rel: string, href: string) {
 export interface Seo {
   title: string
   description?: string
-  path?: string          // canonical path e.g. "/rankings"
+  path?: string
+  image?: string
+  shareLabel?: string
   jsonLd?: Record<string, unknown> | Record<string, unknown>[]
 }
 
 const JSONLD_ID = 'playfooty-jsonld'
 
-export function useSeo({ title, description, path, jsonLd }: Seo) {
+export function shareCardUrl(title: string, description?: string, label = 'PLAYFOOTY') {
+  const params = new URLSearchParams({ title, subtitle: description ?? 'Australia’s home of community football', label })
+  return `${SITE}/api/share-card?${params.toString()}`
+}
+
+export function useSeo({ title, description, path, image, shareLabel, jsonLd }: Seo) {
   useEffect(() => {
     document.title = title
     const url = SITE + (path ?? window.location.pathname)
+    const card = image ?? shareCardUrl(title.replace(/\s*\|\s*PlayFooty.*$/i, ''), description, shareLabel)
     if (description) upsertMeta('name', 'description', description)
     upsertMeta('property', 'og:title', title)
     if (description) upsertMeta('property', 'og:description', description)
     upsertMeta('property', 'og:type', 'website')
     upsertMeta('property', 'og:url', url)
+    upsertMeta('property', 'og:image', card)
+    upsertMeta('property', 'og:image:width', '1200')
+    upsertMeta('property', 'og:image:height', '630')
+    upsertMeta('property', 'og:image:alt', `${title} share card`)
     upsertMeta('name', 'twitter:card', 'summary_large_image')
     upsertMeta('name', 'twitter:title', title)
     if (description) upsertMeta('name', 'twitter:description', description)
+    upsertMeta('name', 'twitter:image', card)
     upsertLink('canonical', url)
 
-    // JSON-LD
     const existing = document.getElementById(JSONLD_ID)
     if (existing) existing.remove()
     if (jsonLd) {
@@ -61,7 +72,7 @@ export function useSeo({ title, description, path, jsonLd }: Seo) {
       document.head.appendChild(s)
     }
     return () => { document.getElementById(JSONLD_ID)?.remove() }
-  }, [title, description, path, JSON.stringify(jsonLd)])
+  }, [title, description, path, image, shareLabel, JSON.stringify(jsonLd)])
 }
 
 export const canonicalUrl = (path: string) => SITE + path
