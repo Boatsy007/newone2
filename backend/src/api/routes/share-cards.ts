@@ -22,7 +22,7 @@ const safeImage = (value: unknown) => {
   } catch { return null }
 }
 
-const wrap = (text: string, max = 25) => {
+const wrap = (text: string, max = 25, limit = 3) => {
   const words = text.split(/\s+/)
   const lines: string[] = []
   let current = ''
@@ -31,22 +31,37 @@ const wrap = (text: string, max = 25) => {
     if (next.length > max && current) { lines.push(current); current = word } else current = next
   }
   if (current) lines.push(current)
-  return lines.slice(0, 3)
+  return lines.slice(0, limit)
 }
 
-router.get('/', (req, res) => {
+async function embeddedImage(url: string | null) {
+  if (!url) return null
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) })
+    if (!response.ok) return null
+    const type = response.headers.get('content-type')?.split(';')[0] ?? ''
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'].includes(type)) return null
+    const bytes = Buffer.from(await response.arrayBuffer())
+    if (bytes.byteLength > 2_500_000) return null
+    return `data:${type};base64,${bytes.toString('base64')}`
+  } catch { return null }
+}
+
+router.get('/', async (req, res) => {
   const title = clamp(req.query.title, 'PlayFooty', 90)
   const subtitle = clamp(req.query.subtitle, 'Australia’s home of community football', 160)
   const label = clamp(req.query.label, 'PLAYFOOTY', 30).toUpperCase()
   const stat1 = clamp(req.query.stat1, '', 28).toUpperCase()
   const stat2 = clamp(req.query.stat2, '', 28).toUpperCase()
-  const logo = safeImage(req.query.logo)
+  const logo = await embeddedImage(safeImage(req.query.logo))
   const accent = /^#[0-9a-f]{6}$/i.test(String(req.query.accent ?? '')) ? String(req.query.accent) : '#2daaf5'
   const lines = wrap(title)
+  const subtitleLines = wrap(subtitle, 48, 3)
   const titleSvg = lines.map((line, index) => `<text x="72" y="${220 + index * 82}" font-family="Arial Narrow, Arial, sans-serif" font-size="70" font-weight="900" letter-spacing="-2" fill="#ffffff">${escapeXml(line.toUpperCase())}</text>`).join('')
-  const subtitleY = 238 + lines.length * 82
+  const subtitleY = 250 + lines.length * 82
+  const subtitleSvg = subtitleLines.map((line, index) => `<text x="72" y="${subtitleY + index * 34}" font-family="Arial, sans-serif" font-size="25" font-weight="700" fill="#cbd5df">${escapeXml(line)}</text>`).join('')
   const logoSvg = logo
-    ? `<rect x="872" y="92" width="240" height="240" rx="28" fill="#ffffff"/><image href="${escapeXml(logo)}" x="892" y="112" width="200" height="200" preserveAspectRatio="xMidYMid meet"/>`
+    ? `<rect x="872" y="92" width="240" height="240" rx="28" fill="#ffffff"/><image href="${logo}" x="892" y="112" width="200" height="200" preserveAspectRatio="xMidYMid meet"/>`
     : `<g transform="translate(900 118)"><ellipse cx="105" cy="90" rx="125" ry="70" fill="#050505" transform="rotate(-18 105 90)"/><path d="M20 83C58 50 124 28 195 41" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="4"/><path d="M38 119C88 92 145 79 211 84" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="4"/><text x="105" y="104" text-anchor="middle" font-family="Arial Narrow, Arial, sans-serif" font-size="48" font-weight="900" fill="#ffffff">PF</text></g>`
   const stats = [stat1, stat2].filter(Boolean)
   const statsSvg = stats.map((stat, index) => `<g transform="translate(${872 + index * 132} 382)"><rect width="118" height="74" rx="14" fill="#050505" fill-opacity="0.92"/><text x="59" y="45" text-anchor="middle" font-family="Arial Narrow, Arial, sans-serif" font-size="22" font-weight="900" fill="#ffffff">${escapeXml(stat)}</text></g>`).join('')
@@ -57,9 +72,7 @@ router.get('/', (req, res) => {
   <path d="M820 0H1200V630H690C810 500 865 384 855 278C847 182 838 92 820 0Z" fill="${accent}"/>
   <circle cx="1040" cy="154" r="205" fill="#ffffff" fill-opacity="0.10"/><circle cx="1094" cy="522" r="300" fill="#050505" fill-opacity="0.18"/>
   <text x="72" y="82" font-family="Arial, sans-serif" font-size="22" font-weight="900" letter-spacing="5" fill="${accent}">${escapeXml(label)}</text>
-  ${titleSvg}
-  <foreignObject x="72" y="${subtitleY}" width="700" height="112"><div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Arial,sans-serif;font-size:25px;line-height:1.35;font-weight:700;color:#cbd5df;">${escapeXml(subtitle)}</div></foreignObject>
-  ${logoSvg}${statsSvg}
+  ${titleSvg}${subtitleSvg}${logoSvg}${statsSvg}
   <rect x="72" y="558" width="1056" height="2" fill="#ffffff" fill-opacity="0.18"/>
   <text x="72" y="598" font-family="Arial, sans-serif" font-size="21" font-weight="800" fill="#ffffff">PLAYFOOTY.COM.AU</text>
   <text x="1128" y="598" text-anchor="end" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#050505">REAL CLUBS. REAL FOOTBALL.</text>
