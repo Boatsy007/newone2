@@ -1,8 +1,10 @@
 import { Router } from 'express'
 import { createHash, randomUUID } from 'node:crypto'
 import { prisma } from '../../db/client.js'
+import { ensureHighlightTables } from '../../highlights/store.js'
 
 const router = Router()
+router.use(async (_req, _res, next) => { try { await ensureHighlightTables(); next() } catch (error) { next(error) } })
 const CATEGORIES = ['goal', 'mark', 'play', 'performance'] as const
 const isCategory = (value: unknown): value is typeof CATEGORIES[number] => typeof value === 'string' && CATEGORIES.includes(value as typeof CATEGORIES[number])
 const clean = (value: unknown, max = 240) => typeof value === 'string' ? value.trim().slice(0, max) : ''
@@ -24,11 +26,7 @@ function serialize(row: PublicHighlightRow) {
   const now = Date.now()
   const opens = row.votingOpensAt?.getTime() ?? null
   const closes = row.votingClosesAt?.getTime() ?? null
-  return {
-    ...row,
-    votes: Number(row.votes),
-    votingOpen: opens != null && closes != null && now >= opens && now < closes,
-  }
+  return { ...row, votes: Number(row.votes), votingOpen: opens != null && closes != null && now >= opens && now < closes }
 }
 
 router.get('/', async (req, res) => {
@@ -39,11 +37,9 @@ router.get('/', async (req, res) => {
       s.video_url AS "videoUrl", s.thumbnail_url AS "thumbnailUrl", s.description, s.week_key AS "weekKey",
       s.voting_opens_at AS "votingOpensAt", s.voting_closes_at AS "votingClosesAt", s.winner,
       COUNT(v.id)::int AS votes
-    FROM highlight_submissions s
-    LEFT JOIN highlight_votes v ON v.submission_id = s.id
+    FROM highlight_submissions s LEFT JOIN highlight_votes v ON v.submission_id = s.id
     WHERE s.status = 'APPROVED' AND s.week_key = $1
-    GROUP BY s.id
-    ORDER BY s.category ASC, votes DESC, s.created_at ASC
+    GROUP BY s.id ORDER BY s.category ASC, votes DESC, s.created_at ASC
   `, week)
   res.json({ data: rows.map(serialize), meta: { weekKey: week, categories: CATEGORIES } })
 })
@@ -55,12 +51,9 @@ router.get('/archive', async (_req, res) => {
       s.video_url AS "videoUrl", s.thumbnail_url AS "thumbnailUrl", s.description, s.week_key AS "weekKey",
       s.voting_opens_at AS "votingOpensAt", s.voting_closes_at AS "votingClosesAt", s.winner,
       COUNT(v.id)::int AS votes
-    FROM highlight_submissions s
-    LEFT JOIN highlight_votes v ON v.submission_id = s.id
+    FROM highlight_submissions s LEFT JOIN highlight_votes v ON v.submission_id = s.id
     WHERE s.status = 'APPROVED' AND s.winner = TRUE
-    GROUP BY s.id
-    ORDER BY s.week_key DESC, s.category ASC
-    LIMIT 100
+    GROUP BY s.id ORDER BY s.week_key DESC, s.category ASC LIMIT 100
   `)
   res.json({ data: rows.map(serialize) })
 })
