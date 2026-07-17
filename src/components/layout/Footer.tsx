@@ -1,29 +1,32 @@
 import { memo } from 'react'
-import { Globe } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 export default memo(function Footer() {
-  return (
-    <footer className="bg-[#1a1a1a] py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex items-baseline gap-1">
-            <span className="font-display text-xl text-white/80 leading-none">PLAY</span>
-            <span className="font-display text-xl leading-none" style={{ color: '#d71920' }}>FOOTY</span>
-          </span>
-          <div className="flex items-center gap-2 text-white/50 text-sm font-bold">
-            <Globe size={14} className="text-[#d71920]" />
-            playfooty.com.au
-          </div>
-        </div>
-        <p className="text-white/30 text-xs text-center">
-          &copy; {new Date().getFullYear()} PlayFooty — Australia’s home of community football. All rights reserved.
-        </p>
-        <div className="flex gap-5">
-          {['Privacy', 'Terms'].map(t => (
-            <span key={t} className="text-xs text-white/30 hover:text-white/60 cursor-default transition-colors">{t}</span>
-          ))}
-        </div>
+  return <footer className="pf-footer">
+    <div className="pf-footer-cta">
+      <div className="pf-footer-cta-inner">
+        <div><strong>Every game. Every player. Every club.</strong><span>Australia's home of community football.</span></div>
+        <Link to="/directory">Explore PlayFooty <span aria-hidden>→</span></Link>
       </div>
-    </footer>
-  )
+    </div>
+    <div className="pf-footer-inner">
+      <Link to="/" className="pf-footer-logo"><img src="/playfooty-logo-modern.svg" alt="PlayFooty" /></Link>
+      <nav aria-label="Footer navigation">
+        <Link to="/about">About</Link>
+        <Link to="/directory">Clubs</Link>
+        <Link to="/leagues">Leagues</Link>
+        <Link to="/news">News</Link>
+        <span>Privacy</span>
+        <span>Terms</span>
+      </nav>
+      <div className="pf-socials" aria-label="Social links"><span>IG</span><span>F</span><span>TT</span><span>YT</span></div>
+    </div>
+    <div className="pf-footer-bottom">© {new Date().getFullYear()} PlayFooty · Australia's home of community football.</div>
+    <style>{`
+      .pf-footer{background:#050505;color:#fff;border-top:1px solid rgba(255,255,255,.12)}
+      .pf-footer-cta{background:#2daaf5;color:#050505;border-top:3px solid #050505;border-bottom:3px solid #050505}.pf-footer-cta-inner{width:min(1440px,calc(100% - 48px));min-height:92px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:24px}.pf-footer-cta strong{display:block;font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(2rem,4vw,3.4rem);line-height:.9;text-transform:uppercase}.pf-footer-cta span{display:block;font-weight:700;margin-top:4px}.pf-footer-cta a{display:inline-flex;align-items:center;gap:16px;background:#050505;color:#fff;text-decoration:none;text-transform:uppercase;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;padding:15px 22px;border-radius:6px;white-space:nowrap}.pf-footer-cta a span{margin:0;font-size:18px}
+      .pf-footer-inner{width:min(1440px,calc(100% - 48px));min-height:112px;margin:0 auto;display:grid;grid-template-columns:220px 1fr auto;align-items:center;gap:35px}.pf-footer-logo img{display:block;width:184px}.pf-footer nav{display:flex;justify-content:center;flex-wrap:wrap;gap:27px}.pf-footer nav a,.pf-footer nav span{color:#fff;text-decoration:none;text-transform:uppercase;font-family:'Barlow Condensed',Arial,sans-serif;font-size:12px;font-weight:900;letter-spacing:.07em}.pf-footer nav a:hover{color:#2daaf5}.pf-socials{display:flex;gap:11px}.pf-socials span{width:30px;height:30px;border:1px solid rgba(255,255,255,.25);border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:900}.pf-footer-bottom{text-align:center;border-top:1px solid rgba(255,255,255,.12);padding:13px 20px;color:rgba(255,255,255,.55);font-size:11px;font-weight:700}
+      @media(max-width:760px){.pf-footer-cta-inner{width:min(100% - 28px,1440px);min-height:0;padding:27px 0;display:grid}.pf-footer-cta a{justify-content:center;width:100%}.pf-footer-inner{width:min(100% - 28px,1440px);grid-template-columns:1fr;padding:32px 0;text-align:center;gap:24px}.pf-footer-logo{display:flex;justify-content:center}.pf-footer nav{gap:18px}.pf-socials{justify-content:center}}
+    `}</style>
+  </footer>
 })

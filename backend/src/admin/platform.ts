@@ -19,7 +19,7 @@ import { fetchPage, fetchPlayHqStatisticsPage, parseResults, parseFixtures, pars
 import { logger }          from '../utils/logger.js'
 
 // Workflow files (the browser-backed execution engine on GitHub Actions).
-const WF_URL_IMPORT = 'playhq-import.yml'
+const WF_URL_IMPORT   = 'playhq-import.yml'
 const WF_FOOTBALL_BULK = 'playhq-football-bulk-discovery.yml'
 const WF_DISCOVER     = 'discover-import.yml'
 const WF_WEEKLY_UPDATE = 'weekly-update.yml'

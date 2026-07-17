@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom'
 import { Clock, Zap } from 'lucide-react'
 import { type Article, categoryOf, formatDate, newsPath } from './content'
 
+// Brand tokens (values only — no import of other app modules)
 export const PINK = '#d71920'
 export const GOLD = '#f4c14d'
 export const GOLD_DK = '#b8860b'
@@ -18,16 +19,17 @@ export const PAGE = '#ffffff'
 export const PAGE_ALT = '#f5f4f0'
 export const DARK = '#0b0e17'
 
+// ── Scoped styles ────────────────────────────────────────────────────────────
 export function NewsStyles() {
   return (
     <style>{`
       .cnews-card{ transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s; }
       .cnews-card:hover{ transform: translateY(-4px); }
       .cnews-card:hover .cnews-img{ transform: scale(1.05); }
-      .cnews-head{ transition: color .2s; }
       .cnews-card:hover .cnews-head{ color:${PINK}; }
       .cnews-img-wrap{ overflow:hidden; }
       .cnews-img{ transition: transform .5s cubic-bezier(.22,1,.36,1); }
+      .cnews-head{ transition: color .2s; }
       .cnews-link{ text-decoration:none; color:inherit; display:block; }
       @keyframes cnewsMarquee{ 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
       .cnews-marquee{ display:flex; width:max-content; animation: cnewsMarquee 34s linear infinite; }
@@ -38,34 +40,24 @@ export function NewsStyles() {
   )
 }
 
+// Deterministic editorial "photography" placeholder (swap heroSeed for a real
+// image URL later with zero layout change).
 function hash(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h) }
 const DUOS: [string, string, string][] = [
   ['#d71920', '#7a0f43', '#1a0512'], ['#f4c14d', '#8a5a10', '#1a1204'],
   ['#4dd9f4', '#0f5f70', '#03151a'], ['#0b0e17', '#26305a', '#d71920'],
   ['#111111', '#3a2140', '#f4c14d'], ['#ff6bb5', '#7a0f43', '#0b0e17'],
 ]
-
 export function EditorialImage({ seed, ratio = '16 / 10', label, rounded = 14 }: { seed: string; ratio?: string; label?: string; rounded?: number }) {
-  const isRealImage = seed.startsWith('/') || seed.startsWith('http://') || seed.startsWith('https://')
   const [a, b, c] = DUOS[hash(seed) % DUOS.length]
   const ang = 90 + (hash(seed) % 120)
   return (
-    <div className="cnews-img-wrap" style={{ aspectRatio: ratio, borderRadius: rounded, position: 'relative', background: '#eef2f7' }}>
-      {isRealImage ? (
-        <img
-          className="cnews-img"
-          src={seed}
-          alt="Woodside and Cowwarr players following their North Gippsland football match"
-          loading="lazy"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 42%' }}
-        />
-      ) : (
-        <div className="cnews-img" style={{ position: 'absolute', inset: 0, background: `linear-gradient(${ang}deg, ${a}, ${b} 55%, ${c})` }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 90% at 15% 10%, rgba(255,255,255,0.18), transparent 55%)' }} />
-          <div style={{ position: 'absolute', inset: 0, opacity: 0.12, background: 'repeating-linear-gradient(135deg, #fff 0 2px, transparent 2px 9px)' }} />
-        </div>
-      )}
-      {label && <span className="font-condensed" style={{ position: 'absolute', left: 14, bottom: 12, color: '#fff', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', fontSize: 11, textShadow: '0 1px 8px rgba(0,0,0,.7)' }}>{label}</span>}
+    <div className="cnews-img-wrap" style={{ aspectRatio: ratio, borderRadius: rounded, position: 'relative' }}>
+      <div className="cnews-img" style={{ position: 'absolute', inset: 0, background: `linear-gradient(${ang}deg, ${a}, ${b} 55%, ${c})` }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(120% 90% at 15% 10%, rgba(255,255,255,0.18), transparent 55%)' }} />
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.12, background: 'repeating-linear-gradient(135deg, #fff 0 2px, transparent 2px 9px)' }} />
+        {label && <span className="font-condensed" style={{ position: 'absolute', left: 14, bottom: 12, color: 'rgba(255,255,255,0.85)', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', fontSize: 11 }}>{label}</span>}
+      </div>
     </div>
   )
 }
@@ -108,6 +100,7 @@ export function SectionHead({ title, to }: { title: string; to?: string }) {
   )
 }
 
+// ── Article cards ────────────────────────────────────────────────────────────
 export function ArticleCard({ article, variant = 'default' }: { article: Article; variant?: 'default' | 'large' | 'compact' }) {
   if (variant === 'compact') {
     return (
@@ -137,6 +130,7 @@ export function ArticleCard({ article, variant = 'default' }: { article: Article
   )
 }
 
+// ── Breaking news ticker ─────────────────────────────────────────────────────
 export function BreakingBar({ items }: { items: { slug: string; title: string }[] }) {
   if (!items.length) return null
   const loop = [...items, ...items]

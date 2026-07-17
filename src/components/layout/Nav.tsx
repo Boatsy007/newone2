@@ -1,282 +1,66 @@
-import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
-import { Menu, X } from 'lucide-react'
-import { useNavigate, useLocation } from 'react-router-dom'
-
-const NAV_H = 96 // px — tall enough for the full logo
-const HEADER_NAVY = '#041f42'
-const ACTION_RED = '#ee0018'
+import { useEffect, useState } from 'react'
+import { Menu, Search, X } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import GlobalSearch, { useSearchController } from '../rankings/GlobalSearch'
 
 const links = [
-  { label: 'Home',     href: '/',           route: '/'          },
-  { label: 'Rankings', href: '/rankings',   route: '/rankings'  },
-  { label: 'Goal Kickers', href: '/goal-kickers', route: '/goal-kickers' },
-  { label: 'Leagues',  href: '/leagues',    route: '/leagues'   },
-  { label: 'Clubs',    href: '/directory',  route: '/directory' },
-  { label: 'News',     href: '/news',       route: '/news'      },
-  { label: 'About',    href: '/about',      route: '/about'     },
+  { label: 'News', href: '/news' },
+  { label: 'Rankings', href: '/rankings' },
+  { label: 'Ladders', href: '/leagues' },
+  { label: 'Clubs', href: '/directory' },
+  { label: 'Highlights', href: '/highlights' },
+  { label: 'Stats', href: '/goal-kickers' },
 ]
 
-const ease = [0.22, 1, 0.36, 1] as [number, number, number, number]
-
 export default function Nav() {
-  const [scrolled, setScrolled]     = useState(false)
-  const [open, setOpen]             = useState(false)
-  const [activeLink, setActiveLink] = useState<string | null>(null)
-  const prefersReduced              = useReducedMotion()
-  const navigate                    = useNavigate()
-  const location                    = useLocation()
+  const [open, setOpen] = useState(false)
+  const location = useLocation()
+  const search = useSearchController()
+  const clubMatch = location.pathname.match(/^\/team\/([^/]+)/)
+  const claimPath = clubMatch ? `/claim-club/${clubMatch[1]}` : null
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 32)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  // Lock body scroll when mobile menu is open
+  useEffect(() => { setOpen(false) }, [location.pathname])
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [open])
 
-  const go = useCallback((href: string, route?: string) => {
-    setActiveLink(href)
-    setOpen(false)
-    // Page-level navigation
-    if (href.startsWith('/') && !href.startsWith('/#')) {
-      navigate(href)
-      window.scrollTo({ top: 0, behavior: 'auto' })
-      return
-    }
-    // Hash scroll — navigate to home first if not already there
-    const delay = open ? 300 : 0
-    if (route && route !== '/' && location.pathname !== '/') {
-      navigate('/')
-      setTimeout(() => {
-        document.querySelector(href)?.scrollIntoView({ behavior: prefersReduced ? 'auto' : 'smooth' })
-      }, 400)
-      return
-    }
-    if (location.pathname !== '/') {
-      navigate('/')
-      setTimeout(() => {
-        document.querySelector(href)?.scrollIntoView({ behavior: prefersReduced ? 'auto' : 'smooth' })
-      }, 400)
-      return
-    }
-    setTimeout(() => {
-      document.querySelector(href)?.scrollIntoView({ behavior: prefersReduced ? 'auto' : 'smooth' })
-    }, delay)
-  }, [open, prefersReduced, navigate, location.pathname])
+  const openSearch = () => { setOpen(false); search.open() }
 
-  return (
-    <>
-      {/* ─── Desktop / tablet nav bar ─── */}
-      <motion.nav
-        initial={{ y: -NAV_H, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.7, ease }}
-        className="fixed top-0 left-0 right-0 z-50"
-        style={{
-          height: NAV_H,
-          background: HEADER_NAVY,
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          borderBottom: scrolled ? '1px solid rgba(255,255,255,0.22)' : '1px solid rgba(255,255,255,0.12)',
-          boxShadow: scrolled ? '0 2px 24px rgba(120,0,12,0.28)' : 'none',
-          transition: 'background 0.35s, border-color 0.35s, box-shadow 0.35s',
-        }}
-        role="navigation"
-        aria-label="Main navigation"
-      >
-        <div
-          className="max-w-6xl mx-auto px-4 sm:px-8 flex items-center justify-between h-full"
-        >
-          {/* Logo */}
-          <button
-            onClick={() => { navigate('/'); window.scrollTo({ top: 0, behavior: prefersReduced ? 'auto' : 'smooth' }) }}
-            aria-label="PlayFooty home"
-            className="shrink-0 flex items-center"
-            style={{ height: NAV_H - 8 }}
-          >
-            <img src="/logo.webp" alt="PlayFooty" style={{ height: 62, width: 'auto', maxWidth: 300, display: 'block', objectFit: 'contain' }} />
-          </button>
-
-          {/* Desktop links */}
-          <div className="hidden lg:flex items-center gap-1">
-            {links.map((l, i) => (
-              <motion.button
-                key={l.label}
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, delay: 0.08 + i * 0.05, ease }}
-                onClick={() => go(l.href, l.route)}
-                className="relative px-4 py-2.5 text-[14.5px] font-semibold tracking-wide transition-colors duration-200 group"
-                style={{ color: (activeLink === l.href || (l.href.startsWith('/') && location.pathname === l.href)) ? '#ffffff' : 'rgba(255,255,255,0.78)' }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#ffffff' }}
-                onMouseLeave={e => { const isActive = activeLink === l.href || (l.href.startsWith('/') && location.pathname === l.href); e.currentTarget.style.color = isActive ? '#ffffff' : 'rgba(255,255,255,0.78)' }}
-              >
-                {l.label}
-                {/* Animated underline */}
-                <span
-                  className="absolute bottom-0 left-3.5 right-3.5 rounded-full"
-                  style={{
-                    height: '2px',
-                    background: '#ffffff',
-                    transform: (activeLink === l.href || (l.href.startsWith('/') && location.pathname === l.href)) ? 'scaleX(1)' : 'scaleX(0)',
-                    transformOrigin: 'left',
-                    transition: 'transform 0.25s cubic-bezier(0.22,1,0.36,1)',
-                  }}
-                />
-                {/* Hover underline (separate element so active + hover don't clash) */}
-                <span
-                  className="absolute bottom-0 left-3.5 right-3.5 rounded-full opacity-0 group-hover:opacity-100 group-hover:scale-x-100"
-                  style={{
-                    height: '2px',
-                    background: 'rgba(255,255,255,0.45)',
-                    transform: 'scaleX(0)',
-                    transformOrigin: 'left',
-                    transition: 'transform 0.25s cubic-bezier(0.22,1,0.36,1), opacity 0.2s',
-                    display: (activeLink === l.href || (l.href.startsWith('/') && location.pathname === l.href)) ? 'none' : undefined,
-                  }}
-                />
-              </motion.button>
-            ))}
-
-            <motion.button
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.45, delay: 0.42, ease }}
-              whileHover={{ scale: 1.04, y: -1 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => go('/rankings', '/rankings')}
-              className="ml-4 font-bold rounded-full text-[13px] tracking-wide"
-              style={{
-                background: '#ffffff',
-                color: ACTION_RED,
-                padding: '0.6rem 1.4rem',
-                boxShadow: '0 4px 20px rgba(120,0,12,0.24)',
-                transition: 'background 0.2s, box-shadow 0.2s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = '#fff4f5'
-                e.currentTarget.style.boxShadow = '0 8px 28px rgba(120,0,12,0.34)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = '#ffffff'
-                e.currentTarget.style.boxShadow = '0 4px 20px rgba(120,0,12,0.24)'
-              }}
-            >
-              View Rankings
-            </motion.button>
-          </div>
-
-          {/* Mobile hamburger */}
-          <motion.button
-            className="lg:hidden flex items-center justify-center w-10 h-10 rounded-xl"
-            style={{ background: open ? 'rgba(255,255,255,0.16)' : 'transparent', color: '#ffffff' }}
-            onClick={() => setOpen(o => !o)}
-            aria-expanded={open}
-            aria-label={open ? 'Close menu' : 'Open menu'}
-            whileTap={{ scale: 0.92 }}
-          >
-            <AnimatePresence mode="wait" initial={false}>
-              {open ? (
-                <motion.span
-                  key="close"
-                  initial={{ rotate: -90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: 90, opacity: 0 }}
-                  transition={{ duration: 0.18, ease }}
-                >
-                  <X size={20} strokeWidth={2} />
-                </motion.span>
-              ) : (
-                <motion.span
-                  key="open"
-                  initial={{ rotate: 90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: -90, opacity: 0 }}
-                  transition={{ duration: 0.18, ease }}
-                >
-                  <Menu size={20} strokeWidth={2} />
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </motion.button>
+  return <>
+    <header className="pf-nav">
+      <div className="pf-nav-inner">
+        <Link to="/" className="pf-brand" aria-label="PlayFooty home"><img src="/playfooty-logo-modern.svg" alt="PlayFooty" /></Link>
+        <nav className="pf-desktop-links" aria-label="Main navigation">
+          {links.map(link => <Link key={link.href} to={link.href} className={location.pathname.startsWith(link.href) ? 'active' : ''}>{link.label}</Link>)}
+        </nav>
+        <div className="pf-nav-actions">
+          <button type="button" className="pf-search" aria-label="Search clubs, leagues, players and news" onClick={openSearch}><Search size={22} /></button>
+          <Link to="/admin" className="pf-primary-action">Club login</Link>
+          <button className="pf-menu-button" type="button" aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? <X size={28} /> : <Menu size={28} />}</button>
         </div>
-      </motion.nav>
+      </div>
+    </header>
 
-      {/* ─── Mobile full-screen overlay ─── */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            key="mobile-menu"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25, ease }}
-            className="fixed inset-0 z-40 lg:hidden"
-            style={{ background: HEADER_NAVY }}
-          >
-            {/* Top bar fill (matches nav) */}
-            <div style={{ height: NAV_H }} />
+    {open && <div className="pf-mobile-menu">
+      <nav aria-label="Mobile navigation">{links.map((link, index) => <Link key={link.href} to={link.href}><span>{link.label}</span><small>{String(index + 1).padStart(2, '0')}</small></Link>)}</nav>
+      <button type="button" className="pf-mobile-search" onClick={openSearch}><Search size={20} /> Search PlayFooty</button>
+      <Link to="/admin" className="pf-mobile-cta">Club login</Link>
+    </div>}
 
-            {/* Pink accent line */}
-            <div style={{ height: '2px', background: 'rgba(255,255,255,0.34)' }} />
+    {claimPath && <Link to={claimPath} className="pf-claim-club-fab">Manage this club</Link>}
+    <GlobalSearch controller={search} />
 
-            {/* Links */}
-            <nav className="flex flex-col px-6 pt-6 pb-10 overflow-y-auto" style={{ maxHeight: `calc(100vh - ${NAV_H + 2}px)` }}>
-              {links.map((l, i) => (
-                <motion.button
-                  key={l.label}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.35, delay: 0.05 + i * 0.06, ease }}
-                  onClick={() => go(l.href, l.route)}
-                  className="flex items-center justify-between w-full text-left py-4 group"
-                  style={{ borderBottom: '1px solid rgba(255,255,255,0.16)' }}
-                >
-                  <span
-                    className="font-display leading-none transition-colors duration-200 group-active:text-[#d71920]"
-                    style={{ fontSize: 'clamp(2rem, 8vw, 3rem)', color: '#ffffff' }}
-                  >
-                    {l.label.toUpperCase()}
-                  </span>
-                  <span className="font-condensed font-bold text-[10px] tracking-[0.22em] uppercase" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                </motion.button>
-              ))}
-
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.42, ease }}
-                className="mt-8 space-y-3"
-              >
-                <button
-                  onClick={() => go('/rankings', '/rankings')}
-                  className="w-full font-bold rounded-2xl text-base py-4"
-                  style={{
-                    background: '#ffffff',
-                    color: ACTION_RED,
-                    boxShadow: '0 8px 32px rgba(120,0,12,0.24)',
-                  }}
-                >
-                  View National Rankings
-                </button>
-                <p className="text-center text-xs" style={{ color: 'rgba(255,255,255,0.68)' }}>
-                  PlayFooty · Australia’s home of community football
-                </p>
-              </motion.div>
-            </nav>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Spacer so page content clears the fixed nav */}
-      <div style={{ height: NAV_H }} aria-hidden />
-    </>
-  )
+    <style>{`
+      .pf-nav{position:sticky;top:0;z-index:80;background:#050505;color:#fff;border-bottom:1px solid rgba(255,255,255,.12)}
+      .pf-nav-inner{height:76px;max-width:1500px;margin:0 auto;padding:0 30px;display:flex;align-items:center;gap:30px}
+      .pf-brand{display:flex;align-items:center;flex:0 0 auto}.pf-brand img{display:block;width:174px;height:auto}
+      .pf-desktop-links{display:flex;align-items:center;gap:27px;margin-left:auto}.pf-desktop-links a{position:relative;color:#fff;text-decoration:none;text-transform:uppercase;font-family:'Barlow Condensed',Arial,sans-serif;font-size:14px;font-weight:900;letter-spacing:.055em;padding:28px 0 25px}.pf-desktop-links a:after{content:'';position:absolute;left:0;right:0;bottom:17px;height:3px;background:#2daaf5;transform:scaleX(0);transform-origin:left;transition:transform .2s}.pf-desktop-links a:hover:after,.pf-desktop-links a.active:after{transform:scaleX(1)}
+      .pf-nav-actions{display:flex;align-items:center;gap:13px}.pf-search{display:grid;place-items:center;color:#fff;width:42px;height:42px;border:0;background:transparent;cursor:pointer;border-radius:50%}.pf-search:hover,.pf-search:focus-visible{background:rgba(255,255,255,.1);outline:none}.pf-primary-action{background:#2daaf5;color:#050505;text-decoration:none;text-transform:uppercase;font-family:'Barlow Condensed',Arial,sans-serif;font-size:13px;font-weight:900;letter-spacing:.055em;padding:14px 22px;border-radius:999px}.pf-menu-button{display:none;border:0;background:transparent;color:#fff;padding:8px}
+      .pf-mobile-menu{position:fixed;z-index:70;inset:76px 0 0;background:#050505;color:#fff;padding:24px 24px 40px;overflow:auto}.pf-mobile-menu nav{display:grid}.pf-mobile-menu nav a{display:flex;align-items:center;justify-content:space-between;color:#fff;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.16);padding:18px 0}.pf-mobile-menu nav span{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(2.4rem,12vw,4.3rem);line-height:.9;text-transform:uppercase}.pf-mobile-menu nav small{color:#2daaf5;font-weight:950}.pf-mobile-search,.pf-mobile-cta{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;margin-top:22px;text-align:center;text-decoration:none;text-transform:uppercase;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;padding:17px;border-radius:999px}.pf-mobile-search{border:1px solid rgba(255,255,255,.24);background:#fff;color:#050505}.pf-mobile-cta{margin-top:12px;background:#2daaf5;color:#050505}
+      .pf-claim-club-fab{position:fixed;right:18px;bottom:18px;z-index:65;background:#42b8ff;color:#050505;text-decoration:none;text-transform:uppercase;font-family:'Barlow Condensed',Arial,sans-serif;font-size:12px;font-weight:950;letter-spacing:.05em;padding:13px 18px;border-radius:999px;border:1px solid rgba(5,5,5,.14);box-shadow:0 10px 28px rgba(0,0,0,.2)}
+      @media(max-width:1150px){.pf-desktop-links,.pf-primary-action{display:none}.pf-nav-inner{height:72px;padding:0 18px}.pf-brand img{width:166px}.pf-nav-actions{margin-left:auto}.pf-menu-button{display:block}.pf-mobile-menu{inset:72px 0 0}}
+      @media(max-width:480px){.pf-brand img{width:148px}.pf-search{width:36px;height:36px}.pf-nav-inner{gap:8px;padding:0 12px}.pf-claim-club-fab{right:12px;bottom:12px;padding:12px 15px}}
+    `}</style>
+  </>
 }

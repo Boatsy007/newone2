@@ -13,13 +13,13 @@ export const TEXT = '#111111'
 export const MUTE = 'rgba(17,17,17,0.5)'
 export const FAINT = 'rgba(17,17,17,0.34)'
 export const LINE = 'rgba(17,17,17,0.09)'
-export const PINK = '#d71920'
-export const GOLD = '#f4c14d'
-export const GOLD_DK = '#a8760a'
+export const PINK = '#2daaf5'
+export const GOLD = '#2daaf5'
+export const GOLD_DK = '#0878bd'
 export const UP = '#16a34a'
 export const DOWN = '#dc2626'
-export const BAND = '#f7f6f3'
-export const CYANISH = '#0e7490'
+export const BAND = '#f5f8fb'
+export const CYANISH = '#2daaf5'
 
 /** Section shell: consistent width, rhythm and optional alternate band. */
 export function Section({ children, band, id, pad = true }: { children: ReactNode; band?: boolean; id?: string; pad?: boolean }) {

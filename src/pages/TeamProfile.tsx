@@ -1,10 +1,8 @@
 /**
- * Club page (Phase 4): the highest-traffic page on PlayFooty and each club's
- * premium digital home. Hero identity, snapshot, current ladder, rankings
- * journey, the rating explained, club news, and a claim CTA. Every figure is
- * real; missing data is invited, never invented. Route stays /team/:clubId.
+ * Club page: each club's premium digital home. Section tabs expose the
+ * existing live club content without changing its data sources or route.
  */
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Nav from '../components/layout/Nav'
 import ProductSearch from '../components/rankings/ProductSearch'
@@ -18,60 +16,117 @@ const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ de
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
 const ClubNews = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubNews })))
 
-type ClubWithGoalKicker = ClubProfile & {
-  leadingGoalKicker?: { playerName: string; goals: number; matches: number | null; clubName: string; leagueName: string } | null
-}
+type ClubTab = 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
+
+const CLUB_TABS: { id: ClubTab; label: string }[] = [
+  { id: 'news', label: 'Club news' },
+  { id: 'information', label: 'Information' },
+  { id: 'photos', label: 'Photos' },
+  { id: 'sponsors', label: 'Sponsors' },
+  { id: 'stats', label: 'Stats' },
+  { id: 'related', label: 'Related clubs' },
+]
 
 export default function TeamProfile() {
   const { clubId = '' } = useParams()
+  const [activeTab, setActiveTab] = useState<ClubTab>('news')
   const club = useAsync<ClubProfile>(() => fetchClub(clubId), [clubId])
   const explain = useAsync<ClubExplanation | null>(() => fetchClubExplain(clubId).catch(() => null), [clubId])
-  const data = club.data as ClubWithGoalKicker | null
+  const data = club.data
 
-  useSeo({ title: data ? seoTitle(data) : 'Club | PlayFooty', description: data ? seoDesc(data) : 'Country football club profile, national ranking and current form.', path: `/team/${clubId}`, jsonLd: data ? buildJsonLd(data, clubId) : undefined })
+  useSeo({
+    title: data ? seoTitle(data) : 'Club | PlayFooty',
+    description: data ? seoDesc(data) : 'Country football club profile, national ranking and current form.',
+    path: `/team/${clubId}`,
+    jsonLd: data ? buildJsonLd(data, clubId) : undefined,
+  })
 
   return (
     <div style={{ background: '#ffffff', minHeight: '100vh' }}>
-      <Nav /><ProductSearch />
+      <Nav />
+      <ProductSearch />
       <main id="main-content">
         {club.loading && <HeroSkeleton />}
         {club.error && <div className="font-condensed" style={{ minHeight: '50vh', display: 'grid', placeItems: 'center', color: '#dc2626', letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, fontSize: 13 }}>Club not found</div>}
-        {data && <>
-          <ClubHero club={data} />
-          <ClubSnapshot club={data} />
-          <LeadingGoalKickerCard club={data} />
-          <div className="club-profile-shell">
-            <div className="club-profile-main">
-              <Suspense fallback={<div style={{ minHeight: 320 }} aria-hidden />}><ClubJourney club={data} /></Suspense>
-              <Suspense fallback={<div style={{ minHeight: 300 }} aria-hidden />}><ClubWhy club={data} reasoning={explain.data?.reasoning} /></Suspense>
-              <ClubLadder club={data} />
-              <Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}><ClubNews club={data} /></Suspense>
-              <ClubInfo club={data} /><ClubGallery club={data} /><ClubSponsors club={data} /><RelatedClubs club={data} /><ClubClaim club={data} />
+        {data && (
+          <>
+            <ClubHero club={data} />
+            <nav className="club-profile-tabs" aria-label="Club profile sections">
+              <div role="tablist" aria-label={`${data.clubName} profile sections`}>
+                {CLUB_TABS.map(tab => (
+                  <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>
+                ))}
+              </div>
+            </nav>
+
+            <div className="club-section-bg">
+              <div className="club-profile-area" role="tabpanel">
+                <div className="club-profile-main">
+                  {activeTab === 'news' && <div className="club-feed-card"><Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}><ClubNews club={data} /></Suspense></div>}
+                  {activeTab === 'information' && <ClubInformationPanel club={data} />}
+                  {activeTab === 'photos' && <div className="club-feed-card"><ClubGallery club={data} /></div>}
+                  {activeTab === 'sponsors' && <div className="club-feed-card"><ClubSponsors club={data} /></div>}
+                  {activeTab === 'stats' && (
+                    <div className="club-stats-stack">
+                      <ClubSnapshot club={data} />
+                      <Suspense fallback={<div style={{ minHeight: 320 }} aria-hidden />}><ClubJourney club={data} /></Suspense>
+                      <Suspense fallback={<div style={{ minHeight: 300 }} aria-hidden />}><ClubWhy club={data} reasoning={explain.data?.reasoning} /></Suspense>
+                      <ClubLadder club={data} />
+                      <ClubClaim club={data} />
+                    </div>
+                  )}
+                  {activeTab === 'related' && <div className="club-feed-card"><RelatedClubs club={data} /></div>}
+                </div>
+                <aside className="club-profile-sidebar"><ClubSidebar club={data} /></aside>
+              </div>
             </div>
-            <ClubSidebar club={data} />
-          </div>
-          <style>{`.club-profile-shell{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:0 20px 48px}.club-profile-main > section{padding-left:0!important;padding-right:0!important}.club-profile-main > section > div{max-width:none!important}@media (max-width:980px){.club-profile-shell{display:block;padding:0 14px 36px}.club-profile-main > section{padding-top:22px!important;padding-bottom:22px!important}}`}</style>
-        </>}
+
+            <style>{`
+              .club-profile-tabs{position:sticky;top:0;z-index:8;background:#fff;border-bottom:1px solid #e3e7ec;box-shadow:0 4px 14px rgba(17,24,39,.04)}
+              .club-profile-tabs>div{max-width:1180px;margin:0 auto;display:flex;gap:2px;padding:0 20px;overflow-x:auto;scrollbar-width:none}.club-profile-tabs>div::-webkit-scrollbar{display:none}
+              .club-profile-tabs button{position:relative;flex:0 0 auto;min-height:58px;padding:0 18px;border:0;background:transparent;color:#687385;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:21px;letter-spacing:.035em;text-transform:uppercase;white-space:nowrap;cursor:pointer}
+              .club-profile-tabs button:after{content:'';position:absolute;left:14px;right:14px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:transparent}.club-profile-tabs button.active{color:#050505}.club-profile-tabs button.active:after{background:#42b8ff}
+              .club-section-bg{background:#f3f5f7;min-height:420px}.club-profile-area{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:28px 20px 48px}
+              .club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-left:0!important;padding-right:0!important}.club-profile-main>section>div,.club-feed-card>section>div,.club-stats-stack>section>div{max-width:none!important}
+              .club-feed-card,.club-info-panel{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}.club-stats-stack,.club-info-stack{display:grid;gap:18px}.club-stats-stack>section{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
+              .club-info-panel{padding:24px}.club-info-kicker{display:block;color:#42b8ff;font-size:11px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.club-info-title{margin:6px 0 12px;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:36px;line-height:1;text-transform:uppercase;color:#111318}.club-info-bio{margin:0;color:#46515f;font-size:15px;line-height:1.65}
+              .club-contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.club-contact-item{min-width:0;padding:15px;border:1px solid #e3e7ec;border-radius:9px;background:#f8fafb}.club-contact-item span{display:block;color:#687385;font-size:10px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.club-contact-item strong,.club-contact-item a{display:block;margin-top:5px;color:#111318;font-size:14px;font-weight:800;line-height:1.35;text-decoration:none;overflow-wrap:anywhere}.club-contact-item a:hover{color:#209fe9}.club-contact-empty{color:#8a94a3!important;font-weight:600!important}.club-profile-sidebar{position:sticky;top:78px}
+              @media(max-width:980px){.club-profile-tabs>div{padding:0 10px}.club-profile-tabs button{min-height:54px;padding:0 14px;font-size:19px}.club-profile-tabs button:after{left:10px;right:10px}.club-profile-area{display:block;padding:18px 14px 36px}.club-profile-sidebar{position:static;margin-top:18px}.club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-top:20px!important;padding-bottom:20px!important}.club-info-panel{padding:19px}.club-info-title{font-size:31px}.club-contact-grid{grid-template-columns:1fr}}
+            `}</style>
+          </>
+        )}
       </main>
       <Footer />
     </div>
   )
 }
 
-function LeadingGoalKickerCard({ club }: { club: ClubWithGoalKicker }) {
-  const leader = club.leadingGoalKicker
-  if (!leader) return null
-  return <section style={{ maxWidth: 1180, margin: '0 auto', padding: '0 20px 24px' }} aria-label="Leading goal kicker">
-    <div className="gn-card" style={{ padding: '18px 20px', borderTop: '3px solid #d71920', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-        <div style={{ width: 58, height: 58, borderRadius: 16, background: '#f4f6fa', border: '1px solid #dbe3ee', display: 'grid', placeItems: 'center', overflow: 'hidden', flex: '0 0 auto', color: '#d71920', fontWeight: 900 }}>
-          {club.logoUrl ? <img src={club.logoUrl} alt={`${club.clubName} logo`} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }} /> : club.clubName.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()}
-        </div>
-        <div style={{ minWidth: 0 }}><div className="font-condensed" style={{ color: '#d71920', fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 7 }}>Leading goal kicker</div><strong className="font-display" style={{ display: 'block', fontSize: 'clamp(1.5rem, 3vw, 2.2rem)', lineHeight: 1 }}>{leader.playerName}</strong><small className="font-condensed" style={{ color: '#65758b', display: 'block', marginTop: 6 }}>{leader.matches != null ? `${leader.matches} games · ` : ''}{leader.clubName}</small></div>
-      </div>
-      <div style={{ textAlign: 'right' }}><strong className="font-display" style={{ display: 'block', fontSize: 'clamp(2rem, 5vw, 3.2rem)', lineHeight: .9, color: '#062a5f' }}>{leader.goals}</strong><span className="font-condensed" style={{ color: '#65758b', fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Goals</span></div>
-    </div>
-  </section>
+function ClubInformationPanel({ club }: { club: ClubProfile }) {
+  const extra = club as ClubProfile & Record<string, unknown>
+  const read = (...keys: string[]) => keys.map(key => extra[key]).find(value => typeof value === 'string' && value.trim()) as string | undefined
+  const location = club.stateName ?? club.state
+  const website = club.websiteUrl ?? undefined
+  const facebook = club.facebookUrl ?? undefined
+  const instagram = club.instagramUrl ?? undefined
+  const bio = read('bio', 'description', 'about', 'clubBio', 'history') ?? `${club.clubName} is a community football club${club.town ? ` based in ${club.town}` : ''}${club.leagueName ? ` competing in ${club.leagueName}` : ''}${location ? ` in ${location}` : ''}. This profile brings together the club's latest news, information and current football performance.`
+  const president = read('president', 'presidentName', 'clubPresident')
+  const secretary = read('secretary', 'secretaryName', 'clubSecretary')
+  const email = read('email', 'clubEmail', 'contactEmail')
+  const phone = read('phone', 'phoneNumber', 'clubPhone', 'contactPhone')
+  const ground = read('groundName', 'homeGround', 'venueName', 'ground')
+  const address = read('address', 'groundAddress', 'venueAddress')
+
+  const item = (label: string, value?: string, href?: string) => (
+    <div className="club-contact-item"><span>{label}</span>{value ? (href ? <a href={href} target="_blank" rel="noreferrer">{value}</a> : <strong>{value}</strong>) : <strong className="club-contact-empty">Not yet provided</strong>}</div>
+  )
+
+  return <div className="club-info-stack">
+    <section className="club-info-panel"><span className="club-info-kicker">About the club</span><h2 className="club-info-title">{club.clubName}</h2><p className="club-info-bio">{bio}</p></section>
+    <section className="club-info-panel"><span className="club-info-kicker">Club contacts</span><h2 className="club-info-title">Contact details</h2><div className="club-contact-grid">
+      {item('President', president)}{item('Secretary', secretary)}{item('Email', email, email ? `mailto:${email}` : undefined)}{item('Phone', phone, phone ? `tel:${phone.replace(/\s/g, '')}` : undefined)}{item('Home ground', ground)}{item('Address', address)}{item('Website', website, website)}{item('Facebook', facebook, facebook)}{item('Instagram', instagram, instagram)}
+    </div></section>
+    <div className="club-feed-card"><ClubInfo club={club} /></div>
+  </div>
 }
 
 function seoTitle(d: ClubProfile): string {
@@ -87,13 +142,10 @@ function seoDesc(d: ClubProfile): string {
   bits.push('Live ladder, form and national ranking, updated every week.')
   return bits.join(' ')
 }
-
-function HeroSkeleton() {
-  return <div style={{ background: '#0c0e13', padding: '48px 20px 44px' }}><div style={{ maxWidth: 1120, margin: '0 auto' }}><Skel w={220} h={12} style={{ marginBottom: 28, background: 'rgba(255,255,255,0.08)' }} /><div style={{ display: 'flex', gap: 22, alignItems: 'center' }}><Skel w={92} h={92} r={20} style={{ background: 'rgba(255,255,255,0.1)' }} /><div style={{ flex: 1 }}><Skel w="55%" h={56} style={{ marginBottom: 12, background: 'rgba(255,255,255,0.1)' }} /><Skel w={260} h={14} style={{ background: 'rgba(255,255,255,0.08)' }} /></div></div><span className="font-condensed" style={{ display: 'block', marginTop: 22, color: MUTE, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Loading club</span></div></div>
-}
-
+function HeroSkeleton() { return <div style={{ background: '#0c0e13', padding: '48px 20px 44px' }}><div style={{ maxWidth: 1120, margin: '0 auto' }}><Skel w={220} h={12} style={{ marginBottom: 28, background: 'rgba(255,255,255,0.08)' }} /><div style={{ display: 'flex', gap: 22, alignItems: 'center' }}><Skel w={92} h={92} r={20} style={{ background: 'rgba(255,255,255,0.1)' }} /><div style={{ flex: 1 }}><Skel w="55%" h={56} style={{ marginBottom: 12, background: 'rgba(255,255,255,0.1)' }} /><Skel w={260} h={14} style={{ background: 'rgba(255,255,255,0.08)' }} /></div></div><span className="font-condensed" style={{ display: 'block', marginTop: 22, color: MUTE, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Loading club</span></div></div> }
 function buildJsonLd(d: ClubProfile, clubId: string) {
-  const base = 'https://playfooty.com.au', url = `${base}/team/${clubId}`, faqs: { q: string; a: string }[] = []
+  const base = 'https://playfooty.com.au', url = `${base}/team/${clubId}`
+  const faqs: { q: string; a: string }[] = []
   if (d.rank != null) faqs.push({ q: `What is ${d.clubName}'s national football ranking?`, a: `${d.clubName} is ranked #${d.rank} in Australia's community football Senior rankings on PlayFooty, with a power rating of ${d.powerRating?.toFixed(1) ?? '0.0'}${d.leagueName ? ` playing in the ${d.leagueName.replace(/\s*-\s*a grade.*/i, '')}` : ''}.` })
   if (d.record.played > 0) faqs.push({ q: `How is ${d.clubName} going this season?`, a: `${d.clubName} have a ${d.record.wins}-${d.record.losses}${d.record.draws ? `-${d.record.draws}` : ''} record${d.ladderPosition != null ? `, sitting ${ordinal(d.ladderPosition)} on the ladder` : ''}${d.percentage > 0 ? ` with a percentage of ${d.percentage.toFixed(0)}%` : ''}.` })
   if (d.leagueName && d.leagueStrengthScore != null) faqs.push({ q: `What league does ${d.clubName} play in?`, a: `${d.clubName} plays Senior football in the ${d.leagueName.replace(/\s*-\s*a grade.*/i, '')}, a ${strengthLabel(strengthStars(d.leagueStrengthScore)).toLowerCase()} ${strengthStars(d.leagueStrengthScore)}-star community football competition.` })
