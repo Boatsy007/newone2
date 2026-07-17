@@ -16,6 +16,7 @@ import NewsArticle from './pages/NewsArticle.tsx'
 import Championship from './pages/Championship.tsx'
 import About from './pages/About.tsx'
 import Admin from './pages/Admin.tsx'
+import Highlights from './pages/Highlights.tsx'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -32,6 +33,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/power-rankings" element={<PowerRankings />} />
         <Route path="/rankings" element={<FullRankings />} />
         <Route path="/goal-kickers" element={<GoalKickers />} />
+        <Route path="/highlights" element={<Highlights />} />
         <Route path="/team/:clubId" element={<TeamProfile />} />
         <Route path="/league/:leagueId" element={<LeagueProfile />} />
         <Route path="/leagues" element={<Leagues />} />
