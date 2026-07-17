@@ -1,9 +1,11 @@
 import { Router } from 'express'
 import { prisma } from '../db/client.js'
 import { requireAdminKey } from '../api/middleware/auth.js'
+import { ensureHighlightTables } from '../highlights/store.js'
 
 const router = Router()
 router.use(requireAdminKey)
+router.use(async (_req, _res, next) => { try { await ensureHighlightTables(); next() } catch (error) { next(error) } })
 
 const clean = (value: unknown, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : ''
 const STATUSES = ['PENDING', 'APPROVED', 'REJECTED']
