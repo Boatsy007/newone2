@@ -25,6 +25,7 @@ import ClaimClub from './pages/ClaimClub.tsx'
 import ClubPortal from './pages/ClubPortal.tsx'
 import ClubClaimsAdmin from './pages/ClubClaimsAdmin.tsx'
 import AutoShareButtons from './components/sharing/AutoShareButtons.tsx'
+import ProfileShareButton from './components/sharing/ProfileShareButton.tsx'
 
 type HomeGoalKicker = { id: string }
 
@@ -71,7 +72,7 @@ function HomePlayerProfileLinks() {
 }
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><BrowserRouter><ScrollToTop/><HomePlayerProfileLinks/><AutoShareButtons/><Routes>
+  <StrictMode><BrowserRouter><ScrollToTop/><HomePlayerProfileLinks/><AutoShareButtons/><ProfileShareButton/><Routes>
     <Route path="/" element={<App/>}/>
     <Route path="/power-rankings" element={<PowerRankings/>}/>
     <Route path="/rankings" element={<FullRankings/>}/>
