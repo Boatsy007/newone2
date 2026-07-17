@@ -50,6 +50,7 @@ router.get('/', publicRateLimit, cachePublic(600), async (req, res) => {
         grade: true,
         goals: true,
         matches: true,
+        club: { select: { logoUrl: true } },
         league: { select: { finalStrengthRating: true, manualStrengthOverride: true, strengthTier: true } },
       },
     })
@@ -60,6 +61,7 @@ router.get('/', publicRateLimit, cachePublic(600), async (req, res) => {
         playerName: row.playerName,
         clubName: row.clubName,
         clubId: row.clubId,
+        clubLogoUrl: row.club?.logoUrl ?? null,
         leagueName: row.leagueName,
         leagueId: row.leagueId,
         season: row.season,
