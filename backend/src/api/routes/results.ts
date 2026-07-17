@@ -27,6 +27,62 @@ results.get('/', publicRateLimit, cachePublic(300), async (req, res) => {
   const data = await prisma.matchResult.findMany({ where, orderBy: [{ matchDate: 'desc' }, { round: 'desc' }], take: Math.min(parseInt(limit ?? '200', 10) || 200, 1000) })
   res.json({ data, meta: { total: data.length } })
 })
+results.get('/football', publicRateLimit, cachePublic(300), async (req, res) => {
+  const { league, season, round, limit } = req.query as Record<string, string>
+  const data = await prisma.footballResult.findMany({
+    where: {
+      published: true,
+      ...(league ? { leagueId: league } : {}),
+      ...(season ? { season } : {}),
+      ...(round ? { round } : {}),
+    },
+    include: { league: { include: { state: true } } },
+    orderBy: [{ matchDate: 'desc' }, { round: 'desc' }],
+    take: Math.min(parseInt(limit ?? '500', 10) || 500, 1000),
+  })
+  res.json({
+    data: data.map(row => ({
+      id: `football:${row.id}`,
+      sourceId: row.id,
+      leagueId: row.leagueId,
+      leagueName: row.league.name,
+      state: row.league.state.code,
+      season: row.season,
+      grade: row.grade,
+      round: row.round,
+      matchDate: row.matchDate,
+      venue: row.venue,
+      homeClubId: row.homeClubId,
+      homeClubName: row.homeName,
+      awayClubId: row.awayClubId,
+      awayClubName: row.awayName,
+      homeGoals: row.homeGoals,
+      homeBehinds: row.homeBehinds,
+      homePoints: row.homePoints,
+      homeScore: row.homePoints,
+      awayGoals: row.awayGoals,
+      awayBehinds: row.awayBehinds,
+      awayPoints: row.awayPoints,
+      awayScore: row.awayPoints,
+      status: 'COMPLETED',
+      sourceUrl: row.sourceUrl,
+      verified: row.verified,
+    })),
+    meta: { total: data.length },
+  })
+})
+results.get('/football/:id', publicRateLimit, cachePublic(300), async (req, res) => {
+  const row = await prisma.footballResult.findUnique({ where: { id: String(req.params.id) }, include: { league: { include: { state: true } } } })
+  if (!row || !row.published) return res.status(404).json({ error: 'result not found' })
+  res.json({ data: {
+    id: `football:${row.id}`, sourceId: row.id, leagueId: row.leagueId, leagueName: row.league.name, state: row.league.state.code,
+    season: row.season, grade: row.grade, round: row.round, matchDate: row.matchDate, venue: row.venue,
+    homeClubId: row.homeClubId, homeClubName: row.homeName, awayClubId: row.awayClubId, awayClubName: row.awayName,
+    homeGoals: row.homeGoals, homeBehinds: row.homeBehinds, homePoints: row.homePoints, homeScore: row.homePoints,
+    awayGoals: row.awayGoals, awayBehinds: row.awayBehinds, awayPoints: row.awayPoints, awayScore: row.awayPoints,
+    status: 'COMPLETED', sourceUrl: row.sourceUrl, verified: row.verified,
+  } })
+})
 results.get('/leaderboards', publicRateLimit, cachePublic(600), async (req, res) => {
   const season = (req.query.season as string) || (await prisma.setting.findUnique({ where: { key: 'currentSeason' } }).catch(() => null))?.value
   if (!season) return res.json({ data: null })
@@ -60,6 +116,51 @@ fixtures.get('/', publicRateLimit, cachePublic(300), async (req, res) => {
   const data = await prisma.fixture.findMany({ where, orderBy: [{ matchDate: 'asc' }, { round: 'asc' }], take: 500 })
   res.json({ data, meta: { total: data.length } })
 })
+fixtures.get('/football', publicRateLimit, cachePublic(300), async (req, res) => {
+  const { league, season, round, limit } = req.query as Record<string, string>
+  const data = await prisma.footballFixture.findMany({
+    where: {
+      ...(league ? { leagueId: league } : {}),
+      ...(season ? { season } : {}),
+      ...(round ? { round } : {}),
+    },
+    include: { league: { include: { state: true } } },
+    orderBy: [{ matchDate: 'asc' }, { round: 'asc' }],
+    take: Math.min(parseInt(limit ?? '500', 10) || 500, 1000),
+  })
+  res.json({
+    data: data.map(row => ({
+      id: `football:${row.id}`,
+      sourceId: row.id,
+      leagueId: row.leagueId,
+      leagueName: row.league.name,
+      state: row.league.state.code,
+      season: row.season,
+      grade: row.grade,
+      round: row.round,
+      matchDate: row.matchDate,
+      venue: row.venue,
+      homeClubId: row.homeClubId,
+      homeClubName: row.homeName,
+      awayClubId: row.awayClubId,
+      awayClubName: row.awayName,
+      status: 'SCHEDULED',
+      sourceUrl: row.sourceUrl,
+      verified: row.verified,
+    })),
+    meta: { total: data.length },
+  })
+})
+fixtures.get('/football/:id', publicRateLimit, cachePublic(300), async (req, res) => {
+  const row = await prisma.footballFixture.findUnique({ where: { id: String(req.params.id) }, include: { league: { include: { state: true } } } })
+  if (!row) return res.status(404).json({ error: 'fixture not found' })
+  res.json({ data: {
+    id: `football:${row.id}`, sourceId: row.id, leagueId: row.leagueId, leagueName: row.league.name, state: row.league.state.code,
+    season: row.season, grade: row.grade, round: row.round, matchDate: row.matchDate, venue: row.venue,
+    homeClubId: row.homeClubId, homeClubName: row.homeName, awayClubId: row.awayClubId, awayClubName: row.awayName,
+    status: 'SCHEDULED', sourceUrl: row.sourceUrl, verified: row.verified,
+  } })
+})
 fixtures.get('/club/:clubId', publicRateLimit, cachePublic(300), async (req, res) => {
   res.json({ data: await getClubFixtures(String(req.params.clubId), { season: req.query.season as string | undefined, upcomingOnly: req.query.upcoming === 'true' }) })
 })
@@ -73,8 +174,6 @@ fixtures.get('/:id', publicRateLimit, cachePublic(300), async (req, res) => {
 })
 
 // ── Club/league sub-routers (append to /api/clubs and /api/leagues) ───────────
-// These only handle /:id/results and /:id/fixtures — paths the existing routers
-// do not define — so they never shadow or break an existing endpoint.
 const clubMatch = Router()
 clubMatch.get('/:id/results', publicRateLimit, cachePublic(300), async (req, res) => {
   try { res.json({ data: await getClubResults(String(req.params.id), { season: req.query.season as string | undefined }) }) }
@@ -83,11 +182,9 @@ clubMatch.get('/:id/results', publicRateLimit, cachePublic(300), async (req, res
 clubMatch.get('/:id/fixtures', publicRateLimit, cachePublic(300), async (req, res) => {
   res.json({ data: await getClubFixtures(String(req.params.id), { season: req.query.season as string | undefined, upcomingOnly: req.query.upcoming === 'true' }) })
 })
-// Ladder V2 — GET /api/clubs/:id/up-next (next fixture + upcoming)
 clubMatch.get('/:id/up-next', publicRateLimit, cachePublic(300), async (req, res) => {
   res.json({ data: await clubUpNext(String(req.params.id), { season: req.query.season as string | undefined }) })
 })
-// B10.5 — GET /api/clubs/:id/season-history (round-by-round timeline + highlights)
 clubMatch.get('/:id/season-history', publicRateLimit, cachePublic(300), async (req, res) => {
   res.json({ data: await getClubSeasonHistory(String(req.params.id), { season: req.query.season as string | undefined, leagueId: req.query.league as string | undefined, grade: req.query.grade as string | undefined }) })
 })
@@ -99,23 +196,19 @@ leagueMatch.get('/:id/results', publicRateLimit, cachePublic(300), async (req, r
 leagueMatch.get('/:id/fixtures', publicRateLimit, cachePublic(300), async (req, res) => {
   res.json({ data: await getLeagueFixtures(String(req.params.id), { season: req.query.season as string | undefined, round: req.query.round ? parseInt(String(req.query.round), 10) : undefined }) })
 })
-// B10 — GET /api/leagues/:id/rounds/:round/summary
 leagueMatch.get('/:id/rounds/:round/summary', publicRateLimit, cachePublic(600), async (req, res) => {
   const summary = await getRoundSummary(String(req.params.id), parseInt(String(req.params.round), 10), { season: req.query.season as string | undefined, grade: req.query.grade as string | undefined })
   if (!summary) return res.status(404).json({ error: 'no summary for this round' })
   res.json({ data: summary })
 })
-// Ladder V2 — GET /api/leagues/:id/ladder (current ladder, uploaded or generated)
 leagueMatch.get('/:id/ladder', publicRateLimit, cachePublic(300), async (req, res) => {
   const ladder = await getCurrentLadder(String(req.params.id), { season: req.query.season as string | undefined, grade: req.query.grade as string | undefined })
   if (!ladder) return res.status(404).json({ error: 'no current ladder' })
   res.json({ data: ladder })
 })
-// B10.5 — GET /api/leagues/:id/ladders (all stored ladders for the league)
 leagueMatch.get('/:id/ladders', publicRateLimit, cachePublic(300), async (req, res) => {
   res.json({ data: await listLadders(String(req.params.id), { season: req.query.season as string | undefined, grade: req.query.grade as string | undefined }) })
 })
-// B10.5 — GET /api/leagues/:id/rounds (round summaries the league has)
 leagueMatch.get('/:id/rounds', publicRateLimit, cachePublic(300), async (req, res) => {
   const where = { leagueId: String(req.params.id), ...(req.query.season ? { season: String(req.query.season) } : {}), ...(req.query.grade ? { grade: String(req.query.grade) } : {}) }
   const rounds = await prisma.roundSummary.findMany({ where, orderBy: { round: 'asc' }, select: { round: true, season: true, grade: true, matchesPlayed: true, averageMargin: true, biggestMargin: true, closestMargin: true, upsetDetected: true, generatedAt: true } })
