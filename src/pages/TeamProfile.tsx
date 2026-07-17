@@ -104,7 +104,11 @@ export default function TeamProfile() {
 function ClubInformationPanel({ club }: { club: ClubProfile }) {
   const extra = club as ClubProfile & Record<string, unknown>
   const read = (...keys: string[]) => keys.map(key => extra[key]).find(value => typeof value === 'string' && value.trim()) as string | undefined
-  const bio = read('bio', 'description', 'about', 'clubBio', 'history') ?? `${club.clubName} is a community football club${club.town ? ` based in ${club.town}` : ''}${club.leagueName ? ` competing in ${club.leagueName}` : ''}${club.stateName ?? club.state ? ` in ${club.stateName ?? club.state}` : ''}. This profile brings together the club's latest news, information and current football performance.`
+  const location = club.stateName ?? club.state
+  const website = club.websiteUrl ?? undefined
+  const facebook = club.facebookUrl ?? undefined
+  const instagram = club.instagramUrl ?? undefined
+  const bio = read('bio', 'description', 'about', 'clubBio', 'history') ?? `${club.clubName} is a community football club${club.town ? ` based in ${club.town}` : ''}${club.leagueName ? ` competing in ${club.leagueName}` : ''}${location ? ` in ${location}` : ''}. This profile brings together the club's latest news, information and current football performance.`
   const president = read('president', 'presidentName', 'clubPresident')
   const secretary = read('secretary', 'secretaryName', 'clubSecretary')
   const email = read('email', 'clubEmail', 'contactEmail')
@@ -119,7 +123,7 @@ function ClubInformationPanel({ club }: { club: ClubProfile }) {
   return <div className="club-info-stack">
     <section className="club-info-panel"><span className="club-info-kicker">About the club</span><h2 className="club-info-title">{club.clubName}</h2><p className="club-info-bio">{bio}</p></section>
     <section className="club-info-panel"><span className="club-info-kicker">Club contacts</span><h2 className="club-info-title">Contact details</h2><div className="club-contact-grid">
-      {item('President', president)}{item('Secretary', secretary)}{item('Email', email, email ? `mailto:${email}` : undefined)}{item('Phone', phone, phone ? `tel:${phone.replace(/\s/g, '')}` : undefined)}{item('Home ground', ground)}{item('Address', address)}{item('Website', club.websiteUrl, club.websiteUrl ?? undefined)}{item('Facebook', club.facebookUrl, club.facebookUrl ?? undefined)}{item('Instagram', club.instagramUrl, club.instagramUrl ?? undefined)}
+      {item('President', president)}{item('Secretary', secretary)}{item('Email', email, email ? `mailto:${email}` : undefined)}{item('Phone', phone, phone ? `tel:${phone.replace(/\s/g, '')}` : undefined)}{item('Home ground', ground)}{item('Address', address)}{item('Website', website, website)}{item('Facebook', facebook, facebook)}{item('Instagram', instagram, instagram)}
     </div></section>
     <div className="club-feed-card"><ClubInfo club={club} /></div>
   </div>
