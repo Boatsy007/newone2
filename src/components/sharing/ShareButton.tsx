@@ -75,7 +75,12 @@ export async function sharePlayFootyPath(path: string) {
   return 'copied' as const
 }
 
-export default function ShareButton() {
+type ShareButtonProps = {
+  className?: string
+  label?: string
+}
+
+export default function ShareButton({ className = '', label = 'Share' }: ShareButtonProps) {
   const [state, setState] = useState<'idle' | 'creating' | 'copied'>('idle')
   const share = async () => {
     if (state === 'creating') return
@@ -88,8 +93,9 @@ export default function ShareButton() {
       setState('idle')
     }
   }
-  return <button type="button" className="pf-share-action" aria-label="Create and share a PlayFooty graphic" onClick={share} disabled={state === 'creating'}>
+  const text = state === 'creating' ? 'Creating' : state === 'copied' ? 'Copied' : label
+  return <button type="button" className={`pf-share-action ${className}`.trim()} aria-label="Create and share a PlayFooty graphic" onClick={share} disabled={state === 'creating'}>
     <Share2 size={20} />
-    <span>{state === 'creating' ? 'Creating' : state === 'copied' ? 'Copied' : 'Share'}</span>
+    <span>{text}</span>
   </button>
 }
