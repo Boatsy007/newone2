@@ -41,14 +41,14 @@ style.textContent = `
 
   @media (max-width: 620px) {
     .pf-hero-art {
-      min-height: 500px !important;
+      min-height: 520px !important;
     }
 
     .pf-hero-player-image {
-      inset: -18px -30% 72px -30%;
-      width: 160%;
-      height: calc(100% - 54px);
-      object-position: center bottom;
+      inset: -150px -55% 72px -55%;
+      width: 210%;
+      height: calc(100% + 80px);
+      object-position: center top;
     }
   }
 `
