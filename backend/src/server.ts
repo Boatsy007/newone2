@@ -22,6 +22,7 @@ import { adminMatchImageImportsRouter } from './admin/match-image-imports.js'
 import { adminGoalKickerImagesRouter } from './admin/goal-kicker-images.js'
 import { adminProfileImageImportsRouter } from './admin/profile-image-imports.js'
 import { adminUniversalImportsRouter } from './admin/universal-imports.js'
+import { integratedLeaguesRouter } from './admin/integrated-leagues.js'
 import { adminPlatformRouter } from './admin/platform.js'
 import { adminClaimingRouter } from './admin/claiming.js'
 import { adminNewsroomRouter } from './admin/newsroom.js'
@@ -48,7 +49,7 @@ import { logger } from './utils/logger.js'
 
 const app = express()
 const PORT = parseInt(process.env.PORT ?? '3001', 10)
-app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }))
+app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*', methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] }))
 app.use('/admin/ocr', express.json({ limit: '20mb' }))
 app.use('/admin/match-images', express.json({ limit: '20mb' }))
 app.use('/admin/goal-kicker-images', express.json({ limit: '20mb' }))
@@ -96,6 +97,7 @@ app.use('/admin/match-images', adminMatchImageImportsRouter)
 app.use('/admin/goal-kicker-images', adminGoalKickerImagesRouter)
 app.use('/admin/profile-images', adminProfileImageImportsRouter)
 app.use('/admin/universal-imports', adminUniversalImportsRouter)
+app.use('/admin/platform', integratedLeaguesRouter)
 app.use('/admin/platform', adminPlatformRouter)
 app.use('/admin/claiming', adminClaimingRouter)
 app.use('/admin/newsroom', adminNewsroomRouter)
