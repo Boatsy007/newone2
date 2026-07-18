@@ -1,6 +1,7 @@
 /**
  * Goal Kickers API
  * GET /api/goal-kickers — country-wide football goal kicking ladder.
+ * GET /api/goal-kickers/records — weekly goal gains and current season leaders.
  * GET /api/goal-kickers/player/:id — a player profile built from imported goal-kicker records.
  */
 
@@ -25,6 +26,16 @@ function limitOf(value: unknown): number {
 
 function leagueStrength(league: { finalStrengthRating: number | null; manualStrengthOverride: number | null; strengthTier: number | null } | null | undefined): number {
   return league?.finalStrengthRating ?? league?.manualStrengthOverride ?? league?.strengthTier ?? 3
+}
+
+function australianWeek(now = new Date()) {
+  const offsetMs = 10 * 60 * 60 * 1000
+  const local = new Date(now.getTime() + offsetMs)
+  const day = local.getUTCDay()
+  const daysSinceMonday = (day + 6) % 7
+  const startLocal = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() - daysSinceMonday, 0, 0, 0, 0))
+  const endLocal = new Date(startLocal.getTime() + 7 * 86400000)
+  return { start: new Date(startLocal.getTime() - offsetMs), end: new Date(endLocal.getTime() - offsetMs) }
 }
 
 router.get('/', publicRateLimit, cachePublic(600), async (req, res) => {
@@ -83,6 +94,82 @@ router.get('/', publicRateLimit, cachePublic(600), async (req, res) => {
     res.json({
       data: ranked.slice(0, limit).map((row, index) => ({ rank: index + 1, ...row })),
       meta: { total: ranked.length, mode, limit },
+    })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error', detail: String(err) })
+  }
+})
+
+router.get('/records', publicRateLimit, cachePublic(300), async (req, res) => {
+  try {
+    const query = req.query as Record<string, string | undefined>
+    const limit = Math.max(1, Math.min(Number(query.limit) || 5, 20))
+    const season = query.season || new Date().getFullYear().toString()
+    const week = australianWeek()
+
+    const [events, seasonRows] = await Promise.all([
+      prisma.notification.findMany({
+        where: {
+          type: 'GOAL_KICKER_UPDATED',
+          createdAt: { gte: week.start, lt: week.end },
+          ...(query.leagueId ? { data: { contains: `\"leagueId\":\"${query.leagueId}\"` } } : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 2000,
+        select: { entityId: true, data: true, createdAt: true },
+      }),
+      prisma.footballGoalKicker.findMany({
+        where: { season, ...(query.leagueId ? { leagueId: query.leagueId } : {}) },
+        orderBy: [{ goals: 'desc' }, { playerName: 'asc' }],
+        take: limit,
+        select: {
+          id: true, playerName: true, clubId: true, clubName: true, leagueId: true, leagueName: true,
+          season: true, grade: true, goals: true, matches: true, club: { select: { logoUrl: true } },
+        },
+      }),
+    ])
+
+    type Weekly = {
+      playerId: string; playerName: string; clubId: string | null; clubName: string; leagueId: string; leagueName: string;
+      season: string; grade: string; previousGoals: number; goals: number; weeklyGoals: number; matchesAdded: number | null;
+      playerUrl: string; clubUrl: string | null; leagueUrl: string; updatedAt: string;
+    }
+    const latestByPlayer = new Map<string, Weekly>()
+    for (const event of events) {
+      if (!event.data || !event.entityId || latestByPlayer.has(event.entityId)) continue
+      try {
+        const parsed = JSON.parse(event.data) as Omit<Weekly, 'updatedAt'>
+        if (parsed.season !== season || !Number.isFinite(parsed.weeklyGoals) || parsed.weeklyGoals <= 0) continue
+        latestByPlayer.set(event.entityId, { ...parsed, updatedAt: event.createdAt.toISOString() })
+      } catch { /* ignore malformed legacy event payloads */ }
+    }
+    const weekly = [...latestByPlayer.values()]
+      .sort((a, b) => b.weeklyGoals - a.weeklyGoals || b.goals - a.goals || a.playerName.localeCompare(b.playerName))
+      .slice(0, limit)
+      .map((row, index) => ({ rank: index + 1, ...row }))
+
+    const seasonLeaders = seasonRows.map((row, index) => ({
+      rank: index + 1,
+      playerId: row.id,
+      playerName: row.playerName,
+      clubId: row.clubId,
+      clubName: row.clubName,
+      clubLogoUrl: row.club?.logoUrl ?? null,
+      leagueId: row.leagueId,
+      leagueName: row.leagueName,
+      season: row.season,
+      grade: row.grade,
+      goals: row.goals,
+      matches: row.matches,
+      goalsPerGame: row.matches && row.matches > 0 ? Math.round((row.goals / row.matches) * 100) / 100 : null,
+      playerUrl: `/player/${encodeURIComponent(row.id)}`,
+      clubUrl: row.clubId ? `/team/${encodeURIComponent(row.clubId)}` : null,
+      leagueUrl: `/league/${encodeURIComponent(row.leagueId)}`,
+    }))
+
+    res.json({
+      data: { weekly, seasonLeaders },
+      meta: { season, weekStart: week.start.toISOString(), weekEnd: week.end.toISOString(), limit },
     })
   } catch (err) {
     res.status(500).json({ error: 'Internal server error', detail: String(err) })
