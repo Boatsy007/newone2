@@ -41,6 +41,10 @@ export interface LeagueFixture {
 export interface LeagueResult extends LeagueFixture {
   homeGoals: number; homeBehinds: number; homePoints: number; awayGoals: number; awayBehinds: number; awayPoints: number
 }
+export interface LeagueGoalKicker {
+  id: string; playerId: string | null; rank: number; playerName: string; clubId: string | null
+  clubName: string; clubLogoUrl?: string | null; grade?: string | null; goals: number; matches?: number | null; updatedAt: string
+}
 export interface LeagueDetail {
   id: string; name: string; shortName?: string | null; description?: string | null
   state: string; stateName?: string; association?: string | null; associationId?: string | null
@@ -54,6 +58,7 @@ export interface LeagueDetail {
   ladder: { clubId: string; clubName: string; logoUrl?: string | null; position: number | null; played: number; wins: number; losses: number; draws: number; goalsFor: number; goalsAgainst: number; percentage: number; points: number }[]
   fixtures?: LeagueFixture[]
   results?: LeagueResult[]
+  goalKickers?: LeagueGoalKicker[]
 }
 
 export interface SearchResults {
