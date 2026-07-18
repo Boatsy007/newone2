@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bell, CalendarDays, ExternalLink, Facebook, Trophy } from 'lucide-react'
+import { Bell, ExternalLink, Facebook } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { LeagueDetail } from '../../lib/rankings'
 import { TeamLogo } from '../rankings/bits'
