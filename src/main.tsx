@@ -22,6 +22,7 @@ import About from './pages/About.tsx'
 import Admin from './pages/Admin.tsx'
 import AdminMatchImageImports from './pages/AdminMatchImageImports.tsx'
 import AdminGoalKickerImages from './pages/AdminGoalKickerImages.tsx'
+import AdminProfileImageImports from './pages/AdminProfileImageImports.tsx'
 import AdminHighlights from './pages/AdminHighlights.tsx'
 import Highlights from './pages/Highlights.tsx'
 import ClaimClub from './pages/ClaimClub.tsx'
@@ -58,6 +59,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/admin" element={<Admin/>}/>
     <Route path="/admin/match-images" element={<AdminMatchImageImports/>}/>
     <Route path="/admin/goal-kicker-images" element={<AdminGoalKickerImages/>}/>
+    <Route path="/admin/profile-images" element={<AdminProfileImageImports/>}/>
     <Route path="/admin/highlights" element={<AdminHighlights/>}/>
     <Route path="/admin/claims" element={<ClubClaimsAdmin/>}/>
     <Route path="/championship" element={<Championship/>}/>
