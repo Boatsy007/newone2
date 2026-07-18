@@ -26,7 +26,8 @@
     "db:verify:football-schema": "node scripts/verify-football-schema.mjs",
     "db:repair:playhq-afl-sport": "node scripts/repair-playhq-afl-import-sport.mjs",
     "db:verify:football-rankings": "node scripts/verify-football-rankings.mjs",
-    "db:verify:football-goal-kickers": "node scripts/verify-football-goal-kickers-schema.mjs"
+    "db:verify:football-goal-kickers": "node scripts/verify-football-goal-kickers-schema.mjs",
+    "db:verify:canonical-ids": "node scripts/verify-canonical-ids.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
