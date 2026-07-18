@@ -10,6 +10,8 @@
 import { prisma } from '../db/client.js'
 import { validateResultInput, type ResultInput } from './validation.js'
 import { fixtureDedupeKey } from './fixtures.service.js'
+import { computeClubStats } from './statistics.js'
+import { computeLeagueRoundSummaries } from './rounds.js'
 import { logger } from '../utils/logger.js'
 
 export type ImportSource = 'PLAYHQ' | 'OCR' | 'CSV' | 'MANUAL' | 'MATCH_BRIDGE'
@@ -38,10 +40,7 @@ export async function upsertResult(input: ResultInput, source: ImportSource, opt
   return prisma.$transaction(async tx => {
     const [existing, matchingFixture] = await Promise.all([
       tx.matchResult.findUnique({ where: { dedupeKey } }),
-      tx.fixture.findUnique({
-        where: { dedupeKey: matchingFixtureKey },
-        select: { id: true, homeClubId: true, awayClubId: true },
-      }),
+      tx.fixture.findUnique({ where: { dedupeKey: matchingFixtureKey } }),
     ])
 
     const fixtureId = input.fixtureId ?? matchingFixture?.id ?? existing?.fixtureId ?? null
@@ -59,15 +58,11 @@ export async function upsertResult(input: ResultInput, source: ImportSource, opt
       // Never overwrite verified or manually-overridden results with an automatic source.
       if ((existing.verified || existing.manualOverride) && source !== 'MANUAL') {
         if (matchingFixture && existing.id) {
-          const sameOrientation = matchingFixture.homeClubId === existing.homeClubId
+          const fixtureHomeScore = matchingFixture.homeClubId === existing.homeClubId ? existing.homeScore : existing.awayScore
+          const fixtureAwayScore = matchingFixture.awayClubId === existing.awayClubId ? existing.awayScore : existing.homeScore
           await tx.fixture.update({
             where: { id: matchingFixture.id },
-            data: {
-              status: 'COMPLETED',
-              resultId: existing.id,
-              homeScore: sameOrientation ? existing.homeScore : existing.awayScore,
-              awayScore: sameOrientation ? existing.awayScore : existing.homeScore,
-            },
+            data: { status: 'COMPLETED', resultId: existing.id, homeScore: fixtureHomeScore, awayScore: fixtureAwayScore },
           })
         }
         return { ok: true, status: 'skipped', id: existing.id, fixtureId: matchingFixture?.id ?? existing.fixtureId }
@@ -80,15 +75,11 @@ export async function upsertResult(input: ResultInput, source: ImportSource, opt
     }
 
     if (matchingFixture) {
-      const sameOrientation = matchingFixture.homeClubId === homeClubId
+      const fixtureHomeScore = matchingFixture.homeClubId === homeClubId ? homeScore : awayScore
+      const fixtureAwayScore = matchingFixture.awayClubId === awayClubId ? awayScore : homeScore
       await tx.fixture.update({
         where: { id: matchingFixture.id },
-        data: {
-          status: 'COMPLETED',
-          resultId: result.id,
-          homeScore: sameOrientation ? homeScore : awayScore,
-          awayScore: sameOrientation ? awayScore : homeScore,
-        },
+        data: { status: 'COMPLETED', resultId: result.id, homeScore: fixtureHomeScore, awayScore: fixtureAwayScore },
       })
     }
 
@@ -96,9 +87,23 @@ export async function upsertResult(input: ResultInput, source: ImportSource, opt
   }, { maxWait: 15_000, timeout: 30_000 })
 }
 
-export interface ImportReport { source: ImportSource; created: number; updated: number; skipped: number; invalid: number; reviewsRaised: number; errors: { row: number; errors: string[] }[] }
+export interface ImportReport {
+  source: ImportSource
+  created: number
+  updated: number
+  skipped: number
+  invalid: number
+  reviewsRaised: number
+  errors: { row: number; errors: string[] }[]
+  derived?: {
+    seasonsRefreshed: number
+    clubStatsRefreshed: number
+    roundSummariesRefreshed: number
+    errors: string[]
+  }
+}
 
-/** Bulk import results from a source. */
+/** Bulk import results from a source, then refresh all derived live-data views. */
 export async function importResults(rows: ResultInput[], source: ImportSource, opts: { raiseReview?: boolean } = {}): Promise<ImportReport> {
   const report: ImportReport = { source, created: 0, updated: 0, skipped: 0, invalid: 0, reviewsRaised: 0, errors: [] }
   for (let i = 0; i < rows.length; i++) {
@@ -109,7 +114,53 @@ export async function importResults(rows: ResultInput[], source: ImportSource, o
     else if (r.status === 'skipped') report.skipped++
     else { report.invalid++; report.errors.push({ row: i, errors: r.errors ?? [] }) }
   }
-  logger.info('Results import complete', { source, created: report.created, updated: report.updated, invalid: report.invalid })
+
+  const accepted = report.created + report.updated + report.skipped
+  if (accepted > 0) {
+    const seasons = [...new Set(rows.map(row => row.season.trim()).filter(Boolean))]
+    const leagueSeasons = [...new Map(rows.map(row => {
+      const season = row.season.trim()
+      const grade = row.grade?.trim() || 'A Grade'
+      return [`${row.leagueId}|${season}|${grade}`, { leagueId: row.leagueId, season, grade }]
+    })).values()]
+    const derivedErrors: string[] = []
+    let clubStatsRefreshed = 0
+    let roundSummariesRefreshed = 0
+
+    for (const season of seasons) {
+      try {
+        const stats = await computeClubStats(season)
+        clubStatsRefreshed += stats.clubs
+      } catch (error) {
+        derivedErrors.push(`Club statistics (${season}): ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+
+    for (const item of leagueSeasons) {
+      try {
+        const summaries = await computeLeagueRoundSummaries(item.leagueId, item.season, item.grade)
+        roundSummariesRefreshed += summaries.rounds
+      } catch (error) {
+        derivedErrors.push(`Round summaries (${item.leagueId}/${item.season}/${item.grade}): ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+
+    report.derived = {
+      seasonsRefreshed: seasons.length,
+      clubStatsRefreshed,
+      roundSummariesRefreshed,
+      errors: derivedErrors,
+    }
+  }
+
+  logger.info('Results import complete', {
+    source,
+    created: report.created,
+    updated: report.updated,
+    skipped: report.skipped,
+    invalid: report.invalid,
+    derived: report.derived,
+  })
   return report
 }
 
@@ -144,39 +195,39 @@ export async function bridgeFromMatches(opts: { season?: string; limit?: number 
 
 // ── Reads: club/league results + match history ────────────────────────────────
 
+const publicResultWhere = { status: { notIn: ['CANCELLED', 'VOID'] } }
+
 export async function getClubResults(clubId: string, opts: { season?: string; limit?: number } = {}) {
   return prisma.matchResult.findMany({
-    where: {
-      OR: [{ homeClubId: clubId }, { awayClubId: clubId }],
-      status: { notIn: ['VOID', 'CANCELLED'] },
-      ...(opts.season ? { season: opts.season } : {}),
-    },
-    orderBy: [{ matchDate: 'desc' }, { round: 'desc' }, { updatedAt: 'desc' }], take: opts.limit ?? 200,
+    where: { ...publicResultWhere, OR: [{ homeClubId: clubId }, { awayClubId: clubId }], ...(opts.season ? { season: opts.season } : {}) },
+    orderBy: [{ matchDate: 'desc' }, { round: 'desc' }], take: opts.limit ?? 200,
   })
 }
 
 export async function getLeagueResults(leagueId: string, opts: { season?: string; round?: number; limit?: number } = {}) {
   return prisma.matchResult.findMany({
-    where: { leagueId, status: { notIn: ['VOID', 'CANCELLED'] }, ...(opts.season ? { season: opts.season } : {}), ...(opts.round != null ? { round: opts.round } : {}) },
-    orderBy: [{ round: 'desc' }, { matchDate: 'desc' }, { updatedAt: 'desc' }], take: opts.limit ?? 500,
+    where: { ...publicResultWhere, leagueId, ...(opts.season ? { season: opts.season } : {}), ...(opts.round != null ? { round: opts.round } : {}) },
+    orderBy: [{ round: 'desc' }, { matchDate: 'desc' }], take: opts.limit ?? 500,
   })
 }
 
-/** Match history buckets for a club: detailed last 5/10, this season and all-time. */
+/** Match history buckets for a club: last 5, last 10, this season, all-time. */
 export async function getClubMatchHistory(clubId: string, season?: string) {
   const all = await prisma.matchResult.findMany({
-    where: {
-      OR: [{ homeClubId: clubId }, { awayClubId: clubId }],
-      status: { notIn: ['VOID', 'CANCELLED'] },
-    },
-    orderBy: [{ matchDate: 'desc' }, { round: 'desc' }, { updatedAt: 'desc' }],
+    where: { ...publicResultWhere, OR: [{ homeClubId: clubId }, { awayClubId: clubId }] },
+    orderBy: [{ matchDate: 'desc' }, { round: 'desc' }],
   })
   const forSeason = season ? all.filter(m => m.season === season) : all
-  const present = (m: typeof all[number]) => {
+  const detail = (m: typeof all[number]) => {
     const isHome = m.homeClubId === clubId
+    const clubScore = isHome ? m.homeScore : m.awayScore
+    const opponentScore = isHome ? m.awayScore : m.homeScore
+    const opponentId = isHome ? m.awayClubId : m.homeClubId
+    const opponentName = isHome ? m.awayClubName : m.homeClubName
     const outcome = m.isDraw ? 'D' : (m.winnerClubId === clubId ? 'W' : 'L')
     return {
       id: m.id,
+      resultId: m.id,
       fixtureId: m.fixtureId,
       leagueId: m.leagueId,
       leagueName: m.leagueName,
@@ -184,21 +235,25 @@ export async function getClubMatchHistory(clubId: string, season?: string) {
       grade: m.grade,
       round: m.round,
       matchDate: m.matchDate,
-      opponentClubId: isHome ? m.awayClubId : m.homeClubId,
-      opponentClubName: isHome ? m.awayClubName : m.homeClubName,
+      homeClubId: m.homeClubId,
+      homeClubName: m.homeClubName,
+      awayClubId: m.awayClubId,
+      awayClubName: m.awayClubName,
+      opponentId,
+      opponentName,
       venueSide: isHome ? 'HOME' : 'AWAY',
-      clubScore: isHome ? m.homeScore : m.awayScore,
-      opponentScore: isHome ? m.awayScore : m.homeScore,
+      clubScore,
+      opponentScore,
       outcome,
-      margin: m.margin,
+      margin: Math.abs(clubScore - opponentScore),
       status: m.status,
     }
   }
   return {
-    last5: all.slice(0, 5).map(present),
-    last10: all.slice(0, 10).map(present),
-    season: forSeason.map(present),
-    historical: all.map(present),
-    form: all.slice(0, 10).map(m => present(m).outcome),
+    last5: all.slice(0, 5).map(detail),
+    last10: all.slice(0, 10).map(detail),
+    season: forSeason.map(detail),
+    historical: all.map(detail),
+    form: all.slice(0, 10).map(m => m.isDraw ? 'D' : (m.winnerClubId === clubId ? 'W' : 'L')),
   }
 }
