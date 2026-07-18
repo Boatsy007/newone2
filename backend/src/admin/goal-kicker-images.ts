@@ -57,14 +57,20 @@ router.post('/commit', async (req, res) => {
     let imported = 0
     let weeklyChanges = 0
     const errors: Array<{ playerName: string; error: string }> = []
+    const warnings: Array<{ playerName: string; warning: string }> = []
 
     for (const raw of body.rows) {
       const playerName = String(raw.playerName ?? '').trim()
       const clubName = String(raw.clubName ?? '').trim()
       const goals = Number(raw.goals)
-      if (!playerName || !clubName || !Number.isFinite(goals) || goals < 0) { errors.push({ playerName, error: 'invalid player, club or goals' }); continue }
+      if (!playerName || !clubName || !Number.isFinite(goals) || goals < 0) {
+        errors.push({ playerName: playerName || 'Unknown player', error: 'Invalid player name, club name or goal total.' })
+        continue
+      }
+
       try {
         const club = raw.clubId ? await prisma.club.findUnique({ where: { id: raw.clubId }, select: { id: true, name: true } }) : null
+        if (raw.clubId && !club) throw new Error(`Selected club no longer exists: ${clubName}`)
         const storedClubName = club?.name ?? clubName
         const key = { season, grade, playerName, clubName: storedClubName, leagueName: league.name }
         const previous = await prisma.footballGoalKicker.findUnique({
@@ -72,7 +78,7 @@ router.post('/commit', async (req, res) => {
           select: { id: true, goals: true, matches: true },
         })
         const nextGoals = Math.trunc(goals)
-        const nextMatches = raw.matches == null ? null : Math.max(0, Math.trunc(Number(raw.matches)))
+        const nextMatches = raw.matches == null || !Number.isFinite(Number(raw.matches)) ? null : Math.max(0, Math.trunc(Number(raw.matches)))
         const saved = await prisma.footballGoalKicker.upsert({
           where: { season_grade_playerName_clubName_leagueName: key },
           create: { playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, goals: nextGoals, matches: nextMatches, sourceUrl: null, sourceType: 'OCR_UPLOAD', importedAt: new Date() },
@@ -80,32 +86,53 @@ router.post('/commit', async (req, res) => {
           select: { id: true },
         })
 
+        imported++
         const weeklyGoals = previous ? Math.max(0, nextGoals - previous.goals) : 0
         const matchesAdded = previous && nextMatches != null && previous.matches != null ? Math.max(0, nextMatches - previous.matches) : null
+
         if (weeklyGoals > 0) {
-          await prisma.notification.upsert({
-            where: { dedupeKey: `goal-kicker:${league.id}:${season}:${norm(grade)}:${saved.id}:${nextGoals}` },
-            create: {
-              recipientScope: 'PLATFORM',
-              type: 'GOAL_KICKER_UPDATED',
-              category: 'PLAYER',
-              severity: 'INFO',
-              title: `${playerName} added ${weeklyGoals} goal${weeklyGoals === 1 ? '' : 's'}`,
-              body: `${playerName} moved from ${previous!.goals} to ${nextGoals} goals for ${storedClubName}.`,
-              entityType: 'PLAYER',
-              entityId: saved.id,
-              data: JSON.stringify({ playerId: saved.id, playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, previousGoals: previous!.goals, goals: nextGoals, weeklyGoals, previousMatches: previous!.matches, matches: nextMatches, matchesAdded, playerUrl: `/player/${encodeURIComponent(saved.id)}`, clubUrl: club?.id ? `/team/${encodeURIComponent(club.id)}` : null, leagueUrl: `/league/${encodeURIComponent(league.id)}` }),
-              status: 'DELIVERED',
-              dedupeKey: `goal-kicker:${league.id}:${season}:${norm(grade)}:${saved.id}:${nextGoals}`,
-            },
-            update: {},
-          })
-          weeklyChanges++
+          try {
+            const dedupeKey = `goal-kicker:${league.id}:${season}:${norm(grade)}:${saved.id}:${nextGoals}`
+            await prisma.notification.upsert({
+              where: { dedupeKey },
+              create: {
+                recipientScope: 'PLATFORM',
+                type: 'GOAL_KICKER_UPDATED',
+                category: 'PLAYER',
+                severity: 'INFO',
+                title: `${playerName} added ${weeklyGoals} goal${weeklyGoals === 1 ? '' : 's'}`,
+                body: `${playerName} moved from ${previous!.goals} to ${nextGoals} goals for ${storedClubName}.`,
+                entityType: 'PLAYER',
+                entityId: saved.id,
+                data: JSON.stringify({ playerId: saved.id, playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, previousGoals: previous!.goals, goals: nextGoals, weeklyGoals, previousMatches: previous!.matches, matches: nextMatches, matchesAdded, playerUrl: `/player/${encodeURIComponent(saved.id)}`, clubUrl: club?.id ? `/team/${encodeURIComponent(club.id)}` : null, leagueUrl: `/league/${encodeURIComponent(league.id)}` }),
+                status: 'DELIVERED',
+                dedupeKey,
+              },
+              update: {},
+            })
+            weeklyChanges++
+          } catch (error) {
+            warnings.push({ playerName, warning: `Goal total saved, but weekly notification failed: ${error instanceof Error ? error.message : String(error)}` })
+          }
         }
-        imported++
-      } catch (error) { errors.push({ playerName, error: error instanceof Error ? error.message : String(error) }) }
+      } catch (error) {
+        errors.push({ playerName: playerName || 'Unknown player', error: error instanceof Error ? error.message : String(error) })
+      }
     }
-    res.json({ data: { imported, weeklyChanges, errors: errors.length, league: league.name, season, grade }, errors: errors.slice(0, 20) })
+
+    res.json({
+      data: {
+        imported,
+        weeklyChanges,
+        errors: errors.length,
+        warnings: warnings.length,
+        league: league.name,
+        season,
+        grade,
+      },
+      errors: errors.slice(0, 50),
+      warnings: warnings.slice(0, 50),
+    })
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'goal-kicker commit failed' })
   }
