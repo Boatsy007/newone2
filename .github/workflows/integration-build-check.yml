@@ -1,0 +1,30 @@
+name: Integration Build Check
+
+on:
+  push:
+    branches: [newone1]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+      - name: Install frontend
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+      - name: Install backend
+        working-directory: backend
+        run: npm ci
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
