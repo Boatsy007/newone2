@@ -20,6 +20,7 @@ import NewsArticle from './pages/NewsArticle.tsx'
 import Championship from './pages/Championship.tsx'
 import About from './pages/About.tsx'
 import Admin from './pages/Admin.tsx'
+import AdminMatchImageImports from './pages/AdminMatchImageImports.tsx'
 import AdminHighlights from './pages/AdminHighlights.tsx'
 import Highlights from './pages/Highlights.tsx'
 import ClaimClub from './pages/ClaimClub.tsx'
@@ -94,6 +95,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/directory" element={<Directory/>}/>
     <Route path="/about" element={<About/>}/>
     <Route path="/admin" element={<Admin/>}/>
+    <Route path="/admin/match-images" element={<AdminMatchImageImports/>}/>
     <Route path="/admin/highlights" element={<AdminHighlights/>}/>
     <Route path="/admin/claims" element={<ClubClaimsAdmin/>}/>
     <Route path="/championship" element={<Championship/>}/>
