@@ -5,6 +5,7 @@ import { parseMatchImage, type MatchImageKind } from '../ocr/parse-match-image.j
 import { fuzzyMatchClub, similarity } from '../ocr/fuzzy-match.js'
 import { importResults } from '../results/results.service.js'
 import { importFixtures } from '../results/fixtures.service.js'
+import { publishApprovedMatchImport, type ApprovedMatchRow } from '../results/post-import.service.js'
 import type { ResultInput, FixtureInput } from '../results/validation.js'
 
 const router = Router()
@@ -58,14 +59,22 @@ router.post('/commit', async (req, res) => {
       duplicateKeys.add(key)
       if (kind === 'results' && (!Number.isFinite(row.homeScore) || !Number.isFinite(row.awayScore))) return res.status(400).json({ error: `Scores required for ${row.homeTeam} v ${row.awayTeam}` })
     }
+
+    const approvedRows = rows.map(row => ({ ...row, homeClubId: row.homeClubId!, awayClubId: row.awayClubId! })) as ApprovedMatchRow[]
+
     if (kind === 'results') {
-      const input: ResultInput[] = rows.map(row => ({ leagueId, leagueName: league.name, season: resolvedSeason, grade: row.grade ?? resolvedGrade, round: row.round, matchDate: row.matchDate ?? undefined, homeClubId: row.homeClubId!, homeClubName: row.homeTeam, awayClubId: row.awayClubId!, awayClubName: row.awayTeam, homeScore: row.homeScore!, awayScore: row.awayScore!, status: row.status ?? 'FINAL' }))
-      const report = await importResults(input, 'OCR', { raiseReview: true })
-      return res.json({ data: { kind, league: league.name, submitted: rows.length, ...report } })
+      const input: ResultInput[] = approvedRows.map(row => ({ leagueId, leagueName: league.name, season: resolvedSeason, grade: row.grade ?? resolvedGrade, round: row.round, matchDate: row.matchDate ?? undefined, homeClubId: row.homeClubId, homeClubName: row.homeTeam, awayClubId: row.awayClubId, awayClubName: row.awayTeam, homeScore: row.homeScore!, awayScore: row.awayScore!, status: row.status ?? 'FINAL' }))
+      const imported = await importResults(input, 'OCR', { raiseReview: true })
+      if (imported.invalid > 0) return res.status(422).json({ error: 'Some approved results failed validation', data: imported })
+      const downstream = await publishApprovedMatchImport({ kind, leagueId, leagueName: league.name, season: resolvedSeason, grade: resolvedGrade, rows: approvedRows, actor: 'admin' })
+      return res.json({ data: { kind, league: league.name, submitted: rows.length, import: imported, downstream } })
     }
-    const input: FixtureInput[] = rows.map(row => ({ leagueId, leagueName: league.name, season: resolvedSeason, grade: row.grade ?? resolvedGrade, round: row.round, matchDate: row.matchDate ?? undefined, matchTime: row.matchTime ?? undefined, venue: row.venue ?? undefined, homeClubId: row.homeClubId!, homeClubName: row.homeTeam, awayClubId: row.awayClubId!, awayClubName: row.awayTeam, status: row.status ?? 'SCHEDULED' }))
-    const report = await importFixtures(input, 'OCR')
-    res.json({ data: { kind, league: league.name, submitted: rows.length, ...report } })
+
+    const input: FixtureInput[] = approvedRows.map(row => ({ leagueId, leagueName: league.name, season: resolvedSeason, grade: row.grade ?? resolvedGrade, round: row.round, matchDate: row.matchDate ?? undefined, matchTime: row.matchTime ?? undefined, venue: row.venue ?? undefined, homeClubId: row.homeClubId, homeClubName: row.homeTeam, awayClubId: row.awayClubId, awayClubName: row.awayTeam, status: row.status ?? 'SCHEDULED' }))
+    const imported = await importFixtures(input, 'OCR')
+    if (imported.invalid > 0) return res.status(422).json({ error: 'Some approved fixtures failed validation', data: imported })
+    const downstream = await publishApprovedMatchImport({ kind, leagueId, leagueName: league.name, season: resolvedSeason, grade: resolvedGrade, rows: approvedRows, actor: 'admin' })
+    res.json({ data: { kind, league: league.name, submitted: rows.length, import: imported, downstream } })
   } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'match image commit failed' }) }
 })
 
