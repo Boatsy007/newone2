@@ -88,7 +88,7 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
       }),
       prisma.footballGoalKicker.findMany({
         where: { leagueId: league.id, season }, orderBy: [{ goals: 'desc' }, { playerName: 'asc' }], take: 20,
-        select: { id: true, playerId: true, playerName: true, clubId: true, clubName: true, grade: true, goals: true, matches: true, updatedAt: true, club: { select: { logoUrl: true } } },
+        select: { id: true, playerName: true, clubId: true, clubName: true, grade: true, goals: true, matches: true, updatedAt: true, club: { select: { logoUrl: true } } },
       }),
     ])
 
@@ -131,7 +131,7 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
         rankedTeams: rankedTeams.map(team => ({ ...team, recentForm: JSON.parse(team.recentForm || '[]'), qualified: true })),
         ladder, fixtures, results,
         goalKickers: goalKickers.map((row, index) => ({
-          id: row.id, playerId: row.playerId, rank: index + 1, playerName: row.playerName,
+          id: row.id, playerId: null, rank: index + 1, playerName: row.playerName,
           clubId: row.clubId, clubName: row.clubName, clubLogoUrl: row.club?.logoUrl ?? null,
           grade: row.grade, goals: row.goals, matches: row.matches, updatedAt: row.updatedAt,
         })),
