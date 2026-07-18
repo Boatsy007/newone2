@@ -41,6 +41,14 @@ function createClient(): PrismaClient {
   const datasourceUrl = resolveDatasourceUrl()
   const client = new PrismaClient({
     ...(datasourceUrl ? { datasources: { db: { url: datasourceUrl } } } : {}),
+    // Interactive transactions default to five seconds, which is too short for
+    // approved OCR imports that create a league, several clubs and ladder rows
+    // through Supabase's pooled connection. Keep the transaction atomic while
+    // allowing enough time for the reviewed batch to finish.
+    transactionOptions: {
+      maxWait: 15_000,
+      timeout: 60_000,
+    },
     log: process.env.NODE_ENV === 'development'
       ? [{ emit: 'event', level: 'query' }, 'warn', 'error']
       : ['warn', 'error'],
