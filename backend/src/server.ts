@@ -45,6 +45,7 @@ import { notificationsRouter } from './api/routes/notifications.js'
 import { analyticsRouter } from './api/routes/analytics.js'
 import { claimsRouter } from './api/routes/claims.js'
 import { portalRouter } from './api/routes/portal.js'
+import { getFootballRecords, type RecordPeriod } from './results/records.service.js'
 import { logger } from './utils/logger.js'
 
 const app = express()
@@ -60,6 +61,25 @@ app.use('/admin/platform/leagues', express.json({ limit: '8mb' }))
 app.use('/admin/platform/clubs', express.json({ limit: '8mb' }))
 app.use('/admin/season', express.json({ limit: '25mb' }))
 app.use(express.json({ limit: '1mb' }))
+
+app.get('/api/records', async (req, res) => {
+  try {
+    const query = req.query as Record<string, string>
+    const data = await getFootballRecords({
+      period: query.period === 'week' ? 'week' : 'season' as RecordPeriod,
+      season: query.season || undefined,
+      state: query.state || undefined,
+      leagueId: query.league || undefined,
+      grade: query.grade || undefined,
+      limit: Math.min(Math.max(parseInt(query.limit || '5', 10) || 5, 1), 20),
+    })
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=300')
+    res.json({ data })
+  } catch (error) {
+    logger.error('GET /api/records failed', { detail: String(error) })
+    res.status(500).json({ error: 'failed to load football records' })
+  }
+})
 
 app.use('/api/rankings', rankingsRouter)
 app.use('/api/clubs', clubsRouter)
