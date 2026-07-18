@@ -199,7 +199,6 @@ export async function getFootballRecords(query: Query = {}): Promise<FootballRec
 
   const optionRows = await prisma.footballResult.findMany({
     where: { published: true },
-    include: { league: { include: { state: true } } },
     select: {
       season: true,
       grade: true,
