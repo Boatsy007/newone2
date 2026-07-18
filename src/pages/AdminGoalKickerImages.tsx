@@ -3,6 +3,7 @@ import { ArrowLeft, CheckCircle2, Trash2, UploadCloud } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { admin, getKey, setKey, type AdminClub, type FootballLeague } from '../lib/admin'
 import { goalKickerImageImports, type GoalKickerImagePreview, type GoalKickerImageRow } from '../lib/goalKickerImageImports'
+import { consumeImportHandoff, handoffToFile } from '../lib/importHandoff'
 
 type ReviewRow=GoalKickerImageRow&{decision:'import'|'skip';clubId:string}
 type Item={id:string;file:File;url:string;status:'ready'|'analysing'|'review'|'failed'|'committed';preview?:GoalKickerImagePreview;error?:string}
@@ -12,6 +13,7 @@ const button=(dark=false):CSSProperties=>({border:0,borderRadius:999,padding:'11
 export default function AdminGoalKickerImages(){
  const[authed,setAuthed]=useState(!!getKey());const[key,setLocalKey]=useState('');const[items,setItems]=useState<Item[]>([]);const[leagues,setLeagues]=useState<FootballLeague[]>([]);const[clubs,setClubs]=useState<AdminClub[]>([]);const[leagueId,setLeagueId]=useState('');const[season,setSeason]=useState('2026');const[grade,setGrade]=useState('Senior Football');const[busy,setBusy]=useState(false);const[msg,setMsg]=useState('')
  useEffect(()=>{if(!authed)return;admin.listFootballLeagues().then(setLeagues);admin.listClubs().then(setClubs)},[authed])
+ useEffect(()=>{if(!authed)return;const handoff=consumeImportHandoff(['goalKickers']);if(!handoff)return;const file=handoffToFile(handoff);setItems(previous=>[...previous,{id:`handoff-${Date.now()}`,file,url:URL.createObjectURL(file),status:'ready'}]);setMsg('Screenshot received from Universal Imports. Review it, then analyse.')},[authed])
  const add=(files:FileList)=>setItems(p=>[...p,...Array.from(files).filter(f=>f.type.startsWith('image/')).map(file=>({id:`${Date.now()}-${Math.random()}`,file,url:URL.createObjectURL(file),status:'ready' as const}))])
  const analyse=async()=>{if(!items.length)return setMsg('Add at least one screenshot.');setBusy(true);for(const item of items.filter(i=>i.status==='ready'||i.status==='failed')){setItems(p=>p.map(x=>x.id===item.id?{...x,status:'analysing',error:undefined}:x));try{const image=await fileDataUrl(item.file);const preview=await goalKickerImageImports.parse(image,leagueId||undefined);setItems(p=>p.map(x=>x.id===item.id?{...x,status:'review',preview}:x));if(!leagueId&&preview.matchedLeagueId)setLeagueId(preview.matchedLeagueId);if(preview.season)setSeason(preview.season);if(preview.grade)setGrade(preview.grade)}catch(e){setItems(p=>p.map(x=>x.id===item.id?{...x,status:'failed',error:e instanceof Error?e.message:String(e)}:x))}}setBusy(false)}
  const replacePreview=(id:string,preview:GoalKickerImagePreview)=>setItems(p=>p.map(x=>x.id===id?{...x,preview}:x))
