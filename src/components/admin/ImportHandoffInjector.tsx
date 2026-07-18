@@ -1,19 +1,34 @@
 import { useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { consumeImportHandoff, handoffToFile, type ImportHandoffKind } from '../../lib/importHandoff'
 
 function acceptedKinds(pathname: string): ImportHandoffKind[] {
   if (pathname === '/admin/match-images') return ['results', 'fixtures']
   if (pathname === '/admin/goal-kicker-images') return ['goalKickers']
   if (pathname === '/admin/profile-images') return ['club', 'league', 'players']
-  if (pathname === '/admin') return ['ladder']
   return []
 }
 
 export default function ImportHandoffInjector() {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
 
   useEffect(() => {
+    if (pathname === '/admin') {
+      const raw = sessionStorage.getItem('playfooty_import_handoff')
+      if (raw) {
+        try {
+          const handoff = JSON.parse(raw) as { kind?: string; createdAt?: number }
+          if (handoff.kind === 'ladder' && Date.now() - Number(handoff.createdAt || 0) < 30 * 60 * 1000) {
+            navigate('/admin/ladder-images?from=universal&type=ladder', { replace: true })
+            return
+          }
+        } catch {
+          sessionStorage.removeItem('playfooty_import_handoff')
+        }
+      }
+    }
+
     const accepted = acceptedKinds(pathname)
     if (!accepted.length) return
 
@@ -39,7 +54,7 @@ export default function ImportHandoffInjector() {
 
     window.setTimeout(inject, 0)
     return () => { cancelled = true }
-  }, [pathname])
+  }, [navigate, pathname])
 
   return null
 }
