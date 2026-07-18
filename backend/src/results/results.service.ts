@@ -38,7 +38,10 @@ export async function upsertResult(input: ResultInput, source: ImportSource, opt
   return prisma.$transaction(async tx => {
     const [existing, matchingFixture] = await Promise.all([
       tx.matchResult.findUnique({ where: { dedupeKey } }),
-      tx.fixture.findUnique({ where: { dedupeKey: matchingFixtureKey }, select: { id: true } }),
+      tx.fixture.findUnique({
+        where: { dedupeKey: matchingFixtureKey },
+        select: { id: true, homeClubId: true, awayClubId: true },
+      }),
     ])
 
     const fixtureId = input.fixtureId ?? matchingFixture?.id ?? existing?.fixtureId ?? null
@@ -56,9 +59,15 @@ export async function upsertResult(input: ResultInput, source: ImportSource, opt
       // Never overwrite verified or manually-overridden results with an automatic source.
       if ((existing.verified || existing.manualOverride) && source !== 'MANUAL') {
         if (matchingFixture && existing.id) {
+          const sameOrientation = matchingFixture.homeClubId === existing.homeClubId
           await tx.fixture.update({
             where: { id: matchingFixture.id },
-            data: { status: 'COMPLETED', resultId: existing.id, homeScore: existing.homeScore, awayScore: existing.awayScore },
+            data: {
+              status: 'COMPLETED',
+              resultId: existing.id,
+              homeScore: sameOrientation ? existing.homeScore : existing.awayScore,
+              awayScore: sameOrientation ? existing.awayScore : existing.homeScore,
+            },
           })
         }
         return { ok: true, status: 'skipped', id: existing.id, fixtureId: matchingFixture?.id ?? existing.fixtureId }
@@ -71,9 +80,15 @@ export async function upsertResult(input: ResultInput, source: ImportSource, opt
     }
 
     if (matchingFixture) {
+      const sameOrientation = matchingFixture.homeClubId === homeClubId
       await tx.fixture.update({
         where: { id: matchingFixture.id },
-        data: { status: 'COMPLETED', resultId: result.id, homeScore, awayScore },
+        data: {
+          status: 'COMPLETED',
+          resultId: result.id,
+          homeScore: sameOrientation ? homeScore : awayScore,
+          awayScore: sameOrientation ? awayScore : homeScore,
+        },
       })
     }
 
@@ -131,31 +146,59 @@ export async function bridgeFromMatches(opts: { season?: string; limit?: number 
 
 export async function getClubResults(clubId: string, opts: { season?: string; limit?: number } = {}) {
   return prisma.matchResult.findMany({
-    where: { OR: [{ homeClubId: clubId }, { awayClubId: clubId }], ...(opts.season ? { season: opts.season } : {}) },
-    orderBy: [{ matchDate: 'desc' }, { round: 'desc' }], take: opts.limit ?? 200,
+    where: {
+      OR: [{ homeClubId: clubId }, { awayClubId: clubId }],
+      status: { notIn: ['VOID', 'CANCELLED'] },
+      ...(opts.season ? { season: opts.season } : {}),
+    },
+    orderBy: [{ matchDate: 'desc' }, { round: 'desc' }, { updatedAt: 'desc' }], take: opts.limit ?? 200,
   })
 }
 
 export async function getLeagueResults(leagueId: string, opts: { season?: string; round?: number; limit?: number } = {}) {
   return prisma.matchResult.findMany({
-    where: { leagueId, ...(opts.season ? { season: opts.season } : {}), ...(opts.round != null ? { round: opts.round } : {}) },
-    orderBy: [{ round: 'desc' }, { matchDate: 'desc' }], take: opts.limit ?? 500,
+    where: { leagueId, status: { notIn: ['VOID', 'CANCELLED'] }, ...(opts.season ? { season: opts.season } : {}), ...(opts.round != null ? { round: opts.round } : {}) },
+    orderBy: [{ round: 'desc' }, { matchDate: 'desc' }, { updatedAt: 'desc' }], take: opts.limit ?? 500,
   })
 }
 
-/** Match history buckets for a club: last 5, last 10, this season, all-time. */
+/** Match history buckets for a club: detailed last 5/10, this season and all-time. */
 export async function getClubMatchHistory(clubId: string, season?: string) {
   const all = await prisma.matchResult.findMany({
-    where: { OR: [{ homeClubId: clubId }, { awayClubId: clubId }] },
-    orderBy: [{ matchDate: 'desc' }, { round: 'desc' }],
+    where: {
+      OR: [{ homeClubId: clubId }, { awayClubId: clubId }],
+      status: { notIn: ['VOID', 'CANCELLED'] },
+    },
+    orderBy: [{ matchDate: 'desc' }, { round: 'desc' }, { updatedAt: 'desc' }],
   })
   const forSeason = season ? all.filter(m => m.season === season) : all
-  const outcome = (m: typeof all[number]) => m.isDraw ? 'D' : (m.winnerClubId === clubId ? 'W' : 'L')
+  const present = (m: typeof all[number]) => {
+    const isHome = m.homeClubId === clubId
+    const outcome = m.isDraw ? 'D' : (m.winnerClubId === clubId ? 'W' : 'L')
+    return {
+      id: m.id,
+      fixtureId: m.fixtureId,
+      leagueId: m.leagueId,
+      leagueName: m.leagueName,
+      season: m.season,
+      grade: m.grade,
+      round: m.round,
+      matchDate: m.matchDate,
+      opponentClubId: isHome ? m.awayClubId : m.homeClubId,
+      opponentClubName: isHome ? m.awayClubName : m.homeClubName,
+      venueSide: isHome ? 'HOME' : 'AWAY',
+      clubScore: isHome ? m.homeScore : m.awayScore,
+      opponentScore: isHome ? m.awayScore : m.homeScore,
+      outcome,
+      margin: m.margin,
+      status: m.status,
+    }
+  }
   return {
-    last5: all.slice(0, 5).map(m => ({ id: m.id, outcome: outcome(m) })),
-    last10: all.slice(0, 10).map(m => ({ id: m.id, outcome: outcome(m) })),
-    season: forSeason,
-    historical: all,
-    form: all.slice(0, 10).map(outcome),
+    last5: all.slice(0, 5).map(present),
+    last10: all.slice(0, 10).map(present),
+    season: forSeason.map(present),
+    historical: all.map(present),
+    form: all.slice(0, 10).map(m => present(m).outcome),
   }
 }
