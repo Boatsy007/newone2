@@ -8,7 +8,7 @@ type Kind = ImportHandoffKind | 'unknown'
 type Item = {
   id: string
   file: File
-  url: string
+  dataUrl: string
   status: 'ready' | 'classifying' | 'classified' | 'failed'
   kind: Kind
   confidence: number
@@ -64,6 +64,7 @@ export default function AdminUniversalImports() {
   const [items, setItems] = useState<Item[]>([])
   const [history, setHistory] = useState<HistoryRow[]>([])
   const [busy, setBusy] = useState(false)
+  const [adding, setAdding] = useState(false)
   const [msg, setMsg] = useState('')
 
   const loadHistory = () => fetch('/admin/universal-imports/history', {
@@ -73,20 +74,44 @@ export default function AdminUniversalImports() {
     .catch(() => setHistory([]))
 
   useEffect(() => { if (authed) void loadHistory() }, [authed])
-  useEffect(() => () => items.forEach(item => URL.revokeObjectURL(item.url)), [items])
 
-  const add = (files: FileList) => setItems(previous => [
-    ...previous,
-    ...Array.from(files).filter(file => file.type.startsWith('image/')).map(file => ({
-      id: `${Date.now()}-${Math.random()}`,
-      file,
-      url: URL.createObjectURL(file),
-      status: 'ready' as const,
-      kind: 'unknown' as const,
-      confidence: 0,
-      reason: '',
-    })),
-  ])
+  const add = async (selectedFiles: File[]) => {
+    if (!selectedFiles.length) {
+      setMsg('No images were selected.')
+      return
+    }
+
+    setAdding(true)
+    setMsg(`Loading ${selectedFiles.length} selected image${selectedFiles.length === 1 ? '' : 's'}…`)
+
+    const loaded = await Promise.all(selectedFiles.map(async (file, index): Promise<Item | null> => {
+      try {
+        return {
+          id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+          file,
+          dataUrl: await dataUrl(file),
+          status: 'ready',
+          kind: 'unknown',
+          confidence: 0,
+          reason: '',
+        }
+      } catch {
+        return null
+      }
+    }))
+
+    const valid = loaded.filter((item): item is Item => item !== null)
+    setItems(previous => [...previous, ...valid])
+    setAdding(false)
+
+    if (!valid.length) {
+      setMsg('The selected files could not be opened. Choose screenshots from Photos or Files and try again.')
+    } else if (valid.length !== selectedFiles.length) {
+      setMsg(`${valid.length} of ${selectedFiles.length} images loaded. The remaining files could not be read.`)
+    } else {
+      setMsg(`${valid.length} image${valid.length === 1 ? '' : 's'} selected and ready to classify.`)
+    }
+  }
 
   const classify = async () => {
     if (!items.length) return setMsg('Add at least one screenshot.')
@@ -94,11 +119,10 @@ export default function AdminUniversalImports() {
     for (const item of items.filter(value => value.status === 'ready' || value.status === 'failed')) {
       setItems(previous => previous.map(value => value.id === item.id ? { ...value, status: 'classifying', error: undefined } : value))
       try {
-        const image = await dataUrl(item.file)
         const response = await fetch('/admin/universal-imports/classify', {
           method: 'POST',
           headers: { 'content-type': 'application/json', authorization: `Bearer ${getKey()}` },
-          body: JSON.stringify({ image }),
+          body: JSON.stringify({ image: item.dataUrl }),
         })
         const payload = await response.json() as { data?: { kind: Kind; confidence: number; reason: string }; error?: string }
         if (!response.ok || !payload.data) throw new Error(payload.error ?? `HTTP ${response.status}`)
@@ -121,15 +145,14 @@ export default function AdminUniversalImports() {
     setMsg('Classification complete. Review the detected type, then open the protected importer. Nothing has been committed.')
   }
 
-  const openImporter = async (item: Item) => {
+  const openImporter = (item: Item) => {
     if (item.kind === 'unknown') return
     try {
-      const image = await dataUrl(item.file)
       saveImportHandoff({
         kind: item.kind,
         name: item.file.name,
-        type: item.file.type,
-        dataUrl: image,
+        type: item.file.type || 'image/jpeg',
+        dataUrl: item.dataUrl,
         createdAt: Date.now(),
       })
       navigate(`${routeFor(item.kind)}?from=universal&type=${encodeURIComponent(item.kind)}`)
@@ -160,40 +183,52 @@ export default function AdminUniversalImports() {
         <p>Upload a mixed batch, classify it automatically, then carry each screenshot into its protected review-and-approval workflow.</p>
       </header>
 
-      <label className="universal-dropzone">
+      <label className={`universal-dropzone${adding ? ' is-loading' : ''}`}>
         <div className="universal-dropzone-content">
           <UploadCloud size={46} />
-          <h2>Choose mixed screenshots</h2>
-          <p>Select one image or a full batch.</p>
-          <span className="universal-select-button">Select images</span>
+          <h2>{adding ? 'Loading images…' : 'Choose mixed screenshots'}</h2>
+          <p>{adding ? 'Preparing previews on this device.' : 'Select one image or a full batch.'}</p>
+          <span className="universal-select-button">{adding ? 'Please wait…' : 'Select images'}</span>
         </div>
-        <input hidden type="file" accept="image/*" multiple onChange={event => { if (event.target.files) add(event.target.files); event.currentTarget.value = '' }} />
+        <input
+          hidden
+          type="file"
+          accept="image/*,.heic,.heif,.png,.jpg,.jpeg,.webp"
+          multiple
+          disabled={adding}
+          onChange={event => {
+            const selected = Array.from(event.currentTarget.files ?? [])
+            event.currentTarget.value = ''
+            void add(selected)
+          }}
+        />
       </label>
 
       {items.length > 0 && <>
+        <div className="universal-selection-summary"><strong>{items.length} image{items.length === 1 ? '' : 's'} selected</strong><span>Previews loaded successfully</span></div>
         <div className="universal-counts">{Object.entries(counts).map(([kind, count]) => <span key={kind}>{kind}: {count}</span>)}</div>
 
         <section className="universal-item-grid">
           {items.map(item => <article key={item.id} className="universal-item-card">
-            <img src={item.url} alt="Import screenshot" />
+            <img src={item.dataUrl} alt={item.file.name || 'Import screenshot'} />
             <div className="universal-item-body">
-              <strong>{item.file.name}</strong>
+              <strong>{item.file.name || 'Selected image'}</strong>
               <select style={input} value={item.kind} onChange={event => setItems(previous => previous.map(value => value.id === item.id ? { ...value, kind: event.target.value as Kind, status: 'classified' } : value))}>
                 {['unknown', 'ladder', 'results', 'fixtures', 'goalKickers', 'club', 'league', 'players'].map(kind => <option key={kind} value={kind}>{kind}</option>)}
               </select>
               <small>{item.status}{item.status === 'classified' ? ` · ${Math.round(item.confidence * 100)}% · ${item.reason}` : ''}{item.error ? ` · ${item.error}` : ''}</small>
               <div className="universal-item-actions">
                 <button style={button(true)} disabled={busy} onClick={() => setItems(previous => previous.map(value => value.id === item.id ? { ...value, status: 'ready', error: undefined } : value))}><RefreshCw size={14} />Retry</button>
-                <button style={button()} disabled={item.kind === 'unknown'} onClick={() => void openImporter(item)}>Open importer</button>
+                <button style={button()} disabled={item.kind === 'unknown'} onClick={() => openImporter(item)}>Open importer</button>
               </div>
             </div>
           </article>)}
         </section>
 
-        <button className="universal-classify-button" disabled={busy} onClick={() => void classify()}>{busy ? 'Classifying…' : 'Automatically classify batch'}</button>
+        <button className="universal-classify-button" disabled={busy || adding} onClick={() => void classify()}>{busy ? 'Classifying…' : 'Automatically classify batch'}</button>
       </>}
 
-      {msg && <div className="universal-message">{msg}</div>}
+      {msg && <div className="universal-message" role="status">{msg}</div>}
 
       <section className="universal-history">
         <header className="universal-history-head">
@@ -236,8 +271,8 @@ export default function AdminUniversalImports() {
 
 function ResponsiveStyles() {
   return <style>{`
-    *{box-sizing:border-box}.universal-page{min-height:100vh;background:#eef2f6;padding:24px;font-family:Inter,system-ui,sans-serif;overflow-x:hidden}.universal-shell{width:100%;max-width:1400px;margin:0 auto;display:grid;gap:18px}.universal-hero{background:#050505;color:#fff;border-radius:20px;padding:28px;overflow:hidden}.universal-back{color:#42b8ff;text-decoration:none;display:inline-flex;gap:7px;align-items:center;font-weight:800}.universal-hero h1{font-size:clamp(42px,7vw,84px);line-height:.95;margin:18px 0 10px;text-transform:uppercase;overflow-wrap:anywhere}.universal-hero p{max-width:900px;margin:0;color:#e6e9ee;font-size:18px;line-height:1.5}.universal-dropzone{min-height:190px;border:2px dashed #92cfee;border-radius:18px;background:#f7fcff;display:grid;place-items:center;text-align:center;padding:24px;cursor:pointer}.universal-dropzone-content{display:grid;justify-items:center;gap:8px;max-width:420px}.universal-dropzone h2{margin:4px 0 0}.universal-dropzone p{margin:0;color:#687385}.universal-select-button{border-radius:999px;min-height:48px;padding:12px 22px;background:#42b8ff;color:#050505;font-weight:900;display:inline-flex;align-items:center;justify-content:center}.universal-counts{display:flex;gap:8px;flex-wrap:wrap}.universal-counts span{background:#fff;padding:8px 12px;border-radius:999px;border:1px solid #dce3eb;font-weight:800}.universal-item-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.universal-item-card{background:#fff;border-radius:16px;overflow:hidden;border:1px solid #dce3eb;min-width:0}.universal-item-card>img{width:100%;height:165px;object-fit:cover;display:block}.universal-item-body{padding:14px;display:grid;gap:10px;min-width:0}.universal-item-body strong{overflow-wrap:anywhere}.universal-item-body small{color:#687385;line-height:1.4}.universal-item-actions{display:flex;gap:8px}.universal-item-actions button{flex:1}.universal-classify-button{border:0;border-radius:999px;min-height:50px;padding:12px 18px;background:#42b8ff;color:#050505;font-weight:900;cursor:pointer;width:max-content}.universal-message{background:#fff8dc;padding:14px;border-radius:12px;line-height:1.45}.universal-history{background:#fff;border-radius:18px;padding:18px;min-width:0}.universal-history-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.universal-history-head h2{margin:0;display:flex;align-items:center;gap:8px}.universal-history-head p{margin:8px 0 0;color:#687385}.universal-history-desktop{overflow:auto;margin-top:12px}.universal-history-desktop table{width:100%;border-collapse:collapse;min-width:900px}.universal-history-desktop th,.universal-history-desktop td{padding:10px;text-align:left;border-bottom:1px solid #eef2f6;vertical-align:top}.universal-history-mobile{display:none}.universal-login-shell{min-height:100vh;display:grid;place-items:center;background:#050505;padding:16px}.universal-login-card{background:#fff;padding:24px;border-radius:18px;width:min(92vw,420px)}
-    @media(max-width:700px){.universal-page{padding:14px 12px 28px}.universal-shell{gap:14px}.universal-hero{border-radius:18px;padding:18px 16px}.universal-back{font-size:14px}.universal-hero h1{font-size:38px;line-height:.95;margin:18px 0 10px}.universal-hero p{font-size:15px;line-height:1.45}.universal-dropzone{min-height:210px;padding:20px 16px;border-radius:16px}.universal-dropzone-content{width:100%}.universal-select-button{width:100%;margin-top:6px}.universal-item-grid{grid-template-columns:1fr}.universal-item-card>img{height:190px}.universal-item-actions{display:grid;grid-template-columns:1fr 1fr}.universal-classify-button{width:100%}.universal-history{padding:16px;border-radius:16px}.universal-history-head{align-items:flex-start}.universal-history-head>button{min-width:46px;padding:11px}.universal-history-head>button svg{margin:0}.universal-history-desktop{display:none}.universal-history-mobile{display:grid;gap:10px;margin-top:16px}.universal-history-card{border:1px solid #dce3eb;border-radius:14px;padding:14px;display:grid;gap:12px}.universal-history-card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.universal-history-card-top strong{overflow-wrap:anywhere}.universal-history-card-top span{background:#eef3f7;border-radius:999px;padding:5px 8px;font-size:11px;font-weight:900;white-space:nowrap}.universal-history-card dl{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0}.universal-history-card dl div:last-child{grid-column:1/-1}.universal-history-card dt{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#687385;font-weight:900}.universal-history-card dd{margin:3px 0 0;font-size:13px}.universal-history-card p{margin:0;line-height:1.45}.universal-history-card small{color:#687385;line-height:1.4}.universal-history-empty{padding:20px 0;color:#687385;text-align:center}}
+    *{box-sizing:border-box}.universal-page{min-height:100vh;background:#eef2f6;padding:24px;font-family:Inter,system-ui,sans-serif;overflow-x:hidden}.universal-shell{width:100%;max-width:1400px;margin:0 auto;display:grid;gap:18px}.universal-hero{background:#050505;color:#fff;border-radius:20px;padding:28px;overflow:hidden}.universal-back{color:#42b8ff;text-decoration:none;display:inline-flex;gap:7px;align-items:center;font-weight:800}.universal-hero h1{font-size:clamp(42px,7vw,84px);line-height:.95;margin:18px 0 10px;text-transform:uppercase;overflow-wrap:anywhere}.universal-hero p{max-width:900px;margin:0;color:#e6e9ee;font-size:18px;line-height:1.5}.universal-dropzone{min-height:190px;border:2px dashed #92cfee;border-radius:18px;background:#f7fcff;display:grid;place-items:center;text-align:center;padding:24px;cursor:pointer}.universal-dropzone.is-loading{opacity:.72;cursor:wait}.universal-dropzone-content{display:grid;justify-items:center;gap:8px;max-width:420px}.universal-dropzone h2{margin:4px 0 0}.universal-dropzone p{margin:0;color:#687385}.universal-select-button{border-radius:999px;min-height:48px;padding:12px 22px;background:#42b8ff;color:#050505;font-weight:900;display:inline-flex;align-items:center;justify-content:center}.universal-selection-summary{background:#fff;border:1px solid #dce3eb;border-radius:14px;padding:13px 15px;display:flex;align-items:center;justify-content:space-between;gap:10px}.universal-selection-summary span{color:#687385;font-size:13px}.universal-counts{display:flex;gap:8px;flex-wrap:wrap}.universal-counts span{background:#fff;padding:8px 12px;border-radius:999px;border:1px solid #dce3eb;font-weight:800}.universal-item-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.universal-item-card{background:#fff;border-radius:16px;overflow:hidden;border:1px solid #dce3eb;min-width:0}.universal-item-card>img{width:100%;height:165px;object-fit:cover;display:block}.universal-item-body{padding:14px;display:grid;gap:10px;min-width:0}.universal-item-body strong{overflow-wrap:anywhere}.universal-item-body small{color:#687385;line-height:1.4}.universal-item-actions{display:flex;gap:8px}.universal-item-actions button{flex:1}.universal-classify-button{border:0;border-radius:999px;min-height:50px;padding:12px 18px;background:#42b8ff;color:#050505;font-weight:900;cursor:pointer;width:max-content}.universal-message{background:#fff8dc;padding:14px;border-radius:12px;line-height:1.45}.universal-history{background:#fff;border-radius:18px;padding:18px;min-width:0}.universal-history-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.universal-history-head h2{margin:0;display:flex;align-items:center;gap:8px}.universal-history-head p{margin:8px 0 0;color:#687385}.universal-history-desktop{overflow:auto;margin-top:12px}.universal-history-desktop table{width:100%;border-collapse:collapse;min-width:900px}.universal-history-desktop th,.universal-history-desktop td{padding:10px;text-align:left;border-bottom:1px solid #eef2f6;vertical-align:top}.universal-history-mobile{display:none}.universal-login-shell{min-height:100vh;display:grid;place-items:center;background:#050505;padding:16px}.universal-login-card{background:#fff;padding:24px;border-radius:18px;width:min(92vw,420px)}
+    @media(max-width:700px){.universal-page{padding:14px 12px 28px}.universal-shell{gap:14px}.universal-hero{border-radius:18px;padding:18px 16px}.universal-back{font-size:14px}.universal-hero h1{font-size:38px;line-height:.95;margin:18px 0 10px}.universal-hero p{font-size:15px;line-height:1.45}.universal-dropzone{min-height:210px;padding:20px 16px;border-radius:16px}.universal-dropzone-content{width:100%}.universal-select-button{width:100%;margin-top:6px}.universal-selection-summary{align-items:flex-start;flex-direction:column}.universal-item-grid{grid-template-columns:1fr}.universal-item-card>img{height:auto;max-height:360px;object-fit:contain;background:#eef2f6}.universal-item-actions{display:grid;grid-template-columns:1fr 1fr}.universal-classify-button{width:100%}.universal-history{padding:16px;border-radius:16px}.universal-history-head{align-items:flex-start}.universal-history-head>button{min-width:46px;padding:11px}.universal-history-head>button svg{margin:0}.universal-history-desktop{display:none}.universal-history-mobile{display:grid;gap:10px;margin-top:16px}.universal-history-card{border:1px solid #dce3eb;border-radius:14px;padding:14px;display:grid;gap:12px}.universal-history-card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.universal-history-card-top strong{overflow-wrap:anywhere}.universal-history-card-top span{background:#eef3f7;border-radius:999px;padding:5px 8px;font-size:11px;font-weight:900;white-space:nowrap}.universal-history-card dl{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0}.universal-history-card dl div:last-child{grid-column:1/-1}.universal-history-card dt{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#687385;font-weight:900}.universal-history-card dd{margin:3px 0 0;font-size:13px}.universal-history-card p{margin:0;line-height:1.45}.universal-history-card small{color:#687385;line-height:1.4}.universal-history-empty{padding:20px 0;color:#687385;text-align:center}}
     @media(max-width:390px){.universal-hero h1{font-size:34px}.universal-item-actions{grid-template-columns:1fr}.universal-history-head p{font-size:13px}.universal-history-head>button{font-size:0}.universal-history-head>button svg{width:18px;height:18px}}
   `}</style>
 }
