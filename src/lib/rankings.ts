@@ -51,7 +51,7 @@ export interface LeagueDetail {
   websiteUrl?: string | null; facebookUrl?: string | null; featuredLeague?: boolean
   primarySource?: string | null; weekLabel?: string | null; totalRanked?: number; clubCount?: number
   rankedTeams: LeagueRankedTeam[]
-  ladder: { clubId: string | null; clubName: string; logoUrl?: string | null; position: number | null; played: number; wins: number; losses: number; draws: number; goalsFor: number; goalsAgainst: number; percentage: number; points: number }[]
+  ladder: { clubId: string; clubName: string; logoUrl?: string | null; position: number | null; played: number; wins: number; losses: number; draws: number; goalsFor: number; goalsAgainst: number; percentage: number; points: number }[]
   fixtures?: LeagueFixture[]
   results?: LeagueResult[]
 }
