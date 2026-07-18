@@ -28,20 +28,12 @@ router.get('/', publicRateLimit, cachePublic(120), async (req, res) => {
     })
     res.json({
       data: leagues.map(league => ({
-        id: league.id,
-        name: league.name,
-        shortName: league.shortName,
-        logoUrl: league.logoUrl,
-        state: league.state.code,
-        stateName: league.state.name,
-        association: league.association?.name ?? null,
-        regionName: league.regionName,
-        strengthScore: league.strengthScore,
-        strengthTier: league.strengthTier,
-        currentSeason: league.currentSeason,
-        clubCount: league._count.clubSeasons,
-        lastSyncedAt: league.lastSyncedAt,
-        featuredLeague: league.featuredLeague,
+        id: league.id, name: league.name, shortName: league.shortName, logoUrl: league.logoUrl,
+        state: league.state.code, stateName: league.state.name,
+        association: league.association?.name ?? null, regionName: league.regionName,
+        strengthScore: league.strengthScore, strengthTier: league.strengthTier,
+        currentSeason: league.currentSeason, clubCount: league._count.clubSeasons,
+        lastSyncedAt: league.lastSyncedAt, featuredLeague: league.featuredLeague,
       })),
       meta: { total: leagues.length, generatedAt: new Date().toISOString() },
     })
@@ -75,10 +67,9 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
     const season = league.currentSeason ?? latestMembership?.season ?? String(new Date().getFullYear())
     const grade = latestMembership?.grade ?? 'Senior Football'
 
-    const [footballLadder, legacyLadder, latestRun, fixtures, results] = await Promise.all([
+    const [footballLadder, legacyLadder, latestRun, fixtures, results, goalKickers] = await Promise.all([
       prisma.footballLadderEntry.findMany({
-        where: { leagueId: league.id, season, published: true },
-        orderBy: { position: 'asc' },
+        where: { leagueId: league.id, season, published: true }, orderBy: { position: 'asc' },
         select: { clubId: true, clubName: true, position: true, played: true, wins: true, losses: true, draws: true, pointsFor: true, pointsAgainst: true, percentage: true, premiershipPoints: true },
       }),
       prisma.clubLeagueSeason.findMany({
@@ -95,6 +86,10 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
         where: { leagueId: league.id, season, published: true }, orderBy: [{ matchDate: 'desc' }, { round: 'desc' }], take: 100,
         select: { id: true, round: true, grade: true, homeClubId: true, awayClubId: true, homeName: true, awayName: true, homeGoals: true, homeBehinds: true, homePoints: true, awayGoals: true, awayBehinds: true, awayPoints: true, matchDate: true, venue: true, verified: true },
       }),
+      prisma.footballGoalKicker.findMany({
+        where: { leagueId: league.id, season }, orderBy: [{ goals: 'desc' }, { playerName: 'asc' }], take: 20,
+        select: { id: true, playerId: true, playerName: true, clubId: true, clubName: true, grade: true, goals: true, matches: true, updatedAt: true, club: { select: { logoUrl: true } } },
+      }),
     ])
 
     const rankedTeams = latestRun
@@ -105,8 +100,8 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
       : []
 
     const ladder = footballLadder.length
-      ? footballLadder.map(row => ({
-          clubId: row.clubId, clubName: row.clubName, position: row.position,
+      ? footballLadder.filter(row => row.clubId).map(row => ({
+          clubId: row.clubId!, clubName: row.clubName, position: row.position,
           played: row.played, wins: row.wins, losses: row.losses, draws: row.draws,
           goalsFor: row.pointsFor, goalsAgainst: row.pointsAgainst,
           percentage: row.percentage, points: row.premiershipPoints,
@@ -120,35 +115,26 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
 
     res.json({
       data: {
-        id: league.id,
-        name: league.name,
-        shortName: league.shortName,
-        description: league.description,
-        state: league.state.code,
-        stateName: league.state.name,
-        association: league.association?.name ?? null,
-        associationId: league.association?.id ?? null,
-        regionName: league.regionName,
-        logoUrl: league.logoUrl,
-        websiteUrl: league.websiteUrl,
-        facebookUrl: league.facebookUrl,
-        featuredLeague: league.featuredLeague,
-        strengthScore: league.strengthScore,
-        strengthTier: league.strengthTier,
-        strengthConfidence: league.strengthConfidence,
-        strengthReasoning: league.strengthReasoning,
-        strengthCalculatedAt: league.strengthCalculatedAt,
-        currentSeason: season,
-        grade,
+        id: league.id, name: league.name, shortName: league.shortName, description: league.description,
+        state: league.state.code, stateName: league.state.name,
+        association: league.association?.name ?? null, associationId: league.association?.id ?? null,
+        regionName: league.regionName, logoUrl: league.logoUrl,
+        websiteUrl: league.websiteUrl, facebookUrl: league.facebookUrl,
+        featuredLeague: league.featuredLeague, strengthScore: league.strengthScore,
+        strengthTier: league.strengthTier, strengthConfidence: league.strengthConfidence,
+        strengthReasoning: league.strengthReasoning, strengthCalculatedAt: league.strengthCalculatedAt,
+        currentSeason: season, grade,
         lastSyncedAt: league.lastSuccessfulSyncAt ?? league.lastSyncedAt,
         primarySource: league.primaryDataSource ?? league.primarySource,
-        weekLabel: latestRun?.weekLabel ?? null,
-        totalRanked: rankedTeams.length,
+        weekLabel: latestRun?.weekLabel ?? null, totalRanked: rankedTeams.length,
         clubCount: league._count.clubSeasons,
         rankedTeams: rankedTeams.map(team => ({ ...team, recentForm: JSON.parse(team.recentForm || '[]'), qualified: true })),
-        ladder,
-        fixtures,
-        results,
+        ladder, fixtures, results,
+        goalKickers: goalKickers.map((row, index) => ({
+          id: row.id, playerId: row.playerId, rank: index + 1, playerName: row.playerName,
+          clubId: row.clubId, clubName: row.clubName, clubLogoUrl: row.club?.logoUrl ?? null,
+          grade: row.grade, goals: row.goals, matches: row.matches, updatedAt: row.updatedAt,
+        })),
         updatedAt: league.lastSuccessfulSyncAt ?? league.lastSyncedAt ?? league.strengthCalculatedAt,
       },
       meta: { generatedAt: new Date().toISOString(), canonicalLeagueId: league.id },
