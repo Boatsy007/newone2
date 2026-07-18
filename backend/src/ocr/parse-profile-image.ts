@@ -1,0 +1,14 @@
+const API='https://api.anthropic.com/v1/messages'
+export type ProfileImageKind='club'|'league'|'players'
+export interface ProfilePlayerRow{playerName:string;jumperNumber?:number;matches?:number;goals?:number;clubName?:string;grade?:string;season?:string}
+export interface ProfileImageResult{kind:ProfileImageKind;name:string|null;bio:string|null;websiteUrl:string|null;facebookUrl:string|null;instagramUrl:string|null;email:string|null;phone:string|null;town:string|null;officials:{role:string;name:string;email?:string;phone?:string}[];players:ProfilePlayerRow[];notes:string|null}
+function source(image:string){const m=image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/);return m?{media_type:m[1],data:m[2]}:{media_type:'image/png',data:image.replace(/^base64,/,'')}}
+export async function parseProfileImage(image:string,kind:ProfileImageKind):Promise<ProfileImageResult>{
+ const key=process.env.ANTHROPIC_API_KEY;if(!key)throw new Error('ANTHROPIC_API_KEY not configured')
+ const prompt=`Read this Australian community football ${kind} information image. Return ONLY minified JSON shaped {"kind":"${kind}","name":string|null,"bio":string|null,"websiteUrl":string|null,"facebookUrl":string|null,"instagramUrl":string|null,"email":string|null,"phone":string|null,"town":string|null,"officials":[{"role":string,"name":string,"email":string|null,"phone":string|null}],"players":[{"playerName":string,"jumperNumber":number|null,"matches":number|null,"goals":number|null,"clubName":string|null,"grade":string|null,"season":string|null}],"notes":string|null}. Extract only visible information. Do not guess. For a player list, include every visible player row.`
+ const src=source(image);const r=await fetch(API,{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:process.env.ANTHROPIC_MODEL??'claude-opus-4-8',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:src.media_type,data:src.data}},{type:'text',text:prompt}]}]}),signal:AbortSignal.timeout(60000)})
+ if(!r.ok)throw new Error(`Anthropic API ${r.status}: ${(await r.text()).slice(0,300)}`)
+ const body=await r.json() as {content?:{type:string;text?:string}[]};const text=(body.content??[]).filter(x=>x.type==='text').map(x=>x.text??'').join('').trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim()
+ const p=JSON.parse(text) as ProfileImageResult
+ return{kind,name:p.name?.trim()||null,bio:p.bio?.trim()||null,websiteUrl:p.websiteUrl?.trim()||null,facebookUrl:p.facebookUrl?.trim()||null,instagramUrl:p.instagramUrl?.trim()||null,email:p.email?.trim()||null,phone:p.phone?.trim()||null,town:p.town?.trim()||null,officials:Array.isArray(p.officials)?p.officials.filter(x=>x?.role&&x?.name):[],players:Array.isArray(p.players)?p.players.filter(x=>x?.playerName).map(x=>({...x,playerName:x.playerName.trim()})):[],notes:p.notes?.trim()||null}
+}
