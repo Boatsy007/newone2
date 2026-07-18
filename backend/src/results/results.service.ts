@@ -9,6 +9,7 @@
 
 import { prisma } from '../db/client.js'
 import { validateResultInput, type ResultInput } from './validation.js'
+import { fixtureDedupeKey } from './fixtures.service.js'
 import { logger } from '../utils/logger.js'
 
 export type ImportSource = 'PLAYHQ' | 'OCR' | 'CSV' | 'MANUAL' | 'MATCH_BRIDGE'
@@ -20,9 +21,9 @@ export function resultDedupeKey(leagueId: string, season: string, round: number 
   return `${norm(leagueId)}:${norm(season)}:r${round ?? 'x'}:${pair}`
 }
 
-export interface UpsertResult { ok: boolean; status: 'created' | 'updated' | 'skipped' | 'invalid'; id?: string; errors?: string[]; reviewRaised?: boolean }
+export interface UpsertResult { ok: boolean; status: 'created' | 'updated' | 'skipped' | 'invalid'; id?: string; errors?: string[]; reviewRaised?: boolean; fixtureId?: string | null }
 
-/** Insert or update one result. Verified/manualOverride rows are never overwritten by auto sources. */
+/** Insert or update one result and atomically complete its matching fixture. */
 export async function upsertResult(input: ResultInput, source: ImportSource, opts: { raiseReview?: boolean } = {}): Promise<UpsertResult> {
   const v = await validateResultInput(input, { raiseReview: opts.raiseReview })
   if (!v.ok) return { ok: false, status: 'invalid', errors: v.errors, reviewRaised: v.reviewRaised }
@@ -32,23 +33,52 @@ export async function upsertResult(input: ResultInput, source: ImportSource, opt
   const winnerClubId = isDraw ? null : (homeScore > awayScore ? homeClubId : awayClubId)
   const margin = Math.abs(homeScore - awayScore)
   const dedupeKey = resultDedupeKey(leagueId, season, round, homeClubId, awayClubId)
+  const matchingFixtureKey = fixtureDedupeKey(leagueId, season, round, homeClubId, awayClubId)
 
-  const existing = await prisma.matchResult.findUnique({ where: { dedupeKey } })
-  const data = {
-    sourceMatchId: sourceMatchId ?? null, fixtureId: input.fixtureId ?? null, leagueId, leagueName, season,
-    grade: input.grade ?? 'A Grade', round: round ?? null, matchDate: matchDate ?? null,
-    homeClubId, homeClubName, awayClubId, awayClubName, homeScore, awayScore, winnerClubId, isDraw, margin,
-    status: status ?? 'FINAL', importSource: source, sourceUrl: input.sourceUrl ?? null, importedAt: new Date(),
-  }
+  return prisma.$transaction(async tx => {
+    const [existing, matchingFixture] = await Promise.all([
+      tx.matchResult.findUnique({ where: { dedupeKey } }),
+      tx.fixture.findUnique({ where: { dedupeKey: matchingFixtureKey }, select: { id: true } }),
+    ])
 
-  if (existing) {
-    // Never overwrite verified or manually-overridden results with an automatic source.
-    if ((existing.verified || existing.manualOverride) && source !== 'MANUAL') return { ok: true, status: 'skipped', id: existing.id }
-    const updated = await prisma.matchResult.update({ where: { dedupeKey }, data: { ...data, verified: source === 'MANUAL' ? true : existing.verified } })
-    return { ok: true, status: 'updated', id: updated.id }
-  }
-  const created = await prisma.matchResult.create({ data: { ...data, dedupeKey, verified: source === 'MANUAL' } })
-  return { ok: true, status: 'created', id: created.id }
+    const fixtureId = input.fixtureId ?? matchingFixture?.id ?? existing?.fixtureId ?? null
+    const data = {
+      sourceMatchId: sourceMatchId ?? null, fixtureId, leagueId, leagueName, season,
+      grade: input.grade ?? 'A Grade', round: round ?? null, matchDate: matchDate ?? null,
+      homeClubId, homeClubName, awayClubId, awayClubName, homeScore, awayScore, winnerClubId, isDraw, margin,
+      status: status ?? 'FINAL', importSource: source, sourceUrl: input.sourceUrl ?? null, importedAt: new Date(),
+    }
+
+    let result: { id: string }
+    let writeStatus: UpsertResult['status']
+
+    if (existing) {
+      // Never overwrite verified or manually-overridden results with an automatic source.
+      if ((existing.verified || existing.manualOverride) && source !== 'MANUAL') {
+        if (matchingFixture && existing.id) {
+          await tx.fixture.update({
+            where: { id: matchingFixture.id },
+            data: { status: 'COMPLETED', resultId: existing.id, homeScore: existing.homeScore, awayScore: existing.awayScore },
+          })
+        }
+        return { ok: true, status: 'skipped', id: existing.id, fixtureId: matchingFixture?.id ?? existing.fixtureId }
+      }
+      result = await tx.matchResult.update({ where: { dedupeKey }, data: { ...data, verified: source === 'MANUAL' ? true : existing.verified } })
+      writeStatus = 'updated'
+    } else {
+      result = await tx.matchResult.create({ data: { ...data, dedupeKey, verified: source === 'MANUAL' } })
+      writeStatus = 'created'
+    }
+
+    if (matchingFixture) {
+      await tx.fixture.update({
+        where: { id: matchingFixture.id },
+        data: { status: 'COMPLETED', resultId: result.id, homeScore, awayScore },
+      })
+    }
+
+    return { ok: true, status: writeStatus, id: result.id, fixtureId }
+  }, { maxWait: 15_000, timeout: 30_000 })
 }
 
 export interface ImportReport { source: ImportSource; created: number; updated: number; skipped: number; invalid: number; reviewsRaised: number; errors: { row: number; errors: string[] }[] }
