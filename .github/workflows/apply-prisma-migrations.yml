@@ -1,34 +1,67 @@
-name: Apply Prisma migrations (preview/production database)
+name: Prisma Database Migration
 
-# Safe manual deployment step for schema changes that Vercel does not apply
-# automatically. This runs `prisma migrate deploy`, which applies pending Prisma
-# migrations only; it does not reset, drop, or rewrite existing data.
+# Manual, non-destructive production database migration.
+# Runs only pending Prisma migrations and then verifies the football schema
+# and canonical ID foundation. It never resets or drops the database.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type MIGRATE to confirm applying pending migrations'
+        required: true
+        type: string
+
+concurrency:
+  group: prisma-database-migration
+  cancel-in-progress: false
 
 jobs:
   migrate:
+    if: ${{ inputs.confirm == 'MIGRATE' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: production
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DIRECT_URL:   ${{ secrets.DIRECT_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out selected branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: 'backend/package-lock.json'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Check required database secrets
+        shell: bash
+        run: |
+          test -n "$DATABASE_URL" || { echo 'DATABASE_URL secret is missing'; exit 1; }
+          test -n "$DIRECT_URL" || { echo 'DIRECT_URL secret is missing'; exit 1; }
+
       - name: Install backend dependencies
         working-directory: backend
         run: npm ci
+
       - name: Generate Prisma client
         working-directory: backend
         run: npx prisma generate
+
+      - name: Show pending migration status
+        working-directory: backend
+        run: npx prisma migrate status
+
       - name: Apply pending Prisma migrations
         working-directory: backend
         run: npx prisma migrate deploy
-      - name: Verify football/admin schema
+
+      - name: Verify football and admin schema
         working-directory: backend
         run: npm run db:verify:football-schema
+
+      - name: Verify canonical IDs
+        working-directory: backend
+        run: npm run db:verify:canonical-ids
