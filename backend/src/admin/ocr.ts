@@ -1,42 +1,40 @@
 /**
- * Admin OCR image-import API (Phase 4)
- * ─────────────────────────────────────────────────────────────────────────────
- * Password-guarded. Preview-first:
- *   POST /admin/ocr/parse   { image, leagueId? }  → OCR the ladder, fuzzy-match
- *                                                    clubs, return a PREVIEW
- *                                                    (no DB writes).
- *   POST /admin/ocr/commit  { leagueId, entries }  → apply the confirmed ladder
- *                                                    (source MANUAL_IMAGE) + rerank.
- *
- * The operator reviews the preview (uncertain rows are flagged) and confirms
- * before anything is written — nothing hits the rankings unreviewed.
+ * Admin OCR image-import API.
+ * Preview-first: nothing is written until the operator approves the review.
  */
 
-import { Router }          from 'express'
-import { prisma }          from '../db/client.js'
+import { Router } from 'express'
+import { prisma } from '../db/client.js'
 import { requireAdminKey } from '../api/middleware/auth.js'
-import { rankAndStore }    from '../jobs/playhq-scrape.js'
+import { rankAndStore } from '../jobs/playhq-scrape.js'
 import { parseLadderImage } from '../ocr/parse-ladder-image.js'
 import { fuzzyMatchClub, similarity } from '../ocr/fuzzy-match.js'
 import { validateClubIdentity } from '../validation/club-identity.js'
 import { getISOWeekLabel } from '../utils/week-label.js'
-import { logger }          from '../utils/logger.js'
+import { logger } from '../utils/logger.js'
 
 const router = Router()
 router.use(requireAdminKey)
 
-const SEASON = '2026'
-const GRADE  = 'A Grade'
-const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+const DEFAULT_SEASON = '2026'
+const DEFAULT_GRADE = 'A Grade'
+const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 async function audit(action: string, entityId: string | null, after: unknown) {
   try {
-    const u = await prisma.adminUser.upsert({ where: { email: 'admin@cnca.local' }, update: {}, create: { email: 'admin@cnca.local', name: 'Admin', role: 'SUPERADMIN' } })
-    await prisma.auditLog.create({ data: { userId: u.id, action, entityType: 'League', entityId, after: after ? JSON.stringify(after) : null } })
-  } catch (e) { logger.warn('OCR audit failed', { detail: String(e) }) }
+    const user = await prisma.adminUser.upsert({
+      where: { email: 'admin@cnca.local' },
+      update: {},
+      create: { email: 'admin@cnca.local', name: 'Admin', role: 'SUPERADMIN' },
+    })
+    await prisma.auditLog.create({
+      data: { userId: user.id, action, entityType: 'League', entityId, after: after ? JSON.stringify(after) : null },
+    })
+  } catch (error) {
+    logger.warn('OCR audit failed', { detail: String(error) })
+  }
 }
 
-/** POST /admin/ocr/parse — OCR + fuzzy match, returns a preview (no writes). */
 router.post('/parse', async (req, res) => {
   try {
     const { image, leagueId } = req.body as { image?: string; leagueId?: string }
@@ -44,129 +42,428 @@ router.post('/parse', async (req, res) => {
 
     const ocr = await parseLadderImage(image)
     if (ocr.rows.length === 0) {
-      // Keep the attempt in history too — failed reads are part of the audit trail.
-      const rec = await prisma.ocrImport.create({ data: { image, detectedLeague: ocr.league, detectedGrade: ocr.grade, rowCount: 0, notes: ocr.notes ?? 'no ladder rows detected' } }).catch(() => null)
-      return res.json({ data: { importId: rec?.id ?? null, detectedLeague: ocr.league, matchedLeagueId: null, rows: [], notes: ocr.notes ?? 'no ladder rows detected' } })
+      const record = await prisma.ocrImport.create({
+        data: {
+          image,
+          detectedLeague: ocr.league,
+          detectedGrade: ocr.grade,
+          rowCount: 0,
+          notes: ocr.notes ?? 'no ladder rows detected',
+        },
+      }).catch(() => null)
+      return res.json({
+        data: {
+          importId: record?.id ?? null,
+          detectedLeague: ocr.league,
+          detectedGrade: ocr.grade,
+          matchedLeagueId: null,
+          rows: [],
+          uncertain: 0,
+          confidence: null,
+          notes: ocr.notes ?? 'no ladder rows detected',
+        },
+      })
     }
 
-    // Resolve the target league: explicit id, else fuzzy-match the detected name.
-    const leagues = await prisma.league.findMany({ where: { isActive: true }, include: { association: { select: { name: true } } } })
+    const leagues = await prisma.league.findMany({
+      where: { isActive: true },
+      include: { association: { select: { name: true } } },
+    })
     let matchedLeagueId = leagueId ?? null
     if (!matchedLeagueId && ocr.league) {
-      let best: { id: string; s: number } | null = null
-      for (const l of leagues) { const s = similarity(ocr.league, l.association?.name ?? l.name); if (!best || s > best.s) best = { id: l.id, s } }
-      if (best && best.s >= 0.6) matchedLeagueId = best.id
+      let best: { id: string; score: number } | null = null
+      for (const league of leagues) {
+        const score = similarity(ocr.league, league.association?.name ?? league.name)
+        if (!best || score > best.score) best = { id: league.id, score }
+      }
+      if (best && best.score >= 0.6) matchedLeagueId = best.id
     }
 
-    // Candidate clubs to match against: the target league's clubs, else all.
     const candidates = matchedLeagueId
-      ? (await prisma.club.findMany({ where: { leagueSeasons: { some: { leagueId: matchedLeagueId } } }, select: { id: true, name: true } }))
-      : (await prisma.club.findMany({ select: { id: true, name: true }, take: 2000 }))
+      ? await prisma.club.findMany({
+          where: { leagueSeasons: { some: { leagueId: matchedLeagueId } } },
+          select: { id: true, name: true },
+        })
+      : await prisma.club.findMany({ select: { id: true, name: true }, take: 2000 })
 
-    const rows = ocr.rows.map(r => ({ ...r, match: fuzzyMatchClub(r.team, candidates) }))
-    const uncertain = rows.filter(r => !r.match.confident).length
-    const confidence = rows.length ? rows.reduce((s, r) => s + (r.match.score ?? 0), 0) / rows.length : null
+    const rows = ocr.rows.map(row => ({ ...row, match: fuzzyMatchClub(row.team, candidates) }))
+    const uncertain = rows.filter(row => !row.match.confident).length
+    const confidence = rows.length
+      ? rows.reduce((sum, row) => sum + (row.match.score ?? 0), 0) / rows.length
+      : null
 
-    // Persist the import — original image, extraction, confidence, timestamp.
-    // Status stays PREVIEWED until the operator commits (or it is discarded).
-    const rec = await prisma.ocrImport.create({ data: {
-      image, leagueId: matchedLeagueId, detectedLeague: ocr.league, detectedGrade: ocr.grade,
-      rowCount: rows.length, uncertainCount: uncertain, confidence,
-      rows: JSON.stringify(rows), notes: ocr.notes,
-    } }).catch(e => { logger.warn('OCR history save failed', { detail: String(e) }); return null })
+    const record = await prisma.ocrImport.create({
+      data: {
+        image,
+        leagueId: matchedLeagueId,
+        detectedLeague: ocr.league,
+        detectedGrade: ocr.grade,
+        rowCount: rows.length,
+        uncertainCount: uncertain,
+        confidence,
+        rows: JSON.stringify(rows),
+        notes: ocr.notes,
+      },
+    }).catch(error => {
+      logger.warn('OCR history save failed', { detail: String(error) })
+      return null
+    })
 
-    res.json({ data: { importId: rec?.id ?? null, detectedLeague: ocr.league, detectedGrade: ocr.grade, matchedLeagueId, rows, uncertain, confidence, notes: ocr.notes } })
-  } catch (err) {
-    logger.warn('OCR parse failed', { detail: String(err) })
-    res.status(500).json({ error: err instanceof Error ? err.message : 'OCR failed' })
+    res.json({
+      data: {
+        importId: record?.id ?? null,
+        detectedLeague: ocr.league,
+        detectedGrade: ocr.grade,
+        matchedLeagueId,
+        rows,
+        uncertain,
+        confidence,
+        notes: ocr.notes,
+      },
+    })
+  } catch (error) {
+    logger.warn('OCR parse failed', { detail: String(error) })
+    res.status(500).json({ error: error instanceof Error ? error.message : 'OCR failed' })
   }
 })
 
-/** POST /admin/ocr/commit — apply the confirmed ladder + rerank. */
+type CommitEntry = {
+  team: string
+  clubId?: string | null
+  position?: number
+  played?: number
+  wins?: number
+  losses?: number
+  draws?: number
+  goalsFor?: number
+  goalsAgainst?: number
+  percentage?: number
+  points?: number
+}
+
+type NewLeagueInput = {
+  name: string
+  stateCode: string
+  season?: string
+  grade?: string
+}
+
 router.post('/commit', async (req, res) => {
   try {
-    const { leagueId, entries, importId } = req.body as { leagueId?: string; importId?: string; entries?: { team: string; clubId?: string | null; position?: number; played?: number; wins?: number; losses?: number; draws?: number; goalsFor?: number; goalsAgainst?: number; points?: number }[] }
-    if (!leagueId) return res.status(400).json({ error: 'leagueId required' })
-    if (!Array.isArray(entries) || entries.length === 0) return res.status(400).json({ error: 'entries required' })
-    const league = await prisma.league.findUnique({ where: { id: leagueId } })
-    if (!league) return res.status(404).json({ error: 'league not found' })
+    const { leagueId, newLeague, season, grade, entries, importId } = req.body as {
+      leagueId?: string
+      newLeague?: NewLeagueInput
+      season?: string
+      grade?: string
+      importId?: string
+      entries?: CommitEntry[]
+    }
 
-    const clubIds: string[] = []
-    for (let i = 0; i < entries.length; i++) {
-      const e = entries[i]
-      let clubId = e.clubId ?? null
-      if (!clubId) {
-        // Operator accepted a new club (no fuzzy match) → create it, league-scoped.
-        const verdict = validateClubIdentity(e.team)
-        const name = verdict.canonical ?? e.team
-        const slug = `${slugify(name)}-${league.id.slice(0, 8)}`
-        const club = await prisma.club.upsert({ where: { slug }, create: { name, slug, shortName: e.team, stateId: league.stateId, region: league.name, townName: verdict.isAnonymous ? null : name, isActive: true, source: 'MANUAL_IMAGE', approvalStatus: verdict.verdict === 'VALID' ? 'APPROVED' : 'PENDING' }, update: {}, select: { id: true } })
-        clubId = club.id
-        // Anonymous / ambiguous names go to the review queue (import proceeds —
-        // the operator confirmed it — but the identity still gets a second look).
-        if (verdict.verdict !== 'VALID') {
-          await prisma.reviewItem.create({ data: { entityType: 'Club', entityId: clubId, kind: verdict.isAnonymous ? 'ANONYMOUS_CLUB' : 'UNCERTAIN_CLUB', reason: `${verdict.reason} — "${e.team}" from image import into ${league.name}`, confidence: verdict.confidence, payload: JSON.stringify({ raw: e.team, leagueId }) } }).catch(() => {})
+    if (!leagueId && !newLeague) return res.status(400).json({ error: 'leagueId or newLeague required' })
+    if (leagueId && newLeague) return res.status(400).json({ error: 'choose either an existing league or create a new league' })
+    if (!Array.isArray(entries) || entries.length === 0) return res.status(400).json({ error: 'entries required' })
+    if (entries.some(entry => !entry.team?.trim())) return res.status(400).json({ error: 'every entry requires a team name' })
+    if (newLeague && (!newLeague.name?.trim() || !newLeague.stateCode?.trim())) {
+      return res.status(400).json({ error: 'new league name and stateCode required' })
+    }
+
+    const result = await prisma.$transaction(async transaction => {
+      let league = leagueId
+        ? await transaction.league.findUnique({ where: { id: leagueId } })
+        : null
+      let createdLeague = false
+
+      const resolvedSeason = String(season || newLeague?.season || league?.currentSeason || DEFAULT_SEASON).trim()
+      const resolvedGrade = String(grade || newLeague?.grade || league?.gradeOverride || DEFAULT_GRADE).trim()
+
+      if (!league && newLeague) {
+        const state = await transaction.state.findUnique({ where: { code: newLeague.stateCode.trim().toUpperCase() } })
+        if (!state) throw new Error(`Unknown state ${newLeague.stateCode}`)
+
+        const existing = await transaction.league.findFirst({
+          where: {
+            stateId: state.id,
+            name: { equals: newLeague.name.trim(), mode: 'insensitive' },
+            archivedAt: null,
+          },
+        })
+
+        if (existing) {
+          league = existing
+        } else {
+          league = await transaction.league.create({
+            data: {
+              name: newLeague.name.trim(),
+              shortName: newLeague.name.trim(),
+              stateId: state.id,
+              isActive: true,
+              enabled: true,
+              currentSeason: resolvedSeason,
+              gradeOverride: resolvedGrade,
+              sport: 'FOOTBALL',
+              primarySource: 'MANUAL_IMAGE',
+              primaryDataSource: 'OCR_UPLOAD',
+              importType: 'IMAGE',
+              status: 'ACTIVE',
+              syncStatus: 'SUCCESS',
+              dataConfidence: 0.8,
+              manualOverride: true,
+              manualEntryEnabled: true,
+              scrapeEnabled: false,
+              apiEnabled: false,
+              lastManualUpdateAt: new Date(),
+              lastSyncAt: new Date(),
+              lastSuccessfulSyncAt: new Date(),
+              approvalStatus: 'APPROVED',
+            },
+          })
+          createdLeague = true
         }
       }
-      const gf = e.goalsFor ?? 0, ga = e.goalsAgainst ?? 0
-      await prisma.clubLeagueSeason.upsert({
-        where:  { clubId_leagueId_season_grade: { clubId, leagueId, season: SEASON, grade: GRADE } },
-        create: { clubId, leagueId, season: SEASON, grade: GRADE, isActive: true, position: e.position ?? i + 1, played: e.played ?? 0, wins: e.wins ?? 0, losses: e.losses ?? 0, draws: e.draws ?? 0, goalsFor: gf, goalsAgainst: ga, percentage: ga > 0 ? (gf / ga) * 100 : 100, points: e.points ?? 0 },
-        update: { position: e.position ?? i + 1, played: e.played ?? 0, wins: e.wins ?? 0, losses: e.losses ?? 0, draws: e.draws ?? 0, goalsFor: gf, goalsAgainst: ga, percentage: ga > 0 ? (gf / ga) * 100 : 100, points: e.points ?? 0 },
+
+      if (!league) throw new Error('league not found')
+
+      const clubIds: string[] = []
+      let createdClubs = 0
+      for (let index = 0; index < entries.length; index += 1) {
+        const entry = entries[index]
+        let clubId = entry.clubId ?? null
+
+        if (clubId) {
+          const existingClub = await transaction.club.findUnique({ where: { id: clubId }, select: { id: true } })
+          if (!existingClub) throw new Error(`Selected club no longer exists for ${entry.team}`)
+        } else {
+          const verdict = validateClubIdentity(entry.team)
+          const name = verdict.canonical ?? entry.team.trim()
+          const slug = `${slugify(name)}-${league.id.slice(0, 8)}`
+          const existingClub = await transaction.club.findFirst({
+            where: {
+              stateId: league.stateId,
+              name: { equals: name, mode: 'insensitive' },
+              archivedAt: null,
+            },
+            select: { id: true },
+          })
+          const club = existingClub ?? await transaction.club.create({
+            data: {
+              name,
+              slug,
+              shortName: entry.team.trim(),
+              stateId: league.stateId,
+              region: league.name,
+              townName: verdict.isAnonymous ? null : name,
+              isActive: true,
+              source: 'MANUAL_IMAGE',
+              approvalStatus: verdict.verdict === 'VALID' ? 'APPROVED' : 'PENDING',
+              sport: 'FOOTBALL',
+            },
+            select: { id: true },
+          })
+          clubId = club.id
+          if (!existingClub) createdClubs += 1
+
+          if (verdict.verdict !== 'VALID') {
+            await transaction.reviewItem.create({
+              data: {
+                entityType: 'Club',
+                entityId: clubId,
+                kind: verdict.isAnonymous ? 'ANONYMOUS_CLUB' : 'UNCERTAIN_CLUB',
+                reason: `${verdict.reason} — "${entry.team}" from image import into ${league.name}`,
+                confidence: verdict.confidence,
+                payload: JSON.stringify({ raw: entry.team, leagueId: league.id }),
+              },
+            })
+          }
+        }
+
+        const goalsFor = entry.goalsFor ?? 0
+        const goalsAgainst = entry.goalsAgainst ?? 0
+        const percentage = entry.percentage ?? (goalsAgainst > 0 ? (goalsFor / goalsAgainst) * 100 : 100)
+
+        await transaction.clubLeagueSeason.upsert({
+          where: {
+            clubId_leagueId_season_grade: {
+              clubId,
+              leagueId: league.id,
+              season: resolvedSeason,
+              grade: resolvedGrade,
+            },
+          },
+          create: {
+            clubId,
+            leagueId: league.id,
+            season: resolvedSeason,
+            grade: resolvedGrade,
+            isActive: true,
+            position: entry.position ?? index + 1,
+            played: entry.played ?? 0,
+            wins: entry.wins ?? 0,
+            losses: entry.losses ?? 0,
+            draws: entry.draws ?? 0,
+            goalsFor,
+            goalsAgainst,
+            percentage,
+            points: entry.points ?? 0,
+          },
+          update: {
+            isActive: true,
+            position: entry.position ?? index + 1,
+            played: entry.played ?? 0,
+            wins: entry.wins ?? 0,
+            losses: entry.losses ?? 0,
+            draws: entry.draws ?? 0,
+            goalsFor,
+            goalsAgainst,
+            percentage,
+            points: entry.points ?? 0,
+          },
+        })
+        clubIds.push(clubId)
+      }
+
+      await transaction.clubLeagueSeason.updateMany({
+        where: {
+          leagueId: league.id,
+          season: resolvedSeason,
+          grade: resolvedGrade,
+          clubId: { notIn: clubIds },
+        },
+        data: { isActive: false },
       })
-      clubIds.push(clubId)
-    }
-    // Prune teams no longer on the ladder.
-    await prisma.clubLeagueSeason.deleteMany({ where: { leagueId, season: SEASON, grade: GRADE, clubId: { notIn: clubIds } } })
 
-    // Record provenance: this league is now image-sourced + operator-owned.
-    await prisma.league.update({ where: { id: leagueId }, data: { primarySource: 'MANUAL_IMAGE', importType: 'IMAGE', manualOverride: true, lastManualUpdateAt: new Date(), status: 'ACTIVE' } })
-    const src = await prisma.leagueSource.findFirst({ where: { leagueId, season: SEASON, sourceType: 'MANUAL_IMAGE' } })
-    if (!src) await prisma.leagueSource.create({ data: { leagueId, sourceType: 'MANUAL_IMAGE', season: SEASON, isActive: true, notes: 'Imported from ladder image', lastStatus: 'SUCCESS', lastScrapedAt: new Date() } })
-    else await prisma.leagueSource.update({ where: { id: src.id }, data: { isActive: true, lastStatus: 'SUCCESS', lastScrapedAt: new Date() } })
+      await transaction.league.update({
+        where: { id: league.id },
+        data: {
+          primarySource: 'MANUAL_IMAGE',
+          primaryDataSource: 'OCR_UPLOAD',
+          importType: 'IMAGE',
+          manualOverride: true,
+          manualEntryEnabled: true,
+          currentSeason: resolvedSeason,
+          gradeOverride: resolvedGrade,
+          lastManualUpdateAt: new Date(),
+          lastSyncAt: new Date(),
+          lastSuccessfulSyncAt: new Date(),
+          syncStatus: 'SUCCESS',
+          status: 'ACTIVE',
+          isActive: true,
+          enabled: true,
+        },
+      })
 
-    await audit('IMAGE_IMPORT', leagueId, { teams: clubIds.length, importId: importId ?? null })
+      const source = await transaction.leagueSource.findFirst({
+        where: { leagueId: league.id, season: resolvedSeason, sourceType: 'MANUAL_IMAGE' },
+      })
+      if (source) {
+        await transaction.leagueSource.update({
+          where: { id: source.id },
+          data: { isActive: true, lastStatus: 'SUCCESS', lastScrapedAt: new Date(), notes: `Imported ${resolvedGrade} ladder image` },
+        })
+      } else {
+        await transaction.leagueSource.create({
+          data: {
+            leagueId: league.id,
+            sourceType: 'MANUAL_IMAGE',
+            season: resolvedSeason,
+            isActive: true,
+            notes: `Imported ${resolvedGrade} ladder image`,
+            lastStatus: 'SUCCESS',
+            lastScrapedAt: new Date(),
+          },
+        })
+      }
 
-    // Close the loop on the stored import: what was applied, where, and when.
-    if (importId) {
-      await prisma.ocrImport.update({ where: { id: importId }, data: {
-        status: 'COMMITTED', leagueId, leagueName: league.name,
-        committedRows: JSON.stringify(entries), committedAt: new Date(),
-      } }).catch(e => logger.warn('OCR history commit update failed', { detail: String(e) }))
-    }
+      if (importId) {
+        await transaction.ocrImport.update({
+          where: { id: importId },
+          data: {
+            status: 'COMMITTED',
+            leagueId: league.id,
+            leagueName: league.name,
+            committedRows: JSON.stringify(entries),
+            committedAt: new Date(),
+          },
+        })
+      }
+
+      return {
+        leagueId: league.id,
+        leagueName: league.name,
+        teams: clubIds.length,
+        createdLeague,
+        createdClubs,
+        season: resolvedSeason,
+        grade: resolvedGrade,
+      }
+    })
+
+    await audit('IMAGE_IMPORT', result.leagueId, {
+      teams: result.teams,
+      createdLeague: result.createdLeague,
+      createdClubs: result.createdClubs,
+      season: result.season,
+      grade: result.grade,
+      importId: importId ?? null,
+    })
 
     const locked = (await prisma.setting.findUnique({ where: { key: 'rankingsLocked' } }).catch(() => null))?.value === 'true'
-    const note = locked ? 'rankings locked — not re-ranked' : `re-ranked ${(await rankAndStore(getISOWeekLabel())).clubsRanked} clubs`
-    res.json({ data: { league: league.name, teams: clubIds.length }, note })
-  } catch (err) {
-    logger.warn('OCR commit failed', { detail: String(err) })
-    res.status(500).json({ error: err instanceof Error ? err.message : 'commit failed' })
+    const rankingNote = locked
+      ? 'rankings locked — not re-ranked'
+      : `re-ranked ${(await rankAndStore(getISOWeekLabel())).clubsRanked} clubs`
+
+    res.json({
+      data: {
+        leagueId: result.leagueId,
+        league: result.leagueName,
+        teams: result.teams,
+        createdLeague: result.createdLeague,
+        createdClubs: result.createdClubs,
+        season: result.season,
+        grade: result.grade,
+      },
+      note: `${result.createdLeague ? 'league created; ' : ''}${result.createdClubs} new club${result.createdClubs === 1 ? '' : 's'}; ${rankingNote}`,
+    })
+  } catch (error) {
+    logger.warn('OCR commit failed', { detail: String(error) })
+    res.status(500).json({ error: error instanceof Error ? error.message : 'commit failed' })
   }
 })
 
-/** GET /admin/ocr/history — every import ever made (without the image payloads). */
 router.get('/history', async (req, res) => {
   const take = Math.min(Number(req.query.limit) || 50, 200)
   const imports = await prisma.ocrImport.findMany({
-    orderBy: { createdAt: 'desc' }, take,
-    select: { id: true, leagueId: true, leagueName: true, detectedLeague: true, detectedGrade: true, rowCount: true, uncertainCount: true, confidence: true, status: true, notes: true, createdBy: true, createdAt: true, committedAt: true },
+    orderBy: { createdAt: 'desc' },
+    take,
+    select: {
+      id: true,
+      leagueId: true,
+      leagueName: true,
+      detectedLeague: true,
+      detectedGrade: true,
+      rowCount: true,
+      uncertainCount: true,
+      confidence: true,
+      status: true,
+      notes: true,
+      createdBy: true,
+      createdAt: true,
+      committedAt: true,
+    },
   })
   res.json({ data: imports })
 })
 
-/** GET /admin/ocr/history/:id — one import including the original image + rows. */
 router.get('/history/:id', async (req, res) => {
-  const rec = await prisma.ocrImport.findUnique({ where: { id: req.params.id } })
-  if (!rec) return res.status(404).json({ error: 'not found' })
-  res.json({ data: rec })
+  const record = await prisma.ocrImport.findUnique({ where: { id: req.params.id } })
+  if (!record) return res.status(404).json({ error: 'not found' })
+  res.json({ data: record })
 })
 
-/** POST /admin/ocr/history/:id/discard — soft-close a preview (never deleted). */
 router.post('/history/:id/discard', async (req, res) => {
-  const rec = await prisma.ocrImport.findUnique({ where: { id: req.params.id } })
-  if (!rec) return res.status(404).json({ error: 'not found' })
-  if (rec.status === 'COMMITTED') return res.status(400).json({ error: 'already committed — cannot discard' })
-  const updated = await prisma.ocrImport.update({ where: { id: rec.id }, data: { status: 'DISCARDED' } })
+  const record = await prisma.ocrImport.findUnique({ where: { id: req.params.id } })
+  if (!record) return res.status(404).json({ error: 'not found' })
+  if (record.status === 'COMMITTED') return res.status(400).json({ error: 'already committed — cannot discard' })
+  const updated = await prisma.ocrImport.update({ where: { id: record.id }, data: { status: 'DISCARDED' } })
   res.json({ data: { id: updated.id, status: updated.status } })
 })
 
