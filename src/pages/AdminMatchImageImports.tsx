@@ -5,23 +5,189 @@ import { admin, getKey, setKey, type AdminClub, type FootballLeague } from '../l
 import { matchImageImports, type MatchImageKind, type MatchImagePreview, type MatchImageRow } from '../lib/matchImageImports'
 import { consumeImportHandoff, handoffToFile } from '../lib/importHandoff'
 
-type Item={id:string;file:File;url:string;kind:MatchImageKind;status:'ready'|'analysing'|'review'|'failed'|'committed';preview?:MatchImagePreview;error?:string}
-type ReviewRow=MatchImageRow&{decision:'import'|'skip';homeClubId:string;awayClubId:string}
-const input:CSSProperties={width:'100%',padding:'10px 11px',border:'1px solid #dce3eb',borderRadius:10,font:'inherit',boxSizing:'border-box'}
-const button=(dark=false):CSSProperties=>({border:0,borderRadius:999,padding:'11px 16px',background:dark?'#050505':'#42b8ff',color:dark?'#fff':'#050505',fontWeight:900,cursor:'pointer'})
-
-export default function AdminMatchImageImports(){
- const[authed,setAuthed]=useState(!!getKey());const[key,setLocalKey]=useState('');const[items,setItems]=useState<Item[]>([]);const[leagues,setLeagues]=useState<FootballLeague[]>([]);const[clubs,setClubs]=useState<AdminClub[]>([]);const[leagueId,setLeagueId]=useState('');const[season,setSeason]=useState('2026');const[grade,setGrade]=useState('Senior Football');const[busy,setBusy]=useState(false);const[msg,setMsg]=useState('')
- useEffect(()=>{if(!authed)return;admin.listFootballLeagues().then(setLeagues);admin.listClubs().then(setClubs)},[authed])
- useEffect(()=>{if(!authed)return;const handoff=consumeImportHandoff(['results','fixtures']);if(!handoff)return;const file=handoffToFile(handoff);setItems(previous=>[...previous,{id:`handoff-${Date.now()}`,file,url:URL.createObjectURL(file),kind:handoff.kind as MatchImageKind,status:'ready'}]);setMsg(`${handoff.kind==='results'?'Result':'Fixture'} screenshot received from Universal Imports. Review it, then analyse.`)},[authed])
- const add=(files:FileList)=>setItems(p=>[...p,...Array.from(files).filter(f=>f.type.startsWith('image/')).map(file=>({id:`${Date.now()}-${Math.random()}`,file,url:URL.createObjectURL(file),kind:'results' as const,status:'ready' as const}))])
- const analyse=async()=>{if(!items.length)return setMsg('Add at least one screenshot.');setBusy(true);for(const item of items.filter(i=>i.status==='ready'||i.status==='failed')){setItems(p=>p.map(x=>x.id===item.id?{...x,status:'analysing',error:undefined}:x));try{const image=await fileDataUrl(item.file);const preview=await matchImageImports.parse(image,item.kind,leagueId||undefined);setItems(p=>p.map(x=>x.id===item.id?{...x,status:'review',preview}:x));if(!leagueId&&preview.matchedLeagueId)setLeagueId(preview.matchedLeagueId);if(preview.season)setSeason(preview.season);if(preview.grade)setGrade(preview.grade)}catch(e){setItems(p=>p.map(x=>x.id===item.id?{...x,status:'failed',error:e instanceof Error?e.message:String(e)}:x))}}setBusy(false)}
- const replacePreview=(id:string,preview:MatchImagePreview)=>setItems(p=>p.map(x=>x.id===id?{...x,preview}:x))
- const commit=async(item:Item)=>{if(!item.preview)return;const rows=(item.preview.rows as ReviewRow[]).filter(r=>(r.decision??'import')==='import').map(r=>({...r,homeClubId:r.homeClubId||r.homeMatch.clubId,awayClubId:r.awayClubId||r.awayMatch.clubId}));if(!leagueId)return setMsg('Choose the league before committing.');if(!rows.length)return setMsg('No approved rows to import.');if(rows.some(r=>!r.homeClubId||!r.awayClubId))return setMsg('Every approved match needs both clubs matched.');if(item.kind==='results'&&rows.some(r=>!Number.isFinite(r.homeScore)||!Number.isFinite(r.awayScore)))return setMsg('Every result needs both total scores.');if(!window.confirm(`Import ${rows.length} ${item.kind} rows into the selected league?`))return;setBusy(true);try{const result=await matchImageImports.commit({kind:item.kind,leagueId,season,grade,rows});setItems(p=>p.map(x=>x.id===item.id?{...x,status:'committed'}:x));setMsg(`Imported ${rows.length} rows successfully. ${JSON.stringify(result)}`)}catch(e){setMsg(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
- if(!authed)return <div style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#050505'}}><div style={{background:'#fff',padding:24,borderRadius:18,width:'min(92vw,420px)'}}><h1>Match image imports</h1><input style={input} type="password" value={key} onChange={e=>setLocalKey(e.target.value)}/><button style={{...button(),width:'100%',marginTop:12}} onClick={()=>{if(key.trim()){setKey(key.trim());setAuthed(true)}}}>Open</button></div></div>
- return <main style={{minHeight:'100vh',background:'#eef2f6',padding:'24px',fontFamily:'Inter,system-ui,sans-serif'}}><div style={{maxWidth:1380,margin:'0 auto',display:'grid',gap:18}}><header style={{background:'#050505',color:'#fff',borderRadius:20,padding:28}}><Link to="/admin" style={{color:'#42b8ff',textDecoration:'none',display:'inline-flex',gap:7,alignItems:'center'}}><ArrowLeft size={16}/>Back to Control Centre</Link><h1 style={{fontSize:'clamp(42px,7vw,84px)',margin:'12px 0 6px',textTransform:'uppercase'}}>Results & fixtures images</h1><p>Upload screenshots, review every match, then explicitly commit approved rows.</p></header><section style={{background:'#fff',borderRadius:16,padding:18,display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:12}}><label>League<select style={input} value={leagueId} onChange={e=>setLeagueId(e.target.value)}><option value="">Auto-detect / choose</option>{leagues.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label><label>Season<input style={input} value={season} onChange={e=>setSeason(e.target.value)}/></label><label>Grade<input style={input} value={grade} onChange={e=>setGrade(e.target.value)}/></label></section><label style={{minHeight:200,border:'2px dashed #92cfee',borderRadius:18,background:'#f7fcff',display:'grid',placeItems:'center',textAlign:'center',padding:24,cursor:'pointer'}}><div><UploadCloud size={44}/><h2>Choose results or fixture screenshots</h2><span style={button()}>Select images</span></div><input hidden type="file" accept="image/*" multiple onChange={e=>{if(e.target.files)add(e.target.files);e.currentTarget.value=''}}/></label>{items.length>0&&<><section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:12}}>{items.map(item=><article key={item.id} style={{background:'#fff',borderRadius:15,overflow:'hidden',border:'1px solid #dce3eb'}}><img src={item.url} alt="Match screenshot" style={{width:'100%',height:150,objectFit:'cover'}}/><div style={{padding:13,display:'grid',gap:9}}><strong>{item.file.name}</strong><select style={input} value={item.kind} disabled={busy} onChange={e=>setItems(p=>p.map(x=>x.id===item.id?{...x,kind:e.target.value as MatchImageKind,status:'ready',preview:undefined}:x))}><option value="results">Results</option><option value="fixtures">Fixtures</option></select><small>{item.status}{item.error?` — ${item.error}`:''}</small><button style={button(true)} disabled={busy} onClick={()=>setItems(p=>p.filter(x=>x.id!==item.id))}><Trash2 size={14}/> Remove</button></div></article>)}</section><button style={button()} disabled={busy} onClick={analyse}><ImagePlus size={16}/> {busy?'Analysing…':'Analyse screenshots'}</button></>}{msg&&<div style={{background:'#fff8dc',padding:14,borderRadius:12}}>{msg}</div>}{items.map(item=>item.preview?<Review key={item.id} item={item} clubs={clubs} onChange={p=>replacePreview(item.id,p)} onCommit={()=>commit(item)} busy={busy}/>:null)}</div></main>
+type Item = {
+  id: string
+  file: File
+  url: string
+  kind: MatchImageKind
+  status: 'ready' | 'analysing' | 'review' | 'failed' | 'committed'
+  preview?: MatchImagePreview
+  error?: string
 }
 
-function Review({item,clubs,onChange,onCommit,busy}:{item:Item;clubs:AdminClub[];onChange:(p:MatchImagePreview)=>void;onCommit:()=>void;busy:boolean}){const p=item.preview!;const rows=(p.rows as ReviewRow[]).map(r=>({...r,decision:r.decision??'import',homeClubId:r.homeClubId??r.homeMatch.clubId??'',awayClubId:r.awayClubId??r.awayMatch.clubId??''}));const patch=(i:number,v:Partial<ReviewRow>)=>onChange({...p,rows:rows.map((r,x)=>x===i?{...r,...v}:r)});const active=rows.filter(r=>r.decision==='import');const uncertain=active.filter(r=>!r.homeClubId||!r.awayClubId).length;return <section style={{background:'#fff',borderRadius:18,overflow:'hidden',border:'1px solid #dce3eb'}}><header style={{padding:16,display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}><div><strong>{item.file.name}</strong><div>{p.league??'Unknown league'} · {p.grade??'Unknown grade'} · {rows.length} matches · {uncertain} unmatched</div></div><button style={button()} disabled={busy||item.status==='committed'} onClick={onCommit}>{item.status==='committed'?<><CheckCircle2 size={16}/> Imported</>:`Approve & import ${active.length}`}</button></header><div style={{overflow:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',minWidth:1250}}><thead><tr>{['Action','Round','Date','Time','Venue','Home extracted','Home match','Away extracted','Away match','Home G','Home B','Home total','Away G','Away B','Away total','Confidence'].map(h=><th key={h} style={{padding:9,textAlign:'left',borderTop:'1px solid #e8edf2',borderBottom:'1px solid #e8edf2'}}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i} style={{opacity:r.decision==='skip'?.45:1}}><td><select style={input} value={r.decision} onChange={e=>patch(i,{decision:e.target.value as 'import'|'skip'})}><option value="import">Import</option><option value="skip">Skip</option></select></td><td><input style={input} type="number" value={r.round??''} onChange={e=>patch(i,{round:num(e.target.value)})}/></td><td><input style={input} type="date" value={r.matchDate??''} onChange={e=>patch(i,{matchDate:e.target.value||null})}/></td><td><input style={input} value={r.matchTime??''} onChange={e=>patch(i,{matchTime:e.target.value||null})}/></td><td><input style={input} value={r.venue??''} onChange={e=>patch(i,{venue:e.target.value||null})}/></td><td><input style={input} value={r.homeTeam} onChange={e=>patch(i,{homeTeam:e.target.value})}/></td><td><select style={{...input,minWidth:190}} value={r.homeClubId} onChange={e=>patch(i,{homeClubId:e.target.value})}><option value="">Choose club</option>{clubs.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></td><td><input style={input} value={r.awayTeam} onChange={e=>patch(i,{awayTeam:e.target.value})}/></td><td><select style={{...input,minWidth:190}} value={r.awayClubId} onChange={e=>patch(i,{awayClubId:e.target.value})}><option value="">Choose club</option>{clubs.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></td>{(['homeGoals','homeBehinds','homeScore','awayGoals','awayBehinds','awayScore'] as const).map(k=><td key={k}><input style={input} type="number" value={r[k]??''} onChange={e=>patch(i,{[k]:num(e.target.value)} as Partial<ReviewRow>)}/></td>)}<td>{Math.round(((r.homeMatch.score+r.awayMatch.score)/2)*100)}%</td></tr>)}</tbody></table></div></section>}
-const num=(v:string)=>v===''?undefined:Number(v)
-function fileDataUrl(file:File){return new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=()=>reject(r.error);r.readAsDataURL(file)})}
+type ReviewRow = MatchImageRow & {
+  decision: 'import' | 'skip'
+  homeClubId: string
+  awayClubId: string
+}
+
+const BLUE = '#42b8ff'
+const INK = '#0c0e13'
+const LINE = '#dce3eb'
+const MUTED = '#687385'
+const input: CSSProperties = {
+  width: '100%', padding: '10px 11px', border: `1px solid ${LINE}`, borderRadius: 10,
+  font: 'inherit', boxSizing: 'border-box', minWidth: 0, background: '#fff',
+}
+
+export default function AdminMatchImageImports() {
+  const [authed, setAuthed] = useState(Boolean(getKey()))
+  const [key, setLocalKey] = useState('')
+  const [items, setItems] = useState<Item[]>([])
+  const [leagues, setLeagues] = useState<FootballLeague[]>([])
+  const [clubs, setClubs] = useState<AdminClub[]>([])
+  const [leagueId, setLeagueId] = useState('')
+  const [season, setSeason] = useState('2026')
+  const [grade, setGrade] = useState('Senior Football')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!authed) return
+    void admin.listFootballLeagues().then(setLeagues).catch(cause => setError(readError(cause)))
+  }, [authed])
+
+  useEffect(() => {
+    if (!authed) return
+    void admin.listClubs(leagueId || undefined).then(setClubs).catch(cause => setError(readError(cause)))
+  }, [authed, leagueId])
+
+  useEffect(() => {
+    if (!authed) return
+    const handoff = consumeImportHandoff(['results', 'fixtures'])
+    if (!handoff) return
+    const file = handoffToFile(handoff)
+    const item: Item = {
+      id: `handoff-${Date.now()}`,
+      file,
+      url: handoff.dataUrl,
+      kind: handoff.kind as MatchImageKind,
+      status: 'ready',
+    }
+    setItems([item])
+    setMessage(`${handoff.kind === 'results' ? 'Result' : 'Fixture'} screenshot received. Reading it now…`)
+    void analyseItems([item])
+  }, [authed])
+
+  const analyseItems = async (targets = items.filter(item => item.status === 'ready' || item.status === 'failed')) => {
+    if (!targets.length) return setError('Add at least one screenshot first.')
+    setBusy(true); setError('')
+    for (const item of targets) {
+      setItems(current => current.map(value => value.id === item.id ? { ...value, status: 'analysing', error: undefined } : value))
+      try {
+        const image = item.url.startsWith('data:') ? item.url : await fileDataUrl(item.file)
+        const preview = await matchImageImports.parse(image, item.kind, leagueId || undefined)
+        setItems(current => current.map(value => value.id === item.id ? { ...value, status: 'review', preview } : value))
+        if (!leagueId && preview.matchedLeagueId) setLeagueId(preview.matchedLeagueId)
+        if (preview.season) setSeason(preview.season)
+        if (preview.grade) setGrade(preview.grade)
+        setMessage(`Extracted ${preview.rows.length} ${item.kind === 'fixtures' ? 'fixture' : 'result'} row${preview.rows.length === 1 ? '' : 's'}. Review every row before approval.`)
+      } catch (cause) {
+        const detail = readError(cause)
+        setItems(current => current.map(value => value.id === item.id ? { ...value, status: 'failed', error: detail } : value))
+        setError(detail)
+      }
+    }
+    setBusy(false)
+  }
+
+  const addFiles = (files: FileList) => {
+    const added = Array.from(files).filter(file => !file.type || file.type.startsWith('image/')).map(file => ({
+      id: `${Date.now()}-${Math.random()}`,
+      file,
+      url: URL.createObjectURL(file),
+      kind: 'fixtures' as MatchImageKind,
+      status: 'ready' as const,
+    }))
+    if (!added.length) return setError('Choose image files only.')
+    setItems(current => [...current, ...added])
+    setError('')
+  }
+
+  const replacePreview = (id: string, preview: MatchImagePreview) => {
+    setItems(current => current.map(item => item.id === id ? { ...item, preview } : item))
+  }
+
+  const commit = async (item: Item) => {
+    if (!item.preview) return
+    if (!leagueId) return setError('Choose the league before approving fixtures.')
+    const rows = (item.preview.rows as ReviewRow[])
+      .filter(row => (row.decision ?? 'import') === 'import')
+      .map(row => ({
+        ...row,
+        homeClubId: row.homeClubId || row.homeMatch.clubId,
+        awayClubId: row.awayClubId || row.awayMatch.clubId,
+        createHomeClub: !(row.homeClubId || row.homeMatch.clubId),
+        createAwayClub: !(row.awayClubId || row.awayMatch.clubId),
+      }))
+    if (!rows.length) return setError('No approved rows to import.')
+    if (rows.some(row => !row.homeTeam.trim() || !row.awayTeam.trim())) return setError('Every approved fixture needs both team names.')
+    if (item.kind === 'results' && rows.some(row => !Number.isFinite(row.homeScore) || !Number.isFinite(row.awayScore))) return setError('Every approved result needs both total scores.')
+    if (!window.confirm(`Approve and import ${rows.length} ${item.kind} row${rows.length === 1 ? '' : 's'}?`)) return
+
+    setBusy(true); setError(''); setMessage(`Safely publishing approved ${item.kind}…`)
+    try {
+      const result = await matchImageImports.commit({ kind: item.kind, leagueId, season, grade, rows })
+      setItems(current => current.map(value => value.id === item.id ? { ...value, status: 'committed' } : value))
+      const created = Number(result.createdClubs ?? 0)
+      setMessage(`${rows.length} ${item.kind} row${rows.length === 1 ? '' : 's'} published${created ? ` · ${created} new club${created === 1 ? '' : 's'} created` : ''}.`)
+      void admin.listClubs(leagueId).then(setClubs)
+    } catch (cause) {
+      setError(readError(cause)); setMessage('')
+    } finally { setBusy(false) }
+  }
+
+  if (!authed) return <div className="match-login"><div><h1>Match image imports</h1><input style={input} type="password" value={key} onChange={event => setLocalKey(event.target.value)}/><button className="primary" onClick={() => { if (key.trim()) { setKey(key.trim()); setAuthed(true) } }}>Open</button></div></div>
+
+  return <main className="match-page"><div className="match-shell">
+    <header className="match-hero"><Link to="/admin/universal-imports"><ArrowLeft size={17}/>Back to Universal Imports</Link><h1>Fixtures & results OCR</h1><p>Read screenshots, review every match and publish only approved rows.</p></header>
+
+    <section className="match-settings">
+      <label><span>League</span><select style={input} value={leagueId} onChange={event => setLeagueId(event.target.value)}><option value="">Auto-detect / choose league</option>{leagues.map(league => <option key={league.id} value={league.id}>{league.name}</option>)}</select></label>
+      <label><span>Season</span><input style={input} value={season} onChange={event => setSeason(event.target.value)}/></label>
+      <label><span>Grade</span><input style={input} value={grade} onChange={event => setGrade(event.target.value)}/></label>
+    </section>
+
+    <label className="match-drop"><div><UploadCloud size={40}/><h2>Choose fixture or result screenshots</h2><p>Images remain review-only until you approve them.</p><span className="primary">Select images</span></div><input hidden type="file" accept="image/*" multiple onChange={event => { if (event.target.files) addFiles(event.target.files); event.currentTarget.value = '' }}/></label>
+
+    {items.length > 0 && <><section className="match-images">{items.map(item => <article key={item.id}><img src={item.url} alt="Selected match screenshot"/><div><strong>{item.file.name}</strong><select style={input} value={item.kind} disabled={busy} onChange={event => setItems(current => current.map(value => value.id === item.id ? { ...value, kind: event.target.value as MatchImageKind, status: 'ready', preview: undefined } : value))}><option value="fixtures">Fixtures</option><option value="results">Results</option></select><small>{item.status}{item.error ? ` — ${item.error}` : ''}</small><button className="secondary" disabled={busy} onClick={() => setItems(current => current.filter(value => value.id !== item.id))}><Trash2 size={15}/>Remove</button></div></article>)}</section><button className="primary analyse" disabled={busy} onClick={() => void analyseItems()}><ImagePlus size={17}/>{busy ? 'Analysing…' : 'Analyse screenshots'}</button></>}
+
+    {message && <div className="match-message">{message}</div>}
+    {error && <div className="match-error">{error}</div>}
+    {items.map(item => item.preview ? <Review key={item.id} item={item} clubs={clubs} onChange={preview => replacePreview(item.id, preview)} onCommit={() => void commit(item)} busy={busy}/> : null)}
+  </div><style>{`
+    *{box-sizing:border-box}.match-page{min-height:100vh;background:#eef2f6;padding:24px;font-family:Inter,system-ui,sans-serif;color:${INK}}.match-shell{max-width:1180px;margin:auto;display:grid;gap:16px}.match-hero{background:#050505;color:#fff;border-radius:20px;padding:28px}.match-hero a{color:${BLUE};text-decoration:none;display:inline-flex;align-items:center;gap:7px;font-weight:900}.match-hero h1{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(42px,7vw,74px);line-height:.92;text-transform:uppercase;margin:18px 0 7px}.match-hero p{margin:0;color:#cbd2dc}.match-settings{background:#fff;border:1px solid ${LINE};border-radius:17px;padding:16px;display:grid;grid-template-columns:2fr 1fr 1fr;gap:11px}.match-settings label,.fixture-card label{display:grid;gap:6px}.match-settings span,.fixture-card label>span{font-size:10px;text-transform:uppercase;font-weight:900;color:${MUTED}}.match-drop{min-height:180px;border:2px dashed #92cfee;border-radius:18px;background:#f7fcff;display:grid;place-items:center;text-align:center;padding:22px;cursor:pointer}.match-drop h2{margin:8px 0 3px}.match-drop p{margin:0 0 16px;color:${MUTED}}.primary,.secondary{border:0;border-radius:999px;padding:11px 16px;font-weight:950;display:inline-flex;justify-content:center;align-items:center;gap:7px;cursor:pointer}.primary{background:${BLUE};color:#050505}.secondary{background:#eef2f6;color:${INK}}.analyse{width:100%;min-height:50px}.match-images{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.match-images article{background:#fff;border:1px solid ${LINE};border-radius:15px;overflow:hidden}.match-images img{width:100%;height:155px;object-fit:contain;background:#edf1f5}.match-images article>div{padding:13px;display:grid;gap:9px}.match-images small{color:${MUTED}}.match-message,.match-error{padding:14px;border-radius:12px;font-weight:800}.match-message{background:#eaf8ef;color:#126b3c}.match-error{background:#fff1f1;color:#a52222}.review-card{background:#fff;border:1px solid ${LINE};border-radius:18px;overflow:hidden}.review-head{padding:16px;display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid ${LINE}}.review-head p{margin:4px 0 0;color:${MUTED}}.fixture-list{padding:13px;display:grid;gap:11px}.fixture-card{border:1px solid ${LINE};border-radius:14px;padding:13px;display:grid;gap:11px}.fixture-card.uncertain{border-color:#e7b64f;background:#fffaf0}.fixture-top{display:flex;gap:9px;align-items:center}.fixture-top b{display:grid;place-items:center;width:31px;height:31px;background:${BLUE};border-radius:8px}.fixture-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.fixture-teams{display:grid;grid-template-columns:1fr 1fr;gap:9px}.team-box{border:1px solid #e7ebf0;border-radius:12px;padding:10px;display:grid;gap:8px}.team-box strong{font-size:13px}.score-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.confidence{color:${MUTED};font-size:12px}.approve{margin:0 13px 15px;width:calc(100% - 26px);min-height:52px}.match-login{min-height:100vh;display:grid;place-items:center;background:#050505;padding:20px}.match-login>div{background:#fff;padding:24px;border-radius:18px;width:min(100%,420px);display:grid;gap:12px}.match-login .primary{width:100%}
+    @media(max-width:760px){.match-page{padding:12px}.match-hero{padding:18px 16px;border-radius:17px}.match-hero h1{font-size:40px}.match-settings,.fixture-meta,.fixture-teams{grid-template-columns:1fr}.match-images{grid-template-columns:1fr}.review-head{align-items:flex-start;flex-direction:column}.review-head .primary{width:100%}.score-grid{grid-template-columns:repeat(3,1fr)}.approve{position:sticky;bottom:8px;z-index:5}}
+  `}</style></main>
+}
+
+function Review({ item, clubs, onChange, onCommit, busy }: { item: Item; clubs: AdminClub[]; onChange: (preview: MatchImagePreview) => void; onCommit: () => void; busy: boolean }) {
+  const preview = item.preview!
+  const rows = useMemo(() => (preview.rows as ReviewRow[]).map(row => ({
+    ...row,
+    decision: row.decision ?? 'import',
+    homeClubId: row.homeClubId ?? row.homeMatch.clubId ?? '',
+    awayClubId: row.awayClubId ?? row.awayMatch.clubId ?? '',
+  })), [preview])
+  const patch = (index: number, value: Partial<ReviewRow>) => onChange({ ...preview, rows: rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...value } : row) })
+  const active = rows.filter(row => row.decision === 'import')
+  const uncertain = active.filter(row => !row.homeClubId || !row.awayClubId).length
+
+  return <section className="review-card"><header className="review-head"><div><strong>{item.file.name}</strong><p>{preview.league ?? 'Unknown league'} · {preview.grade ?? 'Unknown grade'} · {rows.length} matches · {uncertain} new/unmatched clubs</p></div><button className="primary" disabled={busy || item.status === 'committed'} onClick={onCommit}>{item.status === 'committed' ? <><CheckCircle2 size={16}/>Imported</> : `Approve & import ${active.length}`}</button></header><div className="fixture-list">{rows.map((row, index) => <article className={`fixture-card${(!row.homeClubId || !row.awayClubId) ? ' uncertain' : ''}`} key={`${row.homeTeam}-${row.awayTeam}-${index}`}>
+    <div className="fixture-top"><b>{index + 1}</b><select style={input} value={row.decision} onChange={event => patch(index, { decision: event.target.value as 'import' | 'skip' })}><option value="import">Approve row</option><option value="skip">Reject row</option></select></div>
+    <div className="fixture-meta"><Field label="Round"><input style={input} type="number" value={row.round ?? ''} onChange={event => patch(index, { round: numberValue(event.target.value) })}/></Field><Field label="Date"><input style={input} type="date" value={row.matchDate ?? ''} onChange={event => patch(index, { matchDate: event.target.value || null })}/></Field><Field label="Time"><input style={input} value={row.matchTime ?? ''} onChange={event => patch(index, { matchTime: event.target.value || null })}/></Field><Field label="Venue"><input style={input} value={row.venue ?? ''} onChange={event => patch(index, { venue: event.target.value || null })}/></Field></div>
+    <div className="fixture-teams"><TeamEditor side="Home" name={row.homeTeam} clubId={row.homeClubId} clubs={clubs} goals={row.homeGoals} behinds={row.homeBehinds} score={row.homeScore} showScore={item.kind === 'results'} onName={homeTeam => patch(index, { homeTeam })} onClub={homeClubId => patch(index, { homeClubId })} onScore={value => patch(index, value)}/><TeamEditor side="Away" name={row.awayTeam} clubId={row.awayClubId} clubs={clubs} goals={row.awayGoals} behinds={row.awayBehinds} score={row.awayScore} showScore={item.kind === 'results'} onName={awayTeam => patch(index, { awayTeam })} onClub={awayClubId => patch(index, { awayClubId })} onScore={value => patch(index, value, )}/></div>
+    <small className="confidence">OCR match confidence: {Math.round(((row.homeMatch.score + row.awayMatch.score) / 2) * 100)}% · Unmatched teams will be created only when this row is approved.</small>
+  </article>)}</div><button className="primary approve" disabled={busy || item.status === 'committed'} onClick={onCommit}>{item.status === 'committed' ? 'Imported' : `Approve and publish ${active.length} ${item.kind}`}</button></section>
+}
+
+function TeamEditor({ side, name, clubId, clubs, goals, behinds, score, showScore, onName, onClub, onScore }: { side: 'Home' | 'Away'; name: string; clubId: string; clubs: AdminClub[]; goals?: number; behinds?: number; score?: number; showScore: boolean; onName: (value: string) => void; onClub: (value: string) => void; onScore: (value: Partial<ReviewRow>) => void }) {
+  const prefix = side === 'Home' ? 'home' : 'away'
+  return <div className="team-box"><strong>{side} team</strong><Field label="Extracted name"><input style={input} value={name} onChange={event => onName(event.target.value)}/></Field><Field label="Club action"><select style={input} value={clubId || '__create__'} onChange={event => onClub(event.target.value === '__create__' ? '' : event.target.value)}><option value="__create__">＋ Create new club: {name}</option>{clubs.map(club => <option key={club.id} value={club.id}>{club.name}</option>)}</select></Field>{showScore && <div className="score-grid"><Field label="Goals"><input style={input} type="number" value={goals ?? ''} onChange={event => onScore({ [`${prefix}Goals`]: numberValue(event.target.value) } as Partial<ReviewRow>)}/></Field><Field label="Behinds"><input style={input} type="number" value={behinds ?? ''} onChange={event => onScore({ [`${prefix}Behinds`]: numberValue(event.target.value) } as Partial<ReviewRow>)}/></Field><Field label="Total"><input style={input} type="number" value={score ?? ''} onChange={event => onScore({ [`${prefix}Score`]: numberValue(event.target.value) } as Partial<ReviewRow>)}/></Field></div>}</div>
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label><span>{label}</span>{children}</label> }
+const numberValue = (value: string) => value === '' ? undefined : Number(value)
+const readError = (cause: unknown) => cause instanceof Error ? cause.message : String(cause)
+function fileDataUrl(file: File) { return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file) }) }
