@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { ArrowLeft, CheckCircle2, RefreshCw, UploadCloud } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { admin, type AdminClub, type FootballLeague, type OcrPreview, type OcrRow } from '../lib/admin'
+import { admin, getKey, type AdminClub, type FootballLeague, type OcrPreview, type OcrRow } from '../lib/admin'
 import { consumeImportHandoff } from '../lib/importHandoff'
 
 const BLUE = '#42b8ff'
@@ -22,6 +22,19 @@ function detectedDetails(value: string | null) {
   return { name, year }
 }
 
+type CommitResponse = {
+  data: {
+    leagueId: string
+    league: string
+    teams: number
+    createdLeague: boolean
+    createdClubs: number
+    season: string
+    grade: string
+  }
+  note?: string
+}
+
 export default function AdminLadderImageImports() {
   const [leagues, setLeagues] = useState<FootballLeague[]>([])
   const [clubs, setClubs] = useState<AdminClub[]>([])
@@ -38,11 +51,13 @@ export default function AdminLadderImageImports() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
+  const refreshReferenceData = () => Promise.all([
+    admin.listFootballLeagues().then(setLeagues),
+    admin.listClubs().then(setClubs),
+  ]).catch(() => undefined)
+
   useEffect(() => {
-    void Promise.all([
-      admin.listFootballLeagues().then(setLeagues),
-      admin.listClubs().then(setClubs),
-    ]).catch(() => undefined)
+    void refreshReferenceData()
     const handoff = consumeImportHandoff(['ladder'])
     if (handoff) {
       setImage(handoff.dataUrl)
@@ -75,7 +90,10 @@ export default function AdminLadderImageImports() {
   }
 
   const updateRow = (index: number, patch: Partial<OcrRow>) => {
-    setPreview(current => current ? { ...current, rows: current.rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row) } : current)
+    setPreview(current => current ? {
+      ...current,
+      rows: current.rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row),
+    } : current)
   }
 
   const approve = async () => {
@@ -83,37 +101,17 @@ export default function AdminLadderImageImports() {
     if (createLeague && !newLeagueName.trim()) return setError('Enter the new league name before approving.')
     if (createLeague && !newLeagueState) return setError('Select the new league state before approving.')
     if (!createLeague && !leagueId) return setError('Choose an existing league or select Create new league.')
-    const invalid = preview.rows.find(row => !row.team.trim())
-    if (invalid) return setError('Every approved row must have a team name.')
+    if (preview.rows.some(row => !row.team.trim())) return setError('Every approved row must have a team name.')
 
-    setCommitting(true); setError(''); setMessage(createLeague ? 'Creating approved league and importing ladder…' : 'Safely committing approved ladder…')
+    setCommitting(true)
+    setError('')
+    setMessage(createLeague ? 'Creating the league, clubs and ladder in one transaction…' : 'Safely committing approved ladder…')
+
     try {
-      let targetLeagueId = leagueId
-      if (createLeague) {
-        const created = await admin.createLeague({
-          name: newLeagueName.trim(),
-          shortName: newLeagueName.trim(),
-          stateCode: newLeagueState,
-          sport: 'AFL',
-          currentSeason: newLeagueSeason.trim() || String(new Date().getFullYear()),
-          playhqGradeName: preview.detectedGrade || null,
-          primaryDataSource: 'MANUAL_IMAGE',
-          manualEntryEnabled: true,
-          scrapeEnabled: false,
-          apiEnabled: false,
-        })
-        targetLeagueId = created.id
-        setLeagueId(created.id)
-        setCreateLeague(false)
-        setLeagues(current => [...current, created as FootballLeague].sort((a, b) => a.name.localeCompare(b.name)))
-      }
-
+      const grade = preview.detectedGrade?.trim() || 'A Grade'
       const entries = preview.rows.map(row => ({
         clubId: row.match.clubId || null,
-        clubName: row.match.matchedName || row.team,
-        team: row.team,
-        createClub: !row.match.clubId,
-        stateCode: createLeague ? newLeagueState : undefined,
+        team: row.team.trim(),
         position: row.position,
         played: row.played,
         wins: row.wins,
@@ -124,13 +122,37 @@ export default function AdminLadderImageImports() {
         percentage: row.percentage,
         points: row.points,
       }))
-      const result = await admin.ocrCommit(targetLeagueId, entries, preview.importId)
-      const createdClubs = preview.rows.filter(row => !row.match.clubId).length
-      setMessage(result.note || `Approved ladder committed for ${result.data.league}. ${result.data.teams} teams updated${createdClubs ? `, including ${createdClubs} new club${createdClubs === 1 ? '' : 's'}` : ''}.`)
+
+      const response = await fetch('/admin/ocr/commit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${getKey()}` },
+        body: JSON.stringify({
+          leagueId: createLeague ? undefined : leagueId,
+          newLeague: createLeague ? {
+            name: newLeagueName.trim(),
+            stateCode: newLeagueState,
+            season: newLeagueSeason.trim() || String(new Date().getFullYear()),
+            grade,
+          } : undefined,
+          season: newLeagueSeason.trim() || undefined,
+          grade,
+          entries,
+          importId: preview.importId,
+        }),
+      })
+      const payload = await response.json() as CommitResponse & { error?: string }
+      if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`)
+
+      setLeagueId(payload.data.leagueId)
+      setCreateLeague(false)
+      await refreshReferenceData()
+      setMessage(payload.note || `Approved ${payload.data.teams} ladder rows for ${payload.data.league}. Created ${payload.data.createdClubs} new clubs.`)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
       setMessage('')
-    } finally { setCommitting(false) }
+    } finally {
+      setCommitting(false)
+    }
   }
 
   const clubOptions = useMemo(() => clubs
@@ -146,18 +168,35 @@ export default function AdminLadderImageImports() {
       </header>
 
       <section className="ladder-controls">
-        <label><span>Import destination</span><select style={field} value={createLeague ? '__new__' : leagueId} onChange={event => { if (event.target.value === '__new__') { setCreateLeague(true); setLeagueId('') } else { setCreateLeague(false); setLeagueId(event.target.value) } }}><option value="">Choose existing league</option><option value="__new__">＋ Create new league from OCR</option>{leagues.map(league => <option key={league.id} value={league.id}>{league.name}</option>)}</select></label>
-        <label className="ladder-file"><UploadCloud size={22}/><span>{fileName || 'Choose ladder screenshot'}</span><input hidden type="file" accept="image/*" onChange={event => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { const value = String(reader.result); setImage(value); setFileName(file.name); setPreview(null); void analyse(value) }; reader.onerror = () => setError('Could not read that image.'); reader.readAsDataURL(file); event.currentTarget.value = '' }}/></label>
+        <label><span>Import destination</span><select style={field} value={createLeague ? '__new__' : leagueId} onChange={event => {
+          if (event.target.value === '__new__') { setCreateLeague(true); setLeagueId('') }
+          else { setCreateLeague(false); setLeagueId(event.target.value) }
+        }}><option value="">Choose existing league</option><option value="__new__">＋ Create new league from OCR</option>{leagues.map(league => <option key={league.id} value={league.id}>{league.name}</option>)}</select></label>
+        <label className="ladder-file"><UploadCloud size={22}/><span>{fileName || 'Choose ladder screenshot'}</span><input hidden type="file" accept="image/*" onChange={event => {
+          const file = event.target.files?.[0]
+          if (!file) return
+          const reader = new FileReader()
+          reader.onload = () => {
+            const value = String(reader.result)
+            setImage(value)
+            setFileName(file.name)
+            setPreview(null)
+            void analyse(value)
+          }
+          reader.onerror = () => setError('Could not read that image.')
+          reader.readAsDataURL(file)
+          event.currentTarget.value = ''
+        }}/></label>
         <button onClick={() => void analyse()} disabled={busy || !image}><RefreshCw size={17}/>{busy ? 'Analysing…' : 'Analyse again'}</button>
       </section>
 
       {createLeague && <section className="new-league-card">
-        <header><strong>New league detected</strong><span>This league will only be created when you approve.</span></header>
+        <header><strong>New league detected</strong><span>The league, approved clubs and ladder will be created together only after approval.</span></header>
         <div className="new-league-fields">
           <label><span>League name</span><input style={field} value={newLeagueName} onChange={event => setNewLeagueName(event.target.value)}/></label>
           <label><span>State</span><select style={field} value={newLeagueState} onChange={event => setNewLeagueState(event.target.value)}><option value="">Select state</option>{STATES.map(state => <option key={state} value={state}>{state}</option>)}</select></label>
           <label><span>Season</span><input style={field} value={newLeagueSeason} onChange={event => setNewLeagueSeason(event.target.value)}/></label>
-          <label><span>Grade</span><input style={field} value={preview?.detectedGrade || ''} readOnly/></label>
+          <label><span>Grade</span><input style={field} value={preview?.detectedGrade || 'A Grade'} readOnly/></label>
         </div>
       </section>}
 
@@ -169,7 +208,10 @@ export default function AdminLadderImageImports() {
         <header><div><h2>Review extracted rows</h2><p>Detected: {preview.detectedLeague || 'Unknown league'}{preview.detectedGrade ? ` · ${preview.detectedGrade}` : ''}</p></div><span>{Math.round((preview.confidence || 0) * 100)}% confidence</span></header>
         <div className="ladder-rows">{preview.rows.map((row, index) => <article key={`${row.team}-${index}`} className={!row.match.confident ? 'uncertain' : ''}>
           <div className="row-title"><b>{index + 1}</b><input style={field} value={row.team} onChange={event => updateRow(index, { team: event.target.value })}/></div>
-          <label><span>Club action</span><select style={field} value={row.match.clubId || '__create__'} onChange={event => { const club = clubOptions.find(item => item.id === event.target.value); updateRow(index, { match: { clubId: club?.id || null, matchedName: club?.name || null, score: club ? 1 : 0, confident: Boolean(club) } }) }}><option value="__create__">＋ Create new club: {row.team}</option>{clubOptions.map(club => <option key={club.id} value={club.id}>{club.name}</option>)}</select></label>
+          <label><span>Club action</span><select style={field} value={row.match.clubId || '__create__'} onChange={event => {
+            const club = clubOptions.find(item => item.id === event.target.value)
+            updateRow(index, { match: { clubId: club?.id || null, matchedName: club?.name || null, score: club ? 1 : 0, confident: Boolean(club) } })
+          }}><option value="__create__">＋ Create new club: {row.team}</option>{clubOptions.map(club => <option key={club.id} value={club.id}>{club.name}</option>)}</select></label>
           <div className="row-stats">
             <NumberField label="Pos" value={row.position} change={value => updateRow(index, { position: value })}/>
             <NumberField label="P" value={row.played} change={value => updateRow(index, { played: value })}/>
