@@ -52,6 +52,7 @@ jobs:
 
       - name: Show pending migration status
         working-directory: backend
+        continue-on-error: true
         run: npx prisma migrate status
 
       - name: Apply pending Prisma migrations
