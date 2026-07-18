@@ -6,6 +6,7 @@ import { fuzzyMatchClub, similarity } from '../ocr/fuzzy-match.js'
 import { importResults } from '../results/results.service.js'
 import { importFixtures } from '../results/fixtures.service.js'
 import { publishApprovedMatchImport, type ApprovedMatchRow } from '../results/post-import.service.js'
+import { processApprovedResultEffects } from '../results/result-effects.service.js'
 import type { ResultInput, FixtureInput } from '../results/validation.js'
 
 const router = Router()
@@ -67,7 +68,13 @@ router.post('/commit', async (req, res) => {
       const imported = await importResults(input, 'OCR', { raiseReview: true })
       if (imported.invalid > 0) return res.status(422).json({ error: 'Some approved results failed validation', data: imported })
       const downstream = await publishApprovedMatchImport({ kind, leagueId, leagueName: league.name, season: resolvedSeason, grade: resolvedGrade, rows: approvedRows, actor: 'admin' })
-      return res.json({ data: { kind, league: league.name, submitted: rows.length, import: imported, downstream } })
+      const rankingEffects = await processApprovedResultEffects({
+        leagueId,
+        leagueName: league.name,
+        season: resolvedSeason,
+        clubIds: approvedRows.flatMap(row => [row.homeClubId, row.awayClubId]),
+      })
+      return res.json({ data: { kind, league: league.name, submitted: rows.length, import: imported, downstream, rankingEffects } })
     }
 
     const input: FixtureInput[] = approvedRows.map(row => ({ leagueId, leagueName: league.name, season: resolvedSeason, grade: row.grade ?? resolvedGrade, round: row.round, matchDate: row.matchDate ?? undefined, matchTime: row.matchTime ?? undefined, venue: row.venue ?? undefined, homeClubId: row.homeClubId, homeClubName: row.homeTeam, awayClubId: row.awayClubId, awayClubName: row.awayTeam, status: row.status ?? 'SCHEDULED' }))
