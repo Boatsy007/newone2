@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import PowerRankings from './pages/PowerRankings.tsx'
@@ -36,9 +36,10 @@ import ImportHandoffInjector from './components/admin/ImportHandoffInjector.tsx'
 type HomeGoalKicker = { id: string }
 function ScrollToTop(){const{pathname}=useLocation();useEffect(()=>{window.scrollTo(0,0)},[pathname]);return null}
 function HomePlayerProfileLinks(){const navigate=useNavigate();const{pathname}=useLocation();const[players,setPlayers]=useState<HomeGoalKicker[]>([]);useEffect(()=>{if(pathname!=='/')return;let active=true;void fetch('/api/goal-kickers?mode=raw&limit=5').then(r=>r.ok?r.json():Promise.reject(new Error(`HTTP ${r.status}`))).then((p:{data?:HomeGoalKicker[]})=>{if(active)setPlayers(Array.isArray(p.data)?p.data:[])}).catch(()=>{if(active)setPlayers([])});return()=>{active=false}},[pathname]);useEffect(()=>{if(pathname!=='/'||players.length===0)return;const handleClick=(event:MouseEvent)=>{const element=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('.pf-goal-row'):null;if(!element)return;const rows=Array.from(document.querySelectorAll<HTMLAnchorElement>('.pf-goal-row'));const player=players[rows.indexOf(element)];if(!player?.id)return;event.preventDefault();navigate(`/player/${encodeURIComponent(player.id)}`)};document.addEventListener('click',handleClick);return()=>document.removeEventListener('click',handleClick)},[navigate,pathname,players]);return null}
+function AdminUniversalShortcut(){const{pathname}=useLocation();if(pathname!=='/admin')return null;return <Link to="/admin/universal-imports" style={{position:'fixed',right:20,bottom:20,zIndex:120,display:'inline-flex',alignItems:'center',justifyContent:'center',padding:'13px 18px',borderRadius:999,background:'#42b8ff',color:'#050505',textDecoration:'none',fontFamily:'Inter,system-ui,sans-serif',fontWeight:950,textTransform:'uppercase',letterSpacing:'.035em',boxShadow:'0 12px 30px rgba(0,0,0,.22)'}}>Universal Imports</Link>}
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><BrowserRouter><ScrollToTop/><ImportHandoffInjector/><HomePlayerProfileLinks/><AutoShareButtons/><ProfileShareButton/><Routes>
+  <StrictMode><BrowserRouter><ScrollToTop/><ImportHandoffInjector/><HomePlayerProfileLinks/><AutoShareButtons/><ProfileShareButton/><AdminUniversalShortcut/><Routes>
     <Route path="/" element={<App/>}/>
     <Route path="/power-rankings" element={<PowerRankings/>}/>
     <Route path="/rankings" element={<FullRankings/>}/>
