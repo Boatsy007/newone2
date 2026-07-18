@@ -7,6 +7,7 @@ import { importResults } from '../results/results.service.js'
 import { importFixtures } from '../results/fixtures.service.js'
 import { publishApprovedMatchImport, type ApprovedMatchRow } from '../results/post-import.service.js'
 import { processApprovedResultEffects } from '../results/result-effects.service.js'
+import { emitApprovedResultEvents, emitLadderEvents } from '../feeds/events.service.js'
 import type { ResultInput, FixtureInput } from '../results/validation.js'
 
 const router = Router()
@@ -64,17 +65,29 @@ router.post('/commit', async (req, res) => {
     const approvedRows = rows.map(row => ({ ...row, homeClubId: row.homeClubId!, awayClubId: row.awayClubId! })) as ApprovedMatchRow[]
 
     if (kind === 'results') {
+      const ladderBefore = await prisma.footballLadderEntry.findMany({
+        where: { leagueId, season: resolvedSeason, grade: resolvedGrade, published: true },
+        select: { clubId: true, clubName: true, position: true },
+      })
       const input: ResultInput[] = approvedRows.map(row => ({ leagueId, leagueName: league.name, season: resolvedSeason, grade: row.grade ?? resolvedGrade, round: row.round, matchDate: row.matchDate ?? undefined, homeClubId: row.homeClubId, homeClubName: row.homeTeam, awayClubId: row.awayClubId, awayClubName: row.awayTeam, homeScore: row.homeScore!, awayScore: row.awayScore!, status: row.status ?? 'FINAL' }))
       const imported = await importResults(input, 'OCR', { raiseReview: true })
       if (imported.invalid > 0) return res.status(422).json({ error: 'Some approved results failed validation', data: imported })
       const downstream = await publishApprovedMatchImport({ kind, leagueId, leagueName: league.name, season: resolvedSeason, grade: resolvedGrade, rows: approvedRows, actor: 'admin' })
-      const rankingEffects = await processApprovedResultEffects({
-        leagueId,
-        leagueName: league.name,
-        season: resolvedSeason,
-        clubIds: approvedRows.flatMap(row => [row.homeClubId, row.awayClubId]),
+      const ladderAfter = await prisma.footballLadderEntry.findMany({
+        where: { leagueId, season: resolvedSeason, grade: resolvedGrade, published: true },
+        select: { clubId: true, clubName: true, position: true, updatedAt: true },
       })
-      return res.json({ data: { kind, league: league.name, submitted: rows.length, import: imported, downstream, rankingEffects } })
+      const [rankingEffects, resultEvents, ladderEvents] = await Promise.all([
+        processApprovedResultEffects({
+          leagueId,
+          leagueName: league.name,
+          season: resolvedSeason,
+          clubIds: approvedRows.flatMap(row => [row.homeClubId, row.awayClubId]),
+        }),
+        emitApprovedResultEvents({ leagueId, leagueName: league.name, season: resolvedSeason, grade: resolvedGrade, rows: approvedRows }),
+        emitLadderEvents({ leagueId, leagueName: league.name, season: resolvedSeason, grade: resolvedGrade, before: ladderBefore, after: ladderAfter }),
+      ])
+      return res.json({ data: { kind, league: league.name, submitted: rows.length, import: imported, downstream: { ...downstream, feedEventsCreated: resultEvents + ladderEvents, resultEvents, ladderEvents }, rankingEffects } })
     }
 
     const input: FixtureInput[] = approvedRows.map(row => ({ leagueId, leagueName: league.name, season: resolvedSeason, grade: row.grade ?? resolvedGrade, round: row.round, matchDate: row.matchDate ?? undefined, matchTime: row.matchTime ?? undefined, venue: row.venue ?? undefined, homeClubId: row.homeClubId, homeClubName: row.homeTeam, awayClubId: row.awayClubId, awayClubName: row.awayTeam, status: row.status ?? 'SCHEDULED' }))
