@@ -7,6 +7,8 @@ import { fuzzyMatchClub, similarity } from '../ocr/fuzzy-match.js'
 const router = Router()
 router.use(requireAdminKey)
 
+const norm = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
 router.post('/parse', async (req, res) => {
   try {
     const { image, leagueId } = (req.body ?? {}) as { image?: string; leagueId?: string }
@@ -53,7 +55,9 @@ router.post('/commit', async (req, res) => {
     const season = String(body.season ?? new Date().getFullYear())
     const grade = String(body.grade ?? 'Senior Football')
     let imported = 0
+    let weeklyChanges = 0
     const errors: Array<{ playerName: string; error: string }> = []
+
     for (const raw of body.rows) {
       const playerName = String(raw.playerName ?? '').trim()
       const clubName = String(raw.clubName ?? '').trim()
@@ -62,15 +66,46 @@ router.post('/commit', async (req, res) => {
       try {
         const club = raw.clubId ? await prisma.club.findUnique({ where: { id: raw.clubId }, select: { id: true, name: true } }) : null
         const storedClubName = club?.name ?? clubName
-        await prisma.footballGoalKicker.upsert({
-          where: { season_grade_playerName_clubName_leagueName: { season, grade, playerName, clubName: storedClubName, leagueName: league.name } },
-          create: { playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, goals: Math.trunc(goals), matches: raw.matches == null ? null : Math.max(0, Math.trunc(Number(raw.matches))), sourceUrl: null, sourceType: 'OCR_UPLOAD', importedAt: new Date() },
-          update: { clubId: club?.id ?? null, leagueId: league.id, goals: Math.trunc(goals), matches: raw.matches == null ? null : Math.max(0, Math.trunc(Number(raw.matches))), sourceUrl: null, sourceType: 'OCR_UPLOAD', importedAt: new Date() },
+        const key = { season, grade, playerName, clubName: storedClubName, leagueName: league.name }
+        const previous = await prisma.footballGoalKicker.findUnique({
+          where: { season_grade_playerName_clubName_leagueName: key },
+          select: { id: true, goals: true, matches: true },
         })
+        const nextGoals = Math.trunc(goals)
+        const nextMatches = raw.matches == null ? null : Math.max(0, Math.trunc(Number(raw.matches)))
+        const saved = await prisma.footballGoalKicker.upsert({
+          where: { season_grade_playerName_clubName_leagueName: key },
+          create: { playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, goals: nextGoals, matches: nextMatches, sourceUrl: null, sourceType: 'OCR_UPLOAD', importedAt: new Date() },
+          update: { clubId: club?.id ?? null, leagueId: league.id, goals: nextGoals, matches: nextMatches, sourceUrl: null, sourceType: 'OCR_UPLOAD', importedAt: new Date() },
+          select: { id: true },
+        })
+
+        const weeklyGoals = previous ? Math.max(0, nextGoals - previous.goals) : 0
+        const matchesAdded = previous && nextMatches != null && previous.matches != null ? Math.max(0, nextMatches - previous.matches) : null
+        if (weeklyGoals > 0) {
+          await prisma.notification.upsert({
+            where: { dedupeKey: `goal-kicker:${league.id}:${season}:${norm(grade)}:${saved.id}:${nextGoals}` },
+            create: {
+              recipientScope: 'PLATFORM',
+              type: 'GOAL_KICKER_UPDATED',
+              category: 'PLAYER',
+              severity: 'INFO',
+              title: `${playerName} added ${weeklyGoals} goal${weeklyGoals === 1 ? '' : 's'}`,
+              body: `${playerName} moved from ${previous!.goals} to ${nextGoals} goals for ${storedClubName}.`,
+              entityType: 'PLAYER',
+              entityId: saved.id,
+              data: JSON.stringify({ playerId: saved.id, playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, previousGoals: previous!.goals, goals: nextGoals, weeklyGoals, previousMatches: previous!.matches, matches: nextMatches, matchesAdded, playerUrl: `/player/${encodeURIComponent(saved.id)}`, clubUrl: club?.id ? `/team/${encodeURIComponent(club.id)}` : null, leagueUrl: `/league/${encodeURIComponent(league.id)}` }),
+              status: 'DELIVERED',
+              dedupeKey: `goal-kicker:${league.id}:${season}:${norm(grade)}:${saved.id}:${nextGoals}`,
+            },
+            update: {},
+          })
+          weeklyChanges++
+        }
         imported++
       } catch (error) { errors.push({ playerName, error: error instanceof Error ? error.message : String(error) }) }
     }
-    res.json({ data: { imported, errors: errors.length, league: league.name, season, grade }, errors: errors.slice(0, 20) })
+    res.json({ data: { imported, weeklyChanges, errors: errors.length, league: league.name, season, grade }, errors: errors.slice(0, 20) })
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'goal-kicker commit failed' })
   }
