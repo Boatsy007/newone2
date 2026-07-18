@@ -39,7 +39,7 @@ export default function LeagueLiveData({ league }: { league: LeagueDetail }) {
         <div className="league-actions">
           <LeagueFollow leagueId={league.id} leagueName={league.name} />
           {league.websiteUrl && <a href={league.websiteUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Official website</a>}
-          {league.facebookUrl && <a href={league.facebookUrl} target="_blank" rel="noreferrer"><Facebook size={16} /> Facebook</a>}
+          import { Bell, CalendarDays, ExternalLink, Globe, Trophy } from "lucide-react";
         </div>
       </article>
 
