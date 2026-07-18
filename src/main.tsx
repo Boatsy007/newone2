@@ -24,6 +24,7 @@ import AdminMatchImageImports from './pages/AdminMatchImageImports.tsx'
 import AdminGoalKickerImages from './pages/AdminGoalKickerImages.tsx'
 import AdminProfileImageImports from './pages/AdminProfileImageImports.tsx'
 import AdminUniversalImports from './pages/AdminUniversalImports.tsx'
+import AdminLadderImageImports from './pages/AdminLadderImageImports.tsx'
 import AdminHighlights from './pages/AdminHighlights.tsx'
 import Highlights from './pages/Highlights.tsx'
 import ClaimClub from './pages/ClaimClub.tsx'
@@ -62,6 +63,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/about" element={<About/>}/>
     <Route path="/admin" element={<AdminWorkflow/>}/>
     <Route path="/admin/universal-imports" element={<AdminUniversalImports/>}/>
+    <Route path="/admin/ladder-images" element={<AdminLadderImageImports/>}/>
     <Route path="/admin/match-images" element={<AdminMatchImageImports/>}/>
     <Route path="/admin/goal-kicker-images" element={<AdminGoalKickerImages/>}/>
     <Route path="/admin/profile-images" element={<AdminProfileImageImports/>}/>
