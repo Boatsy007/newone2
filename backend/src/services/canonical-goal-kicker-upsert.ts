@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { prisma } from '../db/client.js'
 import { publishGoalKickerUpdateEvents } from './goal-kicker-update-events.js'
+import { planGoalKickerUpdate, type GoalKickerCandidate } from './goal-kicker-update-plan.js'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -30,14 +31,6 @@ export type CanonicalGoalKickerOutcome = {
   duplicatesRemoved: number
   staleIncomingTotal: boolean
   unchanged: boolean
-}
-
-type ExistingGoalKicker = {
-  id: string
-  playerId: string
-  goals: number
-  matches: number | null
-  importedAt: Date
 }
 
 type SavedGoalKicker = { id: string; playerId: string }
@@ -73,24 +66,22 @@ export async function upsertCanonicalGoalKicker(input: CanonicalGoalKickerInput)
       },
       orderBy: [{ goals: 'desc' }, { importedAt: 'desc' }],
       select: { id: true, playerId: true, goals: true, matches: true, importedAt: true },
-    }) as ExistingGoalKicker[]
+    }) as GoalKickerCandidate[]
 
-    const canonical = (requestedPlayerId ? candidates.find(row => row.playerId === requestedPlayerId) : null) ?? candidates[0] ?? null
-    const canonicalPlayerId = canonical?.playerId ?? requestedPlayerId ?? randomUUID()
-    const canonicalId = canonical?.id ?? randomUUID()
-    const currentGoals = canonical?.goals ?? null
-    const currentMatches = canonical?.matches ?? null
-    const lowerPrevious = candidates.find(row => row.goals < incomingGoals)
-    const previousGoals = lowerPrevious?.goals ?? currentGoals
-    const previousMatches = lowerPrevious?.matches ?? currentMatches
-    const savedGoals = currentGoals == null ? incomingGoals : Math.max(currentGoals, incomingGoals)
-    const savedMatches = incomingMatches == null ? currentMatches : currentMatches == null ? incomingMatches : Math.max(currentMatches, incomingMatches)
+    const plan = planGoalKickerUpdate({
+      candidates,
+      requestedPlayerId,
+      generatedPlayerId: randomUUID(),
+      generatedRowId: randomUUID(),
+      incomingGoals,
+      incomingMatches,
+    })
     const importedAt = new Date()
 
     let saved: SavedGoalKicker
-    if (canonical) {
+    if (plan.canonical) {
       saved = await tx.footballGoalKicker.update({
-        where: { id: canonical.id },
+        where: { id: plan.canonical.id },
         data: {
           playerName,
           clubId: input.clubId,
@@ -99,8 +90,8 @@ export async function upsertCanonicalGoalKicker(input: CanonicalGoalKickerInput)
           leagueName: input.leagueName,
           season,
           grade,
-          goals: savedGoals,
-          matches: savedMatches,
+          goals: plan.savedGoals,
+          matches: plan.savedMatches,
           sourceUrl: input.sourceUrl,
           sourceType: input.sourceType,
           importedAt,
@@ -113,8 +104,8 @@ export async function upsertCanonicalGoalKicker(input: CanonicalGoalKickerInput)
           "id", "playerId", "playerName", "clubId", "clubName", "leagueId", "leagueName",
           "season", "grade", "goals", "matches", "sourceUrl", "sourceType", "importedAt", "createdAt", "updatedAt"
         ) VALUES (
-          CAST(${canonicalId} AS uuid), CAST(${canonicalPlayerId} AS uuid), ${playerName}, CAST(${input.clubId} AS uuid), ${clubName}, CAST(${input.leagueId} AS uuid), ${input.leagueName},
-          ${season}, ${grade}, ${savedGoals}, ${savedMatches}, ${input.sourceUrl}, ${input.sourceType}, ${importedAt}, ${importedAt}, ${importedAt}
+          CAST(${plan.canonicalId} AS uuid), CAST(${plan.canonicalPlayerId} AS uuid), ${playerName}, CAST(${input.clubId} AS uuid), ${clubName}, CAST(${input.leagueId} AS uuid), ${input.leagueName},
+          ${season}, ${grade}, ${plan.savedGoals}, ${plan.savedMatches}, ${input.sourceUrl}, ${input.sourceType}, ${importedAt}, ${importedAt}, ${importedAt}
         ) RETURNING "id", "playerId"
       `
       const inserted = rows[0]
@@ -122,12 +113,9 @@ export async function upsertCanonicalGoalKicker(input: CanonicalGoalKickerInput)
       saved = inserted
     }
 
-    const duplicateIds = candidates.filter(row => row.id !== saved.id).map(row => row.id)
-    if (duplicateIds.length) await tx.footballGoalKicker.deleteMany({ where: { id: { in: duplicateIds } } })
+    if (plan.duplicateIds.length) await tx.footballGoalKicker.deleteMany({ where: { id: { in: plan.duplicateIds } } })
 
-    const weeklyGoals = previousGoals == null ? 0 : Math.max(0, savedGoals - previousGoals)
-    const matchesAdded = previousMatches != null && savedMatches != null ? Math.max(0, savedMatches - previousMatches) : null
-    const published = previousGoals == null ? { historyCreated: false, feedEventsCreated: 0 } : await publishGoalKickerUpdateEvents(tx, {
+    const published = plan.previousGoals == null ? { historyCreated: false, feedEventsCreated: 0 } : await publishGoalKickerUpdateEvents(tx, {
       playerId: saved.playerId,
       playerRowId: saved.id,
       playerName,
@@ -137,25 +125,25 @@ export async function upsertCanonicalGoalKicker(input: CanonicalGoalKickerInput)
       leagueName: input.leagueName,
       season,
       grade,
-      previousGoals,
-      goals: savedGoals,
-      weeklyGoals,
-      previousMatches,
-      matches: savedMatches,
-      matchesAdded,
+      previousGoals: plan.previousGoals,
+      goals: plan.savedGoals,
+      weeklyGoals: plan.weeklyGoals,
+      previousMatches: plan.previousMatches,
+      matches: plan.savedMatches,
+      matchesAdded: plan.matchesAdded,
     })
 
     return {
       playerRowId: saved.id,
       playerId: saved.playerId,
-      savedGoals,
-      savedMatches,
-      weeklyGoals,
+      savedGoals: plan.savedGoals,
+      savedMatches: plan.savedMatches,
+      weeklyGoals: plan.weeklyGoals,
       historyCreated: published.historyCreated,
       feedEventsCreated: published.feedEventsCreated,
-      duplicatesRemoved: duplicateIds.length,
-      staleIncomingTotal: currentGoals != null && incomingGoals < currentGoals,
-      unchanged: currentGoals === savedGoals && duplicateIds.length === 0,
+      duplicatesRemoved: plan.duplicateIds.length,
+      staleIncomingTotal: plan.staleIncomingTotal,
+      unchanged: plan.unchanged,
     }
   })
 }
