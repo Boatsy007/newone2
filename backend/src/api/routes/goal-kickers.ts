@@ -14,6 +14,26 @@ const router = Router()
 
 type Mode = 'raw' | 'adjusted'
 
+type GoalEvent = {
+  playerId: string
+  playerRowId?: string
+  playerName: string
+  clubId: string | null
+  clubName: string
+  leagueId: string
+  leagueName: string
+  season: string
+  grade: string
+  previousGoals: number
+  goals: number
+  weeklyGoals: number
+  matchesAdded: number | null
+  playerUrl: string
+  clubUrl: string | null
+  leagueUrl: string
+  updatedAt: string
+}
+
 function modeOf(value: unknown): Mode {
   return value === 'adjusted' ? 'adjusted' : 'raw'
 }
@@ -38,39 +58,96 @@ function australianWeek(now = new Date()) {
   return { start: new Date(startLocal.getTime() - offsetMs), end: new Date(endLocal.getTime() - offsetMs) }
 }
 
-router.get('/', publicRateLimit, cachePublic(600), async (req, res) => {
+function australianSeason(season: string) {
+  const year = Number(season)
+  const safeYear = Number.isFinite(year) ? year : new Date().getFullYear()
+  const offsetMs = 10 * 60 * 60 * 1000
+  return {
+    start: new Date(Date.UTC(safeYear, 0, 1) - offsetMs),
+    end: new Date(Date.UTC(safeYear + 1, 0, 1) - offsetMs),
+  }
+}
+
+const identityPart = (value: string | null | undefined) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
+function leaderboardIdentity(row: { playerName: string; clubId: string | null; clubName: string; leagueId: string; season: string }) {
+  return [row.season, row.leagueId, row.clubId || identityPart(row.clubName), identityPart(row.playerName)].join(':')
+}
+
+function parseGoalEvent(data: string | null, createdAt: Date): GoalEvent | null {
+  if (!data) return null
+  try {
+    const parsed = JSON.parse(data) as Omit<GoalEvent, 'updatedAt'>
+    if (!parsed.playerId || !parsed.playerName || !parsed.season || !Number.isFinite(parsed.weeklyGoals) || parsed.weeklyGoals <= 0) return null
+    return { ...parsed, updatedAt: createdAt.toISOString() }
+  } catch {
+    return null
+  }
+}
+
+router.get('/', publicRateLimit, cachePublic(300), async (req, res) => {
   try {
     const query = req.query as Record<string, string | undefined>
     const mode = modeOf(query.mode)
     const limit = limitOf(query.limit)
 
-    const rows = await prisma.footballGoalKicker.findMany({
-      where: {
-        ...(query.leagueId ? { leagueId: query.leagueId } : {}),
-        ...(query.season ? { season: query.season } : {}),
-      },
-      orderBy: [{ goals: 'desc' }, { playerName: 'asc' }],
-      take: Math.max(limit, 500),
-      select: {
-        id: true,
-        playerName: true,
-        clubId: true,
-        clubName: true,
-        leagueId: true,
-        leagueName: true,
-        season: true,
-        grade: true,
-        goals: true,
-        matches: true,
-        club: { select: { logoUrl: true } },
-        league: { select: { finalStrengthRating: true, manualStrengthOverride: true, strengthTier: true } },
-      },
-    })
+    const [rows, events] = await Promise.all([
+      prisma.footballGoalKicker.findMany({
+        where: {
+          ...(query.leagueId ? { leagueId: query.leagueId } : {}),
+          ...(query.season ? { season: query.season } : {}),
+        },
+        orderBy: [{ goals: 'desc' }, { importedAt: 'desc' }, { playerName: 'asc' }],
+        take: Math.max(limit * 8, 1000),
+        select: {
+          id: true,
+          playerId: true,
+          playerName: true,
+          clubId: true,
+          clubName: true,
+          leagueId: true,
+          leagueName: true,
+          season: true,
+          grade: true,
+          goals: true,
+          matches: true,
+          importedAt: true,
+          club: { select: { logoUrl: true } },
+          league: { select: { finalStrengthRating: true, manualStrengthOverride: true, strengthTier: true } },
+        },
+      }),
+      prisma.notification.findMany({
+        where: { type: 'GOAL_KICKER_UPDATED' },
+        orderBy: { createdAt: 'desc' },
+        take: 5000,
+        select: { data: true, createdAt: true },
+      }),
+    ])
 
-    const ranked = rows.map(row => {
+    const latestDeltaByPlayer = new Map<string, GoalEvent>()
+    const latestDeltaByIdentity = new Map<string, GoalEvent>()
+    for (const event of events) {
+      const parsed = parseGoalEvent(event.data, event.createdAt)
+      if (!parsed) continue
+      if (!latestDeltaByPlayer.has(parsed.playerId)) latestDeltaByPlayer.set(parsed.playerId, parsed)
+      const identity = [parsed.season, parsed.leagueId, parsed.clubId || identityPart(parsed.clubName), identityPart(parsed.playerName)].join(':')
+      if (!latestDeltaByIdentity.has(identity)) latestDeltaByIdentity.set(identity, parsed)
+    }
+
+    const canonical = new Map<string, typeof rows[number]>()
+    for (const row of rows) {
+      const key = leaderboardIdentity(row)
+      const existing = canonical.get(key)
+      if (!existing || row.goals > existing.goals || (row.goals === existing.goals && row.importedAt > existing.importedAt)) canonical.set(key, row)
+    }
+
+    const ranked = [...canonical.values()].map(row => {
       const strength = leagueStrength(row.league)
+      const identity = leaderboardIdentity(row)
+      const delta = latestDeltaByPlayer.get(row.playerId) ?? latestDeltaByIdentity.get(identity)
       return {
         id: row.id,
+        playerId: row.playerId,
         playerName: row.playerName,
         clubName: row.clubName,
         clubId: row.clubId,
@@ -81,6 +158,7 @@ router.get('/', publicRateLimit, cachePublic(600), async (req, res) => {
         grade: row.grade,
         goals: row.goals,
         matches: row.matches,
+        latestGoalsDelta: delta?.goals === row.goals ? delta.weeklyGoals : null,
         leagueStrength: strength,
         adjustedGoals: Math.round(row.goals * (strength / 4) * 100) / 100,
       }
@@ -106,69 +184,81 @@ router.get('/records', publicRateLimit, cachePublic(300), async (req, res) => {
     const limit = Math.max(1, Math.min(Number(query.limit) || 5, 20))
     const season = query.season || new Date().getFullYear().toString()
     const week = australianWeek()
+    const seasonRange = australianSeason(season)
 
     const [events, seasonRows] = await Promise.all([
       prisma.notification.findMany({
         where: {
           type: 'GOAL_KICKER_UPDATED',
-          createdAt: { gte: week.start, lt: week.end },
+          createdAt: { gte: seasonRange.start, lt: seasonRange.end },
           ...(query.leagueId ? { data: { contains: `\"leagueId\":\"${query.leagueId}\"` } } : {}),
         },
         orderBy: { createdAt: 'desc' },
-        take: 2000,
-        select: { entityId: true, data: true, createdAt: true },
+        take: 5000,
+        select: { data: true, createdAt: true },
       }),
       prisma.footballGoalKicker.findMany({
         where: { season, ...(query.leagueId ? { leagueId: query.leagueId } : {}) },
-        orderBy: [{ goals: 'desc' }, { playerName: 'asc' }],
-        take: limit,
+        orderBy: [{ goals: 'desc' }, { importedAt: 'desc' }, { playerName: 'asc' }],
+        take: Math.max(limit * 8, 200),
         select: {
-          id: true, playerName: true, clubId: true, clubName: true, leagueId: true, leagueName: true,
-          season: true, grade: true, goals: true, matches: true, club: { select: { logoUrl: true } },
+          id: true, playerId: true, playerName: true, clubId: true, clubName: true, leagueId: true, leagueName: true,
+          season: true, grade: true, goals: true, matches: true, importedAt: true, club: { select: { logoUrl: true } },
         },
       }),
     ])
 
-    type Weekly = {
-      playerId: string; playerName: string; clubId: string | null; clubName: string; leagueId: string; leagueName: string;
-      season: string; grade: string; previousGoals: number; goals: number; weeklyGoals: number; matchesAdded: number | null;
-      playerUrl: string; clubUrl: string | null; leagueUrl: string; updatedAt: string;
+    const parsedEvents = events.map(event => parseGoalEvent(event.data, event.createdAt)).filter((event): event is GoalEvent => Boolean(event))
+    const latestWeeklyByIdentity = new Map<string, GoalEvent>()
+    for (const event of parsedEvents) {
+      const createdAt = new Date(event.updatedAt)
+      if (createdAt < week.start || createdAt >= week.end) continue
+      const identity = [event.season, event.leagueId, event.clubId || identityPart(event.clubName), identityPart(event.playerName)].join(':')
+      if (!latestWeeklyByIdentity.has(identity)) latestWeeklyByIdentity.set(identity, event)
     }
-    const latestByPlayer = new Map<string, Weekly>()
-    for (const event of events) {
-      if (!event.data || !event.entityId || latestByPlayer.has(event.entityId)) continue
-      try {
-        const parsed = JSON.parse(event.data) as Omit<Weekly, 'updatedAt'>
-        if (parsed.season !== season || !Number.isFinite(parsed.weeklyGoals) || parsed.weeklyGoals <= 0) continue
-        latestByPlayer.set(event.entityId, { ...parsed, updatedAt: event.createdAt.toISOString() })
-      } catch { /* ignore malformed legacy event payloads */ }
-    }
-    const weekly = [...latestByPlayer.values()]
+
+    const weekly = [...latestWeeklyByIdentity.values()]
       .sort((a, b) => b.weeklyGoals - a.weeklyGoals || b.goals - a.goals || a.playerName.localeCompare(b.playerName))
       .slice(0, limit)
       .map((row, index) => ({ rank: index + 1, ...row }))
 
-    const seasonLeaders = seasonRows.map((row, index) => ({
-      rank: index + 1,
-      playerId: row.id,
-      playerName: row.playerName,
-      clubId: row.clubId,
-      clubName: row.clubName,
-      clubLogoUrl: row.club?.logoUrl ?? null,
-      leagueId: row.leagueId,
-      leagueName: row.leagueName,
-      season: row.season,
-      grade: row.grade,
-      goals: row.goals,
-      matches: row.matches,
-      goalsPerGame: row.matches && row.matches > 0 ? Math.round((row.goals / row.matches) * 100) / 100 : null,
-      playerUrl: `/player/${encodeURIComponent(row.id)}`,
-      clubUrl: row.clubId ? `/team/${encodeURIComponent(row.clubId)}` : null,
-      leagueUrl: `/league/${encodeURIComponent(row.leagueId)}`,
-    }))
+    const biggestBags = [...parsedEvents]
+      .sort((a, b) => b.weeklyGoals - a.weeklyGoals || b.goals - a.goals || a.playerName.localeCompare(b.playerName))
+      .slice(0, limit)
+      .map((row, index) => ({ rank: index + 1, ...row }))
+
+    const canonicalSeason = new Map<string, typeof seasonRows[number]>()
+    for (const row of seasonRows) {
+      const identity = leaderboardIdentity(row)
+      const existing = canonicalSeason.get(identity)
+      if (!existing || row.goals > existing.goals || (row.goals === existing.goals && row.importedAt > existing.importedAt)) canonicalSeason.set(identity, row)
+    }
+
+    const seasonLeaders = [...canonicalSeason.values()]
+      .sort((a, b) => b.goals - a.goals || a.playerName.localeCompare(b.playerName))
+      .slice(0, limit)
+      .map((row, index) => ({
+        rank: index + 1,
+        playerId: row.playerId,
+        playerRowId: row.id,
+        playerName: row.playerName,
+        clubId: row.clubId,
+        clubName: row.clubName,
+        clubLogoUrl: row.club?.logoUrl ?? null,
+        leagueId: row.leagueId,
+        leagueName: row.leagueName,
+        season: row.season,
+        grade: row.grade,
+        goals: row.goals,
+        matches: row.matches,
+        goalsPerGame: row.matches && row.matches > 0 ? Math.round((row.goals / row.matches) * 100) / 100 : null,
+        playerUrl: `/player/${encodeURIComponent(row.id)}`,
+        clubUrl: row.clubId ? `/team/${encodeURIComponent(row.clubId)}` : null,
+        leagueUrl: `/league/${encodeURIComponent(row.leagueId)}`,
+      }))
 
     res.json({
-      data: { weekly, seasonLeaders },
+      data: { weekly, biggestBags, seasonLeaders },
       meta: { season, weekStart: week.start.toISOString(), weekEnd: week.end.toISOString(), limit },
     })
   } catch (err) {
@@ -182,6 +272,7 @@ router.get('/player/:id', publicRateLimit, cachePublic(600), async (req, res) =>
       where: { id: req.params.id },
       select: {
         id: true,
+        playerId: true,
         playerName: true,
         clubId: true,
         clubName: true,
@@ -205,7 +296,7 @@ router.get('/player/:id', publicRateLimit, cachePublic(600), async (req, res) =>
     const rank = seasonRows.findIndex(row => row.id === current.id) + 1
 
     const history = await prisma.footballGoalKicker.findMany({
-      where: { playerName: { equals: current.playerName, mode: 'insensitive' } },
+      where: { playerId: current.playerId },
       orderBy: [{ season: 'desc' }, { goals: 'desc' }],
       select: {
         id: true,
@@ -226,6 +317,7 @@ router.get('/player/:id', publicRateLimit, cachePublic(600), async (req, res) =>
     res.json({
       data: {
         id: current.id,
+        playerId: current.playerId,
         playerName: current.playerName,
         clubId: current.clubId,
         clubName: current.clubName,
