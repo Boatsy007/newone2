@@ -28,6 +28,17 @@
   }
 }
 
+/* Touch browsers briefly apply :hover/:active while a swipe begins. Keep the
+ * Goal Kickers cards completely stationary so the rail moves, not the card. */
+@media (hover: none), (pointer: coarse) {
+  .pf-player-record-card,
+  .pf-player-record-card:hover,
+  .pf-player-record-card:active {
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :where(.gn-rail, .pf-club-strip, .pf-player-records-strip, .pf-records-strip) {
     scroll-behavior: auto;
