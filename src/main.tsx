@@ -28,6 +28,7 @@ import AdminWorkflow from './pages/AdminWorkflow.tsx'
 import AdminHealth from './pages/AdminHealth.tsx'
 import AdminLaunchReadiness from './pages/AdminLaunchReadiness.tsx'
 import AdminNotificationDelivery from './pages/AdminNotificationDelivery.tsx'
+import AdminLeagueCoverage from './pages/AdminLeagueCoverage.tsx'
 import AdminMatchImageImports from './pages/AdminMatchImageImports.tsx'
 import AdminGoalKickerImages from './pages/AdminGoalKickerImages.tsx'
 import AdminProfileImageImports from './pages/AdminProfileImageImports.tsx'
@@ -94,6 +95,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/admin/health" element={<AdminHealth/>}/>
     <Route path="/admin/launch-readiness" element={<AdminLaunchReadiness/>}/>
     <Route path="/admin/notification-delivery" element={<AdminNotificationDelivery/>}/>
+    <Route path="/admin/league-coverage" element={<AdminLeagueCoverage/>}/>
     <Route path="/admin/universal-imports" element={<AdminUniversalImports/>}/>
     <Route path="/admin/ladder-images" element={<AdminLadderImageImports/>}/>
     <Route path="/admin/match-images" element={<AdminMatchImageImports/>}/>
