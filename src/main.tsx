@@ -41,6 +41,7 @@ import AdminClubProfileFallback from './components/admin/AdminClubProfileFallbac
 import GoalKickerMistakeManager from './components/admin/GoalKickerMistakeManager.tsx'
 import GoalKickerReviewEnhancer from './components/admin/GoalKickerReviewEnhancer.tsx'
 import GoalKickerPublicIntegration from './components/goal-kickers/GoalKickerPublicIntegration.tsx'
+import GoalKickerAchievementsPortal from './components/goal-kickers/GoalKickerAchievementsPortal.tsx'
 import HomeRecordsPortal from './components/home/HomeRecordsPortal.tsx'
 import HomePlayerRecordsPortal from './components/home/HomePlayerRecordsPortal.tsx'
 
@@ -49,7 +50,7 @@ function ScrollToTop(){const{pathname}=useLocation();useEffect(()=>{window.scrol
 function HomePlayerProfileLinks(){const navigate=useNavigate();const{pathname}=useLocation();const[players,setPlayers]=useState<HomeGoalKicker[]>([]);useEffect(()=>{if(pathname!=='/')return;let active=true;void fetch('/api/goal-kickers?mode=raw&limit=5').then(r=>r.ok?r.json():Promise.reject(new Error(`HTTP ${r.status}`))).then((p:{data?:HomeGoalKicker[]})=>{if(active)setPlayers(Array.isArray(p.data)?p.data:[])}).catch(()=>{if(active)setPlayers([])});return()=>{active=false}},[pathname]);useEffect(()=>{if(pathname!=='/'||players.length===0)return;const handleClick=(event:MouseEvent)=>{const element=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('.pf-goal-row'):null;if(!element)return;const rows=Array.from(document.querySelectorAll<HTMLAnchorElement>('.pf-goal-row'));const player=players[rows.indexOf(element)];if(!player?.id)return;event.preventDefault();navigate(`/player/${encodeURIComponent(player.id)}`)};document.addEventListener('click',handleClick);return()=>document.removeEventListener('click',handleClick)},[navigate,pathname,players]);return null}
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><BrowserRouter><ScrollToTop/><ImportHandoffInjector/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><GoalKickerMistakeManager/><GoalKickerReviewEnhancer/><GoalKickerPublicIntegration/><HomePlayerProfileLinks/><HomeRecordsPortal/><HomePlayerRecordsPortal/><AutoShareButtons/><ProfileShareButton/><Routes>
+  <StrictMode><BrowserRouter><ScrollToTop/><ImportHandoffInjector/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><GoalKickerMistakeManager/><GoalKickerReviewEnhancer/><GoalKickerPublicIntegration/><GoalKickerAchievementsPortal/><HomePlayerProfileLinks/><HomeRecordsPortal/><HomePlayerRecordsPortal/><AutoShareButtons/><ProfileShareButton/><Routes>
     <Route path="/" element={<App/>}/>
     <Route path="/power-rankings" element={<PowerRankings/>}/>
     <Route path="/rankings" element={<FullRankings/>}/>
