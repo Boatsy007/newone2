@@ -1,7 +1,7 @@
 /**
  * Goal Kickers API
  * GET /api/goal-kickers — country-wide football goal kicking ladder.
- * GET /api/goal-kickers/records — weekly goal gains and current season leaders.
+ * GET /api/goal-kickers/records — weekly goal gains and current season player records.
  * GET /api/goal-kickers/player/:id — a player profile built from imported goal-kicker records.
  */
 
@@ -164,9 +164,9 @@ router.get('/records', publicRateLimit, cachePublic(300), async (req, res) => {
       prisma.footballGoalKicker.findMany({
         where: { season, ...(query.leagueId ? { leagueId: query.leagueId } : {}) },
         orderBy: [{ goals: 'desc' }, { playerName: 'asc' }],
-        take: limit,
+        take: 5000,
         select: {
-          id: true, playerName: true, clubId: true, clubName: true, leagueId: true, leagueName: true,
+          id: true, playerId: true, playerName: true, clubId: true, clubName: true, leagueId: true, leagueName: true,
           season: true, grade: true, goals: true, matches: true, club: { select: { logoUrl: true } },
         },
       }),
@@ -190,9 +190,9 @@ router.get('/records', publicRateLimit, cachePublic(300), async (req, res) => {
       .slice(0, limit)
       .map((row, index) => ({ rank: index + 1, ...row }))
 
-    const seasonLeaders = seasonRows.map((row, index) => ({
-      rank: index + 1,
-      playerId: row.id,
+    const publicRows = seasonRows.map(row => ({
+      playerId: row.playerId,
+      playerRowId: row.id,
       playerName: row.playerName,
       clubId: row.clubId,
       clubName: row.clubName,
@@ -209,8 +209,38 @@ router.get('/records', publicRateLimit, cachePublic(300), async (req, res) => {
       leagueUrl: `/league/${encodeURIComponent(row.leagueId)}`,
     }))
 
+    const seasonLeaders = publicRows
+      .slice(0, limit)
+      .map((row, index) => ({ rank: index + 1, ...row }))
+
+    const goalsPerGameLeaders = publicRows
+      .filter(row => row.goalsPerGame != null)
+      .sort((a, b) => (b.goalsPerGame ?? 0) - (a.goalsPerGame ?? 0) || b.goals - a.goals || a.playerName.localeCompare(b.playerName))
+      .slice(0, limit)
+      .map((row, index) => ({ rank: index + 1, ...row }))
+
+    const milestoneLeaders = (threshold: 50 | 100) => {
+      const bestByPlayer = new Map<string, GoalChange>()
+      for (const change of parsed) {
+        if (change.previousGoals >= threshold || change.goals < threshold || !change.matches || change.matches <= 0) continue
+        const current = bestByPlayer.get(change.playerId)
+        if (!current || !current.matches || change.matches < current.matches) bestByPlayer.set(change.playerId, change)
+      }
+      return [...bestByPlayer.values()]
+        .sort((a, b) => (a.matches ?? Number.MAX_SAFE_INTEGER) - (b.matches ?? Number.MAX_SAFE_INTEGER) || new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime())
+        .slice(0, limit)
+        .map((row, index) => ({ rank: index + 1, milestone: threshold, milestoneMatches: row.matches!, ...row }))
+    }
+
     res.json({
-      data: { weekly, biggestBags, seasonLeaders },
+      data: {
+        weekly,
+        biggestBags,
+        seasonLeaders,
+        goalsPerGameLeaders,
+        fastestTo50: milestoneLeaders(50),
+        fastestTo100: milestoneLeaders(100),
+      },
       meta: { season, weekStart: week.start.toISOString(), weekEnd: week.end.toISOString(), limit },
     })
   } catch (err) {
