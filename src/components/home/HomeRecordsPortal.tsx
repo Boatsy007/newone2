@@ -102,7 +102,7 @@ function buildCards(records: Record<RecordCategory, FootballRecordEntry[]>, peri
   })
   const playerCard = playerBag?.weeklyGoals ? {
     key: `${periodLabel}-player-bag`,
-    label: `Most goals in a game ${periodLabel}`,
+    label: 'Most goals in a game by a player',
     value: `${playerBag.weeklyGoals} goals`,
     title: playerBag.playerName,
     detail: playerBag.clubName,
