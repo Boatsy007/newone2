@@ -17,6 +17,9 @@ const links = [
   { label: 'Stats', href: '/goal-kickers' },
 ]
 
+const HEADER_LOGO_PATH = '/Playfooty-logo-modern.png'
+const HEADER_LOGO_FALLBACK = 'https://raw.githubusercontent.com/Boatsy007/newone2/newone1/public/Playfooty-logo-modern.png'
+
 type FollowTarget = { entityType: FollowEntity; entityId: string }
 
 export default function Nav() {
@@ -66,7 +69,16 @@ export default function Nav() {
   return <>
     <header className="pf-nav">
       <div className="pf-nav-inner">
-        <Link to="/" className="pf-brand" aria-label="PlayFooty home"><img src="/Playfooty-logo-modern.png" alt="PlayFooty" /></Link>
+        <Link to="/" className="pf-brand" aria-label="PlayFooty home">
+          <img
+            src={HEADER_LOGO_PATH}
+            alt="PlayFooty"
+            onError={event => {
+              const image = event.currentTarget
+              if (image.src !== HEADER_LOGO_FALLBACK) image.src = HEADER_LOGO_FALLBACK
+            }}
+          />
+        </Link>
         <nav className="pf-desktop-links" aria-label="Main navigation">
           {links.map(link => <Link key={link.href} to={link.href} className={location.pathname.startsWith(link.href) ? 'active' : ''}>{link.label}</Link>)}
         </nav>
