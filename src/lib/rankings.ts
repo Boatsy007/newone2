@@ -85,8 +85,8 @@ export const fetchRankings = () => getJson<RankingsResponse>('/api/rankings')
 export const fetchTop = (n: 10 | 25 | 100) => getJson<RankingsResponse>(`/api/top${n}`)
 export const fetchClub = (id: string) => getJson<{ data: ClubProfile }>(`/api/clubs/${id}`).then(response => response.data)
 export const fetchLeague = (id: string) => getJson<{ data: LeagueDetail }>(`/api/leagues/${id}`).then(response => response.data)
-export const fetchSearch = (q: string) => getJson<{ data: LegacySearchResults }>(`/api/leagues/search/global?q=${encodeURIComponent(q)}`).then(response => response.data)
-export const fetchUnifiedSearch = (q: string) => getJson<SearchResponse>(`/api/search?q=${encodeURIComponent(q)}`)
+export const fetchSearch = (q: string) => getJson<SearchResponse>(`/api/search?q=${encodeURIComponent(q)}`)
+export const fetchLegacySearch = (q: string) => getJson<{ data: LegacySearchResults }>(`/api/leagues/search/global?q=${encodeURIComponent(q)}`).then(response => response.data)
 
 export interface ClubExplanation {
   clubId: string; clubName: string; rank: number; powerRating: number; weekLabel: string
