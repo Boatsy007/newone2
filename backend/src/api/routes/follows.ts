@@ -6,8 +6,11 @@ const router = Router()
 router.use(publicRateLimit)
 
 const entityTypes = new Set(['CLUB', 'LEAGUE', 'PLAYER'])
+const GOAL_ALERTS = ['MILESTONES', 'LEADERSHIP', 'WEEKLY', 'GENERAL'] as const
+type GoalAlert = typeof GOAL_ALERTS[number]
 const supporterId = (value: unknown) => typeof value === 'string' && /^[a-zA-Z0-9-]{16,80}$/.test(value) ? value : null
 const followType = (entityType: string, entityId: string) => `FOLLOW_${entityType}:${entityId}`
+const alertType = (kind: GoalAlert) => `GOAL_KICKER_ALERT_${kind}`
 
 router.get('/', async (req, res) => {
   const id = supporterId(req.query.supporterId)
@@ -43,15 +46,48 @@ router.delete('/:entityType/:entityId', async (req, res) => {
   res.json({ data: { removed: true } })
 })
 
+router.get('/preferences/goal-kickers', async (req, res) => {
+  const id = supporterId(req.query.supporterId)
+  if (!id) return res.status(400).json({ error: 'valid supporterId required' })
+  const rows = await prisma.notificationPreference.findMany({
+    where: { recipientScope: 'USER', recipientId: id, type: { startsWith: 'GOAL_KICKER_ALERT_' }, channel: 'IN_APP' },
+    select: { type: true, enabled: true },
+  })
+  const stored = new Map(rows.map(row => [row.type, row.enabled]))
+  res.json({ data: Object.fromEntries(GOAL_ALERTS.map(kind => [kind.toLowerCase(), stored.get(alertType(kind)) ?? true])) })
+})
+
+router.patch('/preferences/goal-kickers', async (req, res) => {
+  const b = (req.body ?? {}) as { supporterId?: string; milestones?: boolean; leadership?: boolean; weekly?: boolean; general?: boolean }
+  const id = supporterId(b.supporterId)
+  if (!id) return res.status(400).json({ error: 'valid supporterId required' })
+  const values: Record<GoalAlert, boolean | undefined> = {
+    MILESTONES: b.milestones,
+    LEADERSHIP: b.leadership,
+    WEEKLY: b.weekly,
+    GENERAL: b.general,
+  }
+  await Promise.all(GOAL_ALERTS.flatMap(kind => values[kind] == null ? [] : [prisma.notificationPreference.upsert({
+    where: { recipientScope_recipientId_type_channel: { recipientScope: 'USER', recipientId: id, type: alertType(kind), channel: 'IN_APP' } },
+    create: { recipientScope: 'USER', recipientId: id, type: alertType(kind), channel: 'IN_APP', enabled: values[kind]!, frequency: 'INSTANT' },
+    update: { enabled: values[kind]! },
+  })]))
+  res.json({ data: { saved: true } })
+})
+
 router.get('/feed', async (req, res) => {
   const id = supporterId(req.query.supporterId)
   if (!id) return res.status(400).json({ error: 'valid supporterId required' })
-  const prefs = await prisma.notificationPreference.findMany({ where: { recipientScope: 'USER', recipientId: id, type: { startsWith: 'FOLLOW_' }, enabled: true } })
+  const [prefs, alertPrefs] = await Promise.all([
+    prisma.notificationPreference.findMany({ where: { recipientScope: 'USER', recipientId: id, type: { startsWith: 'FOLLOW_' }, enabled: true } }),
+    prisma.notificationPreference.findMany({ where: { recipientScope: 'USER', recipientId: id, type: { startsWith: 'GOAL_KICKER_ALERT_' }, channel: 'IN_APP' }, select: { type: true, enabled: true } }),
+  ])
   const follows = prefs.map(row => parseFollow(row.type)).filter((row): row is Follow => !!row)
   if (!follows.length) return res.json({ data: [], meta: { follows: 0, total: 0, persistent: 0 } })
+  const alerts = new Map(alertPrefs.map(row => [row.type, row.enabled]))
 
   const [persistent, fallback] = await Promise.all([
-    persistentFeed(follows),
+    persistentFeed(follows, alerts),
     Promise.all(follows.map(buildEntityFeed)).then(items => items.flat()),
   ])
   const seen = new Set<string>()
@@ -75,7 +111,19 @@ function parseFollow(type: string): Follow | null {
   return match ? { entityType: match[1] as Follow['entityType'], entityId: match[2] } : null
 }
 
-async function persistentFeed(follows: Follow[]): Promise<FeedItem[]> {
+function alertGroup(type: string, data: string | null): GoalAlert | null {
+  if (type === 'GOAL_KICKER_UPDATE') return 'GENERAL'
+  if (type !== 'GOAL_KICKER_ACHIEVEMENT') return null
+  try {
+    const achievementType = String((data ? JSON.parse(data) as { achievementType?: string } : {}).achievementType ?? '')
+    if (/SEASON_(50|100)_GOALS|FASTEST_TO_/.test(achievementType)) return 'MILESTONES'
+    if (/LEADER|TOP_10/.test(achievementType)) return 'LEADERSHIP'
+    if (achievementType === 'BIGGEST_WEEKLY_GOAL_INCREASE') return 'WEEKLY'
+    return 'GENERAL'
+  } catch { return 'GENERAL' }
+}
+
+async function persistentFeed(follows: Follow[], alerts: Map<string, boolean>): Promise<FeedItem[]> {
   const rows = await prisma.notification.findMany({
     where: {
       recipientScope: 'PLATFORM',
@@ -86,10 +134,12 @@ async function persistentFeed(follows: Follow[]): Promise<FeedItem[]> {
     orderBy: { createdAt: 'desc' },
     take: 100,
   })
-  return rows.map(row => {
+  return rows.flatMap(row => {
+    const group = alertGroup(row.type, row.data)
+    if (group && alerts.get(alertType(group)) === false) return []
     let data: { href?: string } = {}
     try { data = row.data ? JSON.parse(row.data) as { href?: string } : {} } catch { data = {} }
-    return {
+    return [{
       id: `event-${row.id}`,
       type: row.type,
       title: row.title,
@@ -98,7 +148,7 @@ async function persistentFeed(follows: Follow[]): Promise<FeedItem[]> {
       entityId: row.entityId ?? '',
       href: data.href ?? '/',
       createdAt: row.createdAt.toISOString(),
-    }
+    }]
   })
 }
 
