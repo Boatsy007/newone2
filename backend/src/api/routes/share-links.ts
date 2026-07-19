@@ -11,6 +11,8 @@ type ShareMeta = {
   logo?: string | null
   stat1?: string | null
   stat2?: string | null
+  featureStat?: string | null
+  featureLabel?: string | null
 }
 
 const esc = (value: string) => value
@@ -35,6 +37,8 @@ router.get('/', async (req, res) => {
   if (meta.logo) card.searchParams.set('logo', meta.logo)
   if (meta.stat1) card.searchParams.set('stat1', meta.stat1)
   if (meta.stat2) card.searchParams.set('stat2', meta.stat2)
+  if (meta.featureStat) card.searchParams.set('featureStat', meta.featureStat)
+  if (meta.featureLabel) card.searchParams.set('featureLabel', meta.featureLabel)
   const destination = `${SITE}${path}`
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
@@ -90,15 +94,46 @@ async function resolveMeta(path: string): Promise<ShareMeta> {
   if (player) {
     const id = decodeURIComponent(player[1])
     const rows = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(`
-      SELECT g."playerName", g.goals, g.matches, g."clubName", g."leagueName", c."logoUrl"
-      FROM football_goal_kickers g LEFT JOIN clubs c ON c.id = g."clubId"
+      SELECT g.id, g."playerId", g."playerName", g.goals, g.matches, g.season, g.grade,
+             g."clubName", g."leagueName", c."logoUrl",
+             1 + (SELECT COUNT(*) FROM football_goal_kickers other
+                  WHERE other.season = g.season AND other.goals > g.goals) AS rank,
+             n.data AS "latestEventData", n."createdAt" AS "latestEventAt"
+      FROM football_goal_kickers g
+      LEFT JOIN clubs c ON c.id = g."clubId"
+      LEFT JOIN LATERAL (
+        SELECT data, "createdAt" FROM notifications
+        WHERE type = 'GOAL_KICKER_UPDATED'
+          AND ("entityId" = g."playerId" OR data LIKE '%"playerRowId":"' || g.id || '"%')
+        ORDER BY "createdAt" DESC LIMIT 1
+      ) n ON true
       WHERE g.id = $1 LIMIT 1`, id)
     const row = rows[0]
-    if (row) return {
-      title: `${String(row.playerName)} | PlayFooty Player Profile`,
-      description: `${row.clubName ?? 'Community football'} · ${row.leagueName ?? 'Australia'} · ${row.goals ?? 0} goals${row.matches ? ` from ${row.matches} matches` : ''}`,
-      label: 'PLAYER PROFILE', logo: text(row.logoUrl),
-      stat1: `${row.goals ?? 0} GOALS`, stat2: row.matches ? `${row.matches} MATCHES` : null,
+    if (row) {
+      let latestGoals = 0
+      let previousGoals: number | null = null
+      try {
+        const event = typeof row.latestEventData === 'string' ? JSON.parse(row.latestEventData) as Record<string, unknown> : null
+        latestGoals = event && Number.isFinite(Number(event.weeklyGoals)) ? Number(event.weeklyGoals) : 0
+        previousGoals = event && Number.isFinite(Number(event.previousGoals)) ? Number(event.previousGoals) : null
+      } catch {
+        latestGoals = 0
+      }
+      const rank = Number(row.rank)
+      const goals = Number(row.goals) || 0
+      const matches = row.matches == null ? null : Number(row.matches)
+      const performance = latestGoals > 0 ? `${latestGoals} goals in the latest recorded game` : `${goals} season goals`
+      const movement = latestGoals > 0 && previousGoals != null ? `Moved from ${previousGoals} to ${goals}` : null
+      return {
+        title: `${String(row.playerName)} | Goal Kicker on PlayFooty`,
+        description: [performance, movement, row.clubName, row.leagueName].filter(Boolean).join(' · '),
+        label: latestGoals > 0 ? 'LATEST GOAL-KICKING PERFORMANCE' : 'PLAYER PROFILE',
+        logo: text(row.logoUrl),
+        featureStat: latestGoals > 0 ? `+${latestGoals}` : `${goals}`,
+        featureLabel: latestGoals > 0 ? 'GOALS THIS UPDATE' : 'SEASON GOALS',
+        stat1: `${goals} GOALS`,
+        stat2: Number.isFinite(rank) && rank > 0 ? `#${rank} NATIONAL` : matches ? `${matches} MATCHES` : null,
+      }
     }
   }
 
