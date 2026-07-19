@@ -23,6 +23,7 @@ import Championship from './pages/Championship.tsx'
 import About from './pages/About.tsx'
 import Records from './pages/Records.tsx'
 import AdminWorkflow from './pages/AdminWorkflow.tsx'
+import AdminHealth from './pages/AdminHealth.tsx'
 import AdminMatchImageImports from './pages/AdminMatchImageImports.tsx'
 import AdminGoalKickerImages from './pages/AdminGoalKickerImages.tsx'
 import AdminProfileImageImports from './pages/AdminProfileImageImports.tsx'
@@ -79,6 +80,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/directory" element={<Directory/>}/>
     <Route path="/about" element={<About/>}/>
     <Route path="/admin" element={<AdminWorkflow/>}/>
+    <Route path="/admin/health" element={<AdminHealth/>}/>
     <Route path="/admin/universal-imports" element={<AdminUniversalImports/>}/>
     <Route path="/admin/ladder-images" element={<AdminLadderImageImports/>}/>
     <Route path="/admin/match-images" element={<AdminMatchImageImports/>}/>
