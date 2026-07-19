@@ -124,15 +124,30 @@ export default function AdminGoalKickerImages() {
 
   const commit = async (item: Item) => {
     if (!item.preview) return
-    const rows = (item.preview.rows as ReviewRow[])
-      .filter(row => (row.decision ?? 'import') === 'import')
-      .map(row => ({
+    const reviewRows = (item.preview.rows as ReviewRow[]).map(row => {
+      const clubId = row.clubId || row.clubMatch.clubId
+      const warning = !clubId
+        ? 'Club match required'
+        : row.goals < 0
+          ? 'Invalid goals'
+          : row.playerMatch
+            ? `Updates existing ${row.playerMatch.goals} goals`
+            : 'Creates player record'
+      return {
+        playerId: row.playerMatch?.playerId ?? null,
         playerName: row.playerName.trim(),
         clubName: row.clubName.trim(),
-        clubId: row.clubId || row.clubMatch.clubId,
+        clubId,
         goals: Number(row.goals),
         matches: row.matches == null ? null : Number(row.matches),
-      }))
+        decision: row.decision ?? 'import',
+        confidence: Number.isFinite(row.clubMatch.score) ? row.clubMatch.score : null,
+        warning,
+      }
+    })
+    const rows = reviewRows
+      .filter(row => row.decision === 'import')
+      .map(({ decision: _decision, confidence: _confidence, warning: _warning, ...row }) => row)
 
     if (!leagueId) return setMsg('Choose the league before committing.')
     if (!rows.length) return setMsg('No approved players to import.')
@@ -146,7 +161,17 @@ export default function AdminGoalKickerImages() {
     setBusy(true)
     setFeedback({ errors: [], warnings: [] })
     try {
-      const result = await goalKickerImageImports.commit({ leagueId, season, grade, rows })
+      const image = await fileDataUrl(item.file)
+      const result = await goalKickerImageImports.commit({
+        leagueId,
+        season,
+        grade,
+        fileName: item.file.name,
+        image,
+        uncertainCount: item.preview.uncertain,
+        rows,
+        reviewRows,
+      })
       const errors = result.errors ?? []
       const warnings = result.warnings ?? []
       setFeedback({ errors, warnings })
@@ -161,6 +186,7 @@ export default function AdminGoalKickerImages() {
       if (result.data.weeklyChanges > 0) parts.push(`${result.data.weeklyChanges} weekly change${result.data.weeklyChanges === 1 ? '' : 's'} recorded`)
       if (result.data.errors > 0) parts.push(`${result.data.errors} failed`)
       if (result.data.warnings > 0) parts.push(`${result.data.warnings} warning${result.data.warnings === 1 ? '' : 's'}`)
+      if (result.data.batchId) parts.push('audit batch saved')
       setMsg(`${parts.join(' · ')}.`)
     } catch (error) {
       setMsg(error instanceof Error ? error.message : String(error))
