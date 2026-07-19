@@ -102,7 +102,7 @@ export default function HomePlayerRecordsPortal() {
 
   return createPortal(<section className="pf-player-records-home pf-shell">
     <div className="pf-player-records-head">
-      <div><span>Individual performances</span><h2>Player records</h2></div>
+      <div><span>Individual performances</span><h2>Goal kickers</h2></div>
       <Link to="/goal-kickers">View goal kickers <ArrowRight size={17} /></Link>
     </div>
     <div className="pf-player-records-strip">
