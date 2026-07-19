@@ -25,7 +25,7 @@ export default function GoalKickerReviewEnhancer() {
     }
 
     const observer = new MutationObserver(schedule)
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    observer.observe(document.body, { childList: true, subtree: true })
     document.addEventListener('input', schedule, true)
     document.addEventListener('change', schedule, true)
     schedule()
@@ -59,7 +59,10 @@ function enhanceTable(table: HTMLTableElement) {
   rows.forEach((row, rowIndex) => {
     const cells = Array.from(row.cells)
     if (cells.length < 9) return
-    cells.forEach((cell, index) => cell.dataset.label = REVIEW_HEADINGS[index] ?? '')
+    cells.forEach((cell, index) => {
+      const label = REVIEW_HEADINGS[index] ?? ''
+      if (cell.dataset.label !== label) cell.dataset.label = label
+    })
 
     const decision = cells[0].querySelector<HTMLSelectElement>('select')
     const player = cells[1].querySelector<HTMLInputElement>('input')
@@ -67,9 +70,14 @@ function enhanceTable(table: HTMLTableElement) {
     const clubMatch = cells[3].querySelector<HTMLSelectElement>('select')
     const goals = cells[5].querySelector<HTMLInputElement>('input')
     const confidence = Number.parseInt(cells[7].textContent ?? '', 10)
-    const existingText = cells[4].textContent?.trim() ?? ''
-    const existingGoalsMatch = cells[8].textContent?.match(/existing\s+(\d+)\s+goals/i)
-    const existingGoals = existingGoalsMatch ? Number(existingGoalsMatch[1]) : null
+
+    if (row.dataset.originalExistingText == null) row.dataset.originalExistingText = cells[4].textContent?.trim() ?? ''
+    if (row.dataset.existingGoals == null) {
+      const match = cells[8].textContent?.match(/existing\s+(\d+)\s+goals/i)
+      row.dataset.existingGoals = match ? match[1] : ''
+    }
+    const existingText = row.dataset.originalExistingText ?? ''
+    const existingGoals = row.dataset.existingGoals ? Number(row.dataset.existingGoals) : null
     const proposedGoals = Number(goals?.value)
     const active = decision?.value !== 'skip'
     const invalid = active && (!player?.value.trim() || !club?.value.trim() || !clubMatch?.value || !Number.isFinite(proposedGoals) || proposedGoals < 0)
@@ -78,7 +86,7 @@ function enhanceTable(table: HTMLTableElement) {
     row.classList.toggle('is-skipped', !active)
     row.classList.toggle('is-invalid', invalid)
     row.classList.toggle('is-low-confidence', low)
-    row.dataset.reviewRow = String(rowIndex + 1)
+    if (row.dataset.reviewRow !== String(rowIndex + 1)) row.dataset.reviewRow = String(rowIndex + 1)
 
     if (!active) skipped++
     else {
@@ -91,7 +99,8 @@ function enhanceTable(table: HTMLTableElement) {
     }
 
     if (existingGoals != null && Number.isFinite(proposedGoals)) {
-      cells[4].innerHTML = `<strong>${escapeHtml(String(existingGoals))} → ${escapeHtml(String(proposedGoals))} goals</strong><small>${escapeHtml(existingText.replace(/\s*·\s*/g, ' · '))}</small>`
+      const comparison = `<strong>${escapeHtml(String(existingGoals))} → ${escapeHtml(String(proposedGoals))} goals</strong><small>${escapeHtml(existingText)}</small>`
+      if (cells[4].innerHTML !== comparison) cells[4].innerHTML = comparison
     }
 
     const messages: string[] = []
@@ -107,7 +116,8 @@ function enhanceTable(table: HTMLTableElement) {
       else if (existingGoals != null) messages.push(`Will update ${existingGoals} → ${proposedGoals} goals`)
       else messages.push('Will create a new player record')
     }
-    cells[8].textContent = messages.join(' · ')
+    const warningText = messages.join(' · ')
+    if (cells[8].textContent !== warningText) cells[8].textContent = warningText
 
     let actions = cells[0].querySelector<HTMLElement>('.gk-quick-actions')
     if (!actions && decision) {
@@ -128,28 +138,30 @@ function enhanceTable(table: HTMLTableElement) {
       actions.append(importButton, skipButton)
       cells[0].append(actions)
     }
-    actions?.querySelectorAll('button').forEach((button, index) => button.classList.toggle('active', index === (active ? 0 : 1)))
+    actions?.querySelectorAll('button').forEach((actionButton, index) => actionButton.classList.toggle('active', index === (active ? 0 : 1)))
   })
 
   let summary = section.querySelector<HTMLElement>('.gk-review-summary')
   if (!summary) {
     summary = document.createElement('div')
     summary.className = 'gk-review-summary'
-    const header = section.querySelector('header')
-    header?.insertAdjacentElement('afterend', summary)
+    section.querySelector('header')?.insertAdjacentElement('afterend', summary)
   }
-  summary.innerHTML = [
+  const summaryHtml = [
     stat('Updating', updating), stat('New players', creating), stat('Unchanged', unchanged),
     stat('Older ignored', older), stat('Skipped', skipped), stat('Needs fixing', unresolved), stat('Low confidence', lowConfidence),
   ].join('')
+  if (summary.innerHTML !== summaryHtml) summary.innerHTML = summaryHtml
   summary.classList.toggle('has-errors', unresolved > 0)
 
   const approve = section.querySelector<HTMLButtonElement>('header button')
   if (approve && !approve.textContent?.includes('Updated')) {
-    approve.disabled = approve.disabled || unresolved > 0
+    if (!approve.dataset.originalLabel) approve.dataset.originalLabel = approve.textContent?.trim() ?? 'Approve & update'
+    approve.disabled = unresolved > 0
     approve.dataset.reviewBlocked = unresolved > 0 ? 'true' : 'false'
     approve.title = unresolved > 0 ? `Fix ${unresolved} included row${unresolved === 1 ? '' : 's'} before approval.` : ''
-    if (unresolved > 0) approve.textContent = `Fix ${unresolved} row${unresolved === 1 ? '' : 's'} before approval`
+    const nextLabel = unresolved > 0 ? `Fix ${unresolved} row${unresolved === 1 ? '' : 's'} before approval` : approve.dataset.originalLabel
+    if (approve.textContent !== nextLabel) approve.textContent = nextLabel
   }
 }
 
