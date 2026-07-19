@@ -4,24 +4,16 @@ import { prisma } from '../db/client.js'
 import { requireAdminKey } from '../api/middleware/auth.js'
 import { parseGoalKickerImage } from '../ocr/parse-goal-kicker-image.js'
 import { fuzzyMatchClub, similarity } from '../ocr/fuzzy-match.js'
+import { publishGoalKickerUpdateEvents } from '../services/goal-kicker-update-events.js'
 
 const router = Router()
 router.use(requireAdminKey)
 
-const norm = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
 const validUuid = (value: unknown): value is string => typeof value === 'string' && UUID_RE.test(value)
 
 type SavedGoalKicker = { id: string; playerId: string }
-type ExistingGoalKicker = {
-  id: string
-  playerId: string
-  goals: number
-  matches: number | null
-  importedAt: Date
-}
-
+type ExistingGoalKicker = { id: string; playerId: string; goals: number; matches: number | null; importedAt: Date }
 type ApprovedGoalKicker = {
   playerId?: string | null
   playerName?: string
@@ -35,16 +27,32 @@ router.post('/parse', async (req, res) => {
   try {
     const { image, leagueId } = (req.body ?? {}) as { image?: string; leagueId?: string }
     if (!image) return res.status(400).json({ error: 'image required' })
+
     const parsed = await parseGoalKickerImage(image)
-    const leagues = await prisma.league.findMany({ where: { sport: 'FOOTBALL', archivedAt: null }, select: { id: true, name: true } })
+    const leagues = await prisma.league.findMany({
+      where: { sport: 'FOOTBALL', archivedAt: null },
+      select: { id: true, name: true },
+    })
+
     let matchedLeagueId = leagueId ?? null
     if (!matchedLeagueId && parsed.league) {
-      const ranked = leagues.map(league => ({ league, score: similarity(parsed.league!, league.name) })).sort((a, b) => b.score - a.score)
+      const ranked = leagues
+        .map(league => ({ league, score: similarity(parsed.league!, league.name) }))
+        .sort((a, b) => b.score - a.score)
       if (ranked[0]?.score >= 0.6) matchedLeagueId = ranked[0].league.id
     }
+
     const clubs = matchedLeagueId
-      ? await prisma.club.findMany({ where: { sport: 'FOOTBALL', archivedAt: null, leagueSeasons: { some: { leagueId: matchedLeagueId } } }, select: { id: true, name: true } })
-      : await prisma.club.findMany({ where: { sport: 'FOOTBALL', archivedAt: null }, select: { id: true, name: true }, take: 3000 })
+      ? await prisma.club.findMany({
+          where: { sport: 'FOOTBALL', archivedAt: null, leagueSeasons: { some: { leagueId: matchedLeagueId } } },
+          select: { id: true, name: true },
+        })
+      : await prisma.club.findMany({
+          where: { sport: 'FOOTBALL', archivedAt: null },
+          select: { id: true, name: true },
+          take: 3000,
+        })
+
     const season = parsed.season ?? new Date().getFullYear().toString()
     const grade = parsed.grade ?? 'Senior Football'
     const rows = await Promise.all(parsed.rows.map(async row => {
@@ -54,7 +62,9 @@ router.post('/parse', async (req, res) => {
           season,
           grade,
           playerName: { equals: row.playerName, mode: 'insensitive' },
-          ...(clubMatch.clubId ? { clubId: clubMatch.clubId } : { clubName: { equals: row.clubName, mode: 'insensitive' } }),
+          ...(clubMatch.clubId
+            ? { clubId: clubMatch.clubId }
+            : { clubName: { equals: row.clubName, mode: 'insensitive' } }),
           ...(matchedLeagueId ? { leagueId: matchedLeagueId } : {}),
         },
         orderBy: [{ goals: 'desc' }, { importedAt: 'desc' }],
@@ -68,8 +78,18 @@ router.post('/parse', async (req, res) => {
           : null,
       }
     }))
-    const uncertain = rows.filter(row => !row.clubMatch.confident).length
-    res.json({ data: { league: parsed.league, grade, season, matchedLeagueId, rows, uncertain, notes: parsed.notes } })
+
+    res.json({
+      data: {
+        league: parsed.league,
+        grade,
+        season,
+        matchedLeagueId,
+        rows,
+        uncertain: rows.filter(row => !row.clubMatch.confident).length,
+        notes: parsed.notes,
+      },
+    })
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'goal-kicker OCR failed' })
   }
@@ -80,12 +100,15 @@ router.post('/commit', async (req, res) => {
     const body = (req.body ?? {}) as { leagueId?: string; season?: string; grade?: string; rows?: ApprovedGoalKicker[] }
     if (!body.leagueId) return res.status(400).json({ error: 'leagueId required' })
     if (!Array.isArray(body.rows) || body.rows.length === 0) return res.status(400).json({ error: 'approved rows required' })
+
     const league = await prisma.league.findUnique({ where: { id: body.leagueId }, select: { id: true, name: true } })
     if (!league) return res.status(404).json({ error: 'league not found' })
+
     const season = String(body.season ?? new Date().getFullYear())
     const grade = String(body.grade ?? 'Senior Football')
     let imported = 0
     let weeklyChanges = 0
+    let feedEvents = 0
     let duplicatesRemoved = 0
     let unchanged = 0
     const errors: Array<{ playerName: string; error: string }> = []
@@ -101,11 +124,16 @@ router.post('/commit', async (req, res) => {
       }
 
       try {
-        const club = raw.clubId ? await prisma.club.findUnique({ where: { id: raw.clubId }, select: { id: true, name: true } }) : null
+        const club = raw.clubId
+          ? await prisma.club.findUnique({ where: { id: raw.clubId }, select: { id: true, name: true } })
+          : null
         if (raw.clubId && !club) throw new Error(`Selected club no longer exists: ${clubName}`)
+
         const storedClubName = club?.name ?? clubName
         const incomingGoals = Math.trunc(goals)
-        const incomingMatches = raw.matches == null || !Number.isFinite(Number(raw.matches)) ? null : Math.max(0, Math.trunc(Number(raw.matches)))
+        const incomingMatches = raw.matches == null || !Number.isFinite(Number(raw.matches))
+          ? null
+          : Math.max(0, Math.trunc(Number(raw.matches)))
         const requestedPlayerId = validUuid(raw.playerId) ? raw.playerId : null
         const importedAt = new Date()
 
@@ -143,10 +171,10 @@ router.post('/commit', async (req, res) => {
             : currentMatches == null
               ? incomingMatches
               : Math.max(currentMatches, incomingMatches)
-          let saved: SavedGoalKicker
 
+          let saved: SavedGoalKicker
           if (canonical) {
-            const updated = await tx.footballGoalKicker.update({
+            saved = await tx.footballGoalKicker.update({
               where: { id: canonical.id },
               data: {
                 playerName,
@@ -164,7 +192,6 @@ router.post('/commit', async (req, res) => {
               },
               select: { id: true, playerId: true },
             })
-            saved = { id: updated.id, playerId: updated.playerId }
           } else {
             const savedRows = await tx.$queryRaw<SavedGoalKicker[]>`
               INSERT INTO "football_goal_kickers" (
@@ -182,61 +209,35 @@ router.post('/commit', async (req, res) => {
           }
 
           const duplicateIds = candidates.filter(row => row.id !== saved.id).map(row => row.id)
-          if (duplicateIds.length > 0) {
-            await tx.footballGoalKicker.deleteMany({ where: { id: { in: duplicateIds } } })
-          }
+          if (duplicateIds.length > 0) await tx.footballGoalKicker.deleteMany({ where: { id: { in: duplicateIds } } })
 
           const weeklyGoals = previousGoals == null ? 0 : Math.max(0, savedGoals - previousGoals)
           const matchesAdded = previousMatches != null && savedMatches != null ? Math.max(0, savedMatches - previousMatches) : null
-          let weeklyEventCreated = false
-
-          if (weeklyGoals > 0) {
-            const dedupeKey = `goal-kicker:${league.id}:${season}:${norm(grade)}:${saved.playerId}:${savedGoals}`
-            const existingEvent = await tx.notification.findUnique({ where: { dedupeKey }, select: { id: true } })
-            if (!existingEvent) {
-              await tx.notification.create({
-                data: {
-                  recipientScope: 'PLATFORM',
-                  type: 'GOAL_KICKER_UPDATED',
-                  category: 'PLAYER',
-                  severity: 'INFO',
-                  title: `${playerName} added ${weeklyGoals} goal${weeklyGoals === 1 ? '' : 's'}`,
-                  body: `${playerName} moved from ${previousGoals} to ${savedGoals} goals for ${storedClubName}.`,
-                  entityType: 'PLAYER',
-                  entityId: saved.playerId,
-                  data: JSON.stringify({
-                    playerId: saved.playerId,
-                    playerRowId: saved.id,
-                    playerName,
-                    clubId: club?.id ?? null,
-                    clubName: storedClubName,
-                    leagueId: league.id,
-                    leagueName: league.name,
-                    season,
-                    grade,
-                    previousGoals,
-                    goals: savedGoals,
-                    weeklyGoals,
-                    previousMatches,
-                    matches: savedMatches,
-                    matchesAdded,
-                    playerUrl: `/player/${encodeURIComponent(saved.id)}`,
-                    clubUrl: club?.id ? `/team/${encodeURIComponent(club.id)}` : null,
-                    leagueUrl: `/league/${encodeURIComponent(league.id)}`,
-                  }),
-                  status: 'DELIVERED',
-                  dedupeKey,
-                },
+          const published = previousGoals == null
+            ? { historyCreated: false, feedEventsCreated: 0 }
+            : await publishGoalKickerUpdateEvents(tx, {
+                playerId: saved.playerId,
+                playerRowId: saved.id,
+                playerName,
+                clubId: club?.id ?? null,
+                clubName: storedClubName,
+                leagueId: league.id,
+                leagueName: league.name,
+                season,
+                grade,
+                previousGoals,
+                goals: savedGoals,
+                weeklyGoals,
+                previousMatches,
+                matches: savedMatches,
+                matchesAdded,
               })
-              weeklyEventCreated = true
-            }
-          }
 
           return {
-            saved,
             savedGoals,
             weeklyGoals,
-            weeklyEventCreated,
+            historyCreated: published.historyCreated,
+            feedEventsCreated: published.feedEventsCreated,
             duplicatesRemoved: duplicateIds.length,
             staleIncomingTotal: currentGoals != null && incomingGoals < currentGoals,
             unchanged: currentGoals === savedGoals && duplicateIds.length === 0,
@@ -245,7 +246,8 @@ router.post('/commit', async (req, res) => {
 
         imported++
         duplicatesRemoved += outcome.duplicatesRemoved
-        if (outcome.weeklyEventCreated) weeklyChanges++
+        feedEvents += outcome.feedEventsCreated
+        if (outcome.historyCreated) weeklyChanges++
         if (outcome.unchanged) unchanged++
         if (outcome.staleIncomingTotal) {
           warnings.push({ playerName, warning: `Ignored older total of ${incomingGoals}; current total remains ${outcome.savedGoals}.` })
@@ -259,6 +261,7 @@ router.post('/commit', async (req, res) => {
       data: {
         imported,
         weeklyChanges,
+        feedEvents,
         duplicatesRemoved,
         unchanged,
         errors: errors.length,
