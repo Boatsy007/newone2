@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /club-portal
+Disallow: /claim-club/
+Disallow: /notifications
+
+Sitemap: https://playfooty.com.au/sitemap.xml
