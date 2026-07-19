@@ -61,6 +61,10 @@ export interface LeagueDetail {
   goalKickers?: LeagueGoalKicker[]
 }
 
+export interface LegacySearchResults {
+  teams: { clubId: string; clubName: string; leagueName: string; state: string; rank: number }[]
+  leagues: { id: string; name: string; strengthScore: number; state: string }[]
+}
 export interface SearchResults {
   clubs: { id: string; name: string; logoUrl?: string | null; state: string; leagueId?: string | null; leagueName?: string | null; rank?: number | null; powerRating?: number | null; aliases?: string[]; href: string }[]
   leagues: { id: string; name: string; logoUrl?: string | null; strengthScore: number; state: string; href: string }[]
@@ -81,7 +85,8 @@ export const fetchRankings = () => getJson<RankingsResponse>('/api/rankings')
 export const fetchTop = (n: 10 | 25 | 100) => getJson<RankingsResponse>(`/api/top${n}`)
 export const fetchClub = (id: string) => getJson<{ data: ClubProfile }>(`/api/clubs/${id}`).then(response => response.data)
 export const fetchLeague = (id: string) => getJson<{ data: LeagueDetail }>(`/api/leagues/${id}`).then(response => response.data)
-export const fetchSearch = (q: string) => getJson<SearchResponse>(`/api/search?q=${encodeURIComponent(q)}`)
+export const fetchSearch = (q: string) => getJson<{ data: LegacySearchResults }>(`/api/leagues/search/global?q=${encodeURIComponent(q)}`).then(response => response.data)
+export const fetchUnifiedSearch = (q: string) => getJson<SearchResponse>(`/api/search?q=${encodeURIComponent(q)}`)
 
 export interface ClubExplanation {
   clubId: string; clubName: string; rank: number; powerRating: number; weekLabel: string
