@@ -22,8 +22,11 @@ import NewsArticle from './pages/NewsArticle.tsx'
 import Championship from './pages/Championship.tsx'
 import About from './pages/About.tsx'
 import Records from './pages/Records.tsx'
+import PublicInformation from './pages/PublicInformation.tsx'
+import NotFound from './pages/NotFound.tsx'
 import AdminWorkflow from './pages/AdminWorkflow.tsx'
 import AdminHealth from './pages/AdminHealth.tsx'
+import AdminLaunchReadiness from './pages/AdminLaunchReadiness.tsx'
 import AdminMatchImageImports from './pages/AdminMatchImageImports.tsx'
 import AdminGoalKickerImages from './pages/AdminGoalKickerImages.tsx'
 import AdminProfileImageImports from './pages/AdminProfileImageImports.tsx'
@@ -52,13 +55,14 @@ import RankingHealthPortal from './components/rankings/RankingHealthPortal.tsx'
 import UnifiedSearchExtras from './components/rankings/UnifiedSearchExtras.tsx'
 import HomeRecordsPortal from './components/home/HomeRecordsPortal.tsx'
 import HomePlayerRecordsPortal from './components/home/HomePlayerRecordsPortal.tsx'
+import { ErrorBoundary } from './components/ui/ErrorBoundary.tsx'
 
 type HomeGoalKicker = { id: string }
 function ScrollToTop(){const{pathname}=useLocation();useEffect(()=>{window.scrollTo(0,0)},[pathname]);return null}
 function HomePlayerProfileLinks(){const navigate=useNavigate();const{pathname}=useLocation();const[players,setPlayers]=useState<HomeGoalKicker[]>([]);useEffect(()=>{if(pathname!=='/')return;let active=true;void fetch('/api/goal-kickers?mode=raw&limit=5').then(r=>r.ok?r.json():Promise.reject(new Error(`HTTP ${r.status}`))).then((p:{data?:HomeGoalKicker[]})=>{if(active)setPlayers(Array.isArray(p.data)?p.data:[])}).catch(()=>{if(active)setPlayers([])});return()=>{active=false}},[pathname]);useEffect(()=>{if(pathname!=='/'||players.length===0)return;const handleClick=(event:MouseEvent)=>{const element=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('.pf-goal-row'):null;if(!element)return;const rows=Array.from(document.querySelectorAll<HTMLAnchorElement>('.pf-goal-row'));const player=players[rows.indexOf(element)];if(!player?.id)return;event.preventDefault();navigate(`/player/${encodeURIComponent(player.id)}`)};document.addEventListener('click',handleClick);return()=>document.removeEventListener('click',handleClick)},[navigate,pathname,players]);return null}
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><BrowserRouter><ScrollToTop/><ImportHandoffInjector/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><AdminHealthLink/><GoalKickerMistakeManager/><GoalKickerReviewEnhancer/><GoalKickerAchievementManager/><NewsroomManager/><GoalKickerPublicIntegration/><GoalKickerAchievementsPortal/><HighlightPublicIntegration/><RankingHealthPortal/><UnifiedSearchExtras/><HomePlayerProfileLinks/><HomeRecordsPortal/><HomePlayerRecordsPortal/><AutoShareButtons/><ProfileShareButton/><Routes>
+  <StrictMode><BrowserRouter><ScrollToTop/><ImportHandoffInjector/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><AdminHealthLink/><GoalKickerMistakeManager/><GoalKickerReviewEnhancer/><GoalKickerAchievementManager/><NewsroomManager/><GoalKickerPublicIntegration/><GoalKickerAchievementsPortal/><HighlightPublicIntegration/><RankingHealthPortal/><UnifiedSearchExtras/><HomePlayerProfileLinks/><HomeRecordsPortal/><HomePlayerRecordsPortal/><AutoShareButtons/><ProfileShareButton/><ErrorBoundary><Routes>
     <Route path="/" element={<App/>}/>
     <Route path="/power-rankings" element={<PowerRankings/>}/>
     <Route path="/rankings" element={<FullRankings/>}/>
@@ -80,8 +84,14 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/news/:slug" element={<NewsArticle/>}/>
     <Route path="/directory" element={<Directory/>}/>
     <Route path="/about" element={<About/>}/>
+    <Route path="/privacy" element={<PublicInformation/>}/>
+    <Route path="/terms" element={<PublicInformation/>}/>
+    <Route path="/disclaimer" element={<PublicInformation/>}/>
+    <Route path="/community-guidelines" element={<PublicInformation/>}/>
+    <Route path="/support" element={<PublicInformation/>}/>
     <Route path="/admin" element={<AdminWorkflow/>}/>
     <Route path="/admin/health" element={<AdminHealth/>}/>
+    <Route path="/admin/launch-readiness" element={<AdminLaunchReadiness/>}/>
     <Route path="/admin/universal-imports" element={<AdminUniversalImports/>}/>
     <Route path="/admin/ladder-images" element={<AdminLadderImageImports/>}/>
     <Route path="/admin/match-images" element={<AdminMatchImageImports/>}/>
@@ -91,5 +101,6 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/admin/claims" element={<ClubClaimsAdmin/>}/>
     <Route path="/championship" element={<Championship/>}/>
     <Route path="/club-packages" element={<Navigate to="/" replace/>}/>
-  </Routes></BrowserRouter></StrictMode>,
+    <Route path="*" element={<NotFound/>}/>
+  </Routes></ErrorBoundary></BrowserRouter></StrictMode>,
 )
