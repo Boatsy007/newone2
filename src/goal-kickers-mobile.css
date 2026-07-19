@@ -1,147 +1,185 @@
-/* Mobile-only structure for the national Goal Kickers leaderboard.
- * Named grid areas prevent long player, club and league names from colliding
- * with movement, score and share controls. */
+/* Final mobile layout for the national Goal Kickers leaderboard.
+ * Uses a simple wrapping flex card so later component grid rules cannot create
+ * phantom rows, overlap controls, or stretch cards vertically. */
+
+/* The ingestion method is an internal implementation detail, not public copy. */
+.gkl-board > header > div:last-child > strong {
+  display: none !important;
+}
+
+.gkl-board > header > div:last-child > small {
+  margin-top: 0 !important;
+}
+
 @media (max-width: 850px) {
   .gkl-list {
+    display: grid !important;
     gap: 12px !important;
     padding: 12px !important;
   }
 
-  .gkl-row {
-    display: grid !important;
-    grid-template-columns: 46px minmax(0, 1fr) auto !important;
-    grid-template-areas:
-      "rank player score"
-      "rank club score"
-      "rank latest movement"
-      "rank latest share" !important;
-    column-gap: 12px !important;
-    row-gap: 10px !important;
-    align-items: start !important;
+  .gkl-list .gkl-row {
+    position: relative !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: flex-start !important;
+    gap: 10px 12px !important;
+    width: auto !important;
+    height: auto !important;
     min-height: 0 !important;
     padding: 16px !important;
-    overflow: hidden !important;
+    overflow: visible !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
   }
 
-  .gkl-rank {
-    grid-area: rank !important;
-    grid-row: auto !important;
-    align-self: start !important;
-    padding-top: 5px !important;
+  .gkl-list .gkl-rank {
+    order: 1 !important;
+    flex: 0 0 42px !important;
+    align-self: center !important;
+    padding: 0 !important;
     white-space: nowrap !important;
   }
 
-  .gkl-player {
-    grid-area: player !important;
-    grid-column: auto !important;
-    min-width: 0 !important;
+  .gkl-list .gkl-player {
+    order: 2 !important;
+    flex: 1 1 calc(100% - 132px) !important;
+    display: flex !important;
     align-items: flex-start !important;
+    gap: 10px !important;
+    min-width: 0 !important;
+    grid-column: auto !important;
   }
 
-  .gkl-player > div {
+  .gkl-list .gkl-player > div {
     min-width: 0 !important;
   }
 
-  .gkl-player > div > a {
+  .gkl-list .gkl-player > div > a {
     display: block !important;
     padding-right: 0 !important;
     white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
     overflow-wrap: anywhere !important;
     line-height: 1.08 !important;
   }
 
-  .gkl-player > div > span {
+  .gkl-list .gkl-player > div > span {
     display: flex !important;
     align-items: center !important;
     flex-wrap: wrap !important;
     gap: 6px !important;
-    margin-top: 7px !important;
+    margin-top: 6px !important;
   }
 
-  .gkl-club {
-    grid-area: club !important;
+  .gkl-list .gkl-score {
+    order: 3 !important;
+    flex: 0 0 66px !important;
+    align-self: center !important;
+    min-width: 0 !important;
+    text-align: right !important;
     grid-column: auto !important;
-    margin-left: 0 !important;
-    min-width: 0 !important;
-    padding-top: 2px !important;
+    grid-row: auto !important;
   }
 
-  .gkl-club strong,
-  .gkl-club span,
-  .gkl-club a {
+  .gkl-list .gkl-score strong,
+  .gkl-list .gkl-score small {
     display: block !important;
+    white-space: nowrap !important;
+  }
+
+  .gkl-list .gkl-club {
+    order: 4 !important;
+    flex: 0 0 calc(100% - 54px) !important;
+    margin: 0 0 0 54px !important;
     min-width: 0 !important;
+    grid-column: auto !important;
+  }
+
+  .gkl-list .gkl-club strong,
+  .gkl-list .gkl-club span,
+  .gkl-list .gkl-club a {
+    display: block !important;
     white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
     overflow-wrap: anywhere !important;
     line-height: 1.25 !important;
   }
 
-  .gkl-club span {
-    margin-top: 5px !important;
+  .gkl-list .gkl-club span {
+    margin-top: 4px !important;
   }
 
-  .gkl-score {
-    grid-area: score !important;
+  .gkl-list .gkl-latest {
+    order: 5 !important;
+    flex: 1 1 auto !important;
+    margin: 4px 0 0 54px !important;
+    text-align: left !important;
     grid-column: auto !important;
-    grid-row: auto !important;
-    align-self: start !important;
-    min-width: 66px !important;
-    padding-top: 2px !important;
-    text-align: right !important;
   }
 
-  .gkl-score strong,
-  .gkl-score small {
-    display: block !important;
-    white-space: nowrap !important;
-  }
-
-  .gkl-movement {
-    grid-area: movement !important;
+  .gkl-list .gkl-movement {
+    order: 6 !important;
     position: static !important;
+    flex: 0 0 auto !important;
+    align-self: center !important;
+    margin-top: 4px !important;
     right: auto !important;
     top: auto !important;
-    justify-self: end !important;
-    align-self: center !important;
-    white-space: nowrap !important;
   }
 
-  .gkl-latest {
-    grid-area: latest !important;
-    grid-column: auto !important;
-    margin-left: 0 !important;
-    text-align: left !important;
-    align-self: center !important;
-  }
-
-  .gkl-row > .gkl-share {
-    grid-area: share !important;
+  .gkl-list .gkl-row > .gkl-share {
+    order: 7 !important;
+    position: static !important;
+    flex: 0 0 42px !important;
+    width: 42px !important;
+    height: 42px !important;
+    margin-top: 4px !important;
     grid-column: auto !important;
     grid-row: auto !important;
-    justify-self: end !important;
-    align-self: end !important;
-    position: static !important;
   }
 }
 
 @media (max-width: 540px) {
-  .gkl-row {
-    grid-template-columns: 40px minmax(0, 1fr) 70px !important;
-    column-gap: 10px !important;
-    padding: 14px 12px !important;
+  .gkl-list {
+    padding: 10px !important;
   }
 
-  .gkl-player .gkl-logo {
+  .gkl-list .gkl-row {
+    padding: 14px 12px !important;
+    gap: 9px 10px !important;
+  }
+
+  .gkl-list .gkl-rank {
+    flex-basis: 36px !important;
+  }
+
+  .gkl-list .gkl-player {
+    flex-basis: calc(100% - 116px) !important;
+  }
+
+  .gkl-list .gkl-player .gkl-logo {
     width: 42px !important;
     height: 42px !important;
     flex: 0 0 42px !important;
   }
 
-  .gkl-score {
-    min-width: 64px !important;
+  .gkl-list .gkl-score {
+    flex-basis: 60px !important;
   }
 
-  .gkl-score strong {
-    font-size: 30px !important;
+  .gkl-list .gkl-score strong {
+    font-size: 29px !important;
+  }
+
+  .gkl-list .gkl-club {
+    flex-basis: calc(100% - 46px) !important;
+    margin-left: 46px !important;
+  }
+
+  .gkl-list .gkl-latest {
+    margin-left: 46px !important;
   }
 }
