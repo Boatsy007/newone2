@@ -1,0 +1,19 @@
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Link, useLocation } from 'react-router-dom'
+
+type Row={id:string;playerName:string;clubName:string;weekKey:string;playerUrl?:string|null;clubUrl?:string|null;leagueUrl?:string|null;matchUrl?:string|null;detailUrl:string}
+type Target={node:HTMLElement;row:Row;archive:boolean}
+
+export default function HighlightPublicIntegration(){
+  const{pathname}=useLocation();const[rows,setRows]=useState<Row[]>([]),[targets,setTargets]=useState<Target[]>([])
+  const active=pathname==='/highlights'
+  useEffect(()=>{if(!active){setRows([]);return}let alive=true;Promise.all([fetch('/api/highlights').then(r=>r.ok?r.json():{data:[]}),fetch('/api/highlights/archive').then(r=>r.ok?r.json():{data:[]})]).then(([a,b])=>{if(alive)setRows([...(Array.isArray(a.data)?a.data:[]),...(Array.isArray(b.data)?b.data:[])])}).catch(()=>{if(alive)setRows([])});return()=>{alive=false}},[active])
+  const index=useMemo(()=>new Map(rows.map(r=>[`${r.playerName}|${r.clubName}|${r.weekKey}`,r])),[rows])
+  useEffect(()=>{if(!active||!rows.length){setTargets([]);return}let alive=true;const attach=()=>{if(!alive)return;const next:Target[]=[]
+    document.querySelectorAll<HTMLElement>('.pf-nominee').forEach(card=>{const player=card.querySelector('h4')?.textContent?.trim()??'';const club=card.querySelector('.pf-nominee-copy>strong')?.textContent?.trim()??'';const row=rows.find(r=>r.playerName===player&&r.clubName===club);if(!row)return;let slot=card.querySelector<HTMLElement>('.pf-highlight-links-slot');if(!slot){slot=document.createElement('div');slot.className='pf-highlight-links-slot';card.querySelector('.pf-nominee-copy')?.appendChild(slot)}if(slot)next.push({node:slot,row,archive:false})})
+    document.querySelectorAll<HTMLElement>('.pf-awards-archive-list>a').forEach(anchor=>{const player=anchor.querySelector('strong')?.textContent?.trim()??'';const small=anchor.querySelector('small')?.textContent??'';const week=rows.find(r=>r.playerName===player&&small.includes(r.weekKey))?.weekKey??'';const club=small.split(' · ')[0]?.trim()??'';const row=index.get(`${player}|${club}|${week}`)??rows.find(r=>r.playerName===player&&r.weekKey===week);if(!row)return;let slot=anchor.parentElement?.querySelector<HTMLElement>(`.pf-highlight-archive-slot[data-id="${row.id}"]`);if(!slot){slot=document.createElement('div');slot.className='pf-highlight-archive-slot';slot.dataset.id=row.id;anchor.insertAdjacentElement('afterend',slot)}if(slot)next.push({node:slot,row,archive:true})})
+    setTargets(next)};attach();const observer=new MutationObserver(attach);observer.observe(document.body,{childList:true,subtree:true});return()=>{alive=false;observer.disconnect();setTargets([]);document.querySelectorAll('.pf-highlight-links-slot,.pf-highlight-archive-slot').forEach(n=>n.remove())}},[active,index,rows])
+  if(!active)return null
+  return <>{targets.map(({node,row,archive},i)=>createPortal(<div className={archive?'pf-highlight-archive-links':'pf-highlight-links'}><Link to={row.detailUrl}>View details</Link>{!archive&&row.playerUrl&&<Link to={row.playerUrl}>Player</Link>}{!archive&&row.clubUrl&&<Link to={row.clubUrl}>Club</Link>}{!archive&&row.leagueUrl&&<Link to={row.leagueUrl}>League</Link>}{!archive&&row.matchUrl&&<Link to={row.matchUrl}>Match</Link>}</div>,node,`${row.id}-${i}`))}<style>{`.pf-highlight-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.pf-highlight-links a,.pf-highlight-archive-links a{border:1px solid #dfe5eb;border-radius:999px;padding:7px 10px;color:#087fbf;background:#fff;font-size:9px;font-weight:950;text-decoration:none;text-transform:uppercase}.pf-highlight-archive-slot{margin:-2px 0 8px 42px}.pf-highlight-archive-links{display:flex}@media(max-width:620px){.pf-highlight-links{gap:5px}.pf-highlight-links a{padding:7px 9px}}`}</style></>
+}
