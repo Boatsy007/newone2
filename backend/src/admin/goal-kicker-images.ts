@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Router } from 'express'
 import { prisma } from '../db/client.js'
 import { requireAdminKey } from '../api/middleware/auth.js'
@@ -8,6 +9,8 @@ const router = Router()
 router.use(requireAdminKey)
 
 const norm = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
+type SavedGoalKicker = { id: string; playerId: string }
 
 router.post('/parse', async (req, res) => {
   try {
@@ -79,12 +82,32 @@ router.post('/commit', async (req, res) => {
         })
         const nextGoals = Math.trunc(goals)
         const nextMatches = raw.matches == null || !Number.isFinite(Number(raw.matches)) ? null : Math.max(0, Math.trunc(Number(raw.matches)))
-        const saved = await prisma.footballGoalKicker.upsert({
-          where: { season_grade_playerName_clubName_leagueName: key },
-          create: { playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, goals: nextGoals, matches: nextMatches, sourceUrl: null, sourceType: 'OCR_UPLOAD', importedAt: new Date() },
-          update: { clubId: club?.id ?? null, leagueId: league.id, goals: nextGoals, matches: nextMatches, sourceUrl: null, sourceType: 'OCR_UPLOAD', importedAt: new Date() },
-          select: { id: true },
-        })
+        const stableId = previous?.id ?? randomUUID()
+        const importedAt = new Date()
+
+        const savedRows = await prisma.$queryRaw<SavedGoalKicker[]>`
+          INSERT INTO "football_goal_kickers" (
+            "id", "playerId", "playerName", "clubId", "clubName", "leagueId", "leagueName",
+            "season", "grade", "goals", "matches", "sourceUrl", "sourceType", "importedAt", "createdAt", "updatedAt"
+          ) VALUES (
+            ${stableId}, ${stableId}, ${playerName}, ${club?.id ?? null}, ${storedClubName}, ${league.id}, ${league.name},
+            ${season}, ${grade}, ${nextGoals}, ${nextMatches}, ${null}, ${'OCR_UPLOAD'}, ${importedAt}, ${importedAt}, ${importedAt}
+          )
+          ON CONFLICT ("season", "grade", "playerName", "clubName", "leagueName")
+          DO UPDATE SET
+            "playerId" = COALESCE("football_goal_kickers"."playerId", EXCLUDED."playerId"),
+            "clubId" = EXCLUDED."clubId",
+            "leagueId" = EXCLUDED."leagueId",
+            "goals" = EXCLUDED."goals",
+            "matches" = EXCLUDED."matches",
+            "sourceUrl" = EXCLUDED."sourceUrl",
+            "sourceType" = EXCLUDED."sourceType",
+            "importedAt" = EXCLUDED."importedAt",
+            "updatedAt" = EXCLUDED."updatedAt"
+          RETURNING "id", "playerId"
+        `
+        const saved = savedRows[0]
+        if (!saved?.id || !saved.playerId) throw new Error(`Goal-kicker row saved without a player identity for ${playerName}`)
 
         imported++
         const weeklyGoals = previous ? Math.max(0, nextGoals - previous.goals) : 0
@@ -92,7 +115,7 @@ router.post('/commit', async (req, res) => {
 
         if (weeklyGoals > 0) {
           try {
-            const dedupeKey = `goal-kicker:${league.id}:${season}:${norm(grade)}:${saved.id}:${nextGoals}`
+            const dedupeKey = `goal-kicker:${league.id}:${season}:${norm(grade)}:${saved.playerId}:${nextGoals}`
             await prisma.notification.upsert({
               where: { dedupeKey },
               create: {
@@ -103,8 +126,8 @@ router.post('/commit', async (req, res) => {
                 title: `${playerName} added ${weeklyGoals} goal${weeklyGoals === 1 ? '' : 's'}`,
                 body: `${playerName} moved from ${previous!.goals} to ${nextGoals} goals for ${storedClubName}.`,
                 entityType: 'PLAYER',
-                entityId: saved.id,
-                data: JSON.stringify({ playerId: saved.id, playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, previousGoals: previous!.goals, goals: nextGoals, weeklyGoals, previousMatches: previous!.matches, matches: nextMatches, matchesAdded, playerUrl: `/player/${encodeURIComponent(saved.id)}`, clubUrl: club?.id ? `/team/${encodeURIComponent(club.id)}` : null, leagueUrl: `/league/${encodeURIComponent(league.id)}` }),
+                entityId: saved.playerId,
+                data: JSON.stringify({ playerId: saved.playerId, playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, previousGoals: previous!.goals, goals: nextGoals, weeklyGoals, previousMatches: previous!.matches, matches: nextMatches, matchesAdded, playerUrl: `/player/${encodeURIComponent(saved.id)}`, clubUrl: club?.id ? `/team/${encodeURIComponent(club.id)}` : null, leagueUrl: `/league/${encodeURIComponent(league.id)}` }),
                 status: 'DELIVERED',
                 dedupeKey,
               },
