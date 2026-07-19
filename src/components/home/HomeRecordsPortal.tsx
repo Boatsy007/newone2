@@ -15,6 +15,17 @@ type PlayerBag = {
   playerUrl: string
 }
 
+type GoalKickerRow = {
+  id: string
+  playerName: string
+  clubId: string | null
+  clubName: string
+  leagueId: string | null
+  leagueName: string
+  season: string
+  goals: number
+}
+
 type RecordCard = {
   key: string
   label: string
@@ -61,10 +72,13 @@ export default function HomeRecordsPortal() {
       fetchFootballRecords({ period: 'week', limit: 1 }),
       fetchFootballRecords({ period: 'season', season: new Date().getFullYear(), limit: 1 }),
       fetch('/api/goal-kickers/records?limit=5').then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`))),
-    ]).then(([weekData, seasonData, playerPayload]) => {
+      fetch('/api/goal-kickers?mode=raw&limit=500').then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`))),
+    ]).then(([weekData, seasonData, playerPayload, ladderPayload]) => {
       if (!active) return
       const weeklyBag = Array.isArray(playerPayload?.data?.weekly) ? playerPayload.data.weekly[0] as PlayerBag | undefined : undefined
-      const yearlyBag = Array.isArray(playerPayload?.data?.biggestBags) ? playerPayload.data.biggestBags[0] as PlayerBag | undefined : undefined
+      const savedYearlyBag = Array.isArray(playerPayload?.data?.biggestBags) ? playerPayload.data.biggestBags[0] as PlayerBag | undefined : undefined
+      const ladderRows = Array.isArray(ladderPayload?.data) ? ladderPayload.data as GoalKickerRow[] : []
+      const yearlyBag = savedYearlyBag ?? inferBiggestBag(ladderRows)
       setWeekly(buildCards(weekData.categories, 'this week', weeklyBag, false))
       setYearly(buildCards(seasonData.categories, 'this year', yearlyBag, true))
     }).catch(() => {
@@ -83,6 +97,38 @@ export default function HomeRecordsPortal() {
       .pf-records-home{padding:0 0 46px;font-family:Barlow,Inter,Arial,sans-serif}.pf-records-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:17px}.pf-records-head>div>span{text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.16em;color:#0783c9}.pf-records-head h2{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase;font-size:clamp(2.2rem,4vw,4rem);line-height:.88;margin:5px 0 0}.pf-records-head>a{display:inline-flex;align-items:center;gap:8px;color:#42b8ff;text-decoration:none;text-transform:uppercase;font-size:12px;font-weight:800}.pf-records-strip{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;scrollbar-width:none}.pf-records-strip::-webkit-scrollbar{display:none}.pf-record-card{flex:0 0 min(285px,80vw);scroll-snap-align:start;border:1px solid #e3e7ec;border-radius:9px;padding:20px;background:#050505;color:#fff;text-decoration:none;min-height:205px;display:flex;flex-direction:column}.pf-record-card>span{text-transform:uppercase;font-size:10px;letter-spacing:.13em;font-weight:900;color:#42b8ff}.pf-record-card>strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:42px;line-height:1;margin-top:16px;color:#42b8ff}.pf-record-card h3{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase;font-size:25px;line-height:1;margin:13px 0 5px}.pf-record-card p{font-size:13px;line-height:1.45;margin:0;color:#edf2f7}.pf-record-card small{margin-top:auto;padding-top:14px;color:#9ca7b5;font-size:11px}.pf-record-card:hover{transform:translateY(-2px)}@media(max-width:620px){.pf-records-home{padding-bottom:38px}.pf-records-head{align-items:flex-end}.pf-records-head h2{font-size:2.8rem}.pf-records-head>a{font-size:11px}.pf-record-card{flex-basis:82vw}}
     `}</style>
   </>, target)
+}
+
+function inferBiggestBag(rows: GoalKickerRow[]): PlayerBag | undefined {
+  const groups = new Map<string, GoalKickerRow[]>()
+  for (const row of rows) {
+    const player = row.playerName.trim().toLowerCase()
+    const club = row.clubId ?? row.clubName.trim().toLowerCase()
+    const league = row.leagueId ?? row.leagueName.trim().toLowerCase()
+    const key = `${row.season}:${league}:${club}:${player}`
+    const group = groups.get(key) ?? []
+    group.push(row)
+    groups.set(key, group)
+  }
+
+  let best: PlayerBag | undefined
+  for (const group of groups.values()) {
+    const ordered = [...group].sort((a, b) => b.goals - a.goals)
+    const latest = ordered[0]
+    const previous = ordered.find(row => row.goals < latest.goals)
+    if (!latest || !previous) continue
+    const goals = latest.goals - previous.goals
+    if (goals <= 0 || (best && best.weeklyGoals >= goals)) continue
+    best = {
+      playerId: latest.id,
+      playerName: latest.playerName,
+      clubName: latest.clubName,
+      leagueName: latest.leagueName,
+      weeklyGoals: goals,
+      playerUrl: `/player/${encodeURIComponent(latest.id)}`,
+    }
+  }
+  return best
 }
 
 function buildCards(records: Record<RecordCategory, FootballRecordEntry[]>, periodLabel: string, playerBag?: PlayerBag, playerFirst = false): RecordCard[] {
