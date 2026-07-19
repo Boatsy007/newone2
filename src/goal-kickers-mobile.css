@@ -1,0 +1,147 @@
+/* Mobile-only structure for the national Goal Kickers leaderboard.
+ * Named grid areas prevent long player, club and league names from colliding
+ * with movement, score and share controls. */
+@media (max-width: 850px) {
+  .gkl-list {
+    gap: 12px !important;
+    padding: 12px !important;
+  }
+
+  .gkl-row {
+    display: grid !important;
+    grid-template-columns: 46px minmax(0, 1fr) auto !important;
+    grid-template-areas:
+      "rank player score"
+      "rank club score"
+      "rank latest movement"
+      "rank latest share" !important;
+    column-gap: 12px !important;
+    row-gap: 10px !important;
+    align-items: start !important;
+    min-height: 0 !important;
+    padding: 16px !important;
+    overflow: hidden !important;
+  }
+
+  .gkl-rank {
+    grid-area: rank !important;
+    grid-row: auto !important;
+    align-self: start !important;
+    padding-top: 5px !important;
+    white-space: nowrap !important;
+  }
+
+  .gkl-player {
+    grid-area: player !important;
+    grid-column: auto !important;
+    min-width: 0 !important;
+    align-items: flex-start !important;
+  }
+
+  .gkl-player > div {
+    min-width: 0 !important;
+  }
+
+  .gkl-player > div > a {
+    display: block !important;
+    padding-right: 0 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    line-height: 1.08 !important;
+  }
+
+  .gkl-player > div > span {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-top: 7px !important;
+  }
+
+  .gkl-club {
+    grid-area: club !important;
+    grid-column: auto !important;
+    margin-left: 0 !important;
+    min-width: 0 !important;
+    padding-top: 2px !important;
+  }
+
+  .gkl-club strong,
+  .gkl-club span,
+  .gkl-club a {
+    display: block !important;
+    min-width: 0 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    line-height: 1.25 !important;
+  }
+
+  .gkl-club span {
+    margin-top: 5px !important;
+  }
+
+  .gkl-score {
+    grid-area: score !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    align-self: start !important;
+    min-width: 66px !important;
+    padding-top: 2px !important;
+    text-align: right !important;
+  }
+
+  .gkl-score strong,
+  .gkl-score small {
+    display: block !important;
+    white-space: nowrap !important;
+  }
+
+  .gkl-movement {
+    grid-area: movement !important;
+    position: static !important;
+    right: auto !important;
+    top: auto !important;
+    justify-self: end !important;
+    align-self: center !important;
+    white-space: nowrap !important;
+  }
+
+  .gkl-latest {
+    grid-area: latest !important;
+    grid-column: auto !important;
+    margin-left: 0 !important;
+    text-align: left !important;
+    align-self: center !important;
+  }
+
+  .gkl-row > .gkl-share {
+    grid-area: share !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    justify-self: end !important;
+    align-self: end !important;
+    position: static !important;
+  }
+}
+
+@media (max-width: 540px) {
+  .gkl-row {
+    grid-template-columns: 40px minmax(0, 1fr) 70px !important;
+    column-gap: 10px !important;
+    padding: 14px 12px !important;
+  }
+
+  .gkl-player .gkl-logo {
+    width: 42px !important;
+    height: 42px !important;
+    flex: 0 0 42px !important;
+  }
+
+  .gkl-score {
+    min-width: 64px !important;
+  }
+
+  .gkl-score strong {
+    font-size: 30px !important;
+  }
+}
