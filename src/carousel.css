@@ -1,0 +1,35 @@
+/* Shared horizontal-rail behaviour for the PlayFooty homepage.
+ * Keep native touch scrolling, but make card settling less abrupt on mobile.
+ */
+:where(.gn-rail, .pf-club-strip, .pf-player-records-strip, .pf-records-strip) {
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity !important;
+  scroll-padding-inline: 12px;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+:where(.gn-rail, .pf-club-strip, .pf-player-records-strip, .pf-records-strip)::-webkit-scrollbar {
+  display: none;
+}
+
+:where(.gn-rail, .pf-club-strip, .pf-player-records-strip, .pf-records-strip) > * {
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+@media (max-width: 820px) {
+  :where(.gn-rail, .pf-club-strip, .pf-player-records-strip, .pf-records-strip) {
+    padding-inline: 1px;
+    padding-bottom: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.gn-rail, .pf-club-strip, .pf-player-records-strip, .pf-records-strip) {
+    scroll-behavior: auto;
+  }
+}
