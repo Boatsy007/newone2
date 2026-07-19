@@ -61,12 +61,14 @@ export interface LeagueDetail {
   goalKickers?: LeagueGoalKicker[]
 }
 
-export interface LegacySearchResults {
+/** Existing club/league search contract retained for the current overlay and older consumers. */
+export interface SearchResults {
   teams: { clubId: string; clubName: string; leagueName: string; state: string; rank: number }[]
   leagues: { id: string; name: string; strengthScore: number; state: string }[]
 }
 
-export interface SearchResults {
+/** Canonical cross-platform search contract available to the next typed UI adapter. */
+export interface UnifiedSearchResults {
   clubs: { id: string; name: string; logoUrl?: string | null; state: string; leagueId?: string | null; leagueName?: string | null; rank?: number | null; powerRating?: number | null; aliases?: string[]; href: string }[]
   leagues: { id: string; name: string; logoUrl?: string | null; strengthScore: number; state: string; href: string }[]
   players: { id: string; name: string; clubId?: string | null; clubName: string; leagueId: string; leagueName: string; goals: number; season: string; logoUrl?: string | null; href: string }[]
@@ -75,7 +77,7 @@ export interface SearchResults {
   highlights: { id: string; title: string; category: string; playerName: string; clubId?: string | null; clubName: string; leagueId?: string | null; leagueName?: string | null; weekKey: string; winner: boolean; href: string }[]
   records: { id: string; title: string; summary: string; href: string }[]
 }
-export interface SearchResponse { data: SearchResults; meta: { query: string; total: number; partial: string[] } }
+export interface SearchResponse { data: UnifiedSearchResults; meta: { query: string; total: number; partial: string[] } }
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
@@ -86,7 +88,7 @@ export const fetchRankings = () => getJson<RankingsResponse>('/api/rankings')
 export const fetchTop = (n: 10 | 25 | 100) => getJson<RankingsResponse>(`/api/top${n}`)
 export const fetchClub = (id: string) => getJson<{ data: ClubProfile }>(`/api/clubs/${id}`).then(response => response.data)
 export const fetchLeague = (id: string) => getJson<{ data: LeagueDetail }>(`/api/leagues/${id}`).then(response => response.data)
-export const fetchSearch = (q: string) => getJson<{ data: LegacySearchResults }>(`/api/leagues/search/global?q=${encodeURIComponent(q)}`).then(response => response.data)
+export const fetchSearch = (q: string) => getJson<{ data: SearchResults }>(`/api/leagues/search/global?q=${encodeURIComponent(q)}`).then(response => response.data)
 export const fetchUnifiedSearch = (q: string) => getJson<SearchResponse>(`/api/search?q=${encodeURIComponent(q)}`)
 
 export interface ClubExplanation {
