@@ -14,6 +14,28 @@ const router = Router()
 
 type Mode = 'raw' | 'adjusted'
 
+type GoalChange = {
+  playerId: string
+  playerRowId?: string
+  playerName: string
+  clubId: string | null
+  clubName: string
+  leagueId: string
+  leagueName: string
+  season: string
+  grade: string
+  previousGoals: number
+  goals: number
+  weeklyGoals: number
+  previousMatches?: number | null
+  matches?: number | null
+  matchesAdded: number | null
+  playerUrl: string
+  clubUrl: string | null
+  leagueUrl: string
+  updatedAt: string
+}
+
 function modeOf(value: unknown): Mode {
   return value === 'adjusted' ? 'adjusted' : 'raw'
 }
@@ -42,6 +64,20 @@ function seasonRange(season: string) {
   const year = Number(season)
   const safeYear = Number.isFinite(year) ? year : new Date().getFullYear()
   return { start: new Date(Date.UTC(safeYear, 0, 1)), end: new Date(Date.UTC(safeYear + 1, 0, 1)) }
+}
+
+function parseGoalChanges(events: Array<{ entityId: string | null; data: string | null; createdAt: Date }>, season?: string): GoalChange[] {
+  return events.flatMap(event => {
+    if (!event.data) return []
+    try {
+      const data = JSON.parse(event.data) as Omit<GoalChange, 'updatedAt'>
+      if (season && data.season !== season) return []
+      if (!data.playerId || !Number.isFinite(data.weeklyGoals) || data.weeklyGoals <= 0) return []
+      return [{ ...data, updatedAt: event.createdAt.toISOString() }]
+    } catch {
+      return []
+    }
+  })
 }
 
 router.get('/', publicRateLimit, cachePublic(600), async (req, res) => {
@@ -136,23 +172,7 @@ router.get('/records', publicRateLimit, cachePublic(300), async (req, res) => {
       }),
     ])
 
-    type GoalChange = {
-      playerId: string; playerName: string; clubId: string | null; clubName: string; leagueId: string; leagueName: string;
-      season: string; grade: string; previousGoals: number; goals: number; weeklyGoals: number; matchesAdded: number | null;
-      playerUrl: string; clubUrl: string | null; leagueUrl: string; updatedAt: string;
-    }
-
-    const parsed = events.flatMap(event => {
-      if (!event.data || !event.entityId) return []
-      try {
-        const data = JSON.parse(event.data) as Omit<GoalChange, 'updatedAt'>
-        if (data.season !== season || !Number.isFinite(data.weeklyGoals) || data.weeklyGoals <= 0) return []
-        return [{ ...data, updatedAt: event.createdAt.toISOString() }]
-      } catch {
-        return []
-      }
-    })
-
+    const parsed = parseGoalChanges(events, season)
     const latestWeekly = new Map<string, GoalChange>()
     for (const change of parsed) {
       const changedAt = new Date(change.updatedAt)
@@ -198,12 +218,13 @@ router.get('/records', publicRateLimit, cachePublic(300), async (req, res) => {
   }
 })
 
-router.get('/player/:id', publicRateLimit, cachePublic(600), async (req, res) => {
+router.get('/player/:id', publicRateLimit, cachePublic(300), async (req, res) => {
   try {
     const current = await prisma.footballGoalKicker.findUnique({
       where: { id: req.params.id },
       select: {
         id: true,
+        playerId: true,
         playerName: true,
         clubId: true,
         clubName: true,
@@ -219,35 +240,72 @@ router.get('/player/:id', publicRateLimit, cachePublic(600), async (req, res) =>
     })
     if (!current) return res.status(404).json({ error: 'Player not found' })
 
-    const seasonRows = await prisma.footballGoalKicker.findMany({
-      where: { season: current.season },
-      orderBy: [{ goals: 'desc' }, { playerName: 'asc' }],
-      select: { id: true, goals: true, playerName: true },
-    })
-    const rank = seasonRows.findIndex(row => row.id === current.id) + 1
+    const year = seasonRange(current.season)
+    const [seasonRows, history, events] = await Promise.all([
+      prisma.footballGoalKicker.findMany({
+        where: { season: current.season },
+        orderBy: [{ goals: 'desc' }, { playerName: 'asc' }],
+        select: { id: true, playerId: true, goals: true, matches: true, playerName: true },
+      }),
+      prisma.footballGoalKicker.findMany({
+        where: { playerId: current.playerId },
+        orderBy: [{ season: 'desc' }, { goals: 'desc' }],
+        select: {
+          id: true,
+          season: true,
+          grade: true,
+          goals: true,
+          matches: true,
+          clubId: true,
+          clubName: true,
+          leagueId: true,
+          leagueName: true,
+          club: { select: { logoUrl: true } },
+          league: { select: { finalStrengthRating: true, manualStrengthOverride: true, strengthTier: true } },
+        },
+      }),
+      prisma.notification.findMany({
+        where: {
+          type: 'GOAL_KICKER_UPDATED',
+          createdAt: { gte: year.start, lt: year.end },
+          OR: [
+            { entityId: current.playerId },
+            { data: { contains: `\"playerId\":\"${current.playerId}\"` } },
+            { data: { contains: `\"playerRowId\":\"${current.id}\"` } },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: { entityId: true, data: true, createdAt: true },
+      }),
+    ])
 
-    const history = await prisma.footballGoalKicker.findMany({
-      where: { playerName: { equals: current.playerName, mode: 'insensitive' } },
-      orderBy: [{ season: 'desc' }, { goals: 'desc' }],
-      select: {
-        id: true,
-        season: true,
-        grade: true,
-        goals: true,
-        matches: true,
-        clubId: true,
-        clubName: true,
-        leagueId: true,
-        leagueName: true,
-        club: { select: { logoUrl: true } },
-        league: { select: { finalStrengthRating: true, manualStrengthOverride: true, strengthTier: true } },
-      },
-    })
+    const rank = seasonRows.findIndex(row => row.id === current.id || row.playerId === current.playerId) + 1
+    const goalHistory = parseGoalChanges(events, current.season)
+      .filter(change => change.playerId === current.playerId || change.playerRowId === current.id)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+
+    const latestChange = goalHistory.find(change =>
+      change.leagueId === current.leagueId && change.grade === current.grade && change.goals === current.goals
+    ) ?? goalHistory[0] ?? null
+
+    const biggestBagRank = goalHistory.length === 0 ? null : 1 + goalHistory.filter(change => change.weeklyGoals > (latestChange?.weeklyGoals ?? 0)).length
+    const goalsPerGame = current.matches && current.matches > 0 ? Math.round((current.goals / current.matches) * 100) / 100 : null
+    const goalsPerGameRank = goalsPerGame == null ? null : 1 + seasonRows.filter(row => {
+      if (!row.matches || row.matches <= 0) return false
+      return row.goals / row.matches > current.goals / current.matches!
+    }).length
+
+    const records: Array<{ key: string; label: string; value: string }> = []
+    if (rank === 1) records.push({ key: 'season-leader', label: 'Season goal leader', value: `${current.goals} goals` })
+    if (latestChange && biggestBagRank === 1) records.push({ key: 'biggest-bag', label: 'Biggest recorded bag', value: `${latestChange.weeklyGoals} goals` })
+    if (goalsPerGameRank === 1 && goalsPerGame != null) records.push({ key: 'goals-per-game', label: 'Goals per game leader', value: goalsPerGame.toFixed(2) })
 
     const strength = leagueStrength(current.league)
     res.json({
       data: {
         id: current.id,
+        playerId: current.playerId,
         playerName: current.playerName,
         clubId: current.clubId,
         clubName: current.clubName,
@@ -258,13 +316,20 @@ router.get('/player/:id', publicRateLimit, cachePublic(600), async (req, res) =>
         grade: current.grade,
         goals: current.goals,
         matches: current.matches,
-        goalsPerGame: current.matches && current.matches > 0 ? Math.round((current.goals / current.matches) * 100) / 100 : null,
+        goalsPerGame,
+        latestGoals: latestChange?.weeklyGoals ?? 0,
+        latestPreviousGoals: latestChange?.previousGoals ?? null,
+        latestUpdatedAt: latestChange?.updatedAt ?? null,
         rank: rank > 0 ? rank : null,
+        goalsPerGameRank,
+        biggestBagRank,
         leagueStrength: strength,
         adjustedGoals: Math.round(current.goals * (strength / 4) * 100) / 100,
         town: current.club?.townName ?? null,
         state: current.club?.state?.code ?? null,
         stateName: current.club?.state?.name ?? null,
+        records,
+        goalHistory,
         history: history.map(row => {
           const rowStrength = leagueStrength(row.league)
           return {
