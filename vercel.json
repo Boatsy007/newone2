@@ -27,6 +27,10 @@
       "dest": "/backend/api/index.ts"
     },
     {
+      "src": "/sitemap.xml",
+      "dest": "/backend/api/index.ts"
+    },
+    {
       "handle": "filesystem"
     },
     {
