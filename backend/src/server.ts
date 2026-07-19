@@ -15,6 +15,8 @@ import { goalKickerContextRouter } from './api/routes/goal-kicker-context.js'
 import { goalKickersRouter } from './api/routes/goal-kickers.js'
 import { newsRouter } from './api/routes/news.js'
 import { highlightsRouter } from './api/routes/highlights.js'
+import { searchRouter } from './api/routes/search.js'
+import { seoRouter } from './api/routes/seo.js'
 import { clubPortalAccessRouter } from './api/routes/club-portal-access.js'
 import { followsRouter } from './api/routes/follows.js'
 import { shareCardsRouter } from './api/routes/share-cards.js'
@@ -87,6 +89,7 @@ app.get('/api/records', async (req, res) => {
   }
 })
 
+app.use('/api/search', searchRouter)
 app.use('/api/rankings', rankingsRouter)
 app.use('/api/clubs', clubsRouter)
 app.use('/api/leagues', leaguesRouter)
@@ -153,6 +156,7 @@ app.get('/api/debug', async (_req, res) => {
   try { const { PrismaClient } = await import('@prisma/client'); const pc = new PrismaClient(); await pc.$queryRaw`SELECT 1`; await pc.$disconnect(); dbPing = 'ok' } catch (e) { dbPing = String(e) }
   res.json({ hasDbUrl, hasDirectUrl, hasAdminKey, dbPing })
 })
+app.use('/', seoRouter)
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }))
 if (process.env.VERCEL !== '1') app.listen(PORT, () => logger.info(`CNCA Rankings API listening on port ${PORT}`))
 export default app
