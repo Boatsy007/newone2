@@ -21,6 +21,23 @@
   transform: translateZ(0);
 }
 
+/* Keep the yearly record section visually separate from the black feature cards
+ * that follow it, while preserving the PlayFooty blue record accents. */
+.pf-records-home.is-yearly .pf-record-card {
+  background: #fff !important;
+  color: #111318 !important;
+  border-color: #e3e7ec !important;
+  box-shadow: 0 5px 16px rgba(17, 24, 39, .045);
+}
+
+.pf-records-home.is-yearly .pf-record-card p {
+  color: #303741 !important;
+}
+
+.pf-records-home.is-yearly .pf-record-card small {
+  color: #687385 !important;
+}
+
 @media (max-width: 820px) {
   :where(.gn-rail, .pf-club-strip, .pf-player-records-strip, .pf-records-strip) {
     padding-inline: 0;
