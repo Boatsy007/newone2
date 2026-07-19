@@ -36,7 +36,10 @@ export default function AutoShareButtons() {
       host.classList.remove('pf-share-host')
     })
 
-    if (PROFILE_PAGE.test(pathname)) return
+    // Profile pages already have dedicated share controls. The national Goal
+    // Kickers page also owns one explicit share button per card; enhancing its
+    // player, club and league links would create several duplicate controls.
+    if (PROFILE_PAGE.test(pathname) || pathname === '/goal-kickers') return
 
     let timer = 0
     const enhance = () => {
