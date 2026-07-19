@@ -38,6 +38,8 @@ type RecordCard = {
 
 type RecordCategories = Partial<Record<RecordCategory, FootballRecordEntry[]>>
 
+type RecordSectionVariant = 'weekly' | 'yearly'
+
 export default function HomeRecordsPortal() {
   const { pathname } = useLocation()
   const [target, setTarget] = useState<HTMLElement | null>(null)
@@ -103,11 +105,13 @@ export default function HomeRecordsPortal() {
   if (!target || pathname !== '/' || (weekly.length === 0 && yearly.length === 0)) return null
 
   return createPortal(<>
-    <RecordSection title="This Week in Footy" eyebrow={weeklyEyebrow} cards={weekly} />
-    <RecordSection title="Yearly records" eyebrow="Season records across community football" cards={yearly} />
+    <RecordSection title="This Week in Footy" eyebrow={weeklyEyebrow} cards={weekly} variant="weekly" />
+    <RecordSection title="Yearly records" eyebrow="Season records across community football" cards={yearly} variant="yearly" />
     <style>{`
       .pf-data-grid>.pf-list-card:first-child{display:none!important}.pf-data-grid{grid-template-columns:1fr!important}
-      .pf-records-home{padding:0 0 46px;font-family:Barlow,Inter,Arial,sans-serif}.pf-records-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:17px}.pf-records-head>div>span{text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.16em;color:#0783c9}.pf-records-head h2{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase;font-size:clamp(2.2rem,4vw,4rem);line-height:.88;margin:5px 0 0}.pf-records-head>a{display:inline-flex;align-items:center;gap:8px;color:#42b8ff;text-decoration:none;text-transform:uppercase;font-size:12px;font-weight:800}.pf-records-strip{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;scrollbar-width:none}.pf-records-strip::-webkit-scrollbar{display:none}.pf-record-card{flex:0 0 min(285px,80vw);scroll-snap-align:start;border:1px solid #e3e7ec;border-radius:9px;padding:20px;background:#050505;color:#fff;text-decoration:none;min-height:205px;display:flex;flex-direction:column}.pf-record-card>span{text-transform:uppercase;font-size:10px;letter-spacing:.13em;font-weight:900;color:#42b8ff}.pf-record-card>strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:42px;line-height:1;margin-top:16px;color:#42b8ff}.pf-record-card h3{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase;font-size:25px;line-height:1;margin:13px 0 5px}.pf-record-card p{font-size:13px;line-height:1.45;margin:0;color:#edf2f7}.pf-record-card small{margin-top:auto;padding-top:14px;color:#9ca7b5;font-size:11px}.pf-record-card:hover{transform:translateY(-2px)}@media(max-width:620px){.pf-records-home{padding-bottom:38px}.pf-records-head{align-items:flex-end}.pf-records-head h2{font-size:2.8rem}.pf-records-head>a{font-size:11px}.pf-record-card{flex-basis:82vw}}
+      .pf-records-home{padding:0 0 46px;font-family:Barlow,Inter,Arial,sans-serif}.pf-records-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:17px}.pf-records-head>div>span{text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.16em;color:#0783c9}.pf-records-head h2{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase;font-size:clamp(2.2rem,4vw,4rem);line-height:.88;margin:5px 0 0}.pf-records-head>a{display:inline-flex;align-items:center;gap:8px;color:#42b8ff;text-decoration:none;text-transform:uppercase;font-size:12px;font-weight:800}.pf-records-strip{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;scrollbar-width:none}.pf-records-strip::-webkit-scrollbar{display:none}.pf-record-card{flex:0 0 min(285px,80vw);scroll-snap-align:start;border:1px solid #e3e7ec;border-radius:9px;padding:20px;background:#050505;color:#fff;text-decoration:none;min-height:205px;display:flex;flex-direction:column;transition:transform .18s ease}.pf-record-card>span{text-transform:uppercase;font-size:10px;letter-spacing:.13em;font-weight:900;color:#42b8ff}.pf-record-card>strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:42px;line-height:1;margin-top:16px;color:#42b8ff}.pf-record-card h3{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase;font-size:25px;line-height:1;margin:13px 0 5px}.pf-record-card p{font-size:13px;line-height:1.45;margin:0;color:#edf2f7}.pf-record-card small{margin-top:auto;padding-top:14px;color:#9ca7b5;font-size:11px}.pf-record-card:hover{transform:translateY(-2px)}
+      .pf-records-home.is-weekly .pf-record-card{background:#42b8ff;color:#050505;border-color:#159fe9;box-shadow:0 12px 30px rgba(45,170,245,.16)}.pf-records-home.is-weekly .pf-record-card>span{align-self:flex-start;background:#050505;color:#fff;border-radius:999px;padding:7px 10px;line-height:1}.pf-records-home.is-weekly .pf-record-card>strong{color:#050505}.pf-records-home.is-weekly .pf-record-card p{color:#fff;font-weight:600}.pf-records-home.is-weekly .pf-record-card small{color:rgba(5,5,5,.72);font-weight:700}.pf-records-home.is-weekly .pf-records-head>a{color:#0783c9}
+      @media(max-width:620px){.pf-records-home{padding-bottom:38px}.pf-records-head{align-items:flex-end}.pf-records-head h2{font-size:2.8rem}.pf-records-head>a{font-size:11px}.pf-record-card{flex-basis:82vw}}
     `}</style>
   </>, target)
 }
@@ -216,9 +220,9 @@ function buildCards(records: RecordCategories, periodLabel: string, playerBag?: 
   return playerFirst ? [playerCard, ...recordCards] : [...recordCards, playerCard]
 }
 
-function RecordSection({ title, eyebrow, cards }: { title: string; eyebrow: string; cards: RecordCard[] }) {
+function RecordSection({ title, eyebrow, cards, variant }: { title: string; eyebrow: string; cards: RecordCard[]; variant: RecordSectionVariant }) {
   if (cards.length === 0) return null
-  return <section className="pf-records-home pf-shell">
+  return <section className={`pf-records-home pf-shell is-${variant}`}>
     <div className="pf-records-head">
       <div><span>{eyebrow}</span><h2>{title}</h2></div>
       <Link to="/records">View all records <ArrowRight size={17} /></Link>
