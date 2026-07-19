@@ -30,6 +30,7 @@ import AdminUniversalImports from './pages/AdminUniversalImports.tsx'
 import AdminLadderImageImports from './pages/AdminLadderImageImports.tsx'
 import AdminHighlights from './pages/AdminHighlights.tsx'
 import Highlights from './pages/Highlights.tsx'
+import HighlightDetail from './pages/HighlightDetail.tsx'
 import ClaimClub from './pages/ClaimClub.tsx'
 import ClubPortal from './pages/ClubPortal.tsx'
 import ClubClaimsAdmin from './pages/ClubClaimsAdmin.tsx'
@@ -65,6 +66,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/feed" element={<SupporterFeed/>}/>
     <Route path="/notifications" element={<Notifications/>}/>
     <Route path="/highlights" element={<Highlights/>}/>
+    <Route path="/highlights/:highlightId" element={<HighlightDetail/>}/>
     <Route path="/team/:clubId" element={<TeamProfile/>}/>
     <Route path="/claim-club/:clubId" element={<ClaimClub/>}/>
     <Route path="/club-portal" element={<ClubPortal/>}/>
