@@ -23,7 +23,8 @@ router.get('/sitemap.xml', async (_req, res) => {
       url('/', null, '1.0', 'daily'), url('/rankings', null, '0.9', 'weekly'), url('/leagues', null, '0.9', 'daily'),
       url('/directory', null, '0.9', 'daily'), url('/matches', null, '0.9', 'daily'), url('/goal-kickers', null, '0.9', 'daily'),
       url('/records', null, '0.8', 'weekly'), url('/news', null, '0.9', 'daily'), url('/highlights', null, '0.8', 'daily'),
-      url('/about', null, '0.5', 'monthly'),
+      url('/about', null, '0.5', 'monthly'), url('/support', null, '0.5', 'monthly'), url('/privacy', null, '0.4', 'yearly'),
+      url('/terms', null, '0.4', 'yearly'), url('/disclaimer', null, '0.4', 'yearly'), url('/community-guidelines', null, '0.4', 'yearly'),
     ]
     const dynamic = [
       ...clubs.map(row => url(`/team/${row.id}`, row.updatedAt, '0.8', 'weekly')),
