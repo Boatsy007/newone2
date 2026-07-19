@@ -65,8 +65,8 @@ export default function HomeRecordsPortal() {
       if (!active) return
       const weeklyBag = Array.isArray(playerPayload?.data?.weekly) ? playerPayload.data.weekly[0] as PlayerBag | undefined : undefined
       const yearlyBag = Array.isArray(playerPayload?.data?.biggestBags) ? playerPayload.data.biggestBags[0] as PlayerBag | undefined : undefined
-      setWeekly(buildCards(weekData.categories, 'this week', weeklyBag))
-      setYearly(buildCards(seasonData.categories, 'this year', yearlyBag))
+      setWeekly(buildCards(weekData.categories, 'this week', weeklyBag, false))
+      setYearly(buildCards(seasonData.categories, 'this year', yearlyBag, true))
     }).catch(() => {
       if (active) { setWeekly([]); setYearly([]) }
     })
@@ -85,8 +85,9 @@ export default function HomeRecordsPortal() {
   </>, target)
 }
 
-function buildCards(records: Record<RecordCategory, FootballRecordEntry[]>, periodLabel: string, playerBag?: PlayerBag): RecordCard[] {
-  const cards = categories.flatMap(category => {
+function buildCards(records: Record<RecordCategory, FootballRecordEntry[]>, periodLabel: string, playerBag?: PlayerBag, playerFirst = false): RecordCard[] {
+  const recordCategories = playerFirst ? categories.filter(category => category !== 'closestMatch') : categories
+  const recordCards = recordCategories.flatMap(category => {
     const entry = records[category]?.[0]
     if (!entry) return []
     return [{
@@ -99,18 +100,17 @@ function buildCards(records: Record<RecordCategory, FootballRecordEntry[]>, peri
       url: entry.matchUrl,
     }]
   })
-  if (playerBag?.weeklyGoals) {
-    cards.push({
-      key: `${periodLabel}-player-bag`,
-      label: `Most goals by a player ${periodLabel}`,
-      value: `${playerBag.weeklyGoals} goals`,
-      title: playerBag.playerName,
-      detail: playerBag.clubName,
-      footer: playerBag.leagueName,
-      url: playerBag.playerUrl,
-    })
-  }
-  return cards
+  const playerCard = playerBag?.weeklyGoals ? {
+    key: `${periodLabel}-player-bag`,
+    label: `Most goals in a game ${periodLabel}`,
+    value: `${playerBag.weeklyGoals} goals`,
+    title: playerBag.playerName,
+    detail: playerBag.clubName,
+    footer: playerBag.leagueName,
+    url: playerBag.playerUrl,
+  } : null
+  if (!playerCard) return recordCards
+  return playerFirst ? [playerCard, ...recordCards] : [...recordCards, playerCard]
 }
 
 function RecordSection({ title, eyebrow, cards }: { title: string; eyebrow: string; cards: RecordCard[] }) {
