@@ -35,6 +35,116 @@ router.get('/health/history', async (_req, res) => {
   res.json({ data: snaps })
 })
 
+// League rollout and coverage. Read-only and derived from canonical football data.
+router.get('/coverage', async (_req, res) => {
+  try {
+    const [leagues, duplicateReport, pendingReviews, pendingConflicts] = await Promise.all([
+      prisma.league.findMany({
+        where: { sport: 'FOOTBALL', archivedAt: null },
+        orderBy: [{ state: { code: 'asc' } }, { name: 'asc' }],
+        select: {
+          id: true, name: true, shortName: true, enabled: true, hidden: true, approvalStatus: true, status: true,
+          syncStatus: true, syncError: true, dataSourceSyncError: true, sourceUrl: true, primaryDataSource: true,
+          lastSyncAt: true, lastSuccessfulSyncAt: true, lastManualUpdateAt: true, updatedAt: true, dataConfidence: true,
+          state: { select: { code: true } },
+          clubSeasons: {
+            where: { isActive: true, sport: 'FOOTBALL', club: { isActive: true, archivedAt: null } },
+            select: { clubId: true, club: { select: { name: true, logoUrl: true, approvalStatus: true } } },
+          },
+          footballImports: {
+            orderBy: { createdAt: 'desc' }, take: 12,
+            select: { id: true, dataType: true, sourceType: true, status: true, recordsFound: true, recordsImported: true, conflictsFound: true, confidence: true, error: true, createdAt: true, publishedAt: true },
+          },
+          _count: { select: { footballFixtures: true, footballResults: true, footballLadderEntries: true, footballGoalKickers: true } },
+        },
+      }),
+      detectDuplicates({ raiseReviews: false }),
+      prisma.reviewItem.findMany({ where: { status: 'PENDING', entityType: 'League', entityId: { not: null } }, select: { entityId: true } }),
+      prisma.footballDataConflict.groupBy({ by: ['leagueId'], where: { status: 'PENDING' }, _count: { leagueId: true } }),
+    ])
+
+    const duplicateLeagueIds = new Set([
+      ...duplicateReport.duplicateLeagues.flatMap(item => item.ids),
+      ...duplicateReport.duplicateLeagueSources.flatMap(item => item.ids),
+    ])
+    const reviewCounts = new Map<string, number>()
+    for (const review of pendingReviews) if (review.entityId) reviewCounts.set(review.entityId, (reviewCounts.get(review.entityId) ?? 0) + 1)
+    const conflictCounts = new Map(pendingConflicts.map(row => [row.leagueId, row._count.leagueId]))
+    const staleCutoff = Date.now() - 21 * 24 * 60 * 60 * 1000
+
+    const items = leagues.map(league => {
+      const uniqueClubs = [...new Map(league.clubSeasons.map(row => [row.clubId, row.club])).values()]
+      const missingLogos = uniqueClubs.filter(club => !club.logoUrl).length
+      const pendingClubs = uniqueClubs.filter(club => club.approvalStatus !== 'APPROVED').length
+      const latestImport = league.footballImports[0] ?? null
+      const successfulImport = league.footballImports.find(item => ['COMMITTED', 'PUBLISHED'].includes(item.status)) ?? null
+      const failedImports = league.footballImports.filter(item => item.status === 'FAILED').length
+      const pendingReviewCount = reviewCounts.get(league.id) ?? 0
+      const conflictCount = conflictCounts.get(league.id) ?? 0
+      const duplicateRisk = duplicateLeagueIds.has(league.id)
+      const lastUpdated = league.lastSuccessfulSyncAt ?? league.lastManualUpdateAt ?? successfulImport?.publishedAt ?? successfulImport?.createdAt ?? league.updatedAt
+      const stale = lastUpdated.getTime() < staleCutoff
+      const sourceConfigured = Boolean(league.primaryDataSource || league.sourceUrl)
+      const publicVisible = league.enabled && !league.hidden && league.approvalStatus === 'APPROVED'
+      const checks = {
+        sourceConfigured,
+        clubs: uniqueClubs.length >= 2,
+        clubLogos: uniqueClubs.length > 0 && missingLogos === 0,
+        ladder: league._count.footballLadderEntries > 0,
+        fixtures: league._count.footballFixtures > 0,
+        results: league._count.footballResults > 0,
+        goalKickers: league._count.footballGoalKickers > 0,
+        clean: !league.syncError && !league.dataSourceSyncError && failedImports === 0 && pendingReviewCount === 0 && conflictCount === 0 && !duplicateRisk,
+        publicVisible,
+        current: !stale,
+      }
+      const passed = Object.values(checks).filter(Boolean).length
+      const completion = Math.round((passed / Object.keys(checks).length) * 100)
+      let readiness: 'NOT_STARTED' | 'IMPORTING' | 'NEEDS_REVIEW' | 'PUBLIC_INCOMPLETE' | 'LAUNCH_READY' = 'NOT_STARTED'
+      if (league.syncStatus === 'RUNNING' || latestImport?.status === 'PENDING') readiness = 'IMPORTING'
+      else if (pendingReviewCount || conflictCount || duplicateRisk || league.syncStatus === 'NEEDS_REVIEW' || league.status === 'NEEDS_REVIEW') readiness = 'NEEDS_REVIEW'
+      else if (completion === 100) readiness = 'LAUNCH_READY'
+      else if (publicVisible || uniqueClubs.length || league._count.footballLadderEntries || league._count.footballResults) readiness = 'PUBLIC_INCOMPLETE'
+
+      const missing: string[] = []
+      if (!checks.sourceConfigured) missing.push('data source')
+      if (!checks.clubs) missing.push('clubs')
+      if (!checks.clubLogos) missing.push(`${missingLogos} club logo${missingLogos === 1 ? '' : 's'}`)
+      if (!checks.ladder) missing.push('ladder')
+      if (!checks.fixtures) missing.push('fixtures')
+      if (!checks.results) missing.push('results')
+      if (!checks.goalKickers) missing.push('goal kickers')
+      if (!checks.publicVisible) missing.push('public approval')
+      if (!checks.current) missing.push('current update')
+
+      return {
+        id: league.id, name: league.name, shortName: league.shortName, state: league.state.code,
+        readiness, completion, checks, missing, stale, lastUpdated: lastUpdated.toISOString(),
+        counts: { clubs: uniqueClubs.length, missingLogos, pendingClubs, ladder: league._count.footballLadderEntries, fixtures: league._count.footballFixtures, results: league._count.footballResults, goalKickers: league._count.footballGoalKickers, reviews: pendingReviewCount, conflicts: conflictCount, failedImports },
+        sync: { status: league.syncStatus, error: league.dataSourceSyncError ?? league.syncError, confidence: league.dataConfidence },
+        duplicateRisk,
+        latestImport,
+        importHistory: league.footballImports,
+        actions: { league: `/league/${league.id}`, admin: `/admin?leagueId=${league.id}`, import: `/admin/universal-imports?leagueId=${league.id}`, reviews: '/admin' },
+      }
+    })
+
+    const summary = {
+      leagues: items.length,
+      launchReady: items.filter(item => item.readiness === 'LAUNCH_READY').length,
+      needsReview: items.filter(item => item.readiness === 'NEEDS_REVIEW').length,
+      importing: items.filter(item => item.readiness === 'IMPORTING').length,
+      publicIncomplete: items.filter(item => item.readiness === 'PUBLIC_INCOMPLETE').length,
+      notStarted: items.filter(item => item.readiness === 'NOT_STARTED').length,
+      averageCompletion: items.length ? Math.round(items.reduce((sum, item) => sum + item.completion, 0) / items.length) : 0,
+      stale: items.filter(item => item.stale).length,
+    }
+    res.json({ data: { generatedAt: new Date().toISOString(), summary, items } })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'coverage report failed' })
+  }
+})
+
 // Duplicate detection (read-only unless ?raise=true).
 router.get('/duplicates', async (req, res) => {
   try { res.json({ data: await detectDuplicates({ raiseReviews: req.query.raise === 'true' }) }) }
