@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Bell, Menu, Search, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import GlobalSearch, { useSearchController } from '../rankings/GlobalSearch'
+import UnifiedSearchExtras from '../rankings/UnifiedSearchExtras'
 import FollowButton from '../supporter/FollowButton'
 import ShareButton from '../sharing/ShareButton'
 import { loadFeed, readIds, type FollowEntity } from '../../lib/supporter'
@@ -110,6 +111,7 @@ export default function Nav() {
     {followTarget && <div className={`pf-profile-follow ${claimPath ? 'with-claim' : ''}`}><FollowButton entityType={followTarget.entityType} entityId={followTarget.entityId}/></div>}
     {claimPath && <Link to={claimPath} className="pf-claim-club-fab">Manage this club</Link>}
     <GlobalSearch controller={search} />
+    <UnifiedSearchExtras />
 
     <style>{`
       .pf-nav{position:sticky;top:0;z-index:80;background:#050505;color:#fff;border-bottom:1px solid rgba(255,255,255,.12)}
