@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom'
 import Nav from '../components/layout/Nav'
 import ProductSearch from '../components/rankings/ProductSearch'
 import Footer from '../components/layout/Footer'
+import ClubLiveHub from '../components/club/ClubLiveHub'
 import { useSeo } from '../lib/seo'
 import { fetchClub, fetchClubExplain, useAsync, strengthLabel, strengthStars, type ClubProfile, type ClubExplanation } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
@@ -16,9 +17,10 @@ const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ de
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
 const ClubNews = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubNews })))
 
-type ClubTab = 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
+type ClubTab = 'overview' | 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
 
 const CLUB_TABS: { id: ClubTab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
   { id: 'news', label: 'Club news' },
   { id: 'information', label: 'Information' },
   { id: 'photos', label: 'Photos' },
@@ -29,7 +31,7 @@ const CLUB_TABS: { id: ClubTab; label: string }[] = [
 
 export default function TeamProfile() {
   const { clubId = '' } = useParams()
-  const [activeTab, setActiveTab] = useState<ClubTab>('news')
+  const [activeTab, setActiveTab] = useState<ClubTab>('overview')
   const club = useAsync<ClubProfile>(() => fetchClub(clubId), [clubId])
   const explain = useAsync<ClubExplanation | null>(() => fetchClubExplain(clubId).catch(() => null), [clubId])
   const data = club.data
@@ -62,6 +64,7 @@ export default function TeamProfile() {
             <div className="club-section-bg">
               <div className="club-profile-area" role="tabpanel">
                 <div className="club-profile-main">
+                  {activeTab === 'overview' && <ClubLiveHub club={data} />}
                   {activeTab === 'news' && <div className="club-feed-card"><Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}><ClubNews club={data} /></Suspense></div>}
                   {activeTab === 'information' && <ClubInformationPanel club={data} />}
                   {activeTab === 'photos' && <div className="club-feed-card"><ClubGallery club={data} /></div>}
@@ -139,7 +142,7 @@ function seoDesc(d: ClubProfile): string {
   const bits = [`${d.clubName} community football on PlayFooty${where ? ` (${where})` : ''}.`]
   if (d.rank != null) bits.push(`Ranked #${d.rank} nationally with a power rating of ${d.powerRating?.toFixed(1) ?? '0.0'}.`)
   if (d.record.played > 0) bits.push(`${d.record.wins}-${d.record.losses} this season${d.ladderPosition != null ? `, ${ordinal(d.ladderPosition)} on the ladder` : ''}.`)
-  bits.push('Live ladder, form and national ranking, updated every week.')
+  bits.push('Live ladder, fixtures, results, goal kickers, form and national ranking, updated every week.')
   return bits.join(' ')
 }
 function HeroSkeleton() { return <div style={{ background: '#0c0e13', padding: '48px 20px 44px' }}><div style={{ maxWidth: 1120, margin: '0 auto' }}><Skel w={220} h={12} style={{ marginBottom: 28, background: 'rgba(255,255,255,0.08)' }} /><div style={{ display: 'flex', gap: 22, alignItems: 'center' }}><Skel w={92} h={92} r={20} style={{ background: 'rgba(255,255,255,0.1)' }} /><div style={{ flex: 1 }}><Skel w="55%" h={56} style={{ marginBottom: 12, background: 'rgba(255,255,255,0.1)' }} /><Skel w={260} h={14} style={{ background: 'rgba(255,255,255,0.08)' }} /></div></div><span className="font-condensed" style={{ display: 'block', marginTop: 22, color: MUTE, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Loading club</span></div></div> }
