@@ -8,6 +8,7 @@ import { clubsRouter } from './api/routes/clubs.js'
 import { leaguesRouter } from './api/routes/leagues.js'
 import { directoryRouter } from './api/routes/directory.js'
 import { goalKickerLeaderboardRouter } from './api/routes/goal-kicker-leaderboard.js'
+import { goalKickerAchievementsRouter } from './api/routes/goal-kicker-achievements.js'
 import { goalKickerRecordsSafeRouter } from './api/routes/goal-kicker-records-safe.js'
 import { goalKickerContextRouter } from './api/routes/goal-kicker-context.js'
 import { goalKickersRouter } from './api/routes/goal-kickers.js'
@@ -90,6 +91,7 @@ app.use('/api/clubs', clubsRouter)
 app.use('/api/leagues', leaguesRouter)
 app.use('/api/directory', directoryRouter)
 app.use('/api/goal-kickers', goalKickerLeaderboardRouter)
+app.use('/api/goal-kickers', goalKickerAchievementsRouter)
 app.use('/api/goal-kickers', goalKickerRecordsSafeRouter)
 app.use('/api/goal-kickers', goalKickerContextRouter)
 app.use('/api/goal-kickers', goalKickersRouter)
