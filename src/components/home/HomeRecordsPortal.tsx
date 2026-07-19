@@ -36,11 +36,14 @@ type RecordCard = {
   url: string
 }
 
+type RecordCategories = Record<RecordCategory, FootballRecordEntry[]>
+
 export default function HomeRecordsPortal() {
   const { pathname } = useLocation()
   const [target, setTarget] = useState<HTMLElement | null>(null)
   const [weekly, setWeekly] = useState<RecordCard[]>([])
   const [yearly, setYearly] = useState<RecordCard[]>([])
+  const [weeklyEyebrow, setWeeklyEyebrow] = useState('Weekly records across community football')
 
   useEffect(() => {
     if (pathname !== '/') { setTarget(null); return }
@@ -69,9 +72,9 @@ export default function HomeRecordsPortal() {
     if (pathname !== '/') return
     let active = true
     void Promise.all([
-      fetchFootballRecords({ period: 'week', limit: 1 }),
-      fetchFootballRecords({ period: 'season', season: new Date().getFullYear(), limit: 1 }),
-      fetch('/api/goal-kickers/records?limit=5').then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`))),
+      fetchFootballRecords({ period: 'week', limit: 20 }),
+      fetchFootballRecords({ period: 'season', season: new Date().getFullYear(), limit: 20 }),
+      fetch('/api/goal-kickers/records?limit=20').then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`))),
       fetch('/api/goal-kickers?mode=raw&limit=500').then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`))),
     ]).then(([weekData, seasonData, playerPayload, ladderPayload]) => {
       if (!active) return
@@ -79,7 +82,17 @@ export default function HomeRecordsPortal() {
       const savedYearlyBag = Array.isArray(playerPayload?.data?.biggestBags) ? playerPayload.data.biggestBags[0] as PlayerBag | undefined : undefined
       const ladderRows = Array.isArray(ladderPayload?.data) ? ladderPayload.data as GoalKickerRow[] : []
       const yearlyBag = savedYearlyBag ?? inferBiggestBag(ladderRows)
-      setWeekly(buildCards(weekData.categories, 'this week', weeklyBag, false))
+
+      const currentWeekCards = buildCards(weekData.categories, 'this week', weeklyBag, true)
+      if (currentWeekCards.length > 0) {
+        setWeekly(currentWeekCards)
+        setWeeklyEyebrow(formatWeekRange(weekData.weekStart, weekData.weekEnd) ?? 'Weekly records across community football')
+      } else {
+        const latest = latestCompletedWeek(seasonData.categories)
+        setWeekly(buildCards(latest.categories, 'in the latest week', weeklyBag, true))
+        setWeeklyEyebrow(latest.label ?? 'Latest completed week across community football')
+      }
+
       setYearly(buildCards(seasonData.categories, 'this year', yearlyBag, true))
     }).catch(() => {
       if (active) { setWeekly([]); setYearly([]) }
@@ -90,7 +103,7 @@ export default function HomeRecordsPortal() {
   if (!target || pathname !== '/' || (weekly.length === 0 && yearly.length === 0)) return null
 
   return createPortal(<>
-    <RecordSection title="Weekly records" eyebrow="Best performances from the latest football week" cards={weekly} />
+    <RecordSection title="This Week in Footy" eyebrow={weeklyEyebrow} cards={weekly} />
     <RecordSection title="Yearly records" eyebrow="Season records across community football" cards={yearly} />
     <style>{`
       .pf-data-grid>.pf-list-card:first-child{display:none!important}.pf-data-grid{grid-template-columns:1fr!important}
@@ -131,7 +144,51 @@ function inferBiggestBag(rows: GoalKickerRow[]): PlayerBag | undefined {
   return best
 }
 
-function buildCards(records: Record<RecordCategory, FootballRecordEntry[]>, periodLabel: string, playerBag?: PlayerBag, playerFirst = false): RecordCard[] {
+function latestCompletedWeek(records: RecordCategories): { categories: RecordCategories; label: string | null } {
+  const allEntries = Object.values(records).flat().filter(entry => entry.matchDate)
+  const latestDate = allEntries.reduce<Date | null>((latest, entry) => {
+    const date = entry.matchDate ? new Date(entry.matchDate) : null
+    if (!date || Number.isNaN(date.getTime())) return latest
+    return !latest || date > latest ? date : latest
+  }, null)
+
+  const empty = Object.fromEntries(Object.keys(records).map(key => [key, []])) as RecordCategories
+  if (!latestDate) return { categories: empty, label: null }
+
+  const range = weekRange(latestDate)
+  for (const category of Object.keys(records) as RecordCategory[]) {
+    empty[category] = records[category].filter(entry => {
+      if (!entry.matchDate) return false
+      const date = new Date(entry.matchDate)
+      return date >= range.start && date < range.end
+    }).slice(0, 1)
+  }
+  return { categories: empty, label: formatWeekRange(range.start.toISOString(), range.end.toISOString()) }
+}
+
+function weekRange(date: Date) {
+  const local = new Date(date)
+  const day = local.getDay()
+  const daysSinceMonday = (day + 6) % 7
+  const start = new Date(local)
+  start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() - daysSinceMonday)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 7)
+  return { start, end }
+}
+
+function formatWeekRange(startValue: string | null, endValue: string | null) {
+  if (!startValue || !endValue) return null
+  const start = new Date(startValue)
+  const end = new Date(endValue)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null
+  end.setDate(end.getDate() - 1)
+  const format = new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short' })
+  return `${format.format(start)}–${format.format(end)} · Weekly records across community football`
+}
+
+function buildCards(records: RecordCategories, periodLabel: string, playerBag?: PlayerBag, playerFirst = false): RecordCard[] {
   const recordCategories = playerFirst ? categories.filter(category => category !== 'closestMatch') : categories
   const recordCards = recordCategories.flatMap(category => {
     const entry = records[category]?.[0]
@@ -148,7 +205,7 @@ function buildCards(records: Record<RecordCategory, FootballRecordEntry[]>, peri
   })
   const playerCard = playerBag?.weeklyGoals ? {
     key: `${periodLabel}-player-bag`,
-    label: 'Most goals in a game by a player',
+    label: `Most goals by a player ${periodLabel}`,
     value: `${playerBag.weeklyGoals} goals`,
     title: playerBag.playerName,
     detail: playerBag.clubName,
