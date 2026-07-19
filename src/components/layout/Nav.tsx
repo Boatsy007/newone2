@@ -66,7 +66,7 @@ export default function Nav() {
   return <>
     <header className="pf-nav">
       <div className="pf-nav-inner">
-        <Link to="/" className="pf-brand" aria-label="PlayFooty home"><img src="/playfooty-logo-modern.svg" alt="PlayFooty" /></Link>
+        <Link to="/" className="pf-brand" aria-label="PlayFooty home"><img src="/Playfooty.svg" alt="PlayFooty" /></Link>
         <nav className="pf-desktop-links" aria-label="Main navigation">
           {links.map(link => <Link key={link.href} to={link.href} className={location.pathname.startsWith(link.href) ? 'active' : ''}>{link.label}</Link>)}
         </nav>
