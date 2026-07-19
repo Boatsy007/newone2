@@ -36,7 +36,7 @@ type RecordCard = {
   url: string
 }
 
-type RecordCategories = Record<RecordCategory, FootballRecordEntry[]>
+type RecordCategories = Partial<Record<RecordCategory, FootballRecordEntry[]>>
 
 export default function HomeRecordsPortal() {
   const { pathname } = useLocation()
@@ -145,19 +145,19 @@ function inferBiggestBag(rows: GoalKickerRow[]): PlayerBag | undefined {
 }
 
 function latestCompletedWeek(records: RecordCategories): { categories: RecordCategories; label: string | null } {
-  const allEntries = Object.values(records).flat().filter(entry => entry.matchDate)
+  const allEntries = Object.values(records).flatMap(entries => entries ?? []).filter(entry => entry.matchDate)
   const latestDate = allEntries.reduce<Date | null>((latest, entry) => {
     const date = entry.matchDate ? new Date(entry.matchDate) : null
     if (!date || Number.isNaN(date.getTime())) return latest
     return !latest || date > latest ? date : latest
   }, null)
 
-  const empty = Object.fromEntries(Object.keys(records).map(key => [key, []])) as RecordCategories
+  const empty: RecordCategories = {}
   if (!latestDate) return { categories: empty, label: null }
 
   const range = weekRange(latestDate)
   for (const category of Object.keys(records) as RecordCategory[]) {
-    empty[category] = records[category].filter(entry => {
+    empty[category] = (records[category] ?? []).filter(entry => {
       if (!entry.matchDate) return false
       const date = new Date(entry.matchDate)
       return date >= range.start && date < range.end
