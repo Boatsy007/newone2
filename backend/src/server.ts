@@ -20,6 +20,7 @@ import { adminManageRouter } from './admin/manage.js'
 import { adminOcrRouter } from './admin/ocr.js'
 import { adminMatchImageImportsRouter } from './admin/match-image-imports.js'
 import { adminGoalKickerImagesRouter } from './admin/goal-kicker-images.js'
+import { adminGoalKickerUrlImportsRouter } from './admin/goal-kicker-url-imports.js'
 import { adminProfileImageImportsRouter } from './admin/profile-image-imports.js'
 import { adminUniversalImportsRouter } from './admin/universal-imports.js'
 import { integratedLeaguesRouter } from './admin/integrated-leagues.js'
@@ -117,6 +118,7 @@ app.use('/admin/match-images', adminMatchImageImportsRouter)
 app.use('/admin/goal-kicker-images', adminGoalKickerImagesRouter)
 app.use('/admin/profile-images', adminProfileImageImportsRouter)
 app.use('/admin/universal-imports', adminUniversalImportsRouter)
+app.use('/admin/platform/goal-kickers', adminGoalKickerUrlImportsRouter)
 app.use('/admin/platform', integratedLeaguesRouter)
 app.use('/admin/platform', adminPlatformRouter)
 app.use('/admin/claiming', adminClaimingRouter)
