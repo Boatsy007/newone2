@@ -90,6 +90,7 @@ router.post('/import', async (req, res) => {
           select: { id: true, name: true },
         })
 
+        const resolvedSourceUrl = row.sourceUrl || sourceUrl || null
         const outcome = await upsertCanonicalGoalKicker({
           playerName,
           clubId: club?.id ?? null,
@@ -100,7 +101,7 @@ router.post('/import', async (req, res) => {
           grade,
           goals,
           matches: row.matches == null || !Number.isFinite(Number(row.matches)) ? null : Number(row.matches),
-          sourceUrl: row.sourceUrl ?? sourceUrl || null,
+          sourceUrl: resolvedSourceUrl,
           sourceType: 'PLAYHQ',
         })
 
