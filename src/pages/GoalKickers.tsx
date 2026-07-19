@@ -1,24 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Share2 } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowDown, ArrowUp, Minus, Search, Share2, Trophy } from 'lucide-react'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
 import { useSeo } from '../lib/seo'
 import { sharePlayFootyPath } from '../components/sharing/ShareButton'
 
-const NAVY = '#062a5f'
-const PINK = '#d71920'
-const BLUE = '#2daaf5'
-const LINE = '#dbe3ee'
-const TEXT = '#111827'
-const MUTED = '#64748b'
+type SortMode = 'goals' | 'gpg' | 'adjusted'
+type Facet = { id: string; name: string }
+type ClubFacet = Facet & { leagueId: string | null }
 
-type Mode = 'raw' | 'adjusted'
-
-interface GoalKickerRow {
+type GoalKickerRow = {
   id: string
   playerId: string
   rank: number
+  previousRank: number
+  rankMovement: number
   playerName: string
   clubName: string
   clubId: string | null
@@ -28,120 +25,173 @@ interface GoalKickerRow {
   season: string
   grade: string | null
   goals: number
+  previousGoals: number
   matches: number | null
-  latestGoalsDelta: number | null
+  goalsPerGame: number | null
+  latestGoalsDelta: number
+  latestUpdatedAt: string
   leagueStrength: number
   adjustedGoals: number
+  milestone: 50 | 100 | null
 }
 
-interface GoalKickersResponse { data: GoalKickerRow[]; meta: { total: number; mode: Mode; limit: number } }
-
-async function fetchGoalKickers(mode: Mode): Promise<GoalKickersResponse> {
-  const res = await fetch(`/api/goal-kickers?mode=${mode}&limit=100`)
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json() as Promise<GoalKickersResponse>
+type LeaderboardResponse = {
+  data: GoalKickerRow[]
+  facets: { seasons: string[]; leagues: Facet[]; clubs: ClubFacet[] }
+  meta: { total: number; limit: number; sort: SortMode; lastUpdated: string | null; source: string }
 }
 
-function ClubLogo({ row, size = 34 }: { row: GoalKickerRow; size?: number }) {
-  const initials = row.clubName.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase()
-  return <span className="gk-club-logo" style={{ width: size, height: size }} aria-hidden="true">
-    {row.clubLogoUrl ? <img src={row.clubLogoUrl} alt="" /> : initials}
-  </span>
+async function loadLeaderboard(params: { sort: SortMode; season: string; leagueId: string; clubId: string }) {
+  const query = new URLSearchParams({ sort: params.sort, limit: '1000' })
+  if (params.season) query.set('season', params.season)
+  if (params.leagueId) query.set('leagueId', params.leagueId)
+  if (params.clubId) query.set('clubId', params.clubId)
+  const response = await fetch(`/api/goal-kickers?${query}`)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json() as Promise<LeaderboardResponse>
 }
 
-function GoalShareButton({ playerId, compact = false }: { playerId: string; compact?: boolean }) {
-  const [state, setState] = useState<'idle' | 'creating' | 'copied'>('idle')
+function Logo({ row }: { row: GoalKickerRow }) {
+  const initials = row.clubName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase()
+  return <span className="gkl-logo">{row.clubLogoUrl ? <img src={row.clubLogoUrl} alt="" /> : initials}</span>
+}
+
+function Movement({ value }: { value: number }) {
+  if (value > 0) return <span className="gkl-movement up"><ArrowUp size={14} />{value}</span>
+  if (value < 0) return <span className="gkl-movement down"><ArrowDown size={14} />{Math.abs(value)}</span>
+  return <span className="gkl-movement steady"><Minus size={14} />0</span>
+}
+
+function SharePlayer({ id, label = false }: { id: string; label?: boolean }) {
+  const [busy, setBusy] = useState(false)
   const share = async () => {
-    if (state === 'creating') return
-    setState('creating')
-    try {
-      const result = await sharePlayFootyPath(`/player/${encodeURIComponent(playerId)}`)
-      setState(result === 'copied' ? 'copied' : 'idle')
-      if (result === 'copied') window.setTimeout(() => setState('idle'), 1500)
-    } catch {
-      setState('idle')
-    }
+    if (busy) return
+    setBusy(true)
+    try { await sharePlayFootyPath(`/player/${encodeURIComponent(id)}`) } finally { setBusy(false) }
   }
-  return <button type="button" className={`gk-share-button${compact ? ' compact' : ''}`} onClick={share} disabled={state === 'creating'} aria-label="Share player graphic">
-    <Share2 size={compact ? 17 : 18} />
-    {!compact && <span>{state === 'creating' ? 'Creating' : state === 'copied' ? 'Copied' : 'Share'}</span>}
-  </button>
+  return <button className="gkl-share" type="button" onClick={share} disabled={busy} aria-label="Share player"><Share2 size={17} />{label && <span>{busy ? 'Creating…' : 'Share'}</span>}</button>
 }
 
 export default function GoalKickers() {
-  const [mode, setMode] = useState<Mode>('raw')
-  const [data, setData] = useState<GoalKickersResponse | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [sort, setSort] = useState<SortMode>((searchParams.get('sort') as SortMode) || 'goals')
+  const [season, setSeason] = useState(searchParams.get('season') || '')
+  const [leagueId, setLeagueId] = useState(searchParams.get('league') || '')
+  const [clubId, setClubId] = useState(searchParams.get('club') || '')
+  const [search, setSearch] = useState(searchParams.get('q') || '')
+  const [payload, setPayload] = useState<LeaderboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState('')
 
   useSeo({
-    title: 'Country Goal Kicking Ladder | PlayFooty',
-    description: 'Australia-wide community football goal kicking ladder with raw goals and strength-adjusted scoring.',
+    title: 'Australian Community Football Goal Kickers | PlayFooty',
+    description: 'Search and filter Australia’s community football goal-kicking leaderboard by season, league and club. View goals, goals per game, movement, milestones and player profiles.',
     path: '/goal-kickers',
   })
 
   useEffect(() => {
-    let alive = true
+    const next = new URLSearchParams()
+    if (sort !== 'goals') next.set('sort', sort)
+    if (season) next.set('season', season)
+    if (leagueId) next.set('league', leagueId)
+    if (clubId) next.set('club', clubId)
+    if (search.trim()) next.set('q', search.trim())
+    setSearchParams(next, { replace: true })
+  }, [sort, season, leagueId, clubId, search, setSearchParams])
+
+  useEffect(() => {
+    let active = true
     setLoading(true)
-    setError(null)
-    fetchGoalKickers(mode)
-      .then(next => { if (alive) setData(next) })
-      .catch(err => { if (alive) setError(String(err)) })
-      .finally(() => { if (alive) setLoading(false) })
-    return () => { alive = false }
-  }, [mode])
+    setError('')
+    loadLeaderboard({ sort, season, leagueId, clubId })
+      .then(result => { if (active) setPayload(result) })
+      .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : String(reason)) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [sort, season, leagueId, clubId])
 
-  const rows = data?.data ?? []
-  const leader = useMemo(() => rows[0] ?? null, [rows])
+  const clubs = useMemo(() => (payload?.facets.clubs ?? []).filter(club => !leagueId || club.leagueId === leagueId), [payload, leagueId])
+  const rows = useMemo(() => {
+    const normalized = search.trim().toLowerCase()
+    if (!normalized) return payload?.data ?? []
+    return (payload?.data ?? []).filter(row => `${row.playerName} ${row.clubName} ${row.leagueName}`.toLowerCase().includes(normalized))
+  }, [payload, search])
+  const leader = rows[0] ?? null
+  const selectedLeague = payload?.facets.leagues.find(item => item.id === leagueId)?.name
+  const selectedClub = payload?.facets.clubs.find(item => item.id === clubId)?.name
+  const title = [season, selectedLeague, selectedClub].filter(Boolean).join(' · ') || 'National leaderboard'
 
-  return <div style={{ background: '#fff', minHeight: '100vh', color: TEXT }}>
+  const clear = () => { setSeason(''); setLeagueId(''); setClubId(''); setSearch(''); setSort('goals') }
+  const shareBoard = () => sharePlayFootyPath(`/goal-kickers${searchParams.toString() ? `?${searchParams}` : ''}`)
+
+  return <div className="gkl-page">
     <Nav />
-    <main className="gk-page">
-      <header className="gk-hero">
-        <span className="live-pill"><span /> Goal kicking ladder</span>
-        <h1>Country Goal Kicking Ladder</h1>
-        <p>Track community football&rsquo;s leading goal kickers by raw goals or a simple league-strength adjusted score.</p>
-        <div className="mode-toggle" role="group" aria-label="Goal kicking ranking mode">
-          <button className={mode === 'raw' ? 'active' : ''} onClick={() => setMode('raw')}>Raw Goals</button>
-          <button className={mode === 'adjusted' ? 'active' : ''} onClick={() => setMode('adjusted')}>Strength Adjusted</button>
-        </div>
-      </header>
-
-      {leader && <section className="leader-card">
-        <ClubLogo row={leader} size={54} />
-        <div className="leader-copy"><span>Current leader</span><Link className="gk-no-auto-share" to={`/player/${leader.id}`}>#{leader.rank} {leader.playerName}</Link><small>{leader.clubName} · {leader.leagueName} · {leader.goals} goals{leader.latestGoalsDelta && leader.latestGoalsDelta > 0 ? ` · +${leader.latestGoalsDelta} last update` : ''}</small></div>
-        <GoalShareButton playerId={leader.id} />
-      </section>}
-
-      <section className="gk-board" aria-label="Country goal kicking ladder">
-        <div className="board-head"><b>{rows.length}</b><span>players shown</span><em>{mode === 'adjusted' ? 'Adjusted score' : 'Raw goals'}</em></div>
-        {loading && <div className="empty">Loading goal kickers…</div>}
-        {error && !loading && <div className="empty error">Unable to load goal kickers.</div>}
-        {!loading && !error && rows.length === 0 && <div className="empty">No goal kickers imported yet.</div>}
-        {!loading && !error && rows.length > 0 && <div className={`goal-table ${mode === 'adjusted' ? 'adjusted' : ''}`}>
-          <div className="goal-row labels"><span>Rank</span><span>Player</span><span>Club</span><span>League</span><span>Goals</span>{mode === 'adjusted' && <span>Adjusted</span>}<span>Share</span></div>
-          {rows.map(row => <div className="goal-row" key={row.id}>
-            <b className="goal-rank">#{row.rank}</b>
-            <div className="player-cell">
-              <Link className="player-link gk-no-auto-share" to={`/player/${row.id}`}>{row.playerName}</Link>
-              <span className="mobile-club-line">
-                <ClubLogo row={row} />
-                <span className="mobile-club-copy"><strong>{row.clubName}</strong><small>{row.leagueName}</small></span>
-              </span>
+    <main>
+      <section className="gkl-hero">
+        <div className="gkl-shell">
+          <span className="gkl-kicker">Australia-wide player statistics</span>
+          <h1>Goal Kickers</h1>
+          <p>Approved community football totals, connected to player, club and league profiles.</p>
+          <div className="gkl-hero-actions">
+            <div className="gkl-sort" role="group" aria-label="Leaderboard view">
+              <button className={sort === 'goals' ? 'active' : ''} onClick={() => setSort('goals')}>Goals</button>
+              <button className={sort === 'gpg' ? 'active' : ''} onClick={() => setSort('gpg')}>Goals per game</button>
+              <button className={sort === 'adjusted' ? 'active' : ''} onClick={() => setSort('adjusted')}>Strength adjusted</button>
             </div>
-            <span className="club-cell"><ClubLogo row={row} /><span>{row.clubName}</span></span>
-            <span className="league-cell">{row.leagueName}</span>
-            <span className="goals-wrap"><b className="goals-cell">{row.goals}</b>{row.latestGoalsDelta && row.latestGoalsDelta > 0 ? <small>+{row.latestGoalsDelta}</small> : null}</span>
-            {mode === 'adjusted' && <b className="adjusted-cell">{row.adjustedGoals.toFixed(1)}</b>}
-            <span className="share-cell"><GoalShareButton playerId={row.id} compact /></span>
-          </div>)}
-        </div>}
+            <button className="gkl-board-share" type="button" onClick={() => void shareBoard()}><Share2 size={17} /> Share leaderboard</button>
+          </div>
+        </div>
       </section>
+
+      <div className="gkl-shell gkl-content">
+        <section className="gkl-filters" aria-label="Goal-kicker filters">
+          <label className="gkl-search"><Search size={18} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search player, club or league" /></label>
+          <select value={season} onChange={event => setSeason(event.target.value)}><option value="">All seasons</option>{payload?.facets.seasons.map(item => <option key={item} value={item}>{item}</option>)}</select>
+          <select value={leagueId} onChange={event => { setLeagueId(event.target.value); setClubId('') }}><option value="">All leagues</option>{payload?.facets.leagues.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          <select value={clubId} onChange={event => setClubId(event.target.value)}><option value="">All clubs</option>{clubs.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          <button type="button" onClick={clear}>Clear</button>
+        </section>
+
+        {leader && <section className="gkl-leader">
+          <div className="gkl-leader-rank">#1</div><Logo row={leader} />
+          <div><span>{title}</span><Link to={`/player/${leader.id}`}>{leader.playerName}</Link><small>{leader.clubName} · {leader.leagueName}</small></div>
+          <div className="gkl-leader-score"><strong>{sort === 'gpg' ? leader.goalsPerGame?.toFixed(2) ?? '—' : sort === 'adjusted' ? leader.adjustedGoals.toFixed(1) : leader.goals}</strong><span>{sort === 'gpg' ? 'goals / game' : sort === 'adjusted' ? 'adjusted score' : 'goals'}</span></div>
+          <SharePlayer id={leader.id} label />
+        </section>}
+
+        <section className="gkl-board">
+          <header><div><span>{title}</span><h2>{rows.length} player{rows.length === 1 ? '' : 's'}</h2></div><div><strong>{payload?.meta.source ?? 'Approved screenshot imports'}</strong><small>{payload?.meta.lastUpdated ? `Updated ${formatDate(payload.meta.lastUpdated)}` : 'Waiting for first approved import'}</small></div></header>
+
+          {loading && <State text="Loading leaderboard…" />}
+          {!loading && error && <State text="The leaderboard could not be loaded. The rest of PlayFooty is still available." error />}
+          {!loading && !error && rows.length === 0 && <State text="No players match these filters." />}
+
+          {!loading && !error && rows.length > 0 && <>
+            <div className="gkl-table-head"><span>Rank</span><span>Player</span><span>Club / league</span><span>Movement</span><span>Latest</span><span>{sort === 'gpg' ? 'GPG' : sort === 'adjusted' ? 'Adjusted' : 'Goals'}</span><span /></div>
+            <div className="gkl-list">{rows.map(row => <article key={row.id} className="gkl-row">
+              <strong className="gkl-rank">#{row.rank}</strong>
+              <div className="gkl-player"><Logo row={row} /><div><Link to={`/player/${row.id}`}>{row.playerName}</Link><span>{row.grade ?? row.season}{row.milestone && <b><Trophy size={12} />{row.milestone} goals</b>}</span></div></div>
+              <div className="gkl-club"><strong>{row.clubId ? <Link to={`/team/${row.clubId}`}>{row.clubName}</Link> : row.clubName}</strong><span>{row.leagueId ? <Link to={`/league/${row.leagueId}`}>{row.leagueName}</Link> : row.leagueName}</span></div>
+              <Movement value={row.rankMovement} />
+              <span className="gkl-latest">{row.latestGoalsDelta > 0 ? `+${row.latestGoalsDelta}` : '—'}<small>{formatShort(row.latestUpdatedAt)}</small></span>
+              <span className="gkl-score"><strong>{sort === 'gpg' ? row.goalsPerGame?.toFixed(2) ?? '—' : sort === 'adjusted' ? row.adjustedGoals.toFixed(1) : row.goals}</strong><small>{row.matches == null ? 'matches —' : `${row.matches} matches`}</small></span>
+              <SharePlayer id={row.id} />
+            </article>)}</div>
+          </>}
+        </section>
+      </div>
     </main>
     <Footer />
-    <style>{`
-      .gk-page{max-width:1180px;margin:0 auto;padding:24px 18px 58px}.gk-hero{border:1px solid ${LINE};border-radius:20px;background:linear-gradient(135deg,#fff,#f7faff);box-shadow:0 14px 34px rgba(6,42,95,.08);padding:28px;margin-bottom:18px}.live-pill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;background:rgba(215,25,32,.12);color:${PINK};padding:6px 9px;font-size:10px;font-weight:950;letter-spacing:.13em;text-transform:uppercase}.live-pill span{width:7px;height:7px;border-radius:50%;background:${PINK};box-shadow:0 0 0 5px rgba(215,25,32,.14)}.gk-hero h1{font-size:clamp(3rem,8vw,6.5rem);line-height:.85;margin:14px 0 12px;text-transform:uppercase;letter-spacing:-.075em;color:${NAVY}}.gk-hero p{margin:0;color:#42526a;font-size:17px;max-width:780px}.mode-toggle{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.mode-toggle button{border:1px solid ${LINE};border-radius:12px;background:#fff;color:${NAVY};font-weight:950;padding:13px 18px;cursor:pointer}.mode-toggle button.active{background:${BLUE};border-color:${BLUE};color:#050505}.leader-card,.gk-board{border:1px solid ${LINE};border-radius:18px;background:#fff;box-shadow:0 14px 34px rgba(6,42,95,.08);overflow:hidden;margin-bottom:18px}.leader-card{padding:20px;display:flex;align-items:center;gap:14px}.leader-copy{min-width:0;flex:1}.leader-card span{display:block;color:#087fbf;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.15em}.leader-card a{display:block;color:${NAVY};font-size:30px;line-height:1;margin-top:8px;font-weight:950;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.leader-card a:hover,.player-link:hover{color:#087fbf}.leader-card small{display:block;color:${MUTED};font-weight:800;margin-top:8px}.gk-club-logo{border-radius:10px;background:#f4f6fa;border:1px solid ${LINE};display:inline-grid;place-items:center;overflow:hidden;flex:0 0 auto;color:#087fbf;font-size:11px;font-weight:950}.gk-club-logo img{width:100%;height:100%;object-fit:contain;padding:3px}.player-cell{min-width:0}.mobile-club-line{display:none}.club-cell{display:flex!important;align-items:center;gap:9px;min-width:0}.club-cell>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.board-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid ${LINE};background:#f8fafc;color:${MUTED};font-weight:850}.board-head b{font-size:22px;color:${NAVY}}.board-head em{margin-left:auto;color:#087fbf;font-style:normal;font-weight:950;text-transform:uppercase;font-size:12px}.goal-table{display:grid}.goal-row{display:grid;grid-template-columns:72px minmax(160px,1.2fr) minmax(170px,1fr) minmax(150px,1fr) 80px 58px;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid #edf1f6}.goal-table.adjusted .goal-row{grid-template-columns:72px minmax(160px,1.2fr) minmax(170px,1fr) minmax(150px,1fr) 80px 100px 58px}.goal-row.labels{background:#fbfdff;color:${MUTED};font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.12em}.goal-row b{color:${NAVY};font-size:18px}.player-link{display:block;color:${TEXT};font-size:17px;font-weight:900;text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.goal-row span{color:${MUTED};font-weight:800}.goals-wrap{display:flex;align-items:baseline;justify-content:flex-end;gap:6px}.goals-wrap small{color:#16a34a;font-size:12px;font-weight:950}.share-cell{display:flex;justify-content:flex-end}.gk-share-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${BLUE};border-radius:999px;background:${BLUE};color:#050505;min-height:42px;padding:0 15px;font:inherit;font-size:11px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}.gk-share-button.compact{width:38px;height:38px;min-height:38px;padding:0;background:#fff;border-color:${LINE};box-shadow:0 4px 12px rgba(17,24,39,.08)}.gk-share-button:hover,.gk-share-button:focus-visible{background:#59bdff;outline:none}.gk-share-button:disabled{opacity:.65;cursor:wait}.empty{min-height:180px;display:grid;place-items:center;color:${MUTED};font-weight:950;text-transform:uppercase;letter-spacing:.12em;text-align:center}.empty.error{color:${PINK}}
-      @media(max-width:760px){.gk-page{padding:14px 12px 42px}.gk-hero{padding:20px}.gk-hero h1{font-size:3.4rem}.mode-toggle{display:grid;grid-template-columns:1fr 1fr}.mode-toggle button{padding:12px 8px}.leader-card{padding:16px;align-items:center}.leader-card .gk-club-logo{width:46px!important;height:46px!important}.leader-card a{font-size:24px}.leader-card small{font-size:12px;line-height:1.4}.leader-card .gk-share-button{width:42px;height:42px;min-height:42px;padding:0}.leader-card .gk-share-button span{display:none}.goal-row,.goal-table.adjusted .goal-row{grid-template-columns:46px minmax(0,1fr) 62px 40px;gap:10px;padding:16px 12px;min-height:92px}.goal-row.labels{min-height:0;padding-top:13px;padding-bottom:13px}.goal-row.labels span:nth-child(3),.goal-row.labels span:nth-child(4),.goal-row.labels span:nth-child(6){display:none}.goal-row.labels span:nth-child(5){grid-column:3;text-align:right}.goal-row.labels span:last-child{grid-column:4;text-align:center}.goal-rank{grid-column:1;align-self:center}.player-cell{grid-column:2;display:grid;align-content:center;gap:8px}.player-link{font-size:16px;line-height:1.15}.mobile-club-line{display:flex;align-items:center;gap:8px;min-width:0}.mobile-club-line .gk-club-logo{width:30px!important;height:30px!important}.mobile-club-copy{display:block;min-width:0}.mobile-club-copy strong,.mobile-club-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobile-club-copy strong{color:${MUTED};font-size:12px;line-height:1.15}.mobile-club-copy small{margin-top:2px;color:#8792a2;font-size:10px;line-height:1.15}.club-cell,.league-cell{display:none!important}.goals-wrap{grid-column:3;align-self:center;justify-self:end;display:grid;justify-items:end;gap:1px}.goals-cell{font-size:24px!important;color:#087fbf!important}.goals-wrap small{font-size:11px}.adjusted-cell{display:none}.share-cell{grid-column:4;align-self:center;justify-self:end}.share-cell .gk-share-button{width:36px;height:36px}.board-head em{display:none}}
-    `}</style>
+    <style>{styles}</style>
   </div>
 }
+
+function State({ text, error = false }: { text: string; error?: boolean }) { return <div className={`gkl-state${error ? ' error' : ''}`}>{text}</div> }
+function formatDate(value: string) { return new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value)) }
+function formatShort(value: string) { return new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short' }).format(new Date(value)) }
+
+const styles = `
+.gkl-page{min-height:100vh;background:#f3f5f7;color:#111318;font-family:Barlow,Inter,Arial,sans-serif}.gkl-shell{width:min(1180px,calc(100% - 32px));margin:0 auto}.gkl-hero{background:#050505;color:#fff;border-bottom:5px solid #2daaf5;padding:50px 0 42px}.gkl-kicker{color:#2daaf5;font-size:11px;font-weight:950;letter-spacing:.17em;text-transform:uppercase}.gkl-hero h1{margin:8px 0 8px;font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(5rem,12vw,10rem);line-height:.78;text-transform:uppercase}.gkl-hero p{margin:0;color:#c7d0da;font-size:17px}.gkl-hero-actions{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:24px}.gkl-sort{display:flex;gap:8px;flex-wrap:wrap}.gkl-sort button,.gkl-board-share{min-height:44px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:transparent;color:#fff;padding:0 17px;font:inherit;font-weight:900;cursor:pointer}.gkl-sort button.active{background:#2daaf5;border-color:#2daaf5;color:#050505}.gkl-board-share{display:flex;align-items:center;gap:8px}.gkl-content{padding:24px 0 54px}.gkl-filters{display:grid;grid-template-columns:minmax(240px,1.5fr) repeat(3,minmax(140px,1fr)) auto;gap:9px;padding:14px;border:1px solid #dfe5eb;border-radius:12px;background:#fff;box-shadow:0 6px 20px rgba(17,24,39,.05)}.gkl-filters select,.gkl-filters>button,.gkl-search{min-height:45px;border:1px solid #dce2e8;border-radius:8px;background:#fff;font:inherit}.gkl-filters select{padding:0 11px;font-weight:800}.gkl-filters>button{padding:0 15px;background:#050505;color:#fff;font-weight:900;cursor:pointer}.gkl-search{display:flex;align-items:center;gap:9px;padding:0 12px}.gkl-search svg{color:#2daaf5}.gkl-search input{width:100%;min-width:0;border:0;outline:0;font:inherit;font-size:16px}.gkl-leader{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto auto;align-items:center;gap:15px;margin-top:16px;padding:20px;border-radius:12px;background:#2daaf5;color:#050505;box-shadow:0 10px 28px rgba(45,170,245,.22)}.gkl-leader-rank{font-family:'Bebas Neue',Impact,sans-serif;font-size:48px}.gkl-logo{width:50px;height:50px;display:grid;place-items:center;flex:0 0 auto;border:1px solid rgba(5,5,5,.12);border-radius:11px;background:#fff;color:#087fbf;font-weight:950;overflow:hidden}.gkl-logo img{width:100%;height:100%;object-fit:contain;padding:4px}.gkl-leader>div:nth-child(3)>span{display:block;font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.12em}.gkl-leader a{color:#050505;text-decoration:none;font-weight:950}.gkl-leader>div:nth-child(3)>a{display:block;margin-top:4px;font-family:'Bebas Neue',Impact,sans-serif;font-size:36px;line-height:1}.gkl-leader small{display:block;margin-top:4px;font-weight:800}.gkl-leader-score{text-align:right}.gkl-leader-score strong,.gkl-leader-score span{display:block}.gkl-leader-score strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:46px;line-height:.8}.gkl-leader-score span{margin-top:7px;font-size:9px;font-weight:950;text-transform:uppercase}.gkl-share{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #dce2e8;border-radius:999px;background:#fff;color:#050505;cursor:pointer}.gkl-share span{font-size:11px;font-weight:950;text-transform:uppercase}.gkl-leader .gkl-share{width:auto;padding:0 14px;border-color:rgba(5,5,5,.14)}.gkl-board{margin-top:16px;overflow:hidden;border:1px solid #dfe5eb;border-radius:12px;background:#fff;box-shadow:0 6px 20px rgba(17,24,39,.05)}.gkl-board>header{display:flex;justify-content:space-between;gap:18px;padding:20px;border-bottom:1px solid #e4e8ed}.gkl-board header span,.gkl-board header strong,.gkl-board header small{display:block}.gkl-board header span{color:#2daaf5;font-size:10px;font-weight:950;letter-spacing:.14em;text-transform:uppercase}.gkl-board header h2{margin:4px 0 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:40px;line-height:1}.gkl-board header>div:last-child{text-align:right}.gkl-board header strong{font-size:12px}.gkl-board header small{margin-top:5px;color:#687385}.gkl-table-head,.gkl-row{display:grid;grid-template-columns:60px minmax(190px,1.25fr) minmax(180px,1fr) 85px 80px 100px 44px;gap:12px;align-items:center}.gkl-table-head{padding:11px 16px;background:#f8fafb;color:#687385;font-size:10px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.gkl-row{min-height:78px;padding:12px 16px;border-top:1px solid #edf0f3}.gkl-rank{font-family:'Bebas Neue',Impact,sans-serif;font-size:25px}.gkl-player{display:flex;align-items:center;gap:11px;min-width:0}.gkl-player .gkl-logo{width:44px;height:44px}.gkl-player>div,.gkl-club{min-width:0}.gkl-player a,.gkl-club a{color:#111318;text-decoration:none}.gkl-player>div>a{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px;font-weight:950}.gkl-player>div>span{display:flex;align-items:center;gap:7px;margin-top:4px;color:#687385;font-size:11px;font-weight:800}.gkl-player b{display:inline-flex;align-items:center;gap:3px;color:#9b6500;background:#fff3c4;border-radius:999px;padding:3px 6px;font-size:9px;text-transform:uppercase}.gkl-club strong,.gkl-club span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gkl-club strong{font-size:13px}.gkl-club span{margin-top:4px;color:#687385;font-size:11px;font-weight:800}.gkl-movement{display:inline-flex;align-items:center;gap:3px;width:max-content;border-radius:999px;padding:5px 8px;font-size:11px;font-weight:950}.gkl-movement.up{background:#e7f8ed;color:#16733a}.gkl-movement.down{background:#fff0f0;color:#b42318}.gkl-movement.steady{background:#eef1f4;color:#687385}.gkl-latest,.gkl-score{display:block;text-align:right;font-weight:950}.gkl-latest{color:#16733a}.gkl-latest small,.gkl-score small{display:block;margin-top:4px;color:#7a8593;font-size:9px;font-weight:850;text-transform:uppercase}.gkl-score strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:29px}.gkl-state{min-height:220px;display:grid;place-items:center;padding:20px;color:#687385;font-weight:900;text-align:center}.gkl-state.error{color:#b42318}
+@media(max-width:850px){.gkl-hero{padding:36px 0 32px}.gkl-hero-actions{align-items:stretch;flex-direction:column}.gkl-board-share{justify-content:center}.gkl-filters{grid-template-columns:1fr 1fr}.gkl-search{grid-column:1/-1}.gkl-leader{grid-template-columns:auto auto minmax(0,1fr) auto}.gkl-leader-score{grid-column:3;text-align:left}.gkl-leader>.gkl-share{grid-column:4;grid-row:1/3;width:42px;padding:0}.gkl-leader>.gkl-share span{display:none}.gkl-table-head{display:none}.gkl-list{display:grid;gap:10px;padding:10px;background:#eef2f5}.gkl-row{position:relative;display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;min-height:0;padding:14px;border:1px solid #dfe5eb;border-radius:11px;background:#fff}.gkl-rank{grid-row:1/3}.gkl-player{grid-column:2}.gkl-club{grid-column:2;margin-left:55px}.gkl-movement{position:absolute;right:58px;top:15px}.gkl-latest{grid-column:2;text-align:left;margin-left:55px}.gkl-score{grid-column:3;grid-row:1/4;align-self:center}.gkl-row>.gkl-share{grid-column:3;grid-row:4;justify-self:end}.gkl-player>div>a{padding-right:70px}}
+@media(max-width:540px){.gkl-shell{width:min(100% - 22px,1180px)}.gkl-hero h1{font-size:5rem}.gkl-sort{display:grid;grid-template-columns:1fr}.gkl-sort button{width:100%}.gkl-filters{grid-template-columns:1fr}.gkl-search{grid-column:auto}.gkl-leader{grid-template-columns:auto minmax(0,1fr) auto}.gkl-leader-rank{display:none}.gkl-leader .gkl-logo{width:44px;height:44px}.gkl-leader>div:nth-child(3)>a{font-size:29px}.gkl-leader-score{grid-column:2}.gkl-leader>.gkl-share{grid-column:3}.gkl-board>header{display:block}.gkl-board header>div:last-child{margin-top:10px;text-align:left}.gkl-row{grid-template-columns:38px minmax(0,1fr) auto;padding:12px}.gkl-player .gkl-logo{width:40px;height:40px}.gkl-club,.gkl-latest{margin-left:51px}.gkl-score strong{font-size:26px}}
+`
