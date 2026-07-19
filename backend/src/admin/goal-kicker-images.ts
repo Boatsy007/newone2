@@ -11,6 +11,7 @@ router.use(requireAdminKey)
 const norm = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 
 type SavedGoalKicker = { id: string; playerId: string }
+type ExistingGoalKicker = { id: string; playerId: string; goals: number; matches: number | null; importedAt: Date }
 
 router.post('/parse', async (req, res) => {
   try {
@@ -32,11 +33,12 @@ router.post('/parse', async (req, res) => {
       const clubMatch = fuzzyMatchClub(row.clubName, clubs)
       const existing = await prisma.footballGoalKicker.findFirst({
         where: {
-          season, grade,
+          season,
           playerName: { equals: row.playerName, mode: 'insensitive' },
           ...(clubMatch.clubId ? { clubId: clubMatch.clubId } : { clubName: { equals: row.clubName, mode: 'insensitive' } }),
           ...(matchedLeagueId ? { leagueId: matchedLeagueId } : {}),
         },
+        orderBy: [{ goals: 'desc' }, { importedAt: 'desc' }],
         select: { id: true, playerName: true, clubName: true, goals: true, matches: true },
       })
       return { ...row, clubMatch, playerMatch: existing ? { id: existing.id, playerName: existing.playerName, clubName: existing.clubName, goals: existing.goals, matches: existing.matches } : null }
@@ -59,6 +61,7 @@ router.post('/commit', async (req, res) => {
     const grade = String(body.grade ?? 'Senior Football')
     let imported = 0
     let weeklyChanges = 0
+    let duplicatesRemoved = 0
     const errors: Array<{ playerName: string; error: string }> = []
     const warnings: Array<{ playerName: string; warning: string }> = []
 
@@ -75,47 +78,83 @@ router.post('/commit', async (req, res) => {
         const club = raw.clubId ? await prisma.club.findUnique({ where: { id: raw.clubId }, select: { id: true, name: true } }) : null
         if (raw.clubId && !club) throw new Error(`Selected club no longer exists: ${clubName}`)
         const storedClubName = club?.name ?? clubName
-        const key = { season, grade, playerName, clubName: storedClubName, leagueName: league.name }
-        const previous = await prisma.footballGoalKicker.findUnique({
-          where: { season_grade_playerName_clubName_leagueName: key },
-          select: { id: true, goals: true, matches: true },
-        })
         const nextGoals = Math.trunc(goals)
         const nextMatches = raw.matches == null || !Number.isFinite(Number(raw.matches)) ? null : Math.max(0, Math.trunc(Number(raw.matches)))
-        const stableId = previous?.id ?? randomUUID()
         const importedAt = new Date()
 
-        const savedRows = await prisma.$queryRaw<SavedGoalKicker[]>`
-          INSERT INTO "football_goal_kickers" (
-            "id", "playerId", "playerName", "clubId", "clubName", "leagueId", "leagueName",
-            "season", "grade", "goals", "matches", "sourceUrl", "sourceType", "importedAt", "createdAt", "updatedAt"
-          ) VALUES (
-            CAST(${stableId} AS uuid), CAST(${stableId} AS uuid), ${playerName}, CAST(${club?.id ?? null} AS uuid), ${storedClubName}, CAST(${league.id} AS uuid), ${league.name},
-            ${season}, ${grade}, ${nextGoals}, ${nextMatches}, ${null}, ${'OCR_UPLOAD'}, ${importedAt}, ${importedAt}, ${importedAt}
-          )
-          ON CONFLICT ("season", "grade", "playerName", "clubName", "leagueName")
-          DO UPDATE SET
-            "playerId" = COALESCE("football_goal_kickers"."playerId", EXCLUDED."playerId"),
-            "clubId" = EXCLUDED."clubId",
-            "leagueId" = EXCLUDED."leagueId",
-            "goals" = EXCLUDED."goals",
-            "matches" = EXCLUDED."matches",
-            "sourceUrl" = EXCLUDED."sourceUrl",
-            "sourceType" = EXCLUDED."sourceType",
-            "importedAt" = EXCLUDED."importedAt",
-            "updatedAt" = EXCLUDED."updatedAt"
-          RETURNING "id", "playerId"
-        `
-        const saved = savedRows[0]
-        if (!saved?.id || !saved.playerId) throw new Error(`Goal-kicker row saved without a player identity for ${playerName}`)
+        const outcome = await prisma.$transaction(async tx => {
+          const candidates = await tx.footballGoalKicker.findMany({
+            where: {
+              season,
+              leagueId: league.id,
+              playerName: { equals: playerName, mode: 'insensitive' },
+              ...(club?.id
+                ? { OR: [{ clubId: club.id }, { clubName: { equals: storedClubName, mode: 'insensitive' } }] }
+                : { clubName: { equals: storedClubName, mode: 'insensitive' } }),
+            },
+            orderBy: [{ goals: 'desc' }, { importedAt: 'desc' }],
+            select: { id: true, playerId: true, goals: true, matches: true, importedAt: true },
+          }) as ExistingGoalKicker[]
+
+          const canonical = candidates[0] ?? null
+          const lowerPrevious = candidates.find(row => row.goals < nextGoals)
+          const previousGoals = lowerPrevious?.goals ?? canonical?.goals ?? null
+          const previousMatches = lowerPrevious?.matches ?? canonical?.matches ?? null
+          let saved: SavedGoalKicker
+
+          if (canonical) {
+            const updated = await tx.footballGoalKicker.update({
+              where: { id: canonical.id },
+              data: {
+                playerName,
+                clubId: club?.id ?? null,
+                clubName: storedClubName,
+                leagueId: league.id,
+                leagueName: league.name,
+                season,
+                grade,
+                goals: nextGoals,
+                matches: nextMatches,
+                sourceUrl: null,
+                sourceType: 'OCR_UPLOAD',
+                importedAt,
+              },
+              select: { id: true, playerId: true },
+            })
+            saved = { id: updated.id, playerId: updated.playerId }
+          } else {
+            const stableId = randomUUID()
+            const savedRows = await tx.$queryRaw<SavedGoalKicker[]>`
+              INSERT INTO "football_goal_kickers" (
+                "id", "playerId", "playerName", "clubId", "clubName", "leagueId", "leagueName",
+                "season", "grade", "goals", "matches", "sourceUrl", "sourceType", "importedAt", "createdAt", "updatedAt"
+              ) VALUES (
+                CAST(${stableId} AS uuid), CAST(${stableId} AS uuid), ${playerName}, CAST(${club?.id ?? null} AS uuid), ${storedClubName}, CAST(${league.id} AS uuid), ${league.name},
+                ${season}, ${grade}, ${nextGoals}, ${nextMatches}, ${null}, ${'OCR_UPLOAD'}, ${importedAt}, ${importedAt}, ${importedAt}
+              )
+              RETURNING "id", "playerId"
+            `
+            const inserted = savedRows[0]
+            if (!inserted?.id || !inserted.playerId) throw new Error(`Goal-kicker row saved without a player identity for ${playerName}`)
+            saved = inserted
+          }
+
+          const duplicateIds = candidates.slice(1).map(row => row.id)
+          if (duplicateIds.length > 0) {
+            await tx.footballGoalKicker.deleteMany({ where: { id: { in: duplicateIds } } })
+          }
+
+          return { saved, previousGoals, previousMatches, duplicatesRemoved: duplicateIds.length }
+        })
 
         imported++
-        const weeklyGoals = previous ? Math.max(0, nextGoals - previous.goals) : 0
-        const matchesAdded = previous && nextMatches != null && previous.matches != null ? Math.max(0, nextMatches - previous.matches) : null
+        duplicatesRemoved += outcome.duplicatesRemoved
+        const weeklyGoals = outcome.previousGoals == null ? 0 : Math.max(0, nextGoals - outcome.previousGoals)
+        const matchesAdded = outcome.previousMatches != null && nextMatches != null ? Math.max(0, nextMatches - outcome.previousMatches) : null
 
         if (weeklyGoals > 0) {
           try {
-            const dedupeKey = `goal-kicker:${league.id}:${season}:${norm(grade)}:${saved.playerId}:${nextGoals}`
+            const dedupeKey = `goal-kicker:${league.id}:${season}:${norm(grade)}:${outcome.saved.playerId}:${nextGoals}`
             await prisma.notification.upsert({
               where: { dedupeKey },
               create: {
@@ -124,10 +163,10 @@ router.post('/commit', async (req, res) => {
                 category: 'PLAYER',
                 severity: 'INFO',
                 title: `${playerName} added ${weeklyGoals} goal${weeklyGoals === 1 ? '' : 's'}`,
-                body: `${playerName} moved from ${previous!.goals} to ${nextGoals} goals for ${storedClubName}.`,
+                body: `${playerName} moved from ${outcome.previousGoals} to ${nextGoals} goals for ${storedClubName}.`,
                 entityType: 'PLAYER',
-                entityId: saved.playerId,
-                data: JSON.stringify({ playerId: saved.playerId, playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, previousGoals: previous!.goals, goals: nextGoals, weeklyGoals, previousMatches: previous!.matches, matches: nextMatches, matchesAdded, playerUrl: `/player/${encodeURIComponent(saved.id)}`, clubUrl: club?.id ? `/team/${encodeURIComponent(club.id)}` : null, leagueUrl: `/league/${encodeURIComponent(league.id)}` }),
+                entityId: outcome.saved.playerId,
+                data: JSON.stringify({ playerId: outcome.saved.playerId, playerRowId: outcome.saved.id, playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, previousGoals: outcome.previousGoals, goals: nextGoals, weeklyGoals, previousMatches: outcome.previousMatches, matches: nextMatches, matchesAdded, playerUrl: `/player/${encodeURIComponent(outcome.saved.id)}`, clubUrl: club?.id ? `/team/${encodeURIComponent(club.id)}` : null, leagueUrl: `/league/${encodeURIComponent(league.id)}` }),
                 status: 'DELIVERED',
                 dedupeKey,
               },
@@ -147,6 +186,7 @@ router.post('/commit', async (req, res) => {
       data: {
         imported,
         weeklyChanges,
+        duplicatesRemoved,
         errors: errors.length,
         warnings: warnings.length,
         league: league.name,
