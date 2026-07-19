@@ -90,7 +90,7 @@ router.post('/commit', async (req, res) => {
             "id", "playerId", "playerName", "clubId", "clubName", "leagueId", "leagueName",
             "season", "grade", "goals", "matches", "sourceUrl", "sourceType", "importedAt", "createdAt", "updatedAt"
           ) VALUES (
-            ${stableId}::uuid, ${stableId}::uuid, ${playerName}, ${club?.id ?? null}, ${storedClubName}, ${league.id}, ${league.name},
+            CAST(${stableId} AS uuid), CAST(${stableId} AS uuid), ${playerName}, CAST(${club?.id ?? null} AS uuid), ${storedClubName}, CAST(${league.id} AS uuid), ${league.name},
             ${season}, ${grade}, ${nextGoals}, ${nextMatches}, ${null}, ${'OCR_UPLOAD'}, ${importedAt}, ${importedAt}, ${importedAt}
           )
           ON CONFLICT ("season", "grade", "playerName", "clubName", "leagueName")
