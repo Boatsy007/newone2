@@ -17,6 +17,80 @@ type ApprovedGoalKicker = {
   matches?: number | null
 }
 
+router.get('/records', async (req, res) => {
+  try {
+    const query = req.query as Record<string, string | undefined>
+    const season = query.season?.trim()
+    const leagueId = query.leagueId?.trim()
+    const rows = await prisma.footballGoalKicker.findMany({
+      where: {
+        ...(season ? { season } : {}),
+        ...(leagueId ? { leagueId } : {}),
+      },
+      orderBy: [{ goals: 'desc' }, { playerName: 'asc' }],
+      take: 1000,
+      select: {
+        id: true,
+        playerId: true,
+        playerName: true,
+        clubId: true,
+        clubName: true,
+        leagueId: true,
+        leagueName: true,
+        season: true,
+        grade: true,
+        goals: true,
+        matches: true,
+        sourceType: true,
+        importedAt: true,
+      },
+    })
+    res.json({ data: rows })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'failed to load goal-kicker records' })
+  }
+})
+
+router.delete('/records/:id', async (req, res) => {
+  try {
+    const confirmation = String((req.body as { confirmation?: string } | undefined)?.confirmation ?? '')
+    const row = await prisma.footballGoalKicker.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, playerId: true, playerName: true, clubName: true, goals: true, season: true, grade: true },
+    })
+    if (!row) return res.status(404).json({ error: 'Goal-kicker record not found.' })
+    if (confirmation !== `DELETE ${row.playerName}`) {
+      return res.status(400).json({ error: `Type DELETE ${row.playerName} to confirm.` })
+    }
+
+    const result = await prisma.$transaction(async tx => {
+      const linkedNotifications = await tx.notification.deleteMany({
+        where: {
+          type: { in: ['GOAL_KICKER_UPDATED', 'GOAL_KICKER_UPDATE'] },
+          data: { contains: `\"playerRowId\":\"${row.id}\"` },
+        },
+      })
+      await tx.footballGoalKicker.delete({ where: { id: row.id } })
+      return { notificationsRemoved: linkedNotifications.count }
+    })
+
+    res.json({
+      data: {
+        deleted: true,
+        id: row.id,
+        playerName: row.playerName,
+        clubName: row.clubName,
+        goals: row.goals,
+        season: row.season,
+        grade: row.grade,
+        notificationsRemoved: result.notificationsRemoved,
+      },
+    })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'goal-kicker deletion failed' })
+  }
+})
+
 router.post('/parse', async (req, res) => {
   try {
     const { image, leagueId } = (req.body ?? {}) as { image?: string; leagueId?: string }
