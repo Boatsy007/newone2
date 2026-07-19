@@ -7,7 +7,7 @@ import Nav from '../components/layout/Nav'
 import ProductSearch from '../components/rankings/ProductSearch'
 import Footer from '../components/layout/Footer'
 import LeagueLiveData from '../components/league/LeagueLiveData'
-import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickersPanel'
+import LeagueHubExtras from '../components/league/LeagueHubExtras'
 import { useSeo } from '../lib/seo'
 import { fetchLeague, useAsync, strengthStars, strengthLabel, type LeagueDetail } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
@@ -51,7 +51,7 @@ export default function LeagueProfile() {
         <LeagueLiveData league={data} />
         <div className="league-profile-shell">
           <div className="league-profile-main">
-            <PublicGoalKickersPanel leagueId={leagueId} eyebrow={`${seasonYear(data)} player leaders`} title={`${data.name} goal kickers`} />
+            <LeagueHubExtras league={data} />
             <LeagueLadder league={data} query={query} onQuery={setQuery} />
             <ClubRankingCards league={data} query={query} totalRanked={data.totalRanked} />
             <LeagueStrength league={data} facts={facts} />
