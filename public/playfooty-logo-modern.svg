@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 110" role="img" aria-labelledby="title desc">
+  <title id="title">PlayFooty</title>
+  <desc id="desc">Play in light blue and Footy in white</desc>
+  <g font-family="Arial Black, Arial, Helvetica, sans-serif" font-size="86" font-weight="900" letter-spacing="-5">
+    <text x="4" y="84" fill="#42b8ff">PLAY</text>
+    <text x="242" y="84" fill="#ffffff">FOOTY</text>
+  </g>
+</svg>
