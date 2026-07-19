@@ -38,6 +38,12 @@ function australianWeek(now = new Date()) {
   return { start: new Date(startLocal.getTime() - offsetMs), end: new Date(endLocal.getTime() - offsetMs) }
 }
 
+function seasonRange(season: string) {
+  const year = Number(season)
+  const safeYear = Number.isFinite(year) ? year : new Date().getFullYear()
+  return { start: new Date(Date.UTC(safeYear, 0, 1)), end: new Date(Date.UTC(safeYear + 1, 0, 1)) }
+}
+
 router.get('/', publicRateLimit, cachePublic(600), async (req, res) => {
   try {
     const query = req.query as Record<string, string | undefined>
@@ -106,16 +112,17 @@ router.get('/records', publicRateLimit, cachePublic(300), async (req, res) => {
     const limit = Math.max(1, Math.min(Number(query.limit) || 5, 20))
     const season = query.season || new Date().getFullYear().toString()
     const week = australianWeek()
+    const year = seasonRange(season)
 
     const [events, seasonRows] = await Promise.all([
       prisma.notification.findMany({
         where: {
           type: 'GOAL_KICKER_UPDATED',
-          createdAt: { gte: week.start, lt: week.end },
+          createdAt: { gte: year.start, lt: year.end },
           ...(query.leagueId ? { data: { contains: `\"leagueId\":\"${query.leagueId}\"` } } : {}),
         },
         orderBy: { createdAt: 'desc' },
-        take: 2000,
+        take: 5000,
         select: { entityId: true, data: true, createdAt: true },
       }),
       prisma.footballGoalKicker.findMany({
@@ -129,21 +136,36 @@ router.get('/records', publicRateLimit, cachePublic(300), async (req, res) => {
       }),
     ])
 
-    type Weekly = {
+    type GoalChange = {
       playerId: string; playerName: string; clubId: string | null; clubName: string; leagueId: string; leagueName: string;
       season: string; grade: string; previousGoals: number; goals: number; weeklyGoals: number; matchesAdded: number | null;
       playerUrl: string; clubUrl: string | null; leagueUrl: string; updatedAt: string;
     }
-    const latestByPlayer = new Map<string, Weekly>()
-    for (const event of events) {
-      if (!event.data || !event.entityId || latestByPlayer.has(event.entityId)) continue
+
+    const parsed = events.flatMap(event => {
+      if (!event.data || !event.entityId) return []
       try {
-        const parsed = JSON.parse(event.data) as Omit<Weekly, 'updatedAt'>
-        if (parsed.season !== season || !Number.isFinite(parsed.weeklyGoals) || parsed.weeklyGoals <= 0) continue
-        latestByPlayer.set(event.entityId, { ...parsed, updatedAt: event.createdAt.toISOString() })
-      } catch { /* ignore malformed legacy event payloads */ }
+        const data = JSON.parse(event.data) as Omit<GoalChange, 'updatedAt'>
+        if (data.season !== season || !Number.isFinite(data.weeklyGoals) || data.weeklyGoals <= 0) return []
+        return [{ ...data, updatedAt: event.createdAt.toISOString() }]
+      } catch {
+        return []
+      }
+    })
+
+    const latestWeekly = new Map<string, GoalChange>()
+    for (const change of parsed) {
+      const changedAt = new Date(change.updatedAt)
+      if (changedAt < week.start || changedAt >= week.end || latestWeekly.has(change.playerId)) continue
+      latestWeekly.set(change.playerId, change)
     }
-    const weekly = [...latestByPlayer.values()]
+
+    const weekly = [...latestWeekly.values()]
+      .sort((a, b) => b.weeklyGoals - a.weeklyGoals || b.goals - a.goals || a.playerName.localeCompare(b.playerName))
+      .slice(0, limit)
+      .map((row, index) => ({ rank: index + 1, ...row }))
+
+    const biggestBags = [...parsed]
       .sort((a, b) => b.weeklyGoals - a.weeklyGoals || b.goals - a.goals || a.playerName.localeCompare(b.playerName))
       .slice(0, limit)
       .map((row, index) => ({ rank: index + 1, ...row }))
@@ -168,7 +190,7 @@ router.get('/records', publicRateLimit, cachePublic(300), async (req, res) => {
     }))
 
     res.json({
-      data: { weekly, seasonLeaders },
+      data: { weekly, biggestBags, seasonLeaders },
       meta: { season, weekStart: week.start.toISOString(), weekEnd: week.end.toISOString(), limit },
     })
   } catch (err) {
