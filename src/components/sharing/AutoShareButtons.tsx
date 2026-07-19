@@ -50,7 +50,7 @@ export default function AutoShareButtons() {
           const href = anchor.getAttribute('href') ?? ''
           const url = new URL(href, window.location.origin)
           if (url.origin !== window.location.origin || !isShareable(url.pathname)) return
-          if (anchor.closest('.pf-nav,.pf-mobile-menu,.pf-share-action,.pf-auto-share,.gk-no-auto-share')) return
+          if (anchor.closest('.pf-nav,.pf-mobile-menu,.pf-share-action,.pf-auto-share,.gk-no-auto-share') || anchor.classList.contains('pf-number-one')) return
 
           anchor.dataset.pfShareEnhanced = 'true'
           anchor.classList.add('pf-share-host')
