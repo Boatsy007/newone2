@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { ArrowRight } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { TeamLogo } from '../rankings/bits'
-import { loadHomeCardLogoMaps } from '../../lib/homeCardLogos'
+import { loadHomeCardLogoMaps, playerClubLeagueKey } from '../../lib/homeCardLogos'
 
 type PlayerRecord = {
   rank: number
@@ -31,6 +31,8 @@ type Payload = {
     fastestTo100?: PlayerRecord[]
   }
 }
+
+type PlayerLogo = { clubId: string | null; clubName: string; leagueName: string; logoUrl: string | null }
 
 type RecordCard = {
   key: string
@@ -81,7 +83,7 @@ export default function HomePlayerRecordsPortal() {
     ])
       .then(([payload, logoMaps]) => {
         if (!active) return
-        setCards(buildRecordCards(payload.data, logoMaps.byPlayerId))
+        setCards(buildRecordCards(payload.data, logoMaps.byPlayerId, logoMaps.byPlayerClubLeague))
       })
       .catch(() => { if (active) setCards([]) })
     return () => { active = false }
@@ -110,7 +112,7 @@ export default function HomePlayerRecordsPortal() {
   </section>, target)
 }
 
-function buildRecordCards(data: Payload['data'], playerLogos: Map<string, { clubId: string | null; clubName: string; logoUrl: string | null }>): RecordCard[] {
+function buildRecordCards(data: Payload['data'], playerLogos: Map<string, PlayerLogo>, exactLogos: Map<string, PlayerLogo>): RecordCard[] {
   if (!data) return []
   const cards: RecordCard[] = []
   const seasonLeader = data.seasonLeaders?.[0]
@@ -120,26 +122,35 @@ function buildRecordCards(data: Payload['data'], playerLogos: Map<string, { club
   const fastest50 = data.fastestTo50?.[0]
   const fastest100 = data.fastestTo100?.[0]
 
-  if (seasonLeader) cards.push(toCard('season-leader', 'Season goal leader', seasonLeader.goals, 'goals', seasonLeader, playerLogos))
-  if (weeklyLeader?.weeklyGoals) cards.push(toCard('weekly-leader', 'Most goals this week', weeklyLeader.weeklyGoals, weeklyLeader.weeklyGoals === 1 ? 'goal' : 'goals', weeklyLeader, playerLogos))
-  if (biggestBag?.weeklyGoals) cards.push(toCard('biggest-bag', 'Biggest recorded bag', biggestBag.weeklyGoals, biggestBag.weeklyGoals === 1 ? 'goal' : 'goals', biggestBag, playerLogos))
-  if (rateLeader?.goalsPerGame != null) cards.push(toCard('goals-per-game', 'Goals per game leader', rateLeader.goalsPerGame.toFixed(2), 'per game', rateLeader, playerLogos))
-  if (fastest50?.milestoneMatches) cards.push(toCard('fastest-50', 'Fastest to 50 goals', fastest50.milestoneMatches, fastest50.milestoneMatches === 1 ? 'match' : 'matches', fastest50, playerLogos))
-  if (fastest100?.milestoneMatches) cards.push(toCard('fastest-100', 'Fastest to 100 goals', fastest100.milestoneMatches, fastest100.milestoneMatches === 1 ? 'match' : 'matches', fastest100, playerLogos))
+  if (seasonLeader) cards.push(toCard('season-leader', 'Season goal leader', seasonLeader.goals, 'goals', seasonLeader, playerLogos, exactLogos))
+  if (weeklyLeader?.weeklyGoals) cards.push(toCard('weekly-leader', 'Most goals this week', weeklyLeader.weeklyGoals, weeklyLeader.weeklyGoals === 1 ? 'goal' : 'goals', weeklyLeader, playerLogos, exactLogos))
+  if (biggestBag?.weeklyGoals) cards.push(toCard('biggest-bag', 'Biggest recorded bag', biggestBag.weeklyGoals, biggestBag.weeklyGoals === 1 ? 'goal' : 'goals', biggestBag, playerLogos, exactLogos))
+  if (rateLeader?.goalsPerGame != null) cards.push(toCard('goals-per-game', 'Goals per game leader', rateLeader.goalsPerGame.toFixed(2), 'per game', rateLeader, playerLogos, exactLogos))
+  if (fastest50?.milestoneMatches) cards.push(toCard('fastest-50', 'Fastest to 50 goals', fastest50.milestoneMatches, fastest50.milestoneMatches === 1 ? 'match' : 'matches', fastest50, playerLogos, exactLogos))
+  if (fastest100?.milestoneMatches) cards.push(toCard('fastest-100', 'Fastest to 100 goals', fastest100.milestoneMatches, fastest100.milestoneMatches === 1 ? 'match' : 'matches', fastest100, playerLogos, exactLogos))
 
   if (cards.length < 4) {
     for (const row of data.seasonLeaders?.slice(1) ?? []) {
       if (cards.length >= 6) break
-      cards.push(toCard(`season-${row.playerId}-${row.rank}`, `Season goals · #${row.rank}`, row.goals, 'goals', row, playerLogos))
+      cards.push(toCard(`season-${row.playerId}-${row.rank}`, `Season goals · #${row.rank}`, row.goals, 'goals', row, playerLogos, exactLogos))
     }
   }
 
   return cards.slice(0, 6)
 }
 
-function toCard(key: string, kicker: string, value: string | number, unit: string, row: PlayerRecord, playerLogos: Map<string, { clubId: string | null; clubName: string; logoUrl: string | null }>): RecordCard {
-  const resolved = playerLogos.get(row.playerId)
-  const sameClub = resolved?.clubName.trim().toLowerCase() === row.clubName.trim().toLowerCase()
+function toCard(
+  key: string,
+  kicker: string,
+  value: string | number,
+  unit: string,
+  row: PlayerRecord,
+  playerLogos: Map<string, PlayerLogo>,
+  exactLogos: Map<string, PlayerLogo>,
+): RecordCard {
+  const byId = playerLogos.get(row.playerId)
+  const byExactIdentity = exactLogos.get(playerClubLeagueKey(row.playerName, row.clubName, row.leagueName))
+  const resolved = byId?.clubName.trim().toLowerCase() === row.clubName.trim().toLowerCase() ? byId : byExactIdentity
   return {
     key,
     kicker,
@@ -149,6 +160,6 @@ function toCard(key: string, kicker: string, value: string | number, unit: strin
     club: row.clubName,
     league: row.leagueName,
     url: row.playerUrl,
-    logoUrl: sameClub ? resolved?.logoUrl ?? null : null,
+    logoUrl: resolved?.logoUrl ?? null,
   }
 }
