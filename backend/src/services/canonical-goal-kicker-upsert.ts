@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { prisma } from '../db/client.js'
+import { publishGoalKickerAchievements } from './goal-kicker-achievements.js'
 import { publishGoalKickerUpdateEvents } from './goal-kicker-update-events.js'
 import { planGoalKickerUpdate, type GoalKickerCandidate } from './goal-kicker-update-plan.js'
 
@@ -28,6 +29,8 @@ export type CanonicalGoalKickerOutcome = {
   weeklyGoals: number
   historyCreated: boolean
   feedEventsCreated: number
+  achievementsCreated: number
+  achievementFeedEventsCreated: number
   duplicatesRemoved: number
   staleIncomingTotal: boolean
   unchanged: boolean
@@ -133,6 +136,23 @@ export async function upsertCanonicalGoalKicker(input: CanonicalGoalKickerInput)
       matchesAdded: plan.matchesAdded,
     })
 
+    const achievementResult = plan.previousGoals == null ? { achievementsCreated: 0, feedEventsCreated: 0 } : await publishGoalKickerAchievements(tx, {
+      playerId: saved.playerId,
+      playerRowId: saved.id,
+      playerName,
+      clubId: input.clubId,
+      clubName,
+      leagueId: input.leagueId,
+      leagueName: input.leagueName,
+      season,
+      grade,
+      previousGoals: plan.previousGoals,
+      goals: plan.savedGoals,
+      weeklyGoals: plan.weeklyGoals,
+      previousMatches: plan.previousMatches,
+      matches: plan.savedMatches,
+    })
+
     return {
       playerRowId: saved.id,
       playerId: saved.playerId,
@@ -141,6 +161,8 @@ export async function upsertCanonicalGoalKicker(input: CanonicalGoalKickerInput)
       weeklyGoals: plan.weeklyGoals,
       historyCreated: published.historyCreated,
       feedEventsCreated: published.feedEventsCreated,
+      achievementsCreated: achievementResult.achievementsCreated,
+      achievementFeedEventsCreated: achievementResult.feedEventsCreated,
       duplicatesRemoved: plan.duplicateIds.length,
       staleIncomingTotal: plan.staleIncomingTotal,
       unchanged: plan.unchanged,
