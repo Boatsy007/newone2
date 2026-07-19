@@ -145,6 +145,112 @@ router.get('/coverage', async (_req, res) => {
   }
 })
 
+// OCR screenshot maintenance queue. Tasks are derived from real imports and complete automatically after approval.
+router.get('/maintenance-queue', async (_req, res) => {
+  try {
+    const leagues = await prisma.league.findMany({
+      where: { sport: 'FOOTBALL', archivedAt: null, isActive: true },
+      orderBy: [{ state: { code: 'asc' } }, { name: 'asc' }],
+      select: {
+        id: true, name: true, currentSeason: true, enabled: true, hidden: true,
+        state: { select: { code: true } },
+        footballImports: {
+          orderBy: { createdAt: 'desc' }, take: 40,
+          select: { id: true, dataType: true, sourceType: true, status: true, recordsFound: true, recordsImported: true, conflictsFound: true, confidence: true, error: true, createdAt: true, publishedAt: true },
+        },
+        footballResults: { orderBy: [{ matchDate: 'desc' }, { updatedAt: 'desc' }], take: 1, select: { round: true, matchDate: true, updatedAt: true } },
+        footballFixtures: { orderBy: [{ matchDate: 'desc' }, { updatedAt: 'desc' }], take: 1, select: { round: true, matchDate: true, updatedAt: true } },
+        footballLadderEntries: { orderBy: { updatedAt: 'desc' }, take: 1, select: { updatedAt: true, round: true } },
+        footballGoalKickers: { orderBy: { updatedAt: 'desc' }, take: 1, select: { updatedAt: true } },
+      },
+    })
+
+    const now = new Date()
+    const day = 24 * 60 * 60 * 1000
+    const definitions = [
+      { kind: 'LADDER', label: 'Ladder', cadenceDays: 7, route: '/admin/ladder-images', description: 'Upload the latest full ladder screenshot.' },
+      { kind: 'RESULTS', label: 'Results', cadenceDays: 7, route: '/admin/match-images', description: 'Upload the latest completed round results.' },
+      { kind: 'FIXTURES', label: 'Fixtures', cadenceDays: 14, route: '/admin/match-images', description: 'Upload upcoming fixtures or the next published round.' },
+      { kind: 'GOAL_KICKERS', label: 'Goal kickers', cadenceDays: 14, route: '/admin/goal-kicker-images', description: 'Upload the current competition statistics table.' },
+    ] as const
+    const roundNumber = (value: string | null | undefined) => {
+      const match = value?.match(/(?:round|r)\s*(\d+)/i)
+      return match ? Number(match[1]) : null
+    }
+
+    const tasks = leagues.flatMap(league => definitions.map(definition => {
+      const matching = league.footballImports.filter(item => item.dataType === definition.kind || (definition.kind === 'GOAL_KICKERS' && item.dataType === 'GOALKICKERS'))
+      const latest = matching[0] ?? null
+      const latestSuccessful = matching.find(item => ['COMMITTED', 'PUBLISHED'].includes(item.status)) ?? null
+      const fallbackDate = definition.kind === 'LADDER' ? league.footballLadderEntries[0]?.updatedAt
+        : definition.kind === 'RESULTS' ? (league.footballResults[0]?.matchDate ?? league.footballResults[0]?.updatedAt)
+        : definition.kind === 'FIXTURES' ? (league.footballFixtures[0]?.matchDate ?? league.footballFixtures[0]?.updatedAt)
+        : league.footballGoalKickers[0]?.updatedAt
+      const lastCompleted = latestSuccessful?.publishedAt ?? latestSuccessful?.createdAt ?? fallbackDate ?? null
+      const dueAt = lastCompleted ? new Date(lastCompleted.getTime() + definition.cadenceDays * day) : now
+      const overdueDays = Math.max(0, Math.floor((now.getTime() - dueAt.getTime()) / day))
+      const due = !lastCompleted || dueAt <= now
+      let status: 'DUE' | 'SCREENSHOT_NEEDED' | 'OCR_PROCESSING' | 'NEEDS_REVIEW' | 'PUBLISHED' | 'FAILED' = due ? 'SCREENSHOT_NEEDED' : 'PUBLISHED'
+      if (latest?.status === 'FAILED') status = 'FAILED'
+      else if (latest?.status === 'CONFLICT' || (latest?.conflictsFound ?? 0) > 0 || (latest && latest.confidence < 0.75)) status = 'NEEDS_REVIEW'
+      else if (latest && ['PENDING', 'PREVIEWED'].includes(latest.status)) status = 'OCR_PROCESSING'
+      else if (due) status = overdueDays > 0 ? 'DUE' : 'SCREENSHOT_NEEDED'
+
+      const latestResultRound = roundNumber(league.footballResults[0]?.round)
+      const latestFixtureRound = roundNumber(league.footballFixtures[0]?.round)
+      const missingRound = definition.kind === 'RESULTS' && latestResultRound != null && latestFixtureRound != null && latestFixtureRound > latestResultRound + 1
+        ? `Results may be missing for Round ${latestResultRound + 1}` : null
+      const expected = definition.kind === 'RESULTS' && latestFixtureRound ? `Round ${latestFixtureRound}`
+        : definition.kind === 'FIXTURES' && latestFixtureRound ? `After Round ${latestFixtureRound}`
+        : definition.kind === 'LADDER' && league.footballLadderEntries[0]?.round ? league.footballLadderEntries[0].round
+        : null
+      const query = new URLSearchParams({ leagueId: league.id, leagueName: league.name, type: definition.kind.toLowerCase(), from: 'maintenance-queue' })
+
+      return {
+        id: `${league.id}:${definition.kind}`,
+        leagueId: league.id,
+        leagueName: league.name,
+        state: league.state.code,
+        season: league.currentSeason,
+        kind: definition.kind,
+        label: definition.label,
+        description: definition.description,
+        status,
+        due,
+        dueAt: dueAt.toISOString(),
+        overdueDays,
+        lastCompletedAt: lastCompleted?.toISOString() ?? null,
+        expected,
+        missingRound,
+        latestImport: latest,
+        publicVisible: league.enabled && !league.hidden,
+        uploadUrl: `${definition.route}?${query.toString()}`,
+        universalUrl: `/admin/universal-imports?${query.toString()}`,
+      }
+    }))
+
+    const priority = { FAILED: 0, NEEDS_REVIEW: 1, DUE: 2, SCREENSHOT_NEEDED: 3, OCR_PROCESSING: 4, PUBLISHED: 5 }
+    tasks.sort((a, b) => priority[a.status] - priority[b.status] || Date.parse(a.dueAt) - Date.parse(b.dueAt) || a.leagueName.localeCompare(b.leagueName))
+    const active = tasks.filter(task => task.status !== 'PUBLISHED')
+    res.json({
+      data: {
+        generatedAt: now.toISOString(),
+        summary: {
+          active: active.length,
+          due: tasks.filter(task => ['DUE', 'SCREENSHOT_NEEDED'].includes(task.status)).length,
+          processing: tasks.filter(task => task.status === 'OCR_PROCESSING').length,
+          review: tasks.filter(task => task.status === 'NEEDS_REVIEW').length,
+          failed: tasks.filter(task => task.status === 'FAILED').length,
+          current: tasks.filter(task => task.status === 'PUBLISHED').length,
+        },
+        tasks,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'maintenance queue failed' })
+  }
+})
+
 // Duplicate detection (read-only unless ?raise=true).
 router.get('/duplicates', async (req, res) => {
   try { res.json({ data: await detectDuplicates({ raiseReviews: req.query.raise === 'true' }) }) }
