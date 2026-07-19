@@ -1,12 +1,30 @@
 type RankingLogoRow = { clubId: string; clubName?: string; logoUrl?: string | null }
-type GoalKickerLogoRow = { playerId: string; clubId: string | null; clubName: string; clubLogoUrl: string | null }
+type GoalKickerLogoRow = {
+  playerId: string
+  playerName: string
+  clubId: string | null
+  clubName: string
+  clubLogoUrl: string | null
+  leagueName: string
+}
 
 type RankingsPayload = { data?: RankingLogoRow[] }
 type GoalKickersPayload = { data?: GoalKickerLogoRow[] }
 
+type PlayerLogo = { clubId: string | null; clubName: string; leagueName: string; logoUrl: string | null }
+
 export type HomeCardLogoMaps = {
   byClubId: Map<string, string>
-  byPlayerId: Map<string, { clubId: string | null; clubName: string; logoUrl: string | null }>
+  byPlayerId: Map<string, PlayerLogo>
+  byPlayerClubLeague: Map<string, PlayerLogo>
+}
+
+function normalise(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+export function playerClubLeagueKey(playerName: string, clubName: string, leagueName: string) {
+  return `${normalise(playerName)}|${normalise(clubName)}|${normalise(leagueName)}`
 }
 
 export async function loadHomeCardLogoMaps(): Promise<HomeCardLogoMaps> {
@@ -16,7 +34,8 @@ export async function loadHomeCardLogoMaps(): Promise<HomeCardLogoMaps> {
   ])
 
   const byClubId = new Map<string, string>()
-  const byPlayerId = new Map<string, { clubId: string | null; clubName: string; logoUrl: string | null }>()
+  const byPlayerId = new Map<string, PlayerLogo>()
+  const byPlayerClubLeague = new Map<string, PlayerLogo>()
 
   if (rankingsResult.status === 'fulfilled') {
     for (const row of rankingsResult.value.data ?? []) {
@@ -27,11 +46,17 @@ export async function loadHomeCardLogoMaps(): Promise<HomeCardLogoMaps> {
   if (goalKickersResult.status === 'fulfilled') {
     for (const row of goalKickersResult.value.data ?? []) {
       if (row.clubId && row.clubLogoUrl && !byClubId.has(row.clubId)) byClubId.set(row.clubId, row.clubLogoUrl)
-      if (!byPlayerId.has(row.playerId)) {
-        byPlayerId.set(row.playerId, { clubId: row.clubId, clubName: row.clubName, logoUrl: row.clubLogoUrl })
+      const resolved: PlayerLogo = {
+        clubId: row.clubId,
+        clubName: row.clubName,
+        leagueName: row.leagueName,
+        logoUrl: row.clubLogoUrl ?? (row.clubId ? byClubId.get(row.clubId) ?? null : null),
       }
+      if (row.playerId && !byPlayerId.has(row.playerId)) byPlayerId.set(row.playerId, resolved)
+      const exactKey = playerClubLeagueKey(row.playerName, row.clubName, row.leagueName)
+      if (!byPlayerClubLeague.has(exactKey)) byPlayerClubLeague.set(exactKey, resolved)
     }
   }
 
-  return { byClubId, byPlayerId }
+  return { byClubId, byPlayerId, byPlayerClubLeague }
 }
