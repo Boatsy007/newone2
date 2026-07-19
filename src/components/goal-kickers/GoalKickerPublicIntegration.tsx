@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useSeo } from '../../lib/seo'
-import PublicGoalKickersPanel, { type PublicGoalKicker } from './PublicGoalKickersPanel'
+import type { PublicGoalKicker } from './PublicGoalKickersPanel'
 
 type PlayerSeoData = {
   id: string
@@ -25,44 +24,11 @@ type PlayerSeoData = {
 
 export default function GoalKickerPublicIntegration() {
   const { pathname } = useLocation()
-  const clubMatch = pathname.match(/^\/team\/([^/]+)/)
   const playerMatch = pathname.match(/^\/player\/([^/]+)/)
   return <>
-    {clubMatch && <ClubGoalKickersPortal clubId={decodeURIComponent(clubMatch[1])} />}
     {playerMatch && <PlayerSeo playerId={decodeURIComponent(playerMatch[1])} />}
     <SearchPlayerProfileBridge />
   </>
-}
-
-function ClubGoalKickersPortal({ clubId }: { clubId: string }) {
-  const [target, setTarget] = useState<HTMLElement | null>(null)
-
-  useEffect(() => {
-    let active = true
-    const attach = () => {
-      if (!active) return
-      const section = document.querySelector<HTMLElement>('.club-section-bg')
-      if (!section) return
-      let node = document.getElementById('pf-club-goal-kickers-slot')
-      if (!node) {
-        node = document.createElement('div')
-        node.id = 'pf-club-goal-kickers-slot'
-        node.className = 'pf-club-goal-kickers-slot'
-        section.insertAdjacentElement('beforebegin', node)
-      }
-      setTarget(node)
-    }
-    attach()
-    const observer = new MutationObserver(attach)
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => { active = false; observer.disconnect(); setTarget(null); document.getElementById('pf-club-goal-kickers-slot')?.remove() }
-  }, [clubId])
-
-  if (!target) return null
-  return createPortal(<div className="pf-club-goal-kickers-shell">
-    <PublicGoalKickersPanel clubId={clubId} eyebrow={`${new Date().getFullYear()} club leaders`} title="Leading goal kickers" />
-    <style>{`.pf-club-goal-kickers-slot{background:#f3f5f7;padding:24px 20px 0}.pf-club-goal-kickers-shell{max-width:1180px;margin:0 auto}.pf-club-goal-kickers-shell .public-gk-panel{max-width:842px}@media(max-width:980px){.pf-club-goal-kickers-slot{padding:18px 14px 0}.pf-club-goal-kickers-shell .public-gk-panel{max-width:none}}`}</style>
-  </div>, target)
 }
 
 function PlayerSeo({ playerId }: { playerId: string }) {
