@@ -6,6 +6,7 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
+    "test": "tsx --test src/**/*.test.ts",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "postinstall": "prisma generate && PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium",
