@@ -9,9 +9,27 @@ const router = Router()
 router.use(requireAdminKey)
 
 const norm = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+const validUuid = (value: unknown): value is string => typeof value === 'string' && UUID_RE.test(value)
 
 type SavedGoalKicker = { id: string; playerId: string }
-type ExistingGoalKicker = { id: string; playerId: string; goals: number; matches: number | null; importedAt: Date }
+type ExistingGoalKicker = {
+  id: string
+  playerId: string
+  goals: number
+  matches: number | null
+  importedAt: Date
+}
+
+type ApprovedGoalKicker = {
+  playerId?: string | null
+  playerName?: string
+  clubName?: string
+  clubId?: string | null
+  goals?: number
+  matches?: number | null
+}
 
 router.post('/parse', async (req, res) => {
   try {
@@ -34,14 +52,21 @@ router.post('/parse', async (req, res) => {
       const existing = await prisma.footballGoalKicker.findFirst({
         where: {
           season,
+          grade,
           playerName: { equals: row.playerName, mode: 'insensitive' },
           ...(clubMatch.clubId ? { clubId: clubMatch.clubId } : { clubName: { equals: row.clubName, mode: 'insensitive' } }),
           ...(matchedLeagueId ? { leagueId: matchedLeagueId } : {}),
         },
         orderBy: [{ goals: 'desc' }, { importedAt: 'desc' }],
-        select: { id: true, playerName: true, clubName: true, goals: true, matches: true },
+        select: { id: true, playerId: true, playerName: true, clubName: true, goals: true, matches: true },
       })
-      return { ...row, clubMatch, playerMatch: existing ? { id: existing.id, playerName: existing.playerName, clubName: existing.clubName, goals: existing.goals, matches: existing.matches } : null }
+      return {
+        ...row,
+        clubMatch,
+        playerMatch: existing
+          ? { id: existing.id, playerId: existing.playerId, playerName: existing.playerName, clubName: existing.clubName, goals: existing.goals, matches: existing.matches }
+          : null,
+      }
     }))
     const uncertain = rows.filter(row => !row.clubMatch.confident).length
     res.json({ data: { league: parsed.league, grade, season, matchedLeagueId, rows, uncertain, notes: parsed.notes } })
@@ -52,7 +77,7 @@ router.post('/parse', async (req, res) => {
 
 router.post('/commit', async (req, res) => {
   try {
-    const body = (req.body ?? {}) as { leagueId?: string; season?: string; grade?: string; rows?: Array<{ playerName?: string; clubName?: string; clubId?: string | null; goals?: number; matches?: number | null }> }
+    const body = (req.body ?? {}) as { leagueId?: string; season?: string; grade?: string; rows?: ApprovedGoalKicker[] }
     if (!body.leagueId) return res.status(400).json({ error: 'leagueId required' })
     if (!Array.isArray(body.rows) || body.rows.length === 0) return res.status(400).json({ error: 'approved rows required' })
     const league = await prisma.league.findUnique({ where: { id: body.leagueId }, select: { id: true, name: true } })
@@ -62,6 +87,7 @@ router.post('/commit', async (req, res) => {
     let imported = 0
     let weeklyChanges = 0
     let duplicatesRemoved = 0
+    let unchanged = 0
     const errors: Array<{ playerName: string; error: string }> = []
     const warnings: Array<{ playerName: string; warning: string }> = []
 
@@ -78,28 +104,45 @@ router.post('/commit', async (req, res) => {
         const club = raw.clubId ? await prisma.club.findUnique({ where: { id: raw.clubId }, select: { id: true, name: true } }) : null
         if (raw.clubId && !club) throw new Error(`Selected club no longer exists: ${clubName}`)
         const storedClubName = club?.name ?? clubName
-        const nextGoals = Math.trunc(goals)
-        const nextMatches = raw.matches == null || !Number.isFinite(Number(raw.matches)) ? null : Math.max(0, Math.trunc(Number(raw.matches)))
+        const incomingGoals = Math.trunc(goals)
+        const incomingMatches = raw.matches == null || !Number.isFinite(Number(raw.matches)) ? null : Math.max(0, Math.trunc(Number(raw.matches)))
+        const requestedPlayerId = validUuid(raw.playerId) ? raw.playerId : null
         const importedAt = new Date()
 
         const outcome = await prisma.$transaction(async tx => {
           const candidates = await tx.footballGoalKicker.findMany({
             where: {
               season,
+              grade,
               leagueId: league.id,
-              playerName: { equals: playerName, mode: 'insensitive' },
-              ...(club?.id
-                ? { OR: [{ clubId: club.id }, { clubName: { equals: storedClubName, mode: 'insensitive' } }] }
-                : { clubName: { equals: storedClubName, mode: 'insensitive' } }),
+              OR: [
+                ...(requestedPlayerId ? [{ playerId: requestedPlayerId }] : []),
+                {
+                  playerName: { equals: playerName, mode: 'insensitive' as const },
+                  ...(club?.id
+                    ? { OR: [{ clubId: club.id }, { clubName: { equals: storedClubName, mode: 'insensitive' as const } }] }
+                    : { clubName: { equals: storedClubName, mode: 'insensitive' as const } }),
+                },
+              ],
             },
             orderBy: [{ goals: 'desc' }, { importedAt: 'desc' }],
             select: { id: true, playerId: true, goals: true, matches: true, importedAt: true },
           }) as ExistingGoalKicker[]
 
-          const canonical = candidates[0] ?? null
-          const lowerPrevious = candidates.find(row => row.goals < nextGoals)
-          const previousGoals = lowerPrevious?.goals ?? canonical?.goals ?? null
-          const previousMatches = lowerPrevious?.matches ?? canonical?.matches ?? null
+          const canonical = (requestedPlayerId ? candidates.find(row => row.playerId === requestedPlayerId) : null) ?? candidates[0] ?? null
+          const canonicalPlayerId = canonical?.playerId ?? requestedPlayerId ?? randomUUID()
+          const canonicalId = canonical?.id ?? randomUUID()
+          const currentGoals = canonical?.goals ?? null
+          const currentMatches = canonical?.matches ?? null
+          const lowerPrevious = candidates.find(row => row.goals < incomingGoals)
+          const previousGoals = lowerPrevious?.goals ?? currentGoals
+          const previousMatches = lowerPrevious?.matches ?? currentMatches
+          const savedGoals = currentGoals == null ? incomingGoals : Math.max(currentGoals, incomingGoals)
+          const savedMatches = incomingMatches == null
+            ? currentMatches
+            : currentMatches == null
+              ? incomingMatches
+              : Math.max(currentMatches, incomingMatches)
           let saved: SavedGoalKicker
 
           if (canonical) {
@@ -113,8 +156,8 @@ router.post('/commit', async (req, res) => {
                 leagueName: league.name,
                 season,
                 grade,
-                goals: nextGoals,
-                matches: nextMatches,
+                goals: savedGoals,
+                matches: savedMatches,
                 sourceUrl: null,
                 sourceType: 'OCR_UPLOAD',
                 importedAt,
@@ -123,14 +166,13 @@ router.post('/commit', async (req, res) => {
             })
             saved = { id: updated.id, playerId: updated.playerId }
           } else {
-            const stableId = randomUUID()
             const savedRows = await tx.$queryRaw<SavedGoalKicker[]>`
               INSERT INTO "football_goal_kickers" (
                 "id", "playerId", "playerName", "clubId", "clubName", "leagueId", "leagueName",
                 "season", "grade", "goals", "matches", "sourceUrl", "sourceType", "importedAt", "createdAt", "updatedAt"
               ) VALUES (
-                CAST(${stableId} AS uuid), CAST(${stableId} AS uuid), ${playerName}, CAST(${club?.id ?? null} AS uuid), ${storedClubName}, CAST(${league.id} AS uuid), ${league.name},
-                ${season}, ${grade}, ${nextGoals}, ${nextMatches}, ${null}, ${'OCR_UPLOAD'}, ${importedAt}, ${importedAt}, ${importedAt}
+                CAST(${canonicalId} AS uuid), CAST(${canonicalPlayerId} AS uuid), ${playerName}, CAST(${club?.id ?? null} AS uuid), ${storedClubName}, CAST(${league.id} AS uuid), ${league.name},
+                ${season}, ${grade}, ${savedGoals}, ${savedMatches}, ${null}, ${'OCR_UPLOAD'}, ${importedAt}, ${importedAt}, ${importedAt}
               )
               RETURNING "id", "playerId"
             `
@@ -139,43 +181,74 @@ router.post('/commit', async (req, res) => {
             saved = inserted
           }
 
-          const duplicateIds = candidates.slice(1).map(row => row.id)
+          const duplicateIds = candidates.filter(row => row.id !== saved.id).map(row => row.id)
           if (duplicateIds.length > 0) {
             await tx.footballGoalKicker.deleteMany({ where: { id: { in: duplicateIds } } })
           }
 
-          return { saved, previousGoals, previousMatches, duplicatesRemoved: duplicateIds.length }
+          const weeklyGoals = previousGoals == null ? 0 : Math.max(0, savedGoals - previousGoals)
+          const matchesAdded = previousMatches != null && savedMatches != null ? Math.max(0, savedMatches - previousMatches) : null
+          let weeklyEventCreated = false
+
+          if (weeklyGoals > 0) {
+            const dedupeKey = `goal-kicker:${league.id}:${season}:${norm(grade)}:${saved.playerId}:${savedGoals}`
+            const existingEvent = await tx.notification.findUnique({ where: { dedupeKey }, select: { id: true } })
+            if (!existingEvent) {
+              await tx.notification.create({
+                data: {
+                  recipientScope: 'PLATFORM',
+                  type: 'GOAL_KICKER_UPDATED',
+                  category: 'PLAYER',
+                  severity: 'INFO',
+                  title: `${playerName} added ${weeklyGoals} goal${weeklyGoals === 1 ? '' : 's'}`,
+                  body: `${playerName} moved from ${previousGoals} to ${savedGoals} goals for ${storedClubName}.`,
+                  entityType: 'PLAYER',
+                  entityId: saved.playerId,
+                  data: JSON.stringify({
+                    playerId: saved.playerId,
+                    playerRowId: saved.id,
+                    playerName,
+                    clubId: club?.id ?? null,
+                    clubName: storedClubName,
+                    leagueId: league.id,
+                    leagueName: league.name,
+                    season,
+                    grade,
+                    previousGoals,
+                    goals: savedGoals,
+                    weeklyGoals,
+                    previousMatches,
+                    matches: savedMatches,
+                    matchesAdded,
+                    playerUrl: `/player/${encodeURIComponent(saved.id)}`,
+                    clubUrl: club?.id ? `/team/${encodeURIComponent(club.id)}` : null,
+                    leagueUrl: `/league/${encodeURIComponent(league.id)}`,
+                  }),
+                  status: 'DELIVERED',
+                  dedupeKey,
+                },
+              })
+              weeklyEventCreated = true
+            }
+          }
+
+          return {
+            saved,
+            savedGoals,
+            weeklyGoals,
+            weeklyEventCreated,
+            duplicatesRemoved: duplicateIds.length,
+            staleIncomingTotal: currentGoals != null && incomingGoals < currentGoals,
+            unchanged: currentGoals === savedGoals && duplicateIds.length === 0,
+          }
         })
 
         imported++
         duplicatesRemoved += outcome.duplicatesRemoved
-        const weeklyGoals = outcome.previousGoals == null ? 0 : Math.max(0, nextGoals - outcome.previousGoals)
-        const matchesAdded = outcome.previousMatches != null && nextMatches != null ? Math.max(0, nextMatches - outcome.previousMatches) : null
-
-        if (weeklyGoals > 0) {
-          try {
-            const dedupeKey = `goal-kicker:${league.id}:${season}:${norm(grade)}:${outcome.saved.playerId}:${nextGoals}`
-            await prisma.notification.upsert({
-              where: { dedupeKey },
-              create: {
-                recipientScope: 'PLATFORM',
-                type: 'GOAL_KICKER_UPDATED',
-                category: 'PLAYER',
-                severity: 'INFO',
-                title: `${playerName} added ${weeklyGoals} goal${weeklyGoals === 1 ? '' : 's'}`,
-                body: `${playerName} moved from ${outcome.previousGoals} to ${nextGoals} goals for ${storedClubName}.`,
-                entityType: 'PLAYER',
-                entityId: outcome.saved.playerId,
-                data: JSON.stringify({ playerId: outcome.saved.playerId, playerRowId: outcome.saved.id, playerName, clubId: club?.id ?? null, clubName: storedClubName, leagueId: league.id, leagueName: league.name, season, grade, previousGoals: outcome.previousGoals, goals: nextGoals, weeklyGoals, previousMatches: outcome.previousMatches, matches: nextMatches, matchesAdded, playerUrl: `/player/${encodeURIComponent(outcome.saved.id)}`, clubUrl: club?.id ? `/team/${encodeURIComponent(club.id)}` : null, leagueUrl: `/league/${encodeURIComponent(league.id)}` }),
-                status: 'DELIVERED',
-                dedupeKey,
-              },
-              update: {},
-            })
-            weeklyChanges++
-          } catch (error) {
-            warnings.push({ playerName, warning: `Goal total saved, but weekly notification failed: ${error instanceof Error ? error.message : String(error)}` })
-          }
+        if (outcome.weeklyEventCreated) weeklyChanges++
+        if (outcome.unchanged) unchanged++
+        if (outcome.staleIncomingTotal) {
+          warnings.push({ playerName, warning: `Ignored older total of ${incomingGoals}; current total remains ${outcome.savedGoals}.` })
         }
       } catch (error) {
         errors.push({ playerName: playerName || 'Unknown player', error: error instanceof Error ? error.message : String(error) })
@@ -187,6 +260,7 @@ router.post('/commit', async (req, res) => {
         imported,
         weeklyChanges,
         duplicatesRemoved,
+        unchanged,
         errors: errors.length,
         warnings: warnings.length,
         league: league.name,
