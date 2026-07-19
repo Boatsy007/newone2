@@ -7,6 +7,7 @@ import Nav from '../components/layout/Nav'
 import ProductSearch from '../components/rankings/ProductSearch'
 import Footer from '../components/layout/Footer'
 import LeagueLiveData from '../components/league/LeagueLiveData'
+import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickersPanel'
 import { useSeo } from '../lib/seo'
 import { fetchLeague, useAsync, strengthStars, strengthLabel, type LeagueDetail } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
@@ -29,10 +30,10 @@ export default function LeagueProfile() {
   const facts = data ? deriveFacts(data, leagues.data ?? []) : null
 
   useSeo({
-    title: data ? `${data.name} Football: Ladder, Rankings & Results ${seasonYear(data)} | PlayFooty` : 'League | PlayFooty',
+    title: data ? `${data.name} Football: Ladder, Rankings, Results & Goal Kickers ${seasonYear(data)} | PlayFooty` : 'League | PlayFooty',
     description: data && facts
-      ? [data.description || `${data.name} Senior football on PlayFooty${facts.nationalRank != null ? `: the #${facts.nationalRank} ranked league in Australia` : ''}.`, `Live ladder, national club rankings and ${strengthLabel(facts.stars).toLowerCase()} ${facts.stars}/5 strength rating`, facts.leader ? `${facts.leader.clubName} lead the ladder.` : '', 'Updated every week of the season.'].filter(Boolean).join(' ')
-      : 'Country football league ladder, national rankings and strength rating, updated weekly.',
+      ? [data.description || `${data.name} Senior football on PlayFooty${facts.nationalRank != null ? `: the #${facts.nationalRank} ranked league in Australia` : ''}.`, `Live ladder, national club rankings, leading goal kickers and ${strengthLabel(facts.stars).toLowerCase()} ${facts.stars}/5 strength rating`, facts.leader ? `${facts.leader.clubName} lead the ladder.` : '', 'Updated every week of the season.'].filter(Boolean).join(' ')
+      : 'Country football league ladder, goal kickers, national rankings and strength rating, updated weekly.',
     path: `/league/${leagueId}`,
     jsonLd: data && facts ? buildJsonLd(data, facts, leagueId) : undefined,
   })
@@ -50,6 +51,7 @@ export default function LeagueProfile() {
         <LeagueLiveData league={data} />
         <div className="league-profile-shell">
           <div className="league-profile-main">
+            <PublicGoalKickersPanel leagueId={leagueId} eyebrow={`${seasonYear(data)} player leaders`} title={`${data.name} goal kickers`} />
             <LeagueLadder league={data} query={query} onQuery={setQuery} />
             <ClubRankingCards league={data} query={query} totalRanked={data.totalRanked} />
             <LeagueStrength league={data} facts={facts} />
@@ -60,9 +62,9 @@ export default function LeagueProfile() {
           <LeagueSidebar league={data} facts={facts} />
         </div>
         <style>{`
-          .league-profile-shell{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:0 20px 48px}
-          .league-profile-main > section{padding-left:0!important;padding-right:0!important}.league-profile-main > section > div{max-width:none!important}
-          @media (max-width:980px){.league-profile-shell{display:block;padding:0 14px 36px}.league-profile-main > section{padding-top:22px!important;padding-bottom:22px!important}.league-sidebar{display:none!important}}
+          .league-profile-shell{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:24px 20px 48px}
+          .league-profile-main{display:grid;gap:18px}.league-profile-main > section{padding-left:0!important;padding-right:0!important}.league-profile-main > section > div{max-width:none!important}
+          @media (max-width:980px){.league-profile-shell{display:block;padding:18px 14px 36px}.league-profile-main > section{padding-top:22px!important;padding-bottom:22px!important}.league-sidebar{display:none!important}}
         `}</style>
       </>}
     </main>
