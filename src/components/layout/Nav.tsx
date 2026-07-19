@@ -8,10 +8,10 @@ import ShareButton from '../sharing/ShareButton'
 import { loadFeed, readIds, type FollowEntity } from '../../lib/supporter'
 
 const links = [
-  { label: 'My Feed', href: '/feed' },
+  { label: 'For You', href: '/feed' },
   { label: 'News', href: '/news' },
   { label: 'Rankings', href: '/rankings' },
-  { label: 'Ladders', href: '/leagues' },
+  { label: 'Leagues', href: '/leagues' },
   { label: 'Matches', href: '/matches' },
   { label: 'Clubs', href: '/directory' },
   { label: 'Highlights', href: '/highlights' },
@@ -95,9 +95,8 @@ export default function Nav() {
 
     {open && <div className="pf-mobile-menu">
       <nav aria-label="Mobile navigation">
-        <Link to="/feed"><span>My feed</span><small>For you</small></Link>
+        <Link to="/feed"><span>For You</span><small>Your feed</small></Link>
         {links.filter(link => link.href !== '/feed').map((link, index) => <Link key={link.href} to={link.href}><span>{link.label}</span><small>{String(index + 1).padStart(2, '0')}</small></Link>)}
-        <Link to="/about"><span>About</span><small>08</small></Link>
       </nav>
       <div className="pf-mobile-menu-actions">
         <div className="pf-mobile-utilities">
