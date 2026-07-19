@@ -9,6 +9,7 @@ import { leaguesRouter } from './api/routes/leagues.js'
 import { directoryRouter } from './api/routes/directory.js'
 import { goalKickerLeaderboardRouter } from './api/routes/goal-kicker-leaderboard.js'
 import { goalKickerAchievementsRouter } from './api/routes/goal-kicker-achievements.js'
+import { goalKickerAlertControlsRouter } from './api/routes/goal-kicker-alert-controls.js'
 import { goalKickerRecordsSafeRouter } from './api/routes/goal-kicker-records-safe.js'
 import { goalKickerContextRouter } from './api/routes/goal-kicker-context.js'
 import { goalKickersRouter } from './api/routes/goal-kickers.js'
@@ -90,6 +91,7 @@ app.use('/api/rankings', rankingsRouter)
 app.use('/api/clubs', clubsRouter)
 app.use('/api/leagues', leaguesRouter)
 app.use('/api/directory', directoryRouter)
+app.use('/api/goal-kicker-controls', goalKickerAlertControlsRouter)
 app.use('/api/goal-kickers', goalKickerLeaderboardRouter)
 app.use('/api/goal-kickers', goalKickerAchievementsRouter)
 app.use('/api/goal-kickers', goalKickerRecordsSafeRouter)
@@ -142,6 +144,7 @@ app.use('/admin/ladder', adminLadderRouter)
 app.use('/admin/season', adminSeasonRouter)
 app.use('/admin/playhq', adminPlayhqRouter)
 app.use('/admin/highlights', adminHighlightsRouter)
+app.use('/admin/goal-kicker-achievements', goalKickerAlertControlsRouter)
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', version: process.env.npm_package_version ?? '1.0.0' }))
 app.get('/api/debug', async (_req, res) => {
