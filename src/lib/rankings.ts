@@ -74,7 +74,7 @@ export interface UnifiedSearchResults {
   players: { id: string; name: string; clubId?: string | null; clubName: string; leagueId: string; leagueName: string; goals: number; season: string; logoUrl?: string | null; href: string }[]
   matches: { id: string; kind: 'fixture' | 'result'; title: string; leagueId: string; leagueName: string; date?: string | null; round?: string | null; venue?: string | null; href: string }[]
   news: { id: string; title: string; summary: string; category: string; date?: string | null; heroSeed: string; href: string }[]
-  highlights: { id: string; title: string; category: string; playerName: string; clubId?: string | null; clubName: string; leagueId?: string | null; leagueName?: string | null; weekKey: string; winner: boolean; href: string }[]
+  highlights: { id: string; title: string; category: string; playerName: string; clubId?: string | null; clubName: string; leagueId?: string | null; leagueName: string; weekKey: string; winner: boolean; href: string }[]
   records: { id: string; title: string; summary: string; href: string }[]
 }
 export interface SearchResponse { data: UnifiedSearchResults; meta: { query: string; total: number; partial: string[] } }
@@ -94,10 +94,24 @@ type PublishedClubResult = {
   awayScore?: number
 }
 
+function displaySeasonLabel(value: string) {
+  return value.replace(/^(\d{4})-w\d+$/i, '$1')
+}
+
+function sanitiseDisplayLabels(value: unknown): unknown {
+  if (typeof value === 'string') return displaySeasonLabel(value)
+  if (Array.isArray(value)) return value.map(sanitiseDisplayLabels)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitiseDisplayLabels(item)]))
+  }
+  return value
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  return response.json() as Promise<T>
+  const payload = await response.json() as unknown
+  return sanitiseDisplayLabels(payload) as T
 }
 
 function normaliseClubName(value: string | null | undefined) {
