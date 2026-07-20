@@ -28,8 +28,8 @@ export function FormPips({ form }: { form: FormResult[] }) {
           style={{
             width: 20, height: 20, borderRadius: 5, display: 'grid', placeItems: 'center',
             fontSize: 11, fontWeight: 800,
-            color: r === 'W' ? '#fff' : r === 'D' ? '#7a5b00' : 'rgba(17,17,17,0.5)',
-            background: r === 'W' ? '#22c55e' : r === 'L' ? 'rgba(17,17,17,0.08)' : GOLD,
+            color: r === 'D' ? '#7a5b00' : '#fff',
+            background: r === 'W' ? '#22c55e' : r === 'L' ? '#dc2626' : GOLD,
           }}>{r}</span>
       ))}
     </div>
