@@ -1,4 +1,4 @@
-/**
+﻿/**
  * League page: the definitive digital home for a competition.
  */
 import { lazy, Suspense, useState } from 'react'
@@ -8,6 +8,7 @@ import ProductSearch from '../components/rankings/ProductSearch'
 import Footer from '../components/layout/Footer'
 import LeagueLiveData from '../components/league/LeagueLiveData'
 import LeagueHubExtras from '../components/league/LeagueHubExtras'
+import LeagueLadderPolish from '../components/league/LeagueLadderPolish'
 import { useSeo } from '../lib/seo'
 import { fetchLeague, useAsync, strengthStars, strengthLabel, type LeagueDetail } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
@@ -41,6 +42,7 @@ export default function LeagueProfile() {
   return <div className="league-profile-page" style={{ background: '#ffffff', minHeight: '100vh' }}>
     <Nav />
     <ProductSearch />
+    <LeagueLadderPolish />
     <main id="main-content">
       {league.loading && <HeroSkeleton />}
       {league.error && <div className="font-condensed" style={{ minHeight: '50vh', display: 'grid', placeItems: 'center', color: '#dc2626', letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, fontSize: 13 }}>League not found</div>}
