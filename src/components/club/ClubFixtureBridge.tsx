@@ -51,11 +51,13 @@ export default function ClubFixtureBridge() {
   const { pathname } = useLocation()
   const match = pathname.match(/^\/team\/([^/]+)$/)
   const clubId = match ? decodeURIComponent(match[1]) : ''
+  const [clubName, setClubName] = useState('')
   const [rows, setRows] = useState<FixtureRow[]>([])
   const [target, setTarget] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
     setRows([])
+    setClubName('')
     if (!clubId) return
     let active = true
 
@@ -67,6 +69,7 @@ export default function ClubFixtureBridge() {
       const club = results[0].status === 'fulfilled' ? results[0].value.data : undefined
       const direct = results[1].status === 'fulfilled' && Array.isArray(results[1].value.data) ? results[1].value.data : []
       if (!club || direct.length > 0 || !club.leagueId) return
+      setClubName(club.clubName)
 
       const response = await fetch(`/api/leagues/${encodeURIComponent(club.leagueId)}`)
       if (!response.ok) return
@@ -115,7 +118,7 @@ export default function ClubFixtureBridge() {
         const id = row.sourceId ?? row.id.replace(/^football:/, '')
         const home = row.homeClubName ?? row.homeName ?? 'Home'
         const away = row.awayClubName ?? row.awayName ?? 'Away'
-        const isHome = row.homeClubId === clubId || normalise(home) === normalise(home === away ? '' : home)
+        const isHome = row.homeClubId === clubId || normalise(home) === normalise(clubName)
         return <Link key={row.id} to={`/match/fixture/${encodeURIComponent(id)}?source=football`}>
           <span className={isHome ? 'this-club' : ''}>{home}</span>
           <span className={!isHome ? 'this-club' : ''}>{away}</span>
