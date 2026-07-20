@@ -32,6 +32,10 @@ function applyDirectoryLogos(logos: Map<string, string>) {
   })
 }
 
+function removeDirectorySidebar() {
+  document.querySelectorAll('.clubs-page .clubs-sidebar, .clubs-page .featured-strip').forEach(element => element.remove())
+}
+
 function ensureFinderMessage(directory: HTMLElement) {
   let message = directory.querySelector<HTMLElement>('.pf-directory-finder-message')
   if (!message) {
@@ -45,6 +49,8 @@ function ensureFinderMessage(directory: HTMLElement) {
 function applyDirectoryFilter() {
   const page = document.querySelector<HTMLElement>('.clubs-page')
   if (!page) return
+
+  removeDirectorySidebar()
 
   const search = page.querySelector<HTMLInputElement>('.search-box input')
   const selects = page.querySelectorAll<HTMLSelectElement>('.filters-panel select')
@@ -116,6 +122,7 @@ export default function DirectoryPublicFix() {
     const apply = () => {
       window.clearTimeout(scheduled)
       scheduled = window.setTimeout(() => {
+        removeDirectorySidebar()
         applyDirectoryFilter()
         if (logos.size > 0) applyDirectoryLogos(logos)
       }, 0)
