@@ -20,6 +20,17 @@ function strength(league: { finalStrengthRating: number | null; manualStrengthOv
   return league?.finalStrengthRating ?? league?.manualStrengthOverride ?? league?.strengthTier ?? 3
 }
 
+/**
+ * Strength-adjusted goal multiplier.
+ * 5 = 1.0, 4 = 0.9, 3 = 0.8, 2 = 0.7, 1 = 0.6.
+ * Decimal strength ratings are supported proportionally and values are clamped
+ * to the public 1–5 strength scale.
+ */
+function strengthGoalMultiplier(leagueStrength: number) {
+  const clamped = Math.max(1, Math.min(5, leagueStrength))
+  return 0.5 + clamped * 0.1
+}
+
 function safeLimit(value: unknown) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? Math.max(1, Math.min(1000, Math.trunc(parsed))) : 500
@@ -69,6 +80,7 @@ router.get('/', publicRateLimit, cachePublic(180), async (req, res, next) => {
 
     const enriched = rows.map(row => {
       const leagueStrength = strength(row.league)
+      const adjustedMultiplier = strengthGoalMultiplier(leagueStrength)
       const goalsPerGame = row.matches && row.matches > 0 ? Math.round((row.goals / row.matches) * 100) / 100 : null
       const latest = latestByPlayer.get(row.playerId) ?? latestByPlayer.get(row.id)
       const previousGoals = Number.isFinite(latest?.previousGoals) ? Number(latest?.previousGoals) : row.goals
@@ -91,7 +103,8 @@ router.get('/', publicRateLimit, cachePublic(180), async (req, res, next) => {
         latestUpdatedAt: latest?.createdAt.toISOString() ?? row.updatedAt.toISOString(),
         importedAt: row.importedAt.toISOString(),
         leagueStrength,
-        adjustedGoals: Math.round(row.goals * (leagueStrength / 4) * 100) / 100,
+        adjustedMultiplier,
+        adjustedGoals: Math.round(row.goals * adjustedMultiplier * 100) / 100,
         milestone: row.goals >= 100 ? 100 : row.goals >= 50 ? 50 : null,
       }
     })
@@ -99,7 +112,7 @@ router.get('/', publicRateLimit, cachePublic(180), async (req, res, next) => {
     const score = (row: typeof enriched[number], previous = false) => {
       const goals = previous ? row.previousGoals : row.goals
       if (sort === 'gpg') return row.matches && row.matches > 0 ? goals / row.matches : -1
-      if (sort === 'adjusted') return goals * (row.leagueStrength / 4)
+      if (sort === 'adjusted') return goals * row.adjustedMultiplier
       return goals
     }
 
