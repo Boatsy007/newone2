@@ -21,6 +21,12 @@ const labels: Record<BatchKind, string> = {
   players: 'player profiles',
 }
 
+const batchKinds: BatchKind[] = ['results', 'fixtures', 'goalKickers', 'club', 'league', 'players']
+
+function isBatchKind(value: string): value is BatchKind {
+  return batchKinds.includes(value as BatchKind)
+}
+
 const routeFor = (kind: BatchKind) => kind === 'results' || kind === 'fixtures'
   ? '/admin/match-images'
   : kind === 'goalKickers'
@@ -64,9 +70,10 @@ export default function UniversalBulkImportActions() {
         const select = card.querySelector<HTMLSelectElement>('select')
         const image = card.querySelector<HTMLImageElement>('img')
         const name = card.querySelector<HTMLElement>('.universal-item-body > strong')?.textContent?.trim() || `import-${Date.now()}.png`
-        const kind = select?.value as ImportHandoffKind | undefined
-        if (!kind || kind === 'unknown' || kind === 'ladder' || !image?.src.startsWith('data:')) continue
-        const values = grouped.get(kind as BatchKind) ?? []
+        const rawKind = select?.value ?? ''
+        if (!isBatchKind(rawKind) || !image?.src.startsWith('data:')) continue
+        const kind = rawKind
+        const values = grouped.get(kind) ?? []
         values.push({
           kind,
           name,
@@ -74,7 +81,7 @@ export default function UniversalBulkImportActions() {
           dataUrl: image.src,
           createdAt: Date.now(),
         })
-        grouped.set(kind as BatchKind, values)
+        grouped.set(kind, values)
       }
 
       setGroups(Array.from(grouped.entries()).map(([kind, values]) => ({
