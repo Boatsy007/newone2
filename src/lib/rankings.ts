@@ -79,14 +79,77 @@ export interface UnifiedSearchResults {
 }
 export interface SearchResponse { data: UnifiedSearchResults; meta: { query: string; total: number; partial: string[] } }
 
+type PublishedClubResult = {
+  id: string
+  matchDate?: string | null
+  homeClubId?: string | null
+  awayClubId?: string | null
+  homeClubName?: string
+  awayClubName?: string
+  homeName?: string
+  awayName?: string
+  homePoints?: number
+  awayPoints?: number
+  homeScore?: number
+  awayScore?: number
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.json() as Promise<T>
 }
+
+function normaliseClubName(value: string | null | undefined) {
+  return (value ?? '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/\b(seniors?|senior men|a grade|football club|fc)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function resultForClub(row: PublishedClubResult, club: ClubProfile): FormResult | null {
+  const homeName = row.homeClubName ?? row.homeName ?? ''
+  const awayName = row.awayClubName ?? row.awayName ?? ''
+  const targetName = normaliseClubName(club.clubName)
+  const isHome = row.homeClubId === club.clubId || normaliseClubName(homeName) === targetName
+  const isAway = row.awayClubId === club.clubId || normaliseClubName(awayName) === targetName
+  if (!isHome && !isAway) return null
+
+  const home = Number(row.homePoints ?? row.homeScore)
+  const away = Number(row.awayPoints ?? row.awayScore)
+  if (!Number.isFinite(home) || !Number.isFinite(away)) return null
+  if (home === away) return 'D'
+  return isHome ? (home > away ? 'W' : 'L') : (away > home ? 'W' : 'L')
+}
+
+async function withPublishedRecentForm(club: ClubProfile): Promise<ClubProfile> {
+  const season = club.season ? `?season=${encodeURIComponent(club.season)}` : ''
+  try {
+    const response = await getJson<{ data?: PublishedClubResult[] }>(`/api/clubs/${encodeURIComponent(club.clubId)}/results${season}`)
+    const rows = Array.isArray(response.data) ? [...response.data] : []
+    rows.sort((a, b) => {
+      const left = a.matchDate ? Date.parse(a.matchDate) : 0
+      const right = b.matchDate ? Date.parse(b.matchDate) : 0
+      return right - left
+    })
+    const recentForm = rows
+      .flatMap(row => {
+        const value = resultForClub(row, club)
+        return value ? [value] : []
+      })
+      .slice(0, 5)
+
+    return recentForm.length ? { ...club, recentForm } : club
+  } catch {
+    return club
+  }
+}
+
 export const fetchRankings = () => getJson<RankingsResponse>('/api/rankings')
 export const fetchTop = (n: 10 | 25 | 100) => getJson<RankingsResponse>(`/api/top${n}`)
-export const fetchClub = (id: string) => getJson<{ data: ClubProfile }>(`/api/clubs/${id}`).then(response => response.data)
+export const fetchClub = (id: string) => getJson<{ data: ClubProfile }>(`/api/clubs/${encodeURIComponent(id)}`).then(response => withPublishedRecentForm(response.data))
 export const fetchLeague = (id: string) => getJson<{ data: LeagueDetail }>(`/api/leagues/${id}`).then(response => response.data)
 export const fetchSearch = (q: string) => getJson<{ data: SearchResults }>(`/api/leagues/search/global?q=${encodeURIComponent(q)}`).then(response => response.data)
 export const fetchUnifiedSearch = (q: string) => getJson<SearchResponse>(`/api/search?q=${encodeURIComponent(q)}`)
