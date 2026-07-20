@@ -94,6 +94,11 @@ export default function AutoShareButtons() {
     .pf-auto-share svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.pf-auto-share circle{fill:currentColor;stroke:none}
     .pf-auto-share:hover,.pf-auto-share:focus-visible{background:#2daaf5;outline:none}.pf-auto-share.creating{opacity:.7;cursor:wait}
     .rankings-table .pf-auto-share{position:static;margin-left:auto;flex:0 0 auto}
-    @media(max-width:640px){.pf-auto-share{padding:7px}.pf-auto-share span{display:none}.rankings-table .pf-auto-share{display:flex}}
+    @media(max-width:640px){
+      .pf-auto-share{padding:7px}.pf-auto-share span{display:none}.rankings-table .pf-auto-share{display:flex}
+      .pf-player-record-card,.pf-record-card{padding-bottom:60px!important}
+      .pf-player-record-card>.pf-auto-share,.pf-record-card>.pf-auto-share{top:auto!important;right:12px!important;bottom:12px!important;padding:8px 11px!important;gap:6px!important}
+      .pf-player-record-card>.pf-auto-share span,.pf-record-card>.pf-auto-share span{display:inline!important}
+    }
   `}</style>
 }
