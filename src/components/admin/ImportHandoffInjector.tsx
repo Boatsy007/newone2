@@ -1,6 +1,11 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { consumeImportHandoff, handoffToFile, type ImportHandoffKind } from '../../lib/importHandoff'
+import {
+  consumeImportHandoff,
+  consumeImportHandoffBatch,
+  handoffToFile,
+  type ImportHandoffKind,
+} from '../../lib/importHandoff'
 
 function acceptedKinds(pathname: string): ImportHandoffKind[] {
   if (pathname === '/admin/match-images') return ['results', 'fixtures']
@@ -43,11 +48,13 @@ export default function ImportHandoffInjector() {
         return
       }
 
-      const handoff = consumeImportHandoff(accepted)
-      if (!handoff) return
-      const file = handoffToFile(handoff)
+      const batch = consumeImportHandoffBatch(accepted)
+      const single = consumeImportHandoff(accepted)
+      const handoffs = batch.length ? batch : single ? [single] : []
+      if (!handoffs.length) return
+
       const transfer = new DataTransfer()
-      transfer.items.add(file)
+      for (const handoff of handoffs) transfer.items.add(handoffToFile(handoff))
       input.files = transfer.files
       input.dispatchEvent(new Event('change', { bubbles: true }))
     }
