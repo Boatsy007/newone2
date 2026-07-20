@@ -38,7 +38,7 @@ export default function LeagueProfile() {
     jsonLd: data && facts ? buildJsonLd(data, facts, leagueId) : undefined,
   })
 
-  return <div style={{ background: '#ffffff', minHeight: '100vh' }}>
+  return <div className="league-profile-page" style={{ background: '#ffffff', minHeight: '100vh' }}>
     <Nav />
     <ProductSearch />
     <main id="main-content">
@@ -62,9 +62,18 @@ export default function LeagueProfile() {
           <LeagueSidebar league={data} facts={facts} />
         </div>
         <style>{`
-          .league-profile-shell{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:24px 20px 48px}
-          .league-profile-main{display:grid;gap:18px}.league-profile-main > section{padding-left:0!important;padding-right:0!important}.league-profile-main > section > div{max-width:none!important}
-          @media (max-width:980px){.league-profile-shell{display:block;padding:18px 14px 36px}.league-profile-main > section{padding-top:22px!important;padding-bottom:22px!important}.league-sidebar{display:none!important}}
+          .league-profile-page,.league-profile-page #main-content{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
+          .league-profile-page #main-content>*{max-width:100%;min-width:0}
+          .league-profile-shell{width:100%;max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:24px 20px 48px}
+          .league-profile-main{display:grid;gap:18px;min-width:0;width:100%}.league-profile-main > section{min-width:0;max-width:100%;padding-left:0!important;padding-right:0!important}.league-profile-main > section > div{max-width:none!important;min-width:0!important}
+          @media (max-width:980px){
+            .league-profile-page,.league-profile-page #main-content{width:100vw!important;max-width:100vw!important;min-width:0!important;margin:0!important;transform:none!important;zoom:1!important}
+            .league-profile-page #main-content>*{width:100%!important;max-width:100%!important;min-width:0!important}
+            .league-profile-shell{display:block;width:100%!important;max-width:100%!important;min-width:0!important;padding:18px 14px 36px;margin:0!important}
+            .league-profile-main{width:100%!important;max-width:100%!important;min-width:0!important}
+            .league-profile-main > section{width:100%!important;max-width:100%!important;min-width:0!important;padding-top:22px!important;padding-bottom:22px!important}
+            .league-sidebar{display:none!important}
+          }
         `}</style>
       </>}
     </main>
