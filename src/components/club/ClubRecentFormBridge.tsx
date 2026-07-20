@@ -53,6 +53,7 @@ function pip(result: FormResult) {
   const span = document.createElement('span')
   span.textContent = result
   span.title = result
+  span.dataset.pfFormResult = result
   Object.assign(span.style, {
     width: '20px',
     height: '20px',
@@ -61,15 +62,14 @@ function pip(result: FormResult) {
     placeItems: 'center',
     fontSize: '11px',
     fontWeight: '800',
-    color: result === 'W' ? '#fff' : result === 'D' ? '#7a5b00' : 'rgba(17,17,17,0.5)',
-    background: result === 'W' ? '#22c55e' : result === 'L' ? 'rgba(17,17,17,0.08)' : '#f4c14d',
+    color: '#fff',
+    background: result === 'W' ? '#22c55e' : result === 'L' ? '#dc2626' : '#168fd2',
   })
   return span
 }
 
 function renderForm(form: FormResult[]) {
-  document.querySelectorAll('.pf-live-recent-form').forEach(node => node.remove())
-
+  const signature = form.join('')
   const labels = Array.from(document.querySelectorAll<HTMLElement>('.font-condensed'))
     .filter(node => ['form', 'recent form'].includes(node.textContent?.trim().toLowerCase() ?? ''))
 
@@ -78,14 +78,26 @@ function renderForm(form: FormResult[]) {
     if (!host) return
 
     const existing = Array.from(host.querySelectorAll<HTMLElement>('div'))
-      .find(node => Array.from(node.children).some(child => ['W', 'L', 'D'].includes(child.textContent?.trim() ?? '')))
-    if (existing) existing.style.display = 'none'
+      .find(node => node !== label && Array.from(node.children).some(child => ['W', 'L', 'D'].includes(child.textContent?.trim() ?? '')))
+    if (existing && !existing.classList.contains('pf-live-recent-form')) existing.style.setProperty('display', 'none', 'important')
 
-    const live = document.createElement('div')
-    live.className = 'pf-live-recent-form'
-    Object.assign(live.style, { display: 'flex', gap: '4px', marginTop: label.textContent?.trim().toLowerCase() === 'recent form' ? '10px' : '0' })
-    form.forEach(value => live.appendChild(pip(value)))
-    host.appendChild(live)
+    let live = host.querySelector<HTMLElement>(':scope > .pf-live-recent-form')
+    if (!live) {
+      live = document.createElement('div')
+      live.className = 'pf-live-recent-form'
+      host.appendChild(live)
+    }
+
+    live.style.setProperty('display', 'flex', 'important')
+    live.style.setProperty('gap', '4px', 'important')
+    live.style.setProperty('visibility', 'visible', 'important')
+    live.style.setProperty('opacity', '1', 'important')
+    live.style.setProperty('margin-top', label.textContent?.trim().toLowerCase() === 'recent form' ? '10px' : '0', 'important')
+
+    if (live.dataset.signature !== signature) {
+      live.replaceChildren(...form.map(pip))
+      live.dataset.signature = signature
+    }
   })
 }
 
@@ -98,6 +110,8 @@ export default function ClubRecentFormBridge() {
     const clubId = decodeURIComponent(match[1])
     let active = true
     let observer: MutationObserver | null = null
+    let timer = 0
+    let interval = 0
 
     void fetch(`/api/clubs/${encodeURIComponent(clubId)}`)
       .then(response => response.ok ? response.json() as Promise<ClubPayload> : Promise.reject(new Error(`HTTP ${response.status}`)))
@@ -122,16 +136,22 @@ export default function ClubRecentFormBridge() {
         }).slice(0, 5)
         if (!form.length) return
 
-        const apply = () => renderForm(form)
-        apply()
+        const apply = () => {
+          window.clearTimeout(timer)
+          timer = window.setTimeout(() => { if (active) renderForm(form) }, 20)
+        }
+        renderForm(form)
         observer = new MutationObserver(apply)
         observer.observe(document.getElementById('root') ?? document.body, { childList: true, subtree: true })
+        interval = window.setInterval(() => { if (active) renderForm(form) }, 500)
       })
       .catch(() => undefined)
 
     return () => {
       active = false
       observer?.disconnect()
+      window.clearTimeout(timer)
+      window.clearInterval(interval)
       document.querySelectorAll('.pf-live-recent-form').forEach(node => node.remove())
     }
   }, [pathname])
