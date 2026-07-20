@@ -10,12 +10,12 @@ import { loadFeed, readIds, type FollowEntity } from '../../lib/supporter'
 const links = [
   { label: 'For You', href: '/feed' },
   { label: 'News', href: '/news' },
+  { label: 'Goals', href: '/goal-kickers' },
   { label: 'Rankings', href: '/rankings' },
-  { label: 'Leagues', href: '/leagues' },
-  { label: 'Matches', href: '/matches' },
-  { label: 'Clubs', href: '/directory' },
   { label: 'Highlights', href: '/highlights' },
-  { label: 'Stats', href: '/goal-kickers' },
+  { label: 'Matches', href: '/matches' },
+  { label: 'Leagues', href: '/leagues' },
+  { label: 'Clubs', href: '/directory' },
 ]
 
 const HEADER_LOGO_PATH = '/Playfooty-logo-modern.png'
