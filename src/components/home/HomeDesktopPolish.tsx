@@ -6,6 +6,52 @@ export default function HomeDesktopPolish() {
   if (pathname !== '/') return null
 
   return <style>{`
+    .pf-top,
+    .pf-player-records-home,
+    .pf-records-home {
+      position: relative;
+      z-index: 0;
+    }
+
+    .pf-top::before,
+    .pf-records-home.is-weekly::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      top: -22px;
+      bottom: -22px;
+      left: 50%;
+      width: 100vw;
+      transform: translateX(-50%);
+      border-top: 1px solid rgba(17, 24, 39, .045);
+      border-bottom: 1px solid rgba(17, 24, 39, .045);
+      pointer-events: none;
+    }
+
+    .pf-top::before {
+      background: linear-gradient(180deg, #f3f6f9 0%, #eef3f7 100%);
+    }
+
+    .pf-records-home.is-weekly::before {
+      background: linear-gradient(180deg, #eef4f8 0%, #f4f7fa 100%);
+    }
+
+    .pf-player-records-home,
+    .pf-records-home:not(.is-weekly) {
+      background: #fff;
+    }
+
+    .pf-top {
+      margin-top: 22px;
+      margin-bottom: 34px;
+    }
+
+    .pf-player-records-home,
+    .pf-records-home {
+      padding-top: 30px !important;
+      padding-bottom: 54px !important;
+    }
+
     .pf-club-card:nth-child(1) .pf-rank-chip {
       color: #211400 !important;
       background: linear-gradient(145deg, #fff4a8 0%, #dca72d 24%, #fff0a0 46%, #b87812 70%, #f5d66b 100%) !important;
@@ -85,6 +131,25 @@ export default function HomeDesktopPolish() {
       .pf-player-records-strip,
       .pf-records-strip {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .pf-top::before,
+      .pf-records-home.is-weekly::before {
+        top: -16px;
+        bottom: -16px;
+      }
+
+      .pf-top {
+        margin-top: 16px;
+        margin-bottom: 28px;
+      }
+
+      .pf-player-records-home,
+      .pf-records-home {
+        padding-top: 24px !important;
+        padding-bottom: 46px !important;
       }
     }
   `}</style>
