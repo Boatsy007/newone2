@@ -14,10 +14,12 @@ function applyLeagueFinder() {
   const search = page.querySelector<HTMLInputElement>('.search-box input')
   const state = page.querySelector<HTMLSelectElement>('.filters-panel select')
   const active = Boolean(search?.value.trim() || (state?.value && state.value !== 'All states'))
+  page.classList.toggle('pf-league-finder-active', active)
+
   const grid = page.querySelector<HTMLElement>('.league-grid')
   const directory = page.querySelector<HTMLElement>('.league-directory')
   const count = page.querySelector<HTMLElement>('.directory-toolbar b')
-  if (!directory) return true
+  if (!directory) return false
 
   let message = directory.querySelector<HTMLElement>('.pf-league-finder-message')
   if (!message) {
@@ -55,7 +57,7 @@ export default function LeaguesPublicFinder() {
       window.clearTimeout(timer)
       timer = window.setTimeout(() => {
         const ready = applyLeagueFinder()
-        if (!ready && attempts < 20) {
+        if (!ready && attempts < 40) {
           attempts += 1
           timer = window.setTimeout(apply, 50)
         }
@@ -83,6 +85,10 @@ export default function LeaguesPublicFinder() {
 
     .leagues-page .leagues-layout {
       grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .leagues-page:not(.pf-league-finder-active) .league-grid {
+      display: none !important;
     }
 
     .pf-league-finder-message {
