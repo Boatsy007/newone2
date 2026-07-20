@@ -139,9 +139,13 @@ export default function DirectoryPublicFix() {
   if (pathname !== '/directory') return null
 
   return <style>{`
-    .clubs-page:not(.pf-directory-filter-active) .featured-strip,
-    .clubs-page.pf-directory-filter-active .featured-strip {
+    .clubs-page .featured-strip,
+    .clubs-page .clubs-sidebar {
       display: none !important;
+    }
+
+    .clubs-page .clubs-layout {
+      grid-template-columns: minmax(0, 1fr) !important;
     }
 
     .pf-directory-finder-message {
