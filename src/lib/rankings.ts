@@ -95,7 +95,7 @@ type PublishedClubResult = {
 }
 
 function displaySeasonLabel(value: string) {
-  return value.replace(/^(\d{4})-w\d+$/i, '$1')
+  return value.replace(/(\d{4})-w\d+\b/gi, '$1')
 }
 
 function sanitiseDisplayLabels(value: unknown): unknown {
