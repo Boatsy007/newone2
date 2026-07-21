@@ -140,16 +140,18 @@ commercial.post('/premium/:scope/:entityId', requireAdminActor, async (req, res)
   res.json({ data: await setPremium(scope, String(req.params.entityId), (req.body ?? {}) as Record<string, unknown>, 'admin') })
 })
 commercial.post('/sweep', requireAdminActor, async (req, res) => {
-  try { res.json({ data: await runCommercialSweep({ seed: (req.body as { seed?: boolean })?.seed, performedBy: 'admin' }) }) }
+  try { res.json({ data: await runCommercialSweep({ seed: (req.body as { seed?: boolean })?.seed, performedBy: 'admin' }) })
   catch (error) { logger.error('commercial sweep', { detail: String(error) }); res.status(500).json({ error: 'sweep failed' }) }
 })
 
 const commercialClub = Router()
-commercialClub.get('/:id/sponsors', publicRateLimit, cachePublic(300), async (req, res) => {
+commercialClub.get('/:id/sponsors', publicRateLimit, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
   res.json({ data: await getClubSponsorships(String(req.params.id), req.query.all !== 'true') })
 })
 const commercialLeague = Router()
-commercialLeague.get('/:id/sponsors', publicRateLimit, cachePublic(300), async (req, res) => {
+commercialLeague.get('/:id/sponsors', publicRateLimit, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
   res.json({ data: await getLeagueSponsorships(String(req.params.id), req.query.all !== 'true') })
 })
 
