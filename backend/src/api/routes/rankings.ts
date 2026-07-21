@@ -57,14 +57,25 @@ function formatEntry(entry: Entry, stats?: Stats) {
   }
 }
 
+function rankingSeasonCandidates(season: string) {
+  const calendarYear = season.match(/\b(20\d{2})\b/)?.[1]
+  return [...new Set([season, calendarYear].filter((value): value is string => Boolean(value)))]
+}
+
 async function formatEntries(entries: Entry[], season: string) {
   const clubIds = entries.map(e => e.clubId)
   const rows = await prisma.clubLeagueSeason.findMany({
-    where: { clubId: { in: clubIds }, season, isActive: true },
-    select: { clubId: true, leagueId: true, played: true, wins: true, losses: true, draws: true, goalsFor: true, goalsAgainst: true, percentage: true, points: true },
+    where: { clubId: { in: clubIds }, season: { in: rankingSeasonCandidates(season) }, isActive: true },
+    select: { clubId: true, leagueId: true, played: true, wins: true, losses: true, draws: true, goalsFor: true, goalsAgainst: true, percentage: true, points: true, updatedAt: true },
+    orderBy: [{ played: 'desc' }, { updatedAt: 'desc' }],
   })
-  const exact = new Map(rows.map(r => [`${r.clubId}:${r.leagueId}`, r]))
-  const byClub = new Map(rows.map(r => [r.clubId, r]))
+  const exact = new Map<string, Stats>()
+  const byClub = new Map<string, Stats>()
+  for (const row of rows) {
+    const key = `${row.clubId}:${row.leagueId}`
+    if (!exact.has(key)) exact.set(key, row)
+    if (!byClub.has(row.clubId)) byClub.set(row.clubId, row)
+  }
   return entries.map(e => formatEntry(e, exact.get(`${e.clubId}:${e.leagueId}`) ?? byClub.get(e.clubId)))
 }
 
