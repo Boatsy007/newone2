@@ -122,6 +122,15 @@ function scoreConsistency(wins: number, played: number, goalsFor: number, goalsA
   return winScore + marginScore
 }
 
+function competitionKey(club: ClubRankingInput): string {
+  const league = (club.leagueName || club.leagueId)
+    .toLowerCase()
+    .replace(/\bfootball\s+netball\s+league\b/g, 'fnl')
+    .replace(/\bfootball\s+league\b/g, 'fl')
+    .replace(/[^a-z0-9]+/g, '')
+  return `${league}|${club.state}`
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main ranking engine
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,25 +202,29 @@ export class RankingEngine {
     })
 
     // Ranking rule:
-    //  • Within the SAME league, record comes first — an undefeated team ranks
-    //    above a team with a loss (fewer losses wins; then more wins).
+    //  • Within the SAME competition, record comes first — an undefeated team
+    //    ranks above a team with a loss (fewer losses wins; then more wins).
+    //  • Competition identity uses normalised league name + state rather than
+    //    only league UUID, so rebuilt/duplicate league records cannot split one
+    //    real competition into separate hidden ranking groups.
     //  • Teams with an identical record, and teams in different leagues, fall
     //    back to the formula power rating.
     // To keep displayed ratings monotonic with the order, we reassign each
-    // league's set of rating values in record order — the formula still sets
-    // the magnitudes (and cross-league placement), the record sets the order.
+    // competition's set of rating values in record order — the formula still
+    // sets the magnitudes (and cross-league placement), the record sets the order.
     const byLeague = new Map<string, typeof scored>()
     for (const s of scored) {
-      const arr = byLeague.get(s.club.leagueId) ?? []
+      const key = competitionKey(s.club)
+      const arr = byLeague.get(key) ?? []
       arr.push(s)
-      byLeague.set(s.club.leagueId, arr)
+      byLeague.set(key, arr)
     }
     for (const group of byLeague.values()) {
       const ratingsDesc = group.map(s => s.powerRating).sort((a, b) => b - a)
       group.sort((a, b) => {
-        if (a.club.losses !== b.club.losses) return a.club.losses - b.club.losses  // fewer losses first
-        if (a.club.wins   !== b.club.wins)   return b.club.wins   - a.club.wins    // more wins first
-        return b.powerRating - a.powerRating                                       // equal record → formula
+        if (a.club.losses !== b.club.losses) return a.club.losses - b.club.losses
+        if (a.club.wins   !== b.club.wins)   return b.club.wins   - a.club.wins
+        return b.powerRating - a.powerRating
       })
       group.forEach((s, i) => { s.powerRating = ratingsDesc[i] })
     }
