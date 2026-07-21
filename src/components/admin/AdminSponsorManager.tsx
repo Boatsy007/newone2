@@ -121,10 +121,16 @@ export default function AdminSponsorManager() {
       })
       await sponsorAdmin.setSponsorshipStatus(deal.id, 'ACTIVE', 'Activated through profile editor')
       await load()
-      setNewName(''); setWebsiteUrl(''); setFile(null); setStartDate(''); setEndDate('')
+      setSelectedSponsorId('')
+      setNewName('')
+      setWebsiteUrl('')
+      setPackageName('MAJOR_PARTNER')
+      setFile(null)
+      setStartDate('')
+      setEndDate('')
       const fileInput = document.getElementById(`admin-sponsor-file-${target.kind}-${target.id}`) as HTMLInputElement | null
       if (fileInput) fileInput.value = ''
-      setMessage('Sponsor assigned and active on the public profile.')
+      setMessage('Sponsor assigned. The form is ready to add another sponsor to this profile.')
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
     finally { setBusy(false) }
   }
@@ -140,7 +146,7 @@ export default function AdminSponsorManager() {
   }
 
   return createPortal(<section className="admin-sponsor-card">
-    <div className="admin-sponsor-heading"><div><small>COMMERCIAL PARTNERS</small><h3>Sponsors</h3><p>Create or select a sponsor, upload its logo and assign it directly to this {target.kind}.</p></div><span>{deals.filter(deal => ['ACTIVE','APPROVED','PAYMENT_COMPLETE','RENEWAL_DUE'].includes(deal.status)).length} active</span></div>
+    <div className="admin-sponsor-heading"><div><small>COMMERCIAL PARTNERS</small><h3>Sponsors</h3><p>Create or select sponsors and assign multiple active partners directly to this {target.kind}.</p></div><span>{deals.filter(deal => ['ACTIVE','APPROVED','PAYMENT_COMPLETE','RENEWAL_DUE'].includes(deal.status)).length} active</span></div>
 
     {deals.length > 0 && <div className="admin-sponsor-current">{deals.map(deal => <article key={deal.id}>
       <div className="admin-sponsor-logo">{deal.sponsor?.logoUrl ? <img src={deal.sponsor.logoUrl} alt="" /> : <strong>{deal.sponsor?.name?.slice(0,2).toUpperCase() || 'SP'}</strong>}</div>
@@ -157,9 +163,9 @@ export default function AdminSponsorManager() {
       <label><span>End date</span><input style={input} type="date" value={endDate} onChange={event => setEndDate(event.target.value)} /></label>
       <label className="wide"><span>Sponsor logo</span><input id={`admin-sponsor-file-${target.kind}-${target.id}`} style={input} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={event => setFile(event.target.files?.[0] ?? null)} /></label>
     </div>
-    <div className="admin-sponsor-note"><strong>Major partner coverage</strong><span>The major partner becomes the featured “Brought to you by” sponsor on this profile. Card-by-card sponsor propagation uses the package metadata added here and can be expanded without re-entering the sponsor.</span></div>
+    <div className="admin-sponsor-note"><strong>Multiple sponsor coverage</strong><span>Each assignment is stored as its own sponsorship. Major, football, player and community partners can all remain active on the same profile.</span></div>
     {message && <div className="admin-sponsor-message">{message}</div>}
-    <div className="admin-sponsor-actions"><button style={primary} disabled={busy} onClick={() => void assign()}>{busy ? 'Working…' : 'Assign sponsor'}</button><a style={{ ...dark, textDecoration: 'none' }} href={`/${target.kind === 'club' ? 'team' : 'league'}/${target.id}`} target="_blank" rel="noreferrer">Preview profile</a></div>
+    <div className="admin-sponsor-actions"><button style={primary} disabled={busy} onClick={() => void assign()}>{busy ? 'Working…' : 'Add sponsor'}</button><a style={{ ...dark, textDecoration: 'none' }} href={`/${target.kind === 'club' ? 'team' : 'league'}/${target.id}`} target="_blank" rel="noreferrer">Preview profile</a></div>
     <style>{`
       .admin-editor-sponsor-host{grid-column:1/-1}.admin-sponsor-card{display:grid;gap:16px;padding:20px;border:1px solid #dce3eb;border-radius:18px;background:#f7f9fb}.admin-sponsor-heading{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.admin-sponsor-heading small,.admin-sponsor-form label>span{display:block;color:#168fd4;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.admin-sponsor-heading h3{margin:5px 0 4px;font-family:'Bebas Neue',Impact,sans-serif;font-size:38px;line-height:1;text-transform:uppercase}.admin-sponsor-heading p{margin:0;color:#687385}.admin-sponsor-heading>span{border-radius:999px;background:#050505;color:#fff;padding:8px 12px;font-size:11px;font-weight:950;text-transform:uppercase}.admin-sponsor-current{display:grid;gap:8px}.admin-sponsor-current article{display:grid;grid-template-columns:48px 1fr auto;align-items:center;gap:12px;padding:11px;border:1px solid #e0e6ec;border-radius:13px;background:#fff}.admin-sponsor-logo{width:48px;height:48px;border-radius:10px;background:#f0f4f7;display:grid;place-items:center;overflow:hidden}.admin-sponsor-logo img{width:100%;height:100%;object-fit:contain}.admin-sponsor-current strong,.admin-sponsor-current small{display:block}.admin-sponsor-current small{color:#687385;margin-top:3px}.admin-sponsor-current button{border:1px solid #d71920;border-radius:999px;background:#fff;color:#d71920;padding:8px 12px;font-weight:900;text-transform:uppercase}.admin-sponsor-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.admin-sponsor-form label{display:grid;gap:6px}.admin-sponsor-form .wide{grid-column:1/-1}.admin-sponsor-note{display:grid;gap:4px;padding:13px;border-radius:12px;background:#eef8ff;color:#174a68}.admin-sponsor-note span{font-size:13px;line-height:1.45}.admin-sponsor-message{padding:11px 13px;border-radius:11px;background:#fff3cd;color:#664d03;font-weight:800}.admin-sponsor-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}@media(max-width:680px){.admin-sponsor-heading{display:grid}.admin-sponsor-form{grid-template-columns:1fr}.admin-sponsor-form .wide{grid-column:auto}.admin-sponsor-current article{grid-template-columns:44px 1fr}.admin-sponsor-current article button{grid-column:1/-1}}
     `}</style>
@@ -169,8 +175,8 @@ export default function AdminSponsorManager() {
 function readDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error ?? new Error('Could not read the sponsor logo.'))
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error ?? new Error('Unable to read sponsor logo.'))
     reader.readAsDataURL(file)
   })
 }
