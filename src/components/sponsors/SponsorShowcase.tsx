@@ -1,0 +1,102 @@
+import { useEffect, useMemo, useState } from 'react'
+import { ExternalLink, Handshake } from 'lucide-react'
+
+type Sponsor = {
+  id: string
+  name: string
+  logoUrl: string | null
+  websiteUrl: string | null
+  tier?: string | null
+}
+
+type Sponsorship = {
+  id: string
+  package?: string | null
+  tier?: string | null
+  bannerPosition?: string | null
+  ctaLabel?: string | null
+  ctaUrl?: string | null
+  displayPriority?: number | null
+  sponsor: Sponsor | null
+}
+
+type Props = {
+  scope: 'club' | 'league'
+  entityId: string
+  entityName: string
+}
+
+function placementLabel(deal: Sponsorship, index: number) {
+  const source = `${deal.package ?? ''} ${deal.tier ?? ''} ${deal.bannerPosition ?? ''}`.toLowerCase()
+  if (source.includes('power')) return 'Powered by'
+  if (source.includes('present') || source.includes('major') || source.includes('primary') || index === 0) return 'Brought to you by'
+  return 'Community partner'
+}
+
+export default function SponsorShowcase({ scope, entityId, entityName }: Props) {
+  const [deals, setDeals] = useState<Sponsorship[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    fetch(`/api/${scope === 'club' ? 'clubs' : 'leagues'}/${encodeURIComponent(entityId)}/sponsors`)
+      .then(response => response.ok ? response.json() as Promise<{ data?: Sponsorship[] }> : Promise.reject(new Error(`HTTP ${response.status}`)))
+      .then(payload => { if (active) setDeals(Array.isArray(payload.data) ? payload.data : []) })
+      .catch(() => { if (active) setDeals([]) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [entityId, scope])
+
+  const ordered = useMemo(() => [...deals].sort((a, b) => (b.displayPriority ?? 0) - (a.displayPriority ?? 0)), [deals])
+  const primary = ordered[0] ?? null
+  const partners = ordered.slice(1)
+
+  return <section className="pf-sponsor-showcase" aria-label={`${entityName} sponsors`}>
+    <header className="pf-sponsor-heading">
+      <div><span>Commercial partners</span><h2>{scope === 'club' ? 'Club sponsors' : 'League sponsors'}</h2></div>
+      <Handshake size={28} aria-hidden />
+    </header>
+
+    {loading ? <div className="pf-sponsor-loading">Loading partners…</div> : <>
+      {primary ? <SponsorFeature deal={primary} label={placementLabel(primary, 0)} /> : <SponsorOpportunity featured scope={scope} />}
+
+      <div className="pf-sponsor-grid">
+        {partners.map((deal, index) => <SponsorCard key={deal.id} deal={deal} label={placementLabel(deal, index + 1)} />)}
+        {Array.from({ length: Math.max(0, 3 - partners.length) }).map((_, index) => <SponsorOpportunity key={`open-${index}`} scope={scope} />)}
+      </div>
+    </>}
+
+    <style>{`
+      .pf-sponsor-showcase{padding:26px;font-family:Barlow,Inter,Arial,sans-serif}.pf-sponsor-heading{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:18px}.pf-sponsor-heading span,.pf-sponsor-label{display:block;color:#0783c9;font-size:10px;font-weight:950;letter-spacing:.16em;text-transform:uppercase}.pf-sponsor-heading h2{margin:5px 0 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:38px;line-height:.95;text-transform:uppercase;color:#111318}.pf-sponsor-feature{display:grid;grid-template-columns:minmax(120px,190px) minmax(0,1fr) auto;align-items:center;gap:22px;padding:24px;border-radius:14px;background:#050505;color:#fff;text-decoration:none;border:1px solid #20242a;box-shadow:0 12px 28px rgba(5,5,5,.14)}.pf-sponsor-feature-logo{display:grid;place-items:center;min-height:105px;border-radius:10px;background:#fff;padding:14px}.pf-sponsor-feature-logo img{max-width:100%;max-height:82px;object-fit:contain}.pf-sponsor-feature-logo strong{color:#111318;font-size:22px;text-align:center}.pf-sponsor-feature h3,.pf-sponsor-card h3,.pf-sponsor-opportunity h3{margin:6px 0 0;font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.pf-sponsor-feature h3{font-size:34px}.pf-sponsor-feature p{margin:7px 0 0;color:#bbc5cf}.pf-sponsor-feature svg{color:#42b8ff}.pf-sponsor-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}.pf-sponsor-card,.pf-sponsor-opportunity{min-height:176px;border:1px solid #dde4ea;border-radius:12px;background:#fff;padding:18px;color:#111318;text-decoration:none;display:flex;flex-direction:column;box-shadow:0 5px 16px rgba(17,24,39,.045)}.pf-sponsor-card-logo{height:66px;display:flex;align-items:center}.pf-sponsor-card-logo img{max-width:130px;max-height:58px;object-fit:contain}.pf-sponsor-card-logo strong{font-size:17px}.pf-sponsor-card h3{font-size:25px}.pf-sponsor-card small{margin-top:auto;color:#687385;font-weight:700}.pf-sponsor-opportunity{justify-content:center;background:linear-gradient(145deg,#f8fafc,#eef4f8);border-style:dashed;border-color:#9fcbe5}.pf-sponsor-opportunity.featured{min-height:190px;padding:25px;margin-bottom:12px;border:2px dashed #42b8ff;background:linear-gradient(135deg,#eef8ff,#fff)}.pf-sponsor-opportunity h3{font-size:30px;color:#111318}.pf-sponsor-opportunity p{margin:7px 0 0;color:#687385;line-height:1.45}.pf-sponsor-loading{min-height:180px;display:grid;place-items:center;color:#687385;font-weight:850;text-transform:uppercase;letter-spacing:.1em}@media(max-width:760px){.pf-sponsor-showcase{padding:19px}.pf-sponsor-heading h2{font-size:32px}.pf-sponsor-feature{grid-template-columns:92px minmax(0,1fr);gap:15px;padding:18px}.pf-sponsor-feature>svg{display:none}.pf-sponsor-feature-logo{min-height:78px}.pf-sponsor-feature h3{font-size:27px}.pf-sponsor-grid{grid-template-columns:1fr}.pf-sponsor-card,.pf-sponsor-opportunity{min-height:145px}.pf-sponsor-opportunity.featured{min-height:160px}}
+    `}</style>
+  </section>
+}
+
+function SponsorFeature({ deal, label }: { deal: Sponsorship; label: string }) {
+  const sponsor = deal.sponsor
+  if (!sponsor) return null
+  const href = deal.ctaUrl || sponsor.websiteUrl || undefined
+  const content = <>
+    <span className="pf-sponsor-feature-logo">{sponsor.logoUrl ? <img src={sponsor.logoUrl} alt={`${sponsor.name} logo`} /> : <strong>{sponsor.name}</strong>}</span>
+    <span><small className="pf-sponsor-label">{label}</small><h3>{sponsor.name}</h3><p>{deal.ctaLabel || 'Supporting community football through PlayFooty.'}</p></span>
+    {href && <ExternalLink size={24} aria-hidden />}
+  </>
+  return href ? <a className="pf-sponsor-feature" href={href} target="_blank" rel="sponsored noreferrer">{content}</a> : <div className="pf-sponsor-feature">{content}</div>
+}
+
+function SponsorCard({ deal, label }: { deal: Sponsorship; label: string }) {
+  const sponsor = deal.sponsor
+  if (!sponsor) return null
+  const href = deal.ctaUrl || sponsor.websiteUrl || undefined
+  const content = <><span className="pf-sponsor-label">{label}</span><span className="pf-sponsor-card-logo">{sponsor.logoUrl ? <img src={sponsor.logoUrl} alt={`${sponsor.name} logo`} /> : <strong>{sponsor.name}</strong>}</span><h3>{sponsor.name}</h3><small>{deal.ctaLabel || 'Official partner'}</small></>
+  return href ? <a className="pf-sponsor-card" href={href} target="_blank" rel="sponsored noreferrer">{content}</a> : <div className="pf-sponsor-card">{content}</div>
+}
+
+function SponsorOpportunity({ featured = false, scope }: { featured?: boolean; scope: 'club' | 'league' }) {
+  return <div className={`pf-sponsor-opportunity${featured ? ' featured' : ''}`}>
+    <span className="pf-sponsor-label">Partnership opportunity</span>
+    <h3>Your sponsor here</h3>
+    <p>{featured ? `Become the featured ${scope} partner across this profile, football content and future share cards.` : `Sponsor this ${scope} and reach its community on PlayFooty.`}</p>
+  </div>
+}
