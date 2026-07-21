@@ -356,10 +356,31 @@ async function buildPlayHQRankingInputs(season: string): Promise<ClubRankingInpu
     include: { club: { include: { state: true } }, league: true },
   })
 
+  const normaliseGrade = (value: string | null | undefined) => (value ?? '').trim().toLowerCase()
+  const preferredMembership = (
+    candidate: (typeof seasons)[number],
+    current: (typeof seasons)[number],
+  ) => {
+    const candidateConfiguredGrade = normaliseGrade(candidate.league.gradeOverride)
+    const currentConfiguredGrade = normaliseGrade(current.league.gradeOverride)
+    const candidateMatchesConfigured = Boolean(candidateConfiguredGrade) && normaliseGrade(candidate.grade) === candidateConfiguredGrade
+    const currentMatchesConfigured = Boolean(currentConfiguredGrade) && normaliseGrade(current.grade) === currentConfiguredGrade
+
+    if (candidateMatchesConfigured !== currentMatchesConfigured) return candidateMatchesConfigured
+    if (candidate.played !== current.played) return candidate.played > current.played
+
+    const candidateStrength = candidate.league.strengthScore ?? 0
+    const currentStrength = current.league.strengthScore ?? 0
+    if (candidateStrength !== currentStrength) return candidateStrength > currentStrength
+
+    if (candidate.points !== current.points) return candidate.points > current.points
+    return candidate.updatedAt.getTime() > current.updatedAt.getTime()
+  }
+
   const bestByClub = new Map<string, (typeof seasons)[number]>()
   for (const clubSeason of seasons) {
     const current = bestByClub.get(clubSeason.clubId)
-    if (!current || (clubSeason.league.strengthScore ?? 0) > (current.league.strengthScore ?? 0)) {
+    if (!current || preferredMembership(clubSeason, current)) {
       bestByClub.set(clubSeason.clubId, clubSeason)
     }
   }
@@ -371,7 +392,7 @@ async function buildPlayHQRankingInputs(season: string): Promise<ClubRankingInpu
   for (const clubSeason of bestByClub.values()) {
     const key = teamKey(clubSeason)
     const current = bestByTeam.get(key)
-    if (!current || (clubSeason.league.strengthScore ?? 0) > (current.league.strengthScore ?? 0)) {
+    if (!current || preferredMembership(clubSeason, current)) {
       bestByTeam.set(key, clubSeason)
     }
   }
