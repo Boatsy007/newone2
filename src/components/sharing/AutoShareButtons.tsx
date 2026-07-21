@@ -12,6 +12,7 @@ const SHAREABLE = [
 ]
 
 const PROFILE_PAGE = /^\/(team|league|player)\/[^/]+$/
+const MATCH_CENTRE_PAGE = /^\/match\/(fixture|result)\/[^/]+$/
 
 function isShareable(path: string) {
   return SHAREABLE.some(pattern => pattern.test(path))
@@ -39,7 +40,15 @@ export default function AutoShareButtons() {
     // Profile pages already have dedicated share controls. The national Goal
     // Kickers page also owns one explicit share button per card; enhancing its
     // player, club and league links would create several duplicate controls.
-    if (PROFILE_PAGE.test(pathname) || pathname === '/goal-kickers') return
+    // Match Centre pages contain many club, league and match links inside each
+    // card, so automatic enhancement would litter both the listing and detail
+    // views with repeated share buttons. The normal site share control remains.
+    if (
+      PROFILE_PAGE.test(pathname)
+      || pathname === '/goal-kickers'
+      || pathname === '/matches'
+      || MATCH_CENTRE_PAGE.test(pathname)
+    ) return
 
     let timer = 0
     const enhance = () => {
