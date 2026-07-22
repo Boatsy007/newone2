@@ -13,6 +13,7 @@ import { goalKickerAlertControlsRouter } from './api/routes/goal-kicker-alert-co
 import { goalKickerRecordsSafeRouter } from './api/routes/goal-kicker-records-safe.js'
 import { goalKickerContextRouter } from './api/routes/goal-kicker-context.js'
 import { goalKickersRouter } from './api/routes/goal-kickers.js'
+import { mvpRouter } from './api/routes/mvp.js'
 import { newsRouter } from './api/routes/news.js'
 import { highlightsRouter } from './api/routes/highlights.js'
 import { searchRouter } from './api/routes/search.js'
@@ -27,6 +28,7 @@ import { adminManageRouter } from './admin/manage.js'
 import { adminOcrRouter } from './admin/ocr.js'
 import { adminMatchImageImportsRouter } from './admin/match-image-imports.js'
 import { adminGoalKickerImagesRouter } from './admin/goal-kicker-images.js'
+import { adminMvpImagesRouter } from './admin/mvp-images.js'
 import { adminGoalKickerUrlImportsRouter } from './admin/goal-kicker-url-imports.js'
 import { adminProfileImageImportsRouter } from './admin/profile-image-imports.js'
 import { adminUniversalImportsRouter } from './admin/universal-imports.js'
@@ -62,6 +64,7 @@ app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*', methods: 
 app.use('/admin/ocr', express.json({ limit: '20mb' }))
 app.use('/admin/match-images', express.json({ limit: '20mb' }))
 app.use('/admin/goal-kicker-images', express.json({ limit: '20mb' }))
+app.use('/admin/mvp-images', express.json({ limit: '20mb' }))
 app.use('/admin/profile-images', express.json({ limit: '20mb' }))
 app.use('/admin/universal-imports', express.json({ limit: '20mb' }))
 app.use('/admin/platform/csv', express.json({ limit: '20mb' }))
@@ -100,6 +103,7 @@ app.use('/api/goal-kickers', goalKickerAchievementsRouter)
 app.use('/api/goal-kickers', goalKickerRecordsSafeRouter)
 app.use('/api/goal-kickers', goalKickerContextRouter)
 app.use('/api/goal-kickers', goalKickersRouter)
+app.use('/api/mvp', mvpRouter)
 app.use('/api/news', newsRouter)
 app.use('/api/highlights', highlightsRouter)
 app.use('/api/club-portal', clubPortalAccessRouter)
@@ -129,6 +133,7 @@ app.use('/admin/manage', adminManageRouter)
 app.use('/admin/ocr', adminOcrRouter)
 app.use('/admin/match-images', adminMatchImageImportsRouter)
 app.use('/admin/goal-kicker-images', adminGoalKickerImagesRouter)
+app.use('/admin/mvp-images', adminMvpImagesRouter)
 app.use('/admin/profile-images', adminProfileImageImportsRouter)
 app.use('/admin/universal-imports', adminUniversalImportsRouter)
 app.use('/admin/platform/goal-kickers', adminGoalKickerUrlImportsRouter)
