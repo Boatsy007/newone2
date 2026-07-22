@@ -1,0 +1,7 @@
+import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
+
+export default function AdminMvpLink(){
+ const{pathname}=useLocation()
+ useEffect(()=>{if(!pathname.startsWith('/admin')){document.querySelectorAll('[data-pf-mvp-link]').forEach(node=>node.remove());return}const attach=()=>{const navs=Array.from(document.querySelectorAll<HTMLElement>('.side .nav'));const importNav=navs.find(nav=>nav.textContent?.includes('Universal Import'));if(importNav&&!importNav.querySelector('[data-pf-mvp-link]')){const link=document.createElement('a');link.href='/admin/mvp-images';link.dataset.pfMvpLink='sidebar';link.innerHTML='<span style="font-size:18px;width:18px;text-align:center">★</span> MVP screenshots';importNav.append(link)}const settingsActs=document.querySelector<HTMLElement>('.content .acts');const settingsHeading=document.querySelector<HTMLElement>('.top strong');if(settingsActs&&settingsHeading?.textContent?.trim()==='Settings'&&!settingsActs.querySelector('[data-pf-mvp-link]')){const link=document.createElement('a');link.href='/admin/mvp-images';link.className='act';link.dataset.pfMvpLink='settings';link.innerHTML='<i><span style="font-size:22px">★</span></i><span>MVP screenshots</span><span>›</span>';settingsActs.append(link)}};attach();const observer=new MutationObserver(attach);observer.observe(document.body,{childList:true,subtree:true});return()=>{observer.disconnect();document.querySelectorAll('[data-pf-mvp-link]').forEach(node=>node.remove())}},[pathname]);return null
+}
