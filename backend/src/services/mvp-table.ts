@@ -71,7 +71,7 @@ export async function refreshMvpScores(season?: string) {
     const stars = leagueStars(row.leagueRating)
     const factor = strengthFactor(stars)
     const points = calculateMvpPoints(row.bp, stars)
-    await prisma.$executeRawUnsafe(`UPDATE football_mvp_entries SET league_stars=$2, strength_factor=$3, mvp_points=$4, updated_at=now() WHERE id=$1`, row.id, stars, factor, points)
+    await prisma.$executeRawUnsafe(`UPDATE football_mvp_entries SET league_stars=$2, strength_factor=$3, mvp_points=$4, updated_at=now() WHERE id::text=$1`, row.id, stars, factor, points)
   }
   return rows.length
 }
