@@ -106,7 +106,7 @@ export async function listMvpEntries(options: { season?: string; limit?: number;
       m.mvp_points AS "mvpPoints",
       m.imported_at AS "importedAt"
     FROM football_mvp_entries m
-    LEFT JOIN clubs c ON c.id = m.club_id
+    LEFT JOIN clubs c ON c.id::text = m.club_id
     LEFT JOIN states s ON s.id = c."stateId"
     WHERE m.season = $1${filters}
     ORDER BY m.mvp_points DESC, m.bp DESC, m.games_played ASC NULLS LAST, m.player_name ASC
