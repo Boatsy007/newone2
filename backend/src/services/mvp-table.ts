@@ -36,11 +36,11 @@ export async function ensureMvpTable() {
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS football_mvp_entries (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      player_id uuid NULL,
+      player_id text NULL,
       player_name text NOT NULL,
-      club_id uuid NULL,
+      club_id text NULL,
       club_name text NOT NULL,
-      league_id uuid NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+      league_id text NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
       league_name text NOT NULL,
       season text NOT NULL,
       grade text NOT NULL DEFAULT 'Senior Football',
@@ -55,7 +55,7 @@ export async function ensureMvpTable() {
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `)
-  await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS football_mvp_entries_identity ON football_mvp_entries (league_id, season, grade, lower(player_name), COALESCE(club_id::text, lower(club_name)))`)
+  await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS football_mvp_entries_identity ON football_mvp_entries (league_id, season, grade, lower(player_name), COALESCE(club_id, lower(club_name)))`)
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS football_mvp_entries_leaderboard ON football_mvp_entries (season, mvp_points DESC, bp DESC)`)
 }
 
