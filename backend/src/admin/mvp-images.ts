@@ -80,8 +80,8 @@ router.post('/commit', async (req, res) => {
       await prisma.$executeRawUnsafe(`
         INSERT INTO football_mvp_entries
           (player_id, player_name, club_id, club_name, league_id, league_name, season, grade, bp, games_played, league_stars, strength_factor, mvp_points, source_type, imported_at, updated_at)
-        VALUES ($1::uuid,$2,$3::uuid,$4,$5::uuid,$6,$7,$8,$9,$10,$11,$12,$13,'OCR_UPLOAD',now(),now())
-        ON CONFLICT (league_id, season, grade, lower(player_name), COALESCE(club_id::text, lower(club_name)))
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'OCR_UPLOAD',now(),now())
+        ON CONFLICT (league_id, season, grade, lower(player_name), COALESCE(club_id, lower(club_name)))
         DO UPDATE SET player_id=EXCLUDED.player_id, club_id=EXCLUDED.club_id, club_name=EXCLUDED.club_name, bp=EXCLUDED.bp,
           games_played=EXCLUDED.games_played, league_stars=EXCLUDED.league_stars, strength_factor=EXCLUDED.strength_factor,
           mvp_points=EXCLUDED.mvp_points, imported_at=now(), updated_at=now()
