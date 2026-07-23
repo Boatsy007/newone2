@@ -76,14 +76,15 @@ export async function refreshMvpScores(season?: string) {
   return rows.length
 }
 
-export async function listMvpEntries(options: { season?: string; limit?: number; leagueId?: string } = {}) {
+export async function listMvpEntries(options: { season?: string; limit?: number; leagueId?: string; clubId?: string } = {}) {
   await ensureMvpTable()
   await refreshMvpScores(options.season)
   const season = options.season ?? new Date().getFullYear().toString()
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 1000)
   const params: unknown[] = [season]
-  let leagueSql = ''
-  if (options.leagueId) { params.push(options.leagueId); leagueSql = ` AND m.league_id = $${params.length}` }
+  let filters = ''
+  if (options.leagueId) { params.push(options.leagueId); filters += ` AND m.league_id = $${params.length}` }
+  if (options.clubId) { params.push(options.clubId); filters += ` AND m.club_id = $${params.length}` }
   params.push(limit)
   const rows = await prisma.$queryRawUnsafe<MvpRow[]>(`
     SELECT
@@ -107,7 +108,7 @@ export async function listMvpEntries(options: { season?: string; limit?: number;
     FROM football_mvp_entries m
     LEFT JOIN clubs c ON c.id = m.club_id
     LEFT JOIN states s ON s.id = c."stateId"
-    WHERE m.season = $1${leagueSql}
+    WHERE m.season = $1${filters}
     ORDER BY m.mvp_points DESC, m.bp DESC, m.games_played ASC NULLS LAST, m.player_name ASC
     LIMIT $${params.length}
   `, ...params)
