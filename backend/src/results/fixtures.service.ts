@@ -62,13 +62,60 @@ export async function linkFixtureToResult(fixtureId: string, resultId: string, h
 }
 
 export async function getClubFixtures(clubId: string, opts: { season?: string; upcomingOnly?: boolean } = {}) {
-  return prisma.fixture.findMany({
-    where: {
-      OR: [{ homeClubId: clubId }, { awayClubId: clubId }],
-      ...(opts.season ? { season: opts.season } : {}),
-      ...(opts.upcomingOnly ? { status: { in: ['SCHEDULED', 'LIVE'] } } : {}),
-    },
-    orderBy: [{ matchDate: 'asc' }, { round: 'asc' }], take: 200,
+  const [legacy, football] = await Promise.all([
+    prisma.fixture.findMany({
+      where: {
+        OR: [{ homeClubId: clubId }, { awayClubId: clubId }],
+        ...(opts.season ? { season: opts.season } : {}),
+        ...(opts.upcomingOnly ? { status: { in: ['SCHEDULED', 'LIVE'] } } : {}),
+      },
+      orderBy: [{ matchDate: 'asc' }, { round: 'asc' }],
+      take: 200,
+    }),
+    prisma.footballFixture.findMany({
+      where: {
+        OR: [{ homeClubId: clubId }, { awayClubId: clubId }],
+        ...(opts.season ? { season: opts.season } : {}),
+      },
+      include: { league: { select: { name: true } } },
+      orderBy: [{ matchDate: 'asc' }, { round: 'asc' }],
+      take: 200,
+    }),
+  ])
+
+  const imported = football.map(row => ({
+    id: `football:${row.id}`,
+    sourceId: row.id,
+    leagueId: row.leagueId,
+    leagueName: row.league.name,
+    season: row.season,
+    grade: row.grade,
+    round: row.round,
+    matchDate: row.matchDate,
+    matchTime: null,
+    venue: row.venue,
+    homeClubId: row.homeClubId,
+    homeClubName: row.homeName,
+    awayClubId: row.awayClubId,
+    awayClubName: row.awayName,
+    status: 'SCHEDULED',
+    importSource: 'OCR',
+    sourceUrl: row.sourceUrl,
+    verified: row.verified,
+  }))
+
+  const merged = new Map<string, (typeof legacy)[number] | (typeof imported)[number]>()
+  for (const row of [...legacy, ...imported]) {
+    const pair = [row.homeClubId, row.awayClubId].map(value => norm(String(value ?? ''))).sort().join('-')
+    const key = `${norm(String(row.leagueId ?? ''))}:${norm(String(row.season ?? ''))}:${norm(String(row.round ?? ''))}:${pair}`
+    merged.set(key, row)
+  }
+
+  return [...merged.values()].sort((a, b) => {
+    const aDate = a.matchDate ? new Date(a.matchDate).getTime() : Number.MAX_SAFE_INTEGER
+    const bDate = b.matchDate ? new Date(b.matchDate).getTime() : Number.MAX_SAFE_INTEGER
+    if (aDate !== bDate) return aDate - bDate
+    return String(a.round ?? '').localeCompare(String(b.round ?? ''), undefined, { numeric: true })
   })
 }
 
