@@ -26,6 +26,7 @@ import { shareLinksRouter } from './api/routes/share-links.js'
 import { adminDashboardRouter } from './admin/dashboard.js'
 import { adminSettingsRouter } from './admin/settings.js'
 import { adminManageRouter } from './admin/manage.js'
+import { adminPlayersRouter } from './admin/players.js'
 import { adminOcrRouter } from './admin/ocr.js'
 import { adminMatchImageImportsRouter } from './admin/match-image-imports.js'
 import { adminGoalKickerImagesRouter } from './admin/goal-kicker-images.js'
@@ -72,6 +73,7 @@ app.use('/admin/platform/csv', express.json({ limit: '20mb' }))
 app.use('/admin/platform/leagues', express.json({ limit: '8mb' }))
 app.use('/admin/platform/clubs', express.json({ limit: '8mb' }))
 app.use('/admin/season', express.json({ limit: '25mb' }))
+app.use('/admin/players', express.json({ limit: '10mb' }))
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/api/records', async (req, res) => {
@@ -133,6 +135,7 @@ app.use('/api/history', (req, res, next) => { req.url = `/history${req.url}`; cl
 app.use('/admin', adminDashboardRouter)
 app.use('/admin/settings', adminSettingsRouter)
 app.use('/admin/manage', adminManageRouter)
+app.use('/admin/players', adminPlayersRouter)
 app.use('/admin/ocr', adminOcrRouter)
 app.use('/admin/match-images', adminMatchImageImportsRouter)
 app.use('/admin/goal-kicker-images', adminGoalKickerImagesRouter)
