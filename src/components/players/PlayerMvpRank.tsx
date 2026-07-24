@@ -1,0 +1,77 @@
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useLocation } from 'react-router-dom'
+
+type PlayerProfile = {
+  playerId?: string
+  playerName: string
+  clubId: string | null
+  season: string
+}
+
+type MvpEntry = {
+  playerId: string | null
+  playerName: string
+  clubId: string | null
+  rank: number
+  mvpPoints: number
+  bp: number
+}
+
+export default function PlayerMvpRank() {
+  const { pathname } = useLocation()
+  const [host, setHost] = useState<HTMLElement | null>(null)
+  const [entry, setEntry] = useState<MvpEntry | null>(null)
+
+  useEffect(() => {
+    if (!pathname.startsWith('/player/')) {
+      setHost(null)
+      setEntry(null)
+      return
+    }
+
+    let active = true
+    let observer: MutationObserver | null = null
+    const findHost = () => {
+      const target = document.querySelector<HTMLElement>('.player-rank')
+      if (target && active) setHost(target)
+    }
+    findHost()
+    observer = new MutationObserver(findHost)
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    const rawId = pathname.slice('/player/'.length).split('/')[0]
+    const playerId = decodeURIComponent(rawId)
+    void fetch(`/api/goal-kickers/player/${encodeURIComponent(playerId)}`)
+      .then(async response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const payload = await response.json() as { data?: PlayerProfile }
+        if (!payload.data) throw new Error('Player not found')
+        return payload.data
+      })
+      .then(async profile => {
+        const response = await fetch(`/api/mvp?season=${encodeURIComponent(profile.season)}&limit=1000`)
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const payload = await response.json() as { data?: MvpEntry[] }
+        const rows = Array.isArray(payload.data) ? payload.data : []
+        return rows.find(row => row.playerId === playerId)
+          ?? rows.find(row => row.playerName.trim().toLowerCase() === profile.playerName.trim().toLowerCase() && (!profile.clubId || row.clubId === profile.clubId))
+          ?? null
+      })
+      .then(result => { if (active) setEntry(result) })
+      .catch(() => { if (active) setEntry(null) })
+
+    return () => {
+      active = false
+      observer?.disconnect()
+    }
+  }, [pathname])
+
+  if (!host || !entry) return null
+
+  return createPortal(<div className="player-mvp-rank">
+    <span>National MVP rank</span>
+    <strong>#{entry.rank}</strong>
+    <small>{entry.mvpPoints} MVP points · {entry.bp} BP</small>
+  </div>, host)
+}
