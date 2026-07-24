@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 type SelectedPlayer = { id:string; clubPlayerId:string; playerId:string|null; playerName:string; jumperNumber:number|null; positionCode:string }
 type TeamSheet = { id:string; clubId:string; clubName:string|null; clubLogoUrl:string|null; primaryColour:string|null; secondaryColour:string|null; leagueId:string|null; leagueName:string|null; season:string; grade:string; roundLabel:string; opponentName:string|null; matchDate:string|null; status:string; players:SelectedPlayer[] }
@@ -10,7 +10,6 @@ const FIELD_ROWS=[['BP_LEFT','FB','BP_RIGHT'],['HBF_LEFT','CHB','HBF_RIGHT'],['W
 
 export default function ClubTeamSheetPortal(){
  const { pathname, search }=useLocation()
- const navigate=useNavigate()
  const [target,setTarget]=useState<HTMLElement|null>(null)
  const [sheet,setSheet]=useState<TeamSheet|null>(null)
  const [loading,setLoading]=useState(false)
@@ -18,37 +17,81 @@ export default function ClubTeamSheetPortal(){
  const clubId=pathname.startsWith('/team/')?decodeURIComponent(pathname.slice('/team/'.length)):''
 
  useEffect(()=>{
-  if(!clubId){setTarget(null);setActive(false);document.getElementById('pf-club-team-sheet-slot')?.remove();document.querySelector('[data-pf-team-selection-tab]')?.remove();return}
+  if(!clubId)return
   let alive=true
-  const restore=()=>{document.querySelectorAll<HTMLElement>('.club-profile-main > *').forEach(node=>{if(node.id!=='pf-club-team-sheet-slot')node.style.removeProperty('display')})}
+  let retry=0
+  let timer=0
+  let tab:HTMLButtonElement|null=null
+  const nativeHandlers:Array<{button:HTMLButtonElement;handler:()=>void}>=[]
+
+  const restore=()=>{
+   document.querySelectorAll<HTMLElement>('.club-profile-main > *').forEach(node=>node.style.removeProperty('display'))
+   document.body.removeAttribute('data-pf-team-selection-active')
+   window.dispatchEvent(new CustomEvent('pf-team-selection-change'))
+  }
   const activate=()=>{
    if(!alive)return
    setActive(true)
-   document.querySelectorAll<HTMLElement>('.club-profile-main > *').forEach(node=>{if(node.id!=='pf-club-team-sheet-slot')node.style.display='none'})
+   document.body.dataset.pfTeamSelectionActive='true'
+   document.querySelectorAll<HTMLElement>('.club-profile-main > *').forEach(node=>{node.style.display=node.id==='pf-club-team-sheet-slot'?'block':'none'})
    document.querySelectorAll<HTMLElement>('.club-profile-tabs button').forEach(button=>button.classList.remove('active'))
-   document.querySelector<HTMLElement>('[data-pf-team-selection-tab]')?.classList.add('active')
+   tab?.classList.add('active')
+   const url=new URL(window.location.href)
+   url.searchParams.set('tab','team-selection')
+   window.history.replaceState(window.history.state,'',`${url.pathname}${url.search}${url.hash}`)
+   window.dispatchEvent(new CustomEvent('pf-team-selection-change'))
   }
-  const deactivate=()=>{setActive(false);restore();document.querySelector<HTMLElement>('[data-pf-team-selection-tab]')?.classList.remove('active')}
+  const deactivate=()=>{
+   setActive(false)
+   restore()
+   tab?.classList.remove('active')
+   const url=new URL(window.location.href)
+   url.searchParams.delete('tab')
+   window.history.replaceState(window.history.state,'',`${url.pathname}${url.search}${url.hash}`)
+  }
   const attach=()=>{
    if(!alive)return
    const main=document.querySelector<HTMLElement>('.club-profile-main')
    const tabList=document.querySelector<HTMLElement>('.club-profile-tabs [role="tablist"]')
-   if(!main||!tabList)return
+   if(!main||!tabList){if(retry++<60)timer=window.setTimeout(attach,100);return}
+
    let slot=document.getElementById('pf-club-team-sheet-slot')
    if(!slot){slot=document.createElement('div');slot.id='pf-club-team-sheet-slot';main.append(slot)}
-   else if(slot.parentElement!==main)main.append(slot)
    setTarget(slot)
-   let tab=tabList.querySelector<HTMLButtonElement>('[data-pf-team-selection-tab]')
+
+   tab=tabList.querySelector<HTMLButtonElement>('[data-pf-team-selection-tab]')
    if(!tab){
-    tab=document.createElement('button');tab.type='button';tab.setAttribute('role','tab');tab.dataset.pfTeamSelectionTab='true';tab.textContent='Team Selection';tab.addEventListener('click',()=>{activate();navigate(`${pathname}?tab=team-selection`,{replace:true})});tabList.insertBefore(tab,tabList.children[1]??null)
+    tab=document.createElement('button')
+    tab.type='button'
+    tab.setAttribute('role','tab')
+    tab.dataset.pfTeamSelectionTab='true'
+    tab.textContent='Team Selection'
+    tabList.insertBefore(tab,tabList.children[1]??null)
    }
-   tabList.querySelectorAll<HTMLButtonElement>('button:not([data-pf-team-selection-tab])').forEach(button=>{if(button.dataset.pfTeamSelectionWired)return;button.dataset.pfTeamSelectionWired='true';button.addEventListener('click',()=>{deactivate()})})
+   tab.onclick=activate
+
+   tabList.querySelectorAll<HTMLButtonElement>('button:not([data-pf-team-selection-tab])').forEach(button=>{
+    const handler=()=>deactivate()
+    button.addEventListener('click',handler)
+    nativeHandlers.push({button,handler})
+   })
+
    if(new URLSearchParams(search).get('tab')==='team-selection')activate()
   }
+
   attach()
-  const observer=new MutationObserver(attach);observer.observe(document.body,{childList:true,subtree:true})
-  return()=>{alive=false;observer.disconnect();restore();setTarget(null);setActive(false);document.getElementById('pf-club-team-sheet-slot')?.remove();document.querySelector('[data-pf-team-selection-tab]')?.remove()}
- },[clubId,navigate,pathname,search])
+  return()=>{
+   alive=false
+   window.clearTimeout(timer)
+   nativeHandlers.forEach(({button,handler})=>button.removeEventListener('click',handler))
+   if(tab)tab.onclick=null
+   restore()
+   setTarget(null)
+   setActive(false)
+   document.getElementById('pf-club-team-sheet-slot')?.remove()
+   document.querySelector('[data-pf-team-selection-tab]')?.remove()
+  }
+ },[clubId,pathname])
 
  useEffect(()=>{if(!clubId)return;let alive=true;setLoading(true);fetch(`/api/team-sheets/club/${encodeURIComponent(clubId)}`).then(r=>r.ok?r.json():Promise.reject(new Error(String(r.status)))).then((p:{data?:TeamSheet|null})=>{if(alive)setSheet(p.data??null)}).catch(()=>{if(alive)setSheet(null)}).finally(()=>{if(alive)setLoading(false)});return()=>{alive=false}},[clubId])
  if(!target)return null
