@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowRight } from 'lucide-react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { TeamLogo } from '../rankings/bits'
 import { ClubMvpPanel } from '../mvp/MvpPanels'
 import type { MvpEntry } from '../../pages/MvpLeaderboard'
 
 export default function HomeMvpPortal() {
+  const navigate = useNavigate()
   const { pathname } = useLocation()
   const [target, setTarget] = useState<HTMLElement | null>(null)
   const [clubTarget, setClubTarget] = useState<HTMLElement | null>(null)
@@ -129,17 +130,34 @@ export default function HomeMvpPortal() {
           ? Array.from({ length: 5 }, (_, index) => <MvpSkeleton key={index} />)
           : rows.map(row => {
               const playerPath = row.playerId ? `/player/${row.playerId}` : null
-              const content = <>
-                <span className="hmvp-logo"><TeamLogo name={row.clubName} src={row.clubLogoUrl ?? undefined} size={52} /></span>
+              const clubPath = row.clubId ? `/team/${row.clubId}` : null
+              return <article
+                key={row.id}
+                className={`hmvp-card${playerPath ? ' is-clickable' : ''}`}
+                role={playerPath ? 'link' : undefined}
+                tabIndex={playerPath ? 0 : undefined}
+                aria-label={playerPath ? `Open ${row.playerName} player profile` : undefined}
+                onClick={event => {
+                  if (!playerPath || (event.target as HTMLElement).closest('a,button')) return
+                  navigate(playerPath)
+                }}
+                onKeyDown={event => {
+                  if (!playerPath || (event.target as HTMLElement).closest('a,button')) return
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    navigate(playerPath)
+                  }
+                }}
+              >
+                {clubPath
+                  ? <Link className="hmvp-logo" to={clubPath} aria-label={`Open ${row.clubName} club page`}><TeamLogo name={row.clubName} src={row.clubLogoUrl ?? undefined} size={52} /></Link>
+                  : <span className="hmvp-logo"><TeamLogo name={row.clubName} src={row.clubLogoUrl ?? undefined} size={52} /></span>}
                 <span>National MVP · #{row.rank}</span>
                 <strong>{row.mvpPoints}<small>MVP points</small></strong>
-                <h3>{row.playerName}</h3>
-                <p>{row.clubName}</p>
-                <small>{row.leagueName} · {row.bp} BP</small>
-              </>
-              return playerPath
-                ? <Link key={row.id} to={playerPath} className="hmvp-card">{content}</Link>
-                : <article key={row.id} className="hmvp-card">{content}</article>
+                <h3>{playerPath ? <Link to={playerPath}>{row.playerName}</Link> : row.playerName}</h3>
+                <p>{clubPath ? <Link to={clubPath}>{row.clubName}</Link> : row.clubName}</p>
+                <small><Link to={`/league/${row.leagueId}`}>{row.leagueName}</Link> · {row.bp} BP</small>
+              </article>
             })}
       </div>
       {!loading && rows.length === 0 ? <p className="hmvp-empty">MVP standings are temporarily unavailable.</p> : null}
@@ -169,17 +187,21 @@ const styles = `
 .hmvp-head>a{display:inline-flex;align-items:center;gap:8px;color:#42b8ff;text-decoration:none;text-transform:uppercase;font-size:12px;font-weight:800}
 .hmvp-strip{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;scrollbar-width:none}
 .hmvp-strip::-webkit-scrollbar{display:none}
-.hmvp-card{position:relative;flex:0 0 min(285px,80vw);scroll-snap-align:start;border:1px solid #e3e7ec;border-radius:9px;padding:20px;background:#fff;color:#111318;text-decoration:none;min-height:205px;display:flex;flex-direction:column;box-shadow:0 5px 16px rgba(17,24,39,.045);transition:transform .18s ease,border-color .18s ease}
-.hmvp-logo{position:absolute;right:18px;top:18px;display:grid;place-items:center;width:56px;height:56px}
+.hmvp-card{position:relative;flex:0 0 min(285px,80vw);scroll-snap-align:start;border:1px solid #e3e7ec;border-radius:9px;padding:20px;background:#fff;color:#111318;text-decoration:none;min-height:205px;display:flex;flex-direction:column;box-shadow:0 5px 16px rgba(17,24,39,.045);transition:transform .18s ease,border-color .18s ease;box-sizing:border-box}
+.hmvp-card.is-clickable{cursor:pointer}
+.hmvp-logo{position:absolute;right:18px;top:18px;display:grid;place-items:center;width:56px;height:56px;border-radius:8px;z-index:2}
 .hmvp-logo img{max-width:52px;max-height:52px;object-fit:contain}
+.hmvp-logo:hover{transform:scale(1.05)}
 .hmvp-card>span:not(.hmvp-logo){max-width:calc(100% - 72px);text-transform:uppercase;font-size:10px;letter-spacing:.13em;font-weight:900;color:#0783c9}
 .hmvp-card>strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:46px;line-height:1;margin-top:16px;color:#0783c9}
 .hmvp-card>strong small{font-family:Barlow,Inter,Arial,sans-serif;font-size:12px;margin-left:7px;text-transform:uppercase;letter-spacing:.08em;color:#687385}
 .hmvp-card h3{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase;font-size:25px;line-height:1;margin:13px 0 5px}
 .hmvp-card p{font-size:13px;line-height:1.45;margin:0;color:#303741}
 .hmvp-card>small{margin-top:auto;padding-top:14px;color:#687385;font-size:11px}
+.hmvp-card a{color:inherit;text-decoration:none}
+.hmvp-card h3 a:hover,.hmvp-card p a:hover,.hmvp-card>small a:hover{color:#0783c9}
 .hmvp-card:hover{transform:translateY(-2px);border-color:#b9dff5}
-.hmvp-card:focus-visible{outline:3px solid #42b8ff;outline-offset:3px}
+.hmvp-card:focus-visible,.hmvp-logo:focus-visible{outline:3px solid #42b8ff;outline-offset:3px}
 .hmvp-empty{text-align:center;color:#687385;margin:0;padding:28px 0}
 .hmvp-skeleton{overflow:hidden}
 .hmvp-skeleton:after{content:'';position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.72),transparent);animation:hmvp-shimmer 1.35s infinite}
