@@ -106,6 +106,18 @@ a.gn-card,button.gn-card { cursor: pointer; }
 .goal-row { border-bottom-color: var(--pf-line) !important; }
 .gk-club-logo { border-radius: 5px !important; background: #fff !important; }
 
+/* Keep uploaded player photos prominent without overpowering the profile. */
+.player-page .player-profile-photo {
+  width: min(100%, 560px) !important;
+  justify-self: start;
+}
+.player-page .player-profile-photo img {
+  width: 100% !important;
+  height: clamp(260px, 42vw, 430px) !important;
+  max-height: 430px !important;
+  object-fit: cover !important;
+}
+
 @media (max-width: 1050px) {
   .rankings-layout,.clubs-layout,.leagues-layout { grid-template-columns: minmax(0,1fr) !important; }
   .rankings-sidebar,.clubs-sidebar,.leagues-sidebar { position: static !important; display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -126,6 +138,14 @@ a.gn-card,button.gn-card { cursor: pointer; }
   .header-stats b { text-align: center; font-size: 10px !important; }
   .club-card,.league-card { min-width: 0; }
   .pf-shell { width: min(100% - 24px,1440px) !important; }
+  .player-page .player-profile-photo {
+    width: min(82vw, 390px) !important;
+    margin-inline: auto;
+  }
+  .player-page .player-profile-photo img {
+    height: min(92vw, 390px) !important;
+    max-height: 390px !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
