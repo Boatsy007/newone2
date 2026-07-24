@@ -1,4 +1,4 @@
-/**
+/*
  * Club page: each club's premium digital home. Section tabs expose the
  * existing live club content without changing its data sources or route.
  */
@@ -8,7 +8,6 @@ import Nav from '../components/layout/Nav'
 import ProductSearch from '../components/rankings/ProductSearch'
 import Footer from '../components/layout/Footer'
 import ClubLiveHub from '../components/club/ClubLiveHub'
-import ClubTeamSheet from '../components/club/ClubTeamSheetPortal'
 import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickersPanel'
 import SponsorShowcase from '../components/sponsors/SponsorShowcase'
 import { useSeo } from '../lib/seo'
@@ -77,7 +76,7 @@ export default function TeamProfile() {
               <div className={`club-profile-area${activeTab === 'team-selection' ? ' team-selection-active' : ''}`} role="tabpanel">
                 <div className="club-profile-main">
                   {activeTab === 'overview' && <div className="club-overview-stack"><ClubLiveHub club={data} /><SponsorShowcase scope="club" entityId={clubId} entityName={data.clubName} /></div>}
-                  {activeTab === 'team-selection' && <div className="club-team-selection-stack"><ClubTeamSheet clubId={clubId} /><SponsorShowcase scope="club" entityId={clubId} entityName={data.clubName} /></div>}
+                  {activeTab === 'team-selection' && <div className="club-team-selection-safe"><span>Selected team</span><h2>Team selection temporarily unavailable</h2><p>The team-sheet display has been isolated while the club-profile crash is corrected. No team-sheet or player data has been removed.</p></div>}
                   {activeTab === 'news' && <div className="club-feed-card"><Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}><ClubNews club={data} /></Suspense></div>}
                   {activeTab === 'information' && <ClubInformationPanel club={data} />}
                   {activeTab === 'photos' && <div className="club-feed-card"><ClubGallery club={data} /></div>}
@@ -103,12 +102,13 @@ export default function TeamProfile() {
               .club-profile-tabs>div{max-width:1180px;margin:0 auto;display:flex;gap:2px;padding:0 20px;overflow-x:auto;scrollbar-width:none}.club-profile-tabs>div::-webkit-scrollbar{display:none}
               .club-profile-tabs button{position:relative;flex:0 0 auto;min-height:58px;padding:0 18px;border:0;background:transparent;color:#687385;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:21px;letter-spacing:.035em;text-transform:uppercase;white-space:nowrap;cursor:pointer}
               .club-profile-tabs button:after{content:'';position:absolute;left:14px;right:14px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:transparent}.club-profile-tabs button.active{color:#050505}.club-profile-tabs button.active:after{background:#42b8ff}
-              .club-section-bg{background:#f3f5f7;min-height:420px}.club-profile-area{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:28px 20px 48px}.club-profile-area.team-selection-active{display:block}.club-team-selection-stack,.club-overview-stack{display:grid;gap:18px}.club-team-selection-stack>.pf-sponsor-showcase,.club-overview-stack>.pf-sponsor-showcase{overflow:hidden;border:1px solid #dfe5ea;border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(17,24,39,.06)}
+              .club-section-bg{background:#f3f5f7;min-height:420px}.club-profile-area{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:28px 20px 48px}.club-profile-area.team-selection-active{display:block}.club-overview-stack{display:grid;gap:18px}.club-overview-stack>.pf-sponsor-showcase{overflow:hidden;border:1px solid #dfe5ea;border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(17,24,39,.06)}
+              .club-team-selection-safe{min-height:260px;padding:28px;border:1px solid #dfe5ea;border-radius:14px;background:#fff;box-shadow:0 6px 18px rgba(17,24,39,.05)}.club-team-selection-safe span{color:#0783c9;font-size:10px;font-weight:950;letter-spacing:.16em;text-transform:uppercase}.club-team-selection-safe h2{margin:7px 0 10px;font-family:'Bebas Neue',Impact,sans-serif;font-size:40px;line-height:1;text-transform:uppercase;color:#111318}.club-team-selection-safe p{max-width:620px;margin:0;color:#687385;line-height:1.55}
               .club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-left:0!important;padding-right:0!important}.club-profile-main>section>div,.club-feed-card>section>div,.club-stats-stack>section>div{max-width:none!important}
               .club-feed-card,.club-info-panel{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}.club-stats-stack,.club-info-stack{display:grid;gap:18px}.club-stats-stack>section{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
               .club-info-panel{padding:24px}.club-info-kicker{display:block;color:#42b8ff;font-size:11px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.club-info-title{margin:6px 0 12px;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:36px;line-height:1;text-transform:uppercase;color:#111318}.club-info-bio{margin:0;color:#46515f;font-size:15px;line-height:1.65}
               .club-contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.club-contact-item{min-width:0;padding:15px;border:1px solid #e3e7ec;border-radius:9px;background:#f8fafb}.club-contact-item span{display:block;color:#687385;font-size:10px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.club-contact-item strong,.club-contact-item a{display:block;margin-top:5px;color:#111318;font-size:14px;font-weight:800;line-height:1.35;text-decoration:none;overflow-wrap:anywhere}.club-contact-item a:hover{color:#209fe9}.club-contact-empty{color:#8a94a3!important;font-weight:600!important}.club-profile-sidebar{position:sticky;top:78px}
-              @media(max-width:980px){.club-profile-tabs>div{padding:0 10px}.club-profile-tabs button{min-height:54px;padding:0 14px;font-size:19px}.club-profile-tabs button:after{left:10px;right:10px}.club-profile-area{display:block;padding:18px 14px 36px}.club-profile-sidebar{position:static;margin-top:18px}.club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-top:20px!important;padding-bottom:20px!important}.club-info-panel{padding:19px}.club-info-title{font-size:31px}.club-contact-grid{grid-template-columns:1fr}}
+              @media(max-width:980px){.club-profile-tabs>div{padding:0 10px}.club-profile-tabs button{min-height:54px;padding:0 14px;font-size:19px}.club-profile-tabs button:after{left:10px;right:10px}.club-profile-area{display:block;padding:18px 14px 36px}.club-profile-sidebar{position:static;margin-top:18px}.club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-top:20px!important;padding-bottom:20px!important}.club-info-panel{padding:19px}.club-info-title{font-size:31px}.club-contact-grid{grid-template-columns:1fr}.club-team-selection-safe{min-height:220px;padding:20px}.club-team-selection-safe h2{font-size:32px}}
             `}</style>
           </>
         )}
