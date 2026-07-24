@@ -17,6 +17,7 @@ const LOGO_BUCKET = process.env.SUPABASE_LOGO_BUCKET || 'playfooty-logos'
 const MAX_LOGO_BYTES = 5 * 1024 * 1024
 const LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'])
 const LOGO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg' }
+let playerDetailsSchemaReady: Promise<void> | null = null
 
 function cleanFileName(value: unknown, fallback: string) { return (typeof value === 'string' ? value : fallback).replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || fallback }
 function decodeSponsorLogo(body: Record<string, unknown>) {
@@ -43,6 +44,23 @@ async function uploadSponsorLogo(sponsorId: string, body: Record<string, unknown
   const logoUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${LOGO_BUCKET}/${path}`
   return prisma.commercialSponsor.update({ where: { id: sponsorId }, data: { logoUrl, squareLogoUrl: logoUrl } })
 }
+async function ensurePlayerDetailsSchema() {
+  if (!playerDetailsSchemaReady) playerDetailsSchemaReady = (async () => {
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "player_profile_details" (
+      "playerId" TEXT PRIMARY KEY,
+      "bio" TEXT,
+      "primaryPosition" TEXT,
+      "secondaryPosition" TEXT,
+      "gamesPlayed" INTEGER,
+      "jumperNumber" INTEGER,
+      "photoUrl" TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`)
+    await prisma.$executeRawUnsafe('ALTER TABLE "player_profile_details" ADD COLUMN IF NOT EXISTS "photoUrl" TEXT')
+  })().catch(error => { playerDetailsSchemaReady = null; throw error })
+  return playerDetailsSchemaReady
+}
 
 const sponsors = Router()
 sponsors.use(attachActor)
@@ -51,7 +69,7 @@ sponsors.get('/:id', publicRateLimit, cachePublic(300), async (req, res) => { co
 sponsors.post('/', requireAdminActor, async (req, res) => { const result = await createSponsor((req.body ?? {}) as Record<string, unknown>, 'admin'); res.status(result.ok ? 201 : 400).json(result.ok ? { data: result.sponsor } : { error: result.error }) })
 sponsors.patch('/:id', requireAdminActor, async (req, res) => { const result = await updateSponsor(String(req.params.id), (req.body ?? {}) as Record<string, unknown>, 'admin'); res.status(result.ok ? 200 : 400).json(result.ok ? { data: result.sponsor } : { error: result.error }) })
 sponsors.post('/:id/logo', requireAdminActor, async (req, res) => { try { res.json({ data: await uploadSponsorLogo(String(req.params.id), (req.body ?? {}) as Record<string, unknown>) }) } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : String(error) }) } })
-sponsors.delete('/:id/logo', requireAdminActor, async (req, res) => { const sponsor = await prisma.commercialSponsor.findUnique({ where: { id: String(req.params.id) }, select: { id: true, deletedAt: true } }); if (!sponsor || sponsor.deletedAt) return res.status(404).json({ error: 'sponsor not found' }); res.json({ data: await prisma.commercialSponsor.update({ where: { id: sponsor.id }, data: { logoUrl: null, squareLogoUrl: null } }) }) })
+sponsors.delete('/:id/logo', requireAdminActor, async (req, res) => { const sponsor = await prisma.commercialSponsor.findUnique({ where: { id: String(req.params.id) }, select: { id: true, deletedAt: true } }); if (!sponsor || sponsor.deletedAt) return res.status(404).json({ error: 'sponsor not found' }); res.json({ data: await prisma.commercialSponsor.update({ where: { id: sponsor.id }, data: { logoUrl: null, squareLogoUrl: null } }) })
 sponsors.delete('/:id', requireAdminActor, async (req, res) => { const result = await softDeleteSponsor(String(req.params.id), 'admin'); res.status(result.ok ? 200 : 404).json(result.ok ? { data: { archived: true } } : { error: result.error }) })
 
 const commercial = Router()
@@ -76,6 +94,19 @@ commercialClub.get('/:id/sponsors', publicRateLimit, cachePublic(300), async (re
 const commercialLeague = Router()
 commercialLeague.get('/:id/sponsors', publicRateLimit, cachePublic(300), async (req, res) => res.json({ data: await getLeagueSponsorships(String(req.params.id), req.query.all !== 'true') }))
 const commercialPlayer = Router()
+commercialPlayer.get('/:id/details', publicRateLimit, async (req, res) => {
+  try {
+    await ensurePlayerDetailsSchema()
+    const rows = await prisma.$queryRawUnsafe<Array<{ playerId: string; bio: string | null; primaryPosition: string | null; secondaryPosition: string | null; gamesPlayed: number | null; jumperNumber: number | null; photoUrl: string | null }>>(
+      `SELECT "playerId","bio","primaryPosition","secondaryPosition","gamesPlayed","jumperNumber","photoUrl" FROM "player_profile_details" WHERE "playerId"=$1::text LIMIT 1`,
+      String(req.params.id),
+    )
+    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60')
+    res.json({ data: rows[0] ?? null })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) })
+  }
+})
 commercialPlayer.get('/:id/sponsors', publicRateLimit, cachePublic(300), async (req, res) => res.json({ data: await getPlayerSponsorships(String(req.params.id), req.query.all !== 'true') }))
 
 export { sponsors as sponsorsRouter, commercial as commercialRouter, commercialClub as commercialClubRouter, commercialLeague as commercialLeagueRouter, commercialPlayer as commercialPlayerRouter }
