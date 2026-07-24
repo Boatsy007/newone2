@@ -1,0 +1,24 @@
+/* Keep uploaded player photos compact on public player profiles. */
+.player-profile-photo {
+  width: min(100%, 360px) !important;
+  margin-inline: auto !important;
+}
+
+.player-profile-photo img {
+  width: 100% !important;
+  height: 360px !important;
+  max-height: 360px !important;
+  object-fit: cover !important;
+}
+
+@media (max-width: 520px) {
+  .player-profile-photo {
+    width: 240px !important;
+    max-width: calc(100vw - 48px) !important;
+  }
+
+  .player-profile-photo img {
+    height: 300px !important;
+    max-height: 300px !important;
+  }
+}
