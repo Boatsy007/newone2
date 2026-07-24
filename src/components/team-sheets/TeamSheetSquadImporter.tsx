@@ -58,9 +58,10 @@ export default function TeamSheetSquadImporter({ clubId, onImported }: { clubId:
         const playerName = String(player.playerName ?? '').trim()
         if (!playerName) continue
         const key = playerName.toLocaleLowerCase('en-AU')
+        const parsedJumper = player.jumperNumber == null ? null : Number(player.jumperNumber)
         unique.set(key, {
           playerName,
-          jumperNumber: Number.isFinite(Number(player.jumperNumber)) ? Number(player.jumperNumber) : null,
+          jumperNumber: parsedJumper != null && Number.isFinite(parsedJumper) ? parsedJumper : null,
         })
       }
       setRows([...unique.values()])
