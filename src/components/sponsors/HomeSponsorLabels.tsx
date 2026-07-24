@@ -50,6 +50,7 @@ export default function HomeSponsorLabels() {
           '.hmvp-card:not(.hmvp-skeleton)',
           '.pf-player-record-card',
           '.pf-record-card[href^="/player/"]',
+          '.pf-goal-row',
         ].join(',')))
         const next: EntityTarget[] = []
         for (const host of hosts) {
@@ -98,9 +99,17 @@ export default function HomeSponsorLabels() {
 }
 
 function resolveEntity(host: HTMLElement): Pick<EntityTarget, 'kind' | 'id'> | null {
+  const isPlayerCard = host.matches('.hmvp-card,.pf-player-record-card,.pf-record-card[href^="/player/"],.pf-goal-row')
+  if (isPlayerCard) {
+    const playerHref = (host.matches('a[href^="/player/"]') ? host : host.querySelector<HTMLAnchorElement>('a[href^="/player/"]'))?.getAttribute('href')
+    const playerMatch = playerHref?.match(/^\/player\/([^/?#]+)/)
+    if (playerMatch) return { kind: 'player', id: decodeURIComponent(playerMatch[1]) }
+  }
+
   const clubHref = (host.matches('a[href^="/team/"]') ? host : host.querySelector<HTMLAnchorElement>('a[href^="/team/"]'))?.getAttribute('href')
   const clubMatch = clubHref?.match(/^\/team\/([^/?#]+)/)
   if (clubMatch) return { kind: 'club', id: decodeURIComponent(clubMatch[1]) }
+
   const playerHref = (host.matches('a[href^="/player/"]') ? host : host.querySelector<HTMLAnchorElement>('a[href^="/player/"]'))?.getAttribute('href')
   const playerMatch = playerHref?.match(/^\/player\/([^/?#]+)/)
   return playerMatch ? { kind: 'player', id: decodeURIComponent(playerMatch[1]) } : null
@@ -133,6 +142,6 @@ const styles = `
 .pf-card-sponsor-mark.is-linked{cursor:pointer}.pf-card-sponsor-label{flex:0 0 auto;font-size:8px!important;font-weight:900!important;letter-spacing:.13em!important;text-transform:uppercase!important;color:#7a8593!important;line-height:1!important;margin:0!important;padding:0!important;background:none!important}
 .pf-card-sponsor-logo{display:grid!important;place-items:center;min-width:74px;max-width:112px;height:30px;padding:3px 7px;border:1px dashed #bac5cf;border-radius:6px;background:#f8fafb;color:#8b95a2!important;font-size:8px!important;font-weight:850!important;letter-spacing:.06em!important;text-transform:uppercase!important;line-height:1!important;overflow:hidden;box-sizing:border-box;margin:0!important}
 .pf-card-sponsor-logo.has-sponsor{border-style:solid;background:#fff}.pf-card-sponsor-logo img{display:block;max-width:96px;width:auto;height:23px;object-fit:contain}.pf-card-sponsor-mark.is-linked:hover .pf-card-sponsor-logo{border-color:#42b8ff;box-shadow:0 0 0 2px rgba(66,184,255,.12)}
-.pf-number-one>.pf-card-sponsor-slot{grid-column:1/-1;padding-top:5px}.pf-number-one .pf-card-sponsor-mark{justify-content:flex-end}.hmvp-card>.pf-card-sponsor-slot{padding-top:8px;margin-bottom:25px}
+.pf-number-one>.pf-card-sponsor-slot{grid-column:1/-1;padding-top:5px}.pf-number-one .pf-card-sponsor-mark{justify-content:flex-end}.hmvp-card>.pf-card-sponsor-slot{padding-top:8px;margin-bottom:25px}.pf-goal-row>.pf-card-sponsor-slot{grid-column:1/-1}
 @media(max-width:620px){.pf-card-sponsor-slot{padding-top:9px}.pf-card-sponsor-logo{min-width:68px;max-width:96px;height:27px}.pf-card-sponsor-logo img{max-width:82px;height:20px}}
 `
