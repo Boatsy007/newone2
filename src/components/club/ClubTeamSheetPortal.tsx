@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 type SelectedPlayer = { id:string; clubPlayerId:string; playerId:string|null; playerName:string; jumperNumber:number|null; positionCode:string }
 type TeamSheet = { id:string; clubId:string; clubName:string|null; clubLogoUrl:string|null; primaryColour:string|null; secondaryColour:string|null; leagueId:string|null; leagueName:string|null; season:string; grade:string; roundLabel:string; opponentName:string|null; matchDate:string|null; status:string; players:SelectedPlayer[] }
@@ -8,40 +7,34 @@ type TeamSheet = { id:string; clubId:string; clubName:string|null; clubLogoUrl:s
 const LABELS:Record<string,string>={BP_LEFT:'BP',FB:'FB',BP_RIGHT:'BP',HBF_LEFT:'HBF',CHB:'CHB',HBF_RIGHT:'HBF',WING_LEFT:'WING',CENTRE:'CENTRE',WING_RIGHT:'WING',HFF_LEFT:'HFF',CHF:'CHF',HFF_RIGHT:'HFF',FP_LEFT:'FP',FF:'FF',FP_RIGHT:'FP',RUCK:'RUCK',RUCK_ROVER:'R/R',ROVER:'ROVER'}
 const FIELD_ROWS=[['BP_LEFT','FB','BP_RIGHT'],['HBF_LEFT','CHB','HBF_RIGHT'],['WING_LEFT','CENTRE','WING_RIGHT'],['RUCK','RUCK_ROVER','ROVER'],['HFF_LEFT','CHF','HFF_RIGHT'],['FP_LEFT','FF','FP_RIGHT']]
 
-export default function ClubTeamSheetPortal(){
- const { pathname }=useLocation()
- const [target,setTarget]=useState<HTMLElement|null>(null)
- const [sheet,setSheet]=useState<TeamSheet|null>(null)
- const [loading,setLoading]=useState(false)
- const clubId=pathname.startsWith('/team/')?decodeURIComponent(pathname.slice('/team/'.length)):''
+export default function ClubTeamSheet({ clubId }: { clubId: string }) {
+  const [sheet,setSheet]=useState<TeamSheet|null>(null)
+  const [loading,setLoading]=useState(false)
 
- useEffect(()=>{
-  if(!clubId){setTarget(null);return}
-  let active=true
-  let timer=0
-  const findTarget=()=>{
-   if(!active)return
-   const slot=document.getElementById('pf-club-team-sheet-slot')
-   if(slot)setTarget(slot)
-   else timer=window.setTimeout(findTarget,50)
-  }
-  findTarget()
-  return()=>{active=false;window.clearTimeout(timer);setTarget(null)}
- },[clubId])
+  useEffect(()=>{
+    if(!clubId)return
+    const controller=new AbortController()
+    setLoading(true)
+    fetch(`/api/team-sheets/club/${encodeURIComponent(clubId)}`,{signal:controller.signal})
+      .then(r=>r.ok?r.json():Promise.reject(new Error(String(r.status))))
+      .then((p:{data?:TeamSheet|null})=>setSheet(p.data??null))
+      .catch(error=>{if(error instanceof DOMException&&error.name==='AbortError')return;setSheet(null)})
+      .finally(()=>{if(!controller.signal.aborted)setLoading(false)})
+    return()=>controller.abort()
+  },[clubId])
 
- useEffect(()=>{if(!clubId)return;let alive=true;setLoading(true);fetch(`/api/team-sheets/club/${encodeURIComponent(clubId)}`).then(r=>r.ok?r.json():Promise.reject(new Error(String(r.status)))).then((p:{data?:TeamSheet|null})=>{if(alive)setSheet(p.data??null)}).catch(()=>{if(alive)setSheet(null)}).finally(()=>{if(alive)setLoading(false)});return()=>{alive=false}},[clubId])
- if(!target)return null
- const emptyPositions=new Map<string,SelectedPlayer>()
- const byPosition=sheet?new Map(sheet.players.map(player=>[player.positionCode,player])):emptyPositions
- const bench=sheet?sheet.players.filter(player=>player.positionCode.startsWith('INTERCHANGE_')):[]
- const emergencies=sheet?sheet.players.filter(player=>player.positionCode.startsWith('EMERGENCY_')):[]
- const primary=sheet?.primaryColour||'#42b8ff',secondary=sheet?.secondaryColour||'#101318'
- return createPortal(<section className="club-team-sheet">
-  <header><div><small>SELECTED TEAM</small><h2>{loading?'Loading team…':sheet?sheet.roundLabel:'Team not named yet'}</h2><p>{sheet?`${sheet.grade}${sheet.opponentName?` · v ${sheet.opponentName}`:''}${sheet.matchDate?` · ${new Date(sheet.matchDate).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}`:''}`:'The oval is ready. Published player names will appear in their selected positions.'}</p></div>{sheet?.leagueId?<Link to={`/league/${sheet.leagueId}`}>{sheet.leagueName}</Link>:null}</header>
-  <div className="club-team-board" style={{'--team-primary':primary,'--team-secondary':secondary} as React.CSSProperties}><div className="club-team-goals top"><i/><i/><i/><i/></div>{FIELD_ROWS.map((row,index)=><div className={`club-team-row row-${index}`} key={index}>{row.map(code=><Position key={code} code={code} player={byPosition.get(code)}/>)}</div>)}<div className="club-team-centre-circle"/><div className="club-team-goals bottom"><i/><i/><i/><i/></div></div>
-  <div className="club-team-list"><strong>Interchange</strong>{[1,2,3,4].map(index=>{const player=bench.find(row=>row.positionCode===`INTERCHANGE_${index}`);return player?<PlayerLink key={player.id} player={player}/>:<span key={index}>Position {index}</span>})}</div>
-  <div className="club-team-list emergency"><strong>Emergencies</strong>{[1,2,3].map(index=>{const player=emergencies.find(row=>row.positionCode===`EMERGENCY_${index}`);return player?<PlayerLink key={player.id} player={player}/>:<span key={index}>Position {index}</span>})}</div><style>{styles}</style>
- </section>,target)
+  const byPosition=new Map((sheet?.players??[]).map(player=>[player.positionCode,player]))
+  const bench=(sheet?.players??[]).filter(player=>player.positionCode.startsWith('INTERCHANGE_'))
+  const emergencies=(sheet?.players??[]).filter(player=>player.positionCode.startsWith('EMERGENCY_'))
+  const primary=sheet?.primaryColour||'#42b8ff',secondary=sheet?.secondaryColour||'#101318'
+
+  return <section className="club-team-sheet">
+    <header><div><small>SELECTED TEAM</small><h2>{loading?'Loading team…':sheet?sheet.roundLabel:'Team not named yet'}</h2><p>{sheet?`${sheet.grade}${sheet.opponentName?` · v ${sheet.opponentName}`:''}${sheet.matchDate?` · ${new Date(sheet.matchDate).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}`:''}`:'The oval is ready. Published player names will appear in their selected positions.'}</p></div>{sheet?.leagueId?<Link to={`/league/${sheet.leagueId}`}>{sheet.leagueName}</Link>:null}</header>
+    <div className="club-team-board" style={{'--team-primary':primary,'--team-secondary':secondary} as React.CSSProperties}><div className="club-team-goals top"><i/><i/><i/><i/></div>{FIELD_ROWS.map((row,index)=><div className={`club-team-row row-${index}`} key={index}>{row.map(code=><Position key={code} code={code} player={byPosition.get(code)}/>)}</div>)}<div className="club-team-centre-circle"/><div className="club-team-goals bottom"><i/><i/><i/><i/></div></div>
+    <div className="club-team-list"><strong>Interchange</strong>{[1,2,3,4].map(index=>{const player=bench.find(row=>row.positionCode===`INTERCHANGE_${index}`);return player?<PlayerLink key={player.id} player={player}/>:<span key={index}>Position {index}</span>})}</div>
+    <div className="club-team-list emergency"><strong>Emergencies</strong>{[1,2,3].map(index=>{const player=emergencies.find(row=>row.positionCode===`EMERGENCY_${index}`);return player?<PlayerLink key={player.id} player={player}/>:<span key={index}>Position {index}</span>})}</div>
+    <style>{styles}</style>
+  </section>
 }
 
 function Position({code,player}:{code:string;player?:SelectedPlayer}){return <div className="club-team-position"><span>{LABELS[code]}</span>{player?<PlayerLink player={player}/>:<em>—</em>}</div>}
