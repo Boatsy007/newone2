@@ -95,7 +95,7 @@ export async function listMvpEntries(options: { season?: string; limit?: number;
     )
     SELECT
       m.id,
-      m.player_id AS "playerId",
+      profile.id AS "playerId",
       m.player_name AS "playerName",
       m.club_id AS "clubId",
       m.club_name AS "clubName",
@@ -114,6 +114,25 @@ export async function listMvpEntries(options: { season?: string; limit?: number;
     FROM scored m
     LEFT JOIN clubs c ON c.id::text = m.club_id
     LEFT JOIN states s ON s.id = c."stateId"
+    LEFT JOIN LATERAL (
+      SELECT g.id::text AS id
+      FROM football_goal_kickers g
+      WHERE
+        (m.player_id IS NOT NULL AND g."playerId"::text = m.player_id)
+        OR (
+          lower(g."playerName") = lower(m.player_name)
+          AND g."season" = m.season
+          AND (
+            (m.club_id IS NOT NULL AND g."clubId"::text = m.club_id)
+            OR (m.club_id IS NULL AND lower(g."clubName") = lower(m.club_name))
+          )
+        )
+      ORDER BY
+        CASE WHEN m.player_id IS NOT NULL AND g."playerId"::text = m.player_id THEN 0 ELSE 1 END,
+        g."goals" DESC,
+        g."importedAt" DESC
+      LIMIT 1
+    ) profile ON true
     ORDER BY "mvpPoints" DESC, m.bp DESC, m.games_played ASC NULLS LAST, m.player_name ASC
     LIMIT $${params.length}
   `, ...params)
