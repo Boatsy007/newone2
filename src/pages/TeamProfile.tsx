@@ -2,13 +2,14 @@
  * Club page: each club's premium digital home. Section tabs expose the
  * existing live club content without changing its data sources or route.
  */
-import { lazy, Suspense, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import Nav from '../components/layout/Nav'
 import ProductSearch from '../components/rankings/ProductSearch'
 import Footer from '../components/layout/Footer'
 import ClubLiveHub from '../components/club/ClubLiveHub'
 import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickersPanel'
+import SponsorShowcase from '../components/sponsors/SponsorShowcase'
 import { useSeo } from '../lib/seo'
 import { fetchClub, fetchClubExplain, useAsync, strengthLabel, strengthStars, type ClubProfile, type ClubExplanation } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
@@ -18,10 +19,11 @@ const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ de
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
 const ClubNews = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubNews })))
 
-type ClubTab = 'overview' | 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
+type ClubTab = 'overview' | 'team-selection' | 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
 
 const CLUB_TABS: { id: ClubTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'team-selection', label: 'Team selection' },
   { id: 'news', label: 'Club news' },
   { id: 'information', label: 'Information' },
   { id: 'photos', label: 'Photos' },
@@ -32,10 +34,25 @@ const CLUB_TABS: { id: ClubTab; label: string }[] = [
 
 export default function TeamProfile() {
   const { clubId = '' } = useParams()
-  const [activeTab, setActiveTab] = useState<ClubTab>('overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const initialTab: ClubTab = requestedTab === 'team-selection' ? 'team-selection' : 'overview'
+  const [activeTab, setActiveTab] = useState<ClubTab>(initialTab)
   const club = useAsync<ClubProfile>(() => fetchClub(clubId), [clubId])
   const explain = useAsync<ClubExplanation | null>(() => fetchClubExplain(clubId).catch(() => null), [clubId])
   const data = club.data
+
+  useEffect(() => {
+    if (requestedTab === 'team-selection' && activeTab !== 'team-selection') setActiveTab('team-selection')
+  }, [activeTab, requestedTab])
+
+  const selectTab = (tab: ClubTab) => {
+    setActiveTab(tab)
+    const next = new URLSearchParams(searchParams)
+    if (tab === 'team-selection') next.set('tab', 'team-selection')
+    else next.delete('tab')
+    setSearchParams(next, { replace: true })
+  }
 
   useSeo({
     title: data ? seoTitle(data) : 'Club | PlayFooty',
@@ -57,15 +74,19 @@ export default function TeamProfile() {
             <nav className="club-profile-tabs" aria-label="Club profile sections">
               <div role="tablist" aria-label={`${data.clubName} profile sections`}>
                 {CLUB_TABS.map(tab => (
-                  <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>
+                  <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => selectTab(tab.id)}>{tab.label}</button>
                 ))}
               </div>
             </nav>
 
             <div className="club-section-bg">
-              <div className="club-profile-area" role="tabpanel">
+              <div className={`club-profile-area${activeTab === 'team-selection' ? ' team-selection-active' : ''}`} role="tabpanel">
                 <div className="club-profile-main">
                   {activeTab === 'overview' && <ClubLiveHub club={data} />}
+                  <div className="club-team-selection-stack" hidden={activeTab !== 'team-selection'}>
+                    <div id="pf-club-team-sheet-slot" />
+                    {activeTab === 'team-selection' && <SponsorShowcase scope="club" entityId={clubId} entityName={data.clubName} />}
+                  </div>
                   {activeTab === 'news' && <div className="club-feed-card"><Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}><ClubNews club={data} /></Suspense></div>}
                   {activeTab === 'information' && <ClubInformationPanel club={data} />}
                   {activeTab === 'photos' && <div className="club-feed-card"><ClubGallery club={data} /></div>}
@@ -82,7 +103,7 @@ export default function TeamProfile() {
                   )}
                   {activeTab === 'related' && <div className="club-feed-card"><RelatedClubs club={data} /></div>}
                 </div>
-                <aside className="club-profile-sidebar"><ClubSidebar club={data} /></aside>
+                {activeTab !== 'team-selection' && <aside className="club-profile-sidebar"><ClubSidebar club={data} /></aside>}
               </div>
             </div>
 
@@ -91,7 +112,7 @@ export default function TeamProfile() {
               .club-profile-tabs>div{max-width:1180px;margin:0 auto;display:flex;gap:2px;padding:0 20px;overflow-x:auto;scrollbar-width:none}.club-profile-tabs>div::-webkit-scrollbar{display:none}
               .club-profile-tabs button{position:relative;flex:0 0 auto;min-height:58px;padding:0 18px;border:0;background:transparent;color:#687385;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:21px;letter-spacing:.035em;text-transform:uppercase;white-space:nowrap;cursor:pointer}
               .club-profile-tabs button:after{content:'';position:absolute;left:14px;right:14px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:transparent}.club-profile-tabs button.active{color:#050505}.club-profile-tabs button.active:after{background:#42b8ff}
-              .club-section-bg{background:#f3f5f7;min-height:420px}.club-profile-area{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:28px 20px 48px}
+              .club-section-bg{background:#f3f5f7;min-height:420px}.club-profile-area{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:28px 20px 48px}.club-profile-area.team-selection-active{display:block}.club-team-selection-stack{display:grid;gap:18px}.club-team-selection-stack>.pf-sponsor-showcase{overflow:hidden;border:1px solid #dfe5ea;border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(17,24,39,.06)}
               .club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-left:0!important;padding-right:0!important}.club-profile-main>section>div,.club-feed-card>section>div,.club-stats-stack>section>div{max-width:none!important}
               .club-feed-card,.club-info-panel{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}.club-stats-stack,.club-info-stack{display:grid;gap:18px}.club-stats-stack>section{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
               .club-info-panel{padding:24px}.club-info-kicker{display:block;color:#42b8ff;font-size:11px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.club-info-title{margin:6px 0 12px;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:36px;line-height:1;text-transform:uppercase;color:#111318}.club-info-bio{margin:0;color:#46515f;font-size:15px;line-height:1.65}
