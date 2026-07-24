@@ -69,9 +69,18 @@ export default function PlayerMvpRank() {
 
   if (!host || !entry) return null
 
-  return createPortal(<div className="player-mvp-rank">
-    <span>National MVP rank</span>
-    <strong>#{entry.rank}</strong>
-    <small>{entry.mvpPoints} MVP points · {entry.bp} BP</small>
-  </div>, host)
+  return <>
+    {createPortal(<div className="player-mvp-rank">
+      <span>National MVP rank</span>
+      <strong>#{entry.rank}</strong>
+      <small>{entry.mvpPoints} MVP points · {entry.bp} BP</small>
+    </div>, host)}
+    <style>{`
+      .player-mvp-rank{margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,.18)}
+      .player-mvp-rank span{display:block;color:#9da8b5;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.12em}
+      .player-mvp-rank strong{display:block;color:#fff!important;font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(3.2rem,7vw,5rem)!important;line-height:.85!important;margin-top:10px!important}
+      .player-mvp-rank small{display:block;color:#c8d0da;margin-top:10px;font-weight:800}
+      @media(max-width:850px){.player-mvp-rank{max-width:320px}.player-mvp-rank strong{font-size:4rem!important}}
+    `}</style>
+  </>
 }
