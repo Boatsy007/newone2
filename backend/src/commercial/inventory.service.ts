@@ -9,11 +9,14 @@ import { prisma } from '../db/client.js'
 import { logCommercialAction } from './audit.js'
 
 export const PLACEMENTS = [
-  { placement: 'HOMEPAGE_HERO', label: 'Homepage Hero' },
-  { placement: 'HOMEPAGE_TOP_20', label: 'National Top 20' },
-  { placement: 'HOMEPAGE_GOAL_KICKERS', label: 'Homepage Goal Kickers' },
-  { placement: 'HOMEPAGE_WEEKLY_RECORDS', label: 'This Week in Footy' },
-  { placement: 'HOMEPAGE_YEARLY_RECORDS', label: 'Yearly Records' },
+  { placement: 'HOMEPAGE_HERO', label: 'Homepage Hero Card' },
+  { placement: 'HOMEPAGE_TOP_20', label: 'National Top 20 Cards' },
+  { placement: 'HOMEPAGE_MVP', label: 'Homepage MVP Cards' },
+  { placement: 'HOMEPAGE_GOAL_KICKERS', label: 'Homepage Goal Kicker Cards' },
+  { placement: 'HOMEPAGE_WEEKLY_RECORDS', label: 'This Week in Footy Cards' },
+  { placement: 'HOMEPAGE_YEARLY_RECORDS', label: 'Yearly Records Cards' },
+  { placement: 'HOMEPAGE_FEATURES', label: 'Homepage Feature Cards' },
+  { placement: 'HOMEPAGE_LATEST_NEWS', label: 'Homepage Latest News Cards' },
   { placement: 'HOMEPAGE_SIDEBAR', label: 'Homepage Sidebar' },
   { placement: 'RANKINGS_SIDEBAR', label: 'Rankings Sidebar' },
   { placement: 'LEAGUE_PAGE', label: 'League Page' },
