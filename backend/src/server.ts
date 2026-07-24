@@ -13,6 +13,7 @@ import { goalKickerAlertControlsRouter } from './api/routes/goal-kicker-alert-co
 import { goalKickerRecordsSafeRouter } from './api/routes/goal-kicker-records-safe.js'
 import { goalKickerContextRouter } from './api/routes/goal-kicker-context.js'
 import { goalKickersRouter } from './api/routes/goal-kickers.js'
+import { playerProfileDetailsRouter } from './api/routes/player-profile-details.js'
 import { mvpRouter } from './api/routes/mvp.js'
 import { teamSheetsRouter, adminTeamSheetsRouter } from './api/routes/team-sheets.js'
 import { newsRouter } from './api/routes/news.js'
@@ -106,6 +107,7 @@ app.use('/api/goal-kickers', goalKickerAchievementsRouter)
 app.use('/api/goal-kickers', goalKickerRecordsSafeRouter)
 app.use('/api/goal-kickers', goalKickerContextRouter)
 app.use('/api/goal-kickers', goalKickersRouter)
+app.use('/api/player-profile-details', playerProfileDetailsRouter)
 app.use('/api/mvp', mvpRouter)
 app.use('/api/team-sheets', teamSheetsRouter)
 app.use('/api/news', newsRouter)
