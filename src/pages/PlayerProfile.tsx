@@ -36,10 +36,16 @@ type GoalHistoryEntry = {
   updatedAt: string
 }
 
-type PlayerRecord = {
-  key: string
-  label: string
-  value: string
+type PlayerRecord = { key: string; label: string; value: string }
+
+type PlayerDetails = {
+  playerId: string
+  bio: string | null
+  primaryPosition: string | null
+  secondaryPosition: string | null
+  gamesPlayed: number | null
+  jumperNumber: number | null
+  photoUrl: string | null
 }
 
 type PlayerProfileData = {
@@ -75,6 +81,7 @@ type PlayerProfileData = {
 export default function PlayerProfile() {
   const { playerId = '' } = useParams()
   const [data, setData] = useState<PlayerProfileData | null>(null)
+  const [details, setDetails] = useState<PlayerDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -82,13 +89,24 @@ export default function PlayerProfile() {
     let active = true
     setLoading(true)
     setError('')
-    fetch(`/api/goal-kickers/player/${encodeURIComponent(playerId)}`)
-      .then(async response => {
+    const encoded = encodeURIComponent(playerId)
+    Promise.all([
+      fetch(`/api/goal-kickers/player/${encoded}`).then(async response => {
         const json = await response.json() as { data?: PlayerProfileData; error?: string }
         if (!response.ok || !json.data) throw new Error(json.error ?? 'Player not found')
         return json.data
+      }),
+      fetch(`/api/players/${encoded}/details`).then(async response => {
+        if (!response.ok) return null
+        const json = await response.json() as { data?: PlayerDetails | null }
+        return json.data ?? null
+      }).catch(() => null),
+    ])
+      .then(([profile, savedDetails]) => {
+        if (!active) return
+        setData(profile)
+        setDetails(savedDetails)
       })
-      .then(next => { if (active) setData(next) })
       .catch((reason: Error) => { if (active) setError(reason.message) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -96,9 +114,12 @@ export default function PlayerProfile() {
 
   useSeo({
     title: data ? `${data.playerName} — Goals, Club & Player Profile | PlayFooty` : 'Player Profile | PlayFooty',
-    description: data ? `${data.playerName} plays for ${data.clubName} in ${data.leagueName}. View goals, latest-game performance, ranking, records and goal history.` : 'Community football player profile and goal-kicking statistics.',
+    description: data ? details?.bio || `${data.playerName} plays for ${data.clubName} in ${data.leagueName}. View goals, playing positions, statistics and player history.` : 'Community football player profile and statistics.',
     path: `/player/${playerId}`,
   })
+
+  const displayedGames = details?.gamesPlayed ?? data?.matches ?? null
+  const displayedGpg = displayedGames && displayedGames > 0 && data ? data.goals / displayedGames : data?.goalsPerGame ?? null
 
   return <div className="player-page">
     <Nav />
@@ -109,7 +130,7 @@ export default function PlayerProfile() {
         <section className="player-hero">
           <div className="player-shell player-hero-inner">
             <div className="player-identity">
-              <ClubLogo src={data.clubLogoUrl} name={data.clubName} />
+              <PlayerImage photoUrl={details?.photoUrl ?? null} clubLogoUrl={data.clubLogoUrl} name={data.playerName} />
               <div>
                 <span className="player-kicker">Community football player</span>
                 <h1>{data.playerName}</h1>
@@ -119,6 +140,11 @@ export default function PlayerProfile() {
                   {data.leagueId ? <Link to={`/league/${data.leagueId}`}>{data.leagueName}</Link> : <span>{data.leagueName}</span>}
                   {data.state ? <span> · {data.state}</span> : null}
                 </p>
+                {(details?.primaryPosition || details?.secondaryPosition || details?.jumperNumber != null) && <div className="player-tags">
+                  {details.primaryPosition && <span>{details.primaryPosition}</span>}
+                  {details.secondaryPosition && <span>{details.secondaryPosition}</span>}
+                  {details.jumperNumber != null && <span>#{details.jumperNumber}</span>}
+                </div>}
                 <div className="player-links">
                   {data.clubId && <Link to={`/team/${data.clubId}`}>View club</Link>}
                   {data.leagueId && <Link to={`/league/${data.leagueId}`}>View league</Link>}
@@ -136,13 +162,18 @@ export default function PlayerProfile() {
 
         <section className="player-shell player-content">
           <div className="player-main">
+            {details?.bio && <section className="player-card player-bio">
+              <header><span>Player profile</span><h2>About {data.playerName.split(' ')[0]}</h2></header>
+              <p>{details.bio}</p>
+            </section>}
+
             <section className="player-card stats-card">
-              <header><span>Current season</span><h2>Goal-kicking stats</h2></header>
+              <header><span>Current season</span><h2>Player statistics</h2></header>
               <div className="stat-grid">
                 <Stat label="Season goals" value={String(data.goals)} />
                 <Stat label="Latest game" value={data.latestGoals > 0 ? `+${data.latestGoals}` : '—'} />
-                <Stat label="Matches" value={data.matches == null ? '—' : String(data.matches)} />
-                <Stat label="Goals per game" value={data.goalsPerGame == null ? '—' : data.goalsPerGame.toFixed(2)} />
+                <Stat label="Games played" value={displayedGames == null ? '—' : String(displayedGames)} />
+                <Stat label="Goals per game" value={displayedGpg == null ? '—' : displayedGpg.toFixed(2)} />
                 <Stat label="National rank" value={data.rank ? `#${data.rank}` : '—'} />
                 <Stat label="GPG rank" value={data.goalsPerGameRank ? `#${data.goalsPerGameRank}` : '—'} />
               </div>
@@ -158,10 +189,7 @@ export default function PlayerProfile() {
               <div className="goal-history">
                 {data.goalHistory.map((entry, index) => <article key={`${entry.updatedAt}-${entry.goals}-${index}`}>
                   <div className="history-delta">+{entry.weeklyGoals}</div>
-                  <div className="history-copy">
-                    <strong>{entry.previousGoals} → {entry.goals} season goals</strong>
-                    <span>{entry.clubName} · {entry.leagueName}{entry.grade ? ` · ${entry.grade}` : ''}</span>
-                  </div>
+                  <div className="history-copy"><strong>{entry.previousGoals} → {entry.goals} season goals</strong><span>{entry.clubName} · {entry.leagueName}{entry.grade ? ` · ${entry.grade}` : ''}</span></div>
                   <time>{formatDate(entry.updatedAt)}</time>
                 </article>)}
               </div>
@@ -172,14 +200,8 @@ export default function PlayerProfile() {
               <div className="season-list">
                 {data.history.map(season => <article key={season.id}>
                   <ClubLogo src={season.clubLogoUrl} name={season.clubName} small />
-                  <div className="season-copy">
-                    <strong>{season.season}{season.grade ? ` · ${season.grade}` : ''}</strong>
-                    <span>{season.clubName} · {season.leagueName}</span>
-                  </div>
-                  <div className="season-numbers">
-                    <b>{season.goals}</b><small>goals</small>
-                    <b>{season.matches ?? '—'}</b><small>matches</small>
-                  </div>
+                  <div className="season-copy"><strong>{season.season}{season.grade ? ` · ${season.grade}` : ''}</strong><span>{season.clubName} · {season.leagueName}</span></div>
+                  <div className="season-numbers"><b>{season.goals}</b><small>goals</small><b>{season.matches ?? '—'}</b><small>matches</small></div>
                 </article>)}
               </div>
             </section>
@@ -191,6 +213,10 @@ export default function PlayerProfile() {
               <dl>
                 <div><dt>Club</dt><dd>{data.clubId ? <Link to={`/team/${data.clubId}`}>{data.clubName}</Link> : data.clubName}</dd></div>
                 <div><dt>League</dt><dd>{data.leagueId ? <Link to={`/league/${data.leagueId}`}>{data.leagueName}</Link> : data.leagueName}</dd></div>
+                {details?.primaryPosition && <div><dt>Primary position</dt><dd>{details.primaryPosition}</dd></div>}
+                {details?.secondaryPosition && <div><dt>Secondary position</dt><dd>{details.secondaryPosition}</dd></div>}
+                {details?.jumperNumber != null && <div><dt>Jumper number</dt><dd>#{details.jumperNumber}</dd></div>}
+                <div><dt>Games played</dt><dd>{displayedGames ?? 'Not provided'}</dd></div>
                 <div><dt>Season</dt><dd>{data.season}</dd></div>
                 <div><dt>Grade</dt><dd>{data.grade ?? 'Not provided'}</dd></div>
                 <div><dt>Location</dt><dd>{[data.town, data.stateName ?? data.state].filter(Boolean).join(', ') || 'Not provided'}</dd></div>
@@ -201,20 +227,20 @@ export default function PlayerProfile() {
             <section className="player-card player-records">
               <header><span>Individual honours</span><h2>Records</h2></header>
               {data.records.length === 0 && <p className="empty-copy">No current national player records held.</p>}
-              {data.records.map(record => <article key={record.key}>
-                <span>{record.label}</span>
-                <strong>{record.value}</strong>
-              </article>)}
+              {data.records.map(record => <article key={record.key}><span>{record.label}</span><strong>{record.value}</strong></article>)}
             </section>
           </aside>
         </section>
       </>}
     </main>
     <Footer />
-    <style>{`
-      .player-page{min-height:100vh;background:#f3f5f7;color:#111318;font-family:Barlow,Inter,Arial,sans-serif}.player-shell{width:min(1180px,calc(100% - 36px));margin:0 auto}.player-state{min-height:55vh;display:grid;place-items:center;font-weight:900;text-transform:uppercase;letter-spacing:.12em}.player-state.error{color:#d71920}.player-hero{background:#050505;color:#fff;border-bottom:5px solid #2daaf5}.player-hero-inner{min-height:330px;display:flex;justify-content:space-between;align-items:center;gap:30px;padding:48px 0}.player-identity{display:flex;align-items:center;gap:24px;min-width:0}.player-logo{width:112px;height:112px;display:grid;place-items:center;flex:0 0 auto}.player-logo.small{width:52px;height:52px}.player-logo img{width:100%;height:100%;object-fit:contain}.player-logo span{width:100%;height:100%;display:grid;place-items:center;border-radius:18px;background:#2daaf5;color:#050505;font-family:'Bebas Neue',Impact,sans-serif;font-size:38px}.player-logo.small span{font-size:20px;border-radius:10px}.player-kicker,.player-card header span{color:#2daaf5;font-size:11px;font-weight:950;letter-spacing:.16em;text-transform:uppercase}.player-hero h1,.player-card h2,.player-rank strong,.history-delta,.player-records strong{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.player-hero h1{font-size:clamp(4rem,9vw,8rem);line-height:.82;margin:10px 0}.player-hero p{margin:0;color:#c8d0da;font-weight:750}.player-associations a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}.player-associations a:hover,.player-associations a:focus-visible{color:#2daaf5;border-bottom-color:#2daaf5}.player-links{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}.player-links a{color:#050505;background:#2daaf5;text-decoration:none;border-radius:999px;padding:11px 16px;font-weight:950;text-transform:uppercase;font-size:12px}.player-rank{text-align:right}.player-rank span{display:block;color:#9da8b5;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.12em}.player-rank strong{display:block;color:#2daaf5;font-size:clamp(5rem,10vw,8rem);line-height:.8;margin-top:12px}.player-rank small{display:block;color:#c8d0da;margin-top:13px;font-weight:800}.player-content{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:30px 0 55px}.player-main,.player-sidebar-wrap{display:grid;gap:18px}.player-card{background:#fff;border:1px solid #dfe5eb;border-radius:12px;padding:24px;box-shadow:0 7px 24px rgba(17,24,39,.06)}.player-card h2{font-size:42px;line-height:.9;margin:6px 0 20px}.stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.stat-grid article{background:#f7f9fb;border:1px solid #e5e9ee;border-radius:10px;padding:18px}.stat-grid span{display:block;color:#687385;text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.12em}.stat-grid strong{display:block;color:#111318;font-family:'Bebas Neue',Impact,sans-serif;font-size:44px;line-height:1;margin-top:8px}.latest-summary{margin:16px 0 0;padding:14px 16px;background:#e8f6ff;border-left:4px solid #2daaf5;font-size:14px}.goal-history,.season-list{display:grid}.goal-history article,.season-list article{display:flex;align-items:center;gap:13px;padding:15px 0;border-top:1px solid #e8ecf0}.history-delta{width:58px;height:58px;display:grid;place-items:center;flex:0 0 auto;border-radius:50%;background:#2daaf5;color:#050505;font-size:28px}.history-copy{min-width:0;flex:1}.history-copy strong,.history-copy span{display:block}.history-copy span{color:#687385;font-size:13px;font-weight:750;margin-top:4px}.goal-history time{color:#687385;font-size:12px;font-weight:800;white-space:nowrap}.season-copy{min-width:0;flex:1}.season-copy strong,.season-copy span{display:block}.season-copy strong{font-size:17px}.season-copy span{color:#687385;font-size:13px;font-weight:750;margin-top:4px}.season-numbers{display:grid;grid-template-columns:auto auto;gap:2px 10px;text-align:right}.season-numbers b{font-size:20px}.season-numbers small{color:#687385;text-transform:uppercase;font-size:9px;font-weight:900}.player-sidebar-wrap{position:sticky;top:92px}.player-sidebar dl{margin:0}.player-sidebar dl>div{padding:13px 0;border-top:1px solid #e8ecf0}.player-sidebar dt{color:#687385;text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.12em}.player-sidebar dd{margin:5px 0 0;font-weight:850;line-height:1.35}.player-sidebar dd a{color:#111318;text-decoration:none}.player-sidebar dd a:hover,.player-sidebar dd a:focus-visible{color:#168fd4;text-decoration:underline}.player-records article{background:#050505;color:#fff;border-radius:9px;padding:15px;margin-top:10px}.player-records article span{display:block;color:#2daaf5;text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.12em}.player-records strong{display:block;font-size:31px;line-height:1;margin-top:7px}.empty-copy{color:#687385;line-height:1.5;margin:0}@media(max-width:850px){.player-hero-inner{align-items:flex-start;flex-direction:column}.player-rank{text-align:left}.player-content{grid-template-columns:1fr}.player-sidebar-wrap{position:static}.stat-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){.player-shell{width:min(100% - 24px,1180px)}.player-hero-inner{padding:32px 0}.player-identity{align-items:flex-start;gap:14px}.player-logo{width:72px;height:72px}.player-hero h1{font-size:3.7rem}.player-rank strong{font-size:5rem}.player-card{padding:18px}.stat-grid{grid-template-columns:1fr 1fr}.stat-grid strong{font-size:36px}.goal-history article{align-items:flex-start;flex-wrap:wrap}.goal-history time{width:100%;padding-left:71px}.season-list article{align-items:flex-start;flex-wrap:wrap}.season-numbers{width:100%;grid-template-columns:auto auto auto auto;text-align:left;padding-left:65px}}
-    `}</style>
+    <style>{styles}</style>
   </div>
+}
+
+function PlayerImage({ photoUrl, clubLogoUrl, name }: { photoUrl: string | null; clubLogoUrl: string | null; name: string }) {
+  if (photoUrl) return <div className="player-photo"><img src={photoUrl} alt={`${name} player profile`} /></div>
+  return <ClubLogo src={clubLogoUrl} name={name} />
 }
 
 function ClubLogo({ src, name, small = false }: { src: string | null; name: string; small?: boolean }) {
@@ -222,12 +248,9 @@ function ClubLogo({ src, name, small = false }: { src: string | null; name: stri
   return <div className={`player-logo${small ? ' small' : ''}`} aria-hidden="true">{src ? <img src={src} alt="" /> : <span>{initials}</span>}</div>
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return <article><span>{label}</span><strong>{value}</strong></article>
-}
+function Stat({ label, value }: { label: string; value: string }) { return <article><span>{label}</span><strong>{value}</strong></article> }
+function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).format(date) }
 
-function formatDate(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).format(date)
-}
+const styles = `
+.player-page{min-height:100vh;background:#f3f5f7;color:#111318;font-family:Barlow,Inter,Arial,sans-serif}.player-shell{width:min(1180px,calc(100% - 36px));margin:0 auto}.player-state{min-height:55vh;display:grid;place-items:center;font-weight:900;text-transform:uppercase;letter-spacing:.12em}.player-state.error{color:#d71920}.player-hero{background:#050505;color:#fff;border-bottom:5px solid #2daaf5}.player-hero-inner{min-height:330px;display:flex;justify-content:space-between;align-items:center;gap:30px;padding:48px 0}.player-identity{display:flex;align-items:center;gap:24px;min-width:0}.player-photo,.player-logo{width:112px;height:112px;display:grid;place-items:center;flex:0 0 auto}.player-photo{border-radius:20px;overflow:hidden;border:3px solid #2daaf5;background:#171717}.player-photo img{width:100%;height:100%;object-fit:cover}.player-logo.small{width:52px;height:52px}.player-logo img{width:100%;height:100%;object-fit:contain}.player-logo span{width:100%;height:100%;display:grid;place-items:center;border-radius:18px;background:#2daaf5;color:#050505;font-family:'Bebas Neue',Impact,sans-serif;font-size:38px}.player-logo.small span{font-size:20px;border-radius:10px}.player-kicker,.player-card header span{color:#2daaf5;font-size:11px;font-weight:950;letter-spacing:.16em;text-transform:uppercase}.player-hero h1,.player-card h2,.player-rank strong,.history-delta,.player-records strong{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.player-hero h1{font-size:clamp(4rem,9vw,8rem);line-height:.82;margin:10px 0}.player-hero p{margin:0;color:#c8d0da;font-weight:750}.player-associations a{color:inherit;text-decoration:none}.player-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.player-tags span{border:1px solid #3d4650;border-radius:999px;padding:7px 10px;color:#fff;font-size:11px;font-weight:900;text-transform:uppercase}.player-links{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}.player-links a{color:#050505;background:#2daaf5;text-decoration:none;border-radius:999px;padding:11px 16px;font-weight:950;text-transform:uppercase;font-size:12px}.player-rank{text-align:right}.player-rank span{display:block;color:#9da8b5;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.12em}.player-rank strong{display:block;color:#2daaf5;font-size:clamp(5rem,10vw,8rem);line-height:.8;margin-top:12px}.player-rank small{display:block;color:#c8d0da;margin-top:13px;font-weight:800}.player-content{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:30px 0 55px}.player-main,.player-sidebar-wrap{display:grid;gap:18px}.player-card{background:#fff;border:1px solid #dfe5eb;border-radius:12px;padding:24px;box-shadow:0 7px 24px rgba(17,24,39,.06)}.player-card h2{font-size:42px;line-height:.9;margin:6px 0 20px}.player-bio p{margin:0;color:#394454;font-size:16px;line-height:1.75;white-space:pre-line}.stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.stat-grid article{background:#f7f9fb;border:1px solid #e5e9ee;border-radius:10px;padding:18px}.stat-grid span{display:block;color:#687385;text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.12em}.stat-grid strong{display:block;color:#111318;font-family:'Bebas Neue',Impact,sans-serif;font-size:44px;line-height:1;margin-top:8px}.latest-summary{margin:16px 0 0;padding:14px 16px;background:#e8f6ff;border-left:4px solid #2daaf5;font-size:14px}.goal-history,.season-list{display:grid}.goal-history article,.season-list article{display:flex;align-items:center;gap:13px;padding:15px 0;border-top:1px solid #e8ecf0}.history-delta{width:58px;height:58px;display:grid;place-items:center;flex:0 0 auto;border-radius:50%;background:#2daaf5;color:#050505;font-size:28px}.history-copy{min-width:0;flex:1}.history-copy strong,.history-copy span{display:block}.history-copy span,.season-copy span{color:#687385;font-size:13px;font-weight:750;margin-top:4px}.goal-history time{color:#687385;font-size:12px;font-weight:800;white-space:nowrap}.season-copy{min-width:0;flex:1}.season-copy strong,.season-copy span{display:block}.season-numbers{display:grid;grid-template-columns:auto auto;gap:2px 10px;text-align:right}.season-numbers small{color:#687385;text-transform:uppercase;font-size:9px;font-weight:900}.player-sidebar-wrap{position:sticky;top:92px}.player-sidebar dl{margin:0}.player-sidebar dl>div{padding:13px 0;border-top:1px solid #e8ecf0}.player-sidebar dt{color:#687385;text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.12em}.player-sidebar dd{margin:5px 0 0;font-weight:850;line-height:1.35}.player-sidebar dd a{color:#111318;text-decoration:none}.player-records article{background:#050505;color:#fff;border-radius:9px;padding:15px;margin-top:10px}.player-records article span{display:block;color:#2daaf5;text-transform:uppercase;font-size:10px;font-weight:900;letter-spacing:.12em}.player-records strong{display:block;font-size:31px;line-height:1;margin-top:7px}.empty-copy{color:#687385;line-height:1.5;margin:0}@media(max-width:850px){.player-hero-inner{align-items:flex-start;flex-direction:column}.player-rank{text-align:left}.player-content{grid-template-columns:1fr}.player-sidebar-wrap{position:static}.stat-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){.player-shell{width:min(100% - 24px,1180px)}.player-hero-inner{padding:32px 0}.player-identity{align-items:flex-start;gap:14px}.player-photo,.player-logo{width:72px;height:72px}.player-hero h1{font-size:3.7rem}.player-rank strong{font-size:5rem}.player-card{padding:18px}.stat-grid{grid-template-columns:1fr 1fr}.stat-grid strong{font-size:36px}.goal-history article,.season-list article{align-items:flex-start;flex-wrap:wrap}.goal-history time{width:100%;padding-left:71px}.season-numbers{width:100%;grid-template-columns:auto auto auto auto;text-align:left;padding-left:65px}}
+`
