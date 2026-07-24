@@ -149,10 +149,10 @@ adminRouter.post('/club/:clubId/sheets', async (req, res) => {
     if (!roundLabel) return res.status(400).json({ error: 'roundLabel is required' })
     const rows = await prisma.$queryRawUnsafe<Array<{ id:string }>>(`
       INSERT INTO football_team_sheets (club_id, league_id, season, grade, round_label, opponent_name, match_date)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      VALUES ($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::date)
       ON CONFLICT (club_id, season, grade, round_label) DO UPDATE SET league_id=EXCLUDED.league_id, opponent_name=EXCLUDED.opponent_name, match_date=EXCLUDED.match_date, updated_at=now()
       RETURNING id::text AS id
-    `, req.params.clubId, req.body?.leagueId ? String(req.body.leagueId) : null, season, grade, roundLabel, req.body?.opponentName ? String(req.body.opponentName) : null, req.body?.matchDate || null)
+    `, String(req.params.clubId), req.body?.leagueId ? String(req.body.leagueId) : null, season, grade, roundLabel, req.body?.opponentName ? String(req.body.opponentName) : null, req.body?.matchDate ? String(req.body.matchDate).slice(0,10) : null)
     res.status(201).json({ data: await loadSheet(rows[0].id) })
   } catch (error) { res.status(500).json({ error: 'failed to create team sheet', detail: String(error) }) }
 })
@@ -161,7 +161,7 @@ adminRouter.put('/:sheetId', async (req, res) => {
   try {
     await ensureTeamSheetTables()
     const status = String(req.body?.status ?? 'DRAFT').toUpperCase() === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT'
-    await prisma.$executeRawUnsafe(`UPDATE football_team_sheets SET status=$2, published_at=CASE WHEN $2='PUBLISHED' THEN now() ELSE NULL END, opponent_name=COALESCE($3,opponent_name), match_date=COALESCE($4,match_date), updated_at=now() WHERE id::text=$1`, req.params.sheetId, status, req.body?.opponentName ?? null, req.body?.matchDate ?? null)
+    await prisma.$executeRawUnsafe(`UPDATE football_team_sheets SET status=$2::text, published_at=CASE WHEN $2::text='PUBLISHED' THEN now() ELSE NULL END, opponent_name=COALESCE($3::text,opponent_name), match_date=COALESCE($4::date,match_date), updated_at=now() WHERE id::text=$1::text`, req.params.sheetId, status, req.body?.opponentName ?? null, req.body?.matchDate ? String(req.body.matchDate).slice(0,10) : null)
     res.json({ data: await loadSheet(req.params.sheetId) })
   } catch (error) { res.status(500).json({ error: 'failed to update team sheet', detail: String(error) }) }
 })
