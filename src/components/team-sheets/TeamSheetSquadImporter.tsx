@@ -80,11 +80,16 @@ export default function TeamSheetSquadImporter({ clubId, onImported }: { clubId:
     setBusy(true)
     setMessage(`Adding ${confirmed.length} players to the club squad…`)
     try {
+      const adminKey = getKey()
+      if (!adminKey) throw new Error('Your admin session has expired. Reopen the admin area and enter the admin key again.')
       let saved = 0
       for (const row of confirmed) {
         const response = await fetch(`/admin/team-sheets/club/${encodeURIComponent(clubId)}/players`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${adminKey}`,
+          },
           body: JSON.stringify({ playerName: row.playerName.trim(), jumperNumber: row.jumperNumber }),
         })
         if (!response.ok) {
