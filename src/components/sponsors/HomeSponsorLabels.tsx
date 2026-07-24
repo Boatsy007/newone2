@@ -25,16 +25,19 @@ type Inventory = {
 
 type SponsorPlacement = {
   placement: string
-  label: string
-  targetId: string
   selector: string
+  slug: string
 }
 
 const placements: SponsorPlacement[] = [
-  { placement: 'HOMEPAGE_TOP_20', label: 'Presented by', targetId: 'pf-home-sponsor-top-20', selector: '.pf-top .pf-section-head > div:first-child, .pf-top .pf-section-head' },
-  { placement: 'HOMEPAGE_GOAL_KICKERS', label: 'Powered by', targetId: 'pf-home-sponsor-goal-kickers', selector: '.pf-player-records-head > div:first-child' },
-  { placement: 'HOMEPAGE_WEEKLY_RECORDS', label: 'Brought to you by', targetId: 'pf-home-sponsor-weekly', selector: '.pf-records-home.is-weekly .pf-records-head > div:first-child' },
-  { placement: 'HOMEPAGE_YEARLY_RECORDS', label: 'Presented by', targetId: 'pf-home-sponsor-yearly', selector: '.pf-records-home.is-yearly .pf-records-head > div:first-child' },
+  { placement: 'HOMEPAGE_HERO', selector: '.pf-number-one', slug: 'hero' },
+  { placement: 'HOMEPAGE_TOP_20', selector: '.pf-club-card:not(.loading)', slug: 'top-20' },
+  { placement: 'HOMEPAGE_MVP', selector: '.hmvp-card:not(.hmvp-skeleton)', slug: 'mvp' },
+  { placement: 'HOMEPAGE_GOAL_KICKERS', selector: '.pf-player-record-card,.pf-goal-row', slug: 'goal-kickers' },
+  { placement: 'HOMEPAGE_WEEKLY_RECORDS', selector: '.pf-records-home.is-weekly .pf-record-card', slug: 'weekly' },
+  { placement: 'HOMEPAGE_YEARLY_RECORDS', selector: '.pf-records-home.is-yearly .pf-record-card', slug: 'yearly' },
+  { placement: 'HOMEPAGE_FEATURES', selector: '.pf-feature-panel', slug: 'features' },
+  { placement: 'HOMEPAGE_LATEST_NEWS', selector: '.pf-news-list .pf-promo-row', slug: 'latest-news' },
 ]
 
 const ACTIVE_STATUSES = new Set(['APPROVED', 'ACTIVE', 'PAYMENT_COMPLETE', 'RENEWAL_DUE'])
@@ -42,7 +45,7 @@ const ACTIVE_STATUSES = new Set(['APPROVED', 'ACTIVE', 'PAYMENT_COMPLETE', 'RENE
 export default function HomeSponsorLabels() {
   const { pathname } = useLocation()
   const [inventory, setInventory] = useState<Inventory[]>([])
-  const [targets, setTargets] = useState<Record<string, HTMLElement>>({})
+  const [targets, setTargets] = useState<Record<string, HTMLElement[]>>({})
 
   useEffect(() => {
     if (pathname !== '/') {
@@ -68,33 +71,36 @@ export default function HomeSponsorLabels() {
     let cancelled = false
     const attach = () => {
       if (cancelled) return
-      const next: Record<string, HTMLElement> = {}
+      const next: Record<string, HTMLElement[]> = {}
+
       for (const config of placements) {
-        const heading = document.querySelector<HTMLElement>(config.selector)
-        if (!heading) continue
-        let node = document.getElementById(config.targetId)
-        if (!node) {
-          node = document.createElement('span')
-          node.id = config.targetId
-          node.className = 'pf-home-sponsor-slot'
-          heading.appendChild(node)
-        }
-        next[config.placement] = node
+        const hosts = Array.from(document.querySelectorAll<HTMLElement>(config.selector))
+        const slots = hosts.map((host, index) => {
+          const key = `${config.slug}-${index}`
+          let slot = host.querySelector<HTMLElement>(`:scope > [data-home-sponsor-key="${key}"]`)
+          if (!slot) {
+            slot = document.createElement('span')
+            slot.className = 'pf-card-sponsor-slot'
+            slot.dataset.homeSponsorKey = key
+            slot.dataset.homeSponsorSlot = 'true'
+            host.appendChild(slot)
+          }
+          return slot
+        })
+        next[config.placement] = slots
       }
-      setTargets(current => {
-        const currentKeys = Object.keys(current)
-        const nextKeys = Object.keys(next)
-        if (currentKeys.length === nextKeys.length && nextKeys.every(key => current[key] === next[key])) return current
-        return next
-      })
+
+      setTargets(current => sameTargets(current, next) ? current : next)
     }
 
     attach()
     const observer = new MutationObserver(attach)
     observer.observe(document.body, { childList: true, subtree: true })
+
     return () => {
       cancelled = true
       observer.disconnect()
+      document.querySelectorAll<HTMLElement>('[data-home-sponsor-slot="true"]').forEach(node => node.remove())
       setTargets({})
     }
   }, [pathname])
@@ -117,36 +123,84 @@ export default function HomeSponsorLabels() {
   if (pathname !== '/') return null
 
   return <>
-    {placements.map(config => {
-      const target = targets[config.placement]
+    {placements.flatMap(config => {
       const deal = activeByPlacement.get(config.placement)
-      if (!target || !deal?.sponsor) return null
-      return createPortal(<SponsorMark label={config.label} sponsorship={deal} />, target)
+      return (targets[config.placement] ?? []).map((target, index) => createPortal(
+        <SponsorMark sponsorship={deal} />,
+        target,
+        `${config.placement}-${index}`,
+      ))
     })}
-    <style>{`
-      .pf-home-sponsor-slot{display:block}
-      .pf-home-sponsor-mark{display:inline-flex;align-items:center;gap:8px;margin-top:8px;color:#687385;text-decoration:none;font-family:Barlow,Inter,Arial,sans-serif;max-width:100%}
-      .pf-home-sponsor-mark>span{font-size:9px;font-weight:900;letter-spacing:.13em;text-transform:uppercase;white-space:nowrap}
-      .pf-home-sponsor-mark>strong{color:#111318;font-size:12px;font-weight:900;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .pf-home-sponsor-mark img{display:block;width:auto;max-width:64px;height:22px;object-fit:contain}
-      a.pf-home-sponsor-mark:hover strong{color:#0783c9}
-      .pf-records-home.is-weekly .pf-home-sponsor-mark{color:#075b88}
-      .pf-records-home.is-weekly .pf-home-sponsor-mark>strong{color:#050505}
-      @media(max-width:620px){.pf-home-sponsor-mark{gap:6px;margin-top:7px}.pf-home-sponsor-mark>span{font-size:8px}.pf-home-sponsor-mark>strong{font-size:11px}.pf-home-sponsor-mark img{max-width:52px;height:19px}}
-    `}</style>
+    <style>{styles}</style>
   </>
 }
 
-function SponsorMark({ label, sponsorship }: { label: string; sponsorship: Sponsorship }) {
-  const sponsor = sponsorship.sponsor!
-  const href = sponsorship.ctaUrl || sponsor.websiteUrl
+function SponsorMark({ sponsorship }: { sponsorship?: Sponsorship }) {
+  const sponsor = sponsorship?.sponsor ?? null
+  const href = sponsorship?.ctaUrl || sponsor?.websiteUrl || null
   const content = <>
-    <span>{label}</span>
-    {sponsor.logoUrl && <img src={sponsor.logoUrl} alt="" />}
-    <strong>{sponsor.name}</strong>
+    <span className="pf-card-sponsor-label">Sponsored by</span>
+    <span className={`pf-card-sponsor-logo${sponsor ? ' has-sponsor' : ''}`}>
+      {sponsor?.logoUrl
+        ? <img src={sponsor.logoUrl} alt={`${sponsor.name} logo`} />
+        : <span>{sponsor?.name || 'Sponsor logo'}</span>}
+    </span>
   </>
 
-  return href
-    ? <a className="pf-home-sponsor-mark" href={href} target="_blank" rel="noreferrer sponsored">{content}</a>
-    : <span className="pf-home-sponsor-mark">{content}</span>
+  if (!href) return <span className="pf-card-sponsor-mark">{content}</span>
+
+  return <span
+    className="pf-card-sponsor-mark is-linked"
+    role="link"
+    tabIndex={0}
+    aria-label={`Visit ${sponsor?.name ?? 'sponsor'} website`}
+    onClick={event => {
+      event.preventDefault()
+      event.stopPropagation()
+      window.open(href, '_blank', 'noopener,noreferrer')
+    }}
+    onKeyDown={event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      event.stopPropagation()
+      window.open(href, '_blank', 'noopener,noreferrer')
+    }}
+  >{content}</span>
 }
+
+function sameTargets(current: Record<string, HTMLElement[]>, next: Record<string, HTMLElement[]>) {
+  const currentKeys = Object.keys(current)
+  const nextKeys = Object.keys(next)
+  if (currentKeys.length !== nextKeys.length) return false
+  return nextKeys.every(key => {
+    const before = current[key] ?? []
+    const after = next[key] ?? []
+    return before.length === after.length && after.every((node, index) => before[index] === node)
+  })
+}
+
+const styles = `
+  .pf-card-sponsor-slot{display:block;width:100%;margin-top:auto;padding-top:11px;box-sizing:border-box;position:relative;z-index:4}
+  .pf-card-sponsor-mark{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0;color:#687385;text-decoration:none;font-family:Barlow,Inter,Arial,sans-serif}
+  .pf-card-sponsor-mark.is-linked{cursor:pointer}
+  .pf-card-sponsor-label{flex:0 0 auto;font-size:8px!important;font-weight:900!important;letter-spacing:.13em!important;text-transform:uppercase!important;color:#7a8593!important;line-height:1!important;margin:0!important;padding:0!important;background:none!important}
+  .pf-card-sponsor-logo{display:grid!important;place-items:center;min-width:74px;max-width:112px;height:30px;padding:3px 7px;border:1px dashed #bac5cf;border-radius:6px;background:#f8fafb;color:#8b95a2!important;font-size:8px!important;font-weight:850!important;letter-spacing:.06em!important;text-transform:uppercase!important;line-height:1!important;overflow:hidden;box-sizing:border-box;margin:0!important}
+  .pf-card-sponsor-logo.has-sponsor{border-style:solid;background:#fff}
+  .pf-card-sponsor-logo img{display:block;max-width:96px;width:auto;height:23px;object-fit:contain}
+  .pf-card-sponsor-mark.is-linked:hover .pf-card-sponsor-logo{border-color:#42b8ff;box-shadow:0 0 0 2px rgba(66,184,255,.12)}
+  .pf-number-one>.pf-card-sponsor-slot{grid-column:1/-1;padding-top:5px}
+  .pf-number-one .pf-card-sponsor-mark{justify-content:flex-end}
+  .pf-feature-panel>.pf-card-sponsor-slot{position:absolute;left:29px;right:29px;bottom:18px;width:auto;padding-top:0;z-index:5}
+  .pf-feature-panel .pf-card-sponsor-label{color:rgba(255,255,255,.68)!important}
+  .pf-feature-panel .pf-card-sponsor-logo{background:rgba(255,255,255,.96);border-color:rgba(255,255,255,.5)}
+  .pf-goal-row>.pf-card-sponsor-slot,.pf-news-list .pf-promo-row>.pf-card-sponsor-slot{grid-column:1/-1}
+  .pf-records-home.is-weekly .pf-card-sponsor-label{color:rgba(5,5,5,.66)!important}
+  .pf-records-home.is-weekly .pf-card-sponsor-logo{background:rgba(255,255,255,.82);border-color:rgba(5,5,5,.35);color:#34404b!important}
+  .hmvp-card>.pf-card-sponsor-slot{padding-top:8px;margin-bottom:25px}
+  @media(max-width:620px){
+    .pf-card-sponsor-slot{padding-top:9px}
+    .pf-card-sponsor-logo{min-width:68px;max-width:96px;height:27px}
+    .pf-card-sponsor-logo img{max-width:82px;height:20px}
+    .pf-feature-panel>.pf-card-sponsor-slot{left:18px;right:18px;bottom:13px}
+  }
+`
