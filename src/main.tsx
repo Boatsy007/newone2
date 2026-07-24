@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import './index.css'
 import './carousel.css'
 import './goal-kickers-mobile.css'
+import './player-profile-photo.css'
 import App from './App.tsx'
 import PowerRankings from './pages/PowerRankings.tsx'
 import Directory from './pages/Directory.tsx'
