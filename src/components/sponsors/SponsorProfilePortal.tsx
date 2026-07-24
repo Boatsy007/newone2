@@ -29,8 +29,10 @@ export default function SponsorProfilePortal() {
       const entityId = decodeURIComponent((clubMatch ?? leagueMatch)![1])
       const tabs = clubMatch ? document.querySelector<HTMLElement>('.club-profile-tabs') : null
       const clubMain = clubMatch ? document.querySelector<HTMLElement>('.club-profile-main') : null
+      const teamSlot = clubMatch ? document.getElementById('pf-club-team-sheet-slot') : null
+      const teamActive = clubMatch && document.body.dataset.pfTeamSelectionActive === 'true'
       const leagueShell = leagueMatch ? document.querySelector<HTMLElement>('.league-profile-shell') : null
-      const anchor = tabs ?? clubMain ?? leagueShell
+      const anchor = teamActive && teamSlot ? teamSlot : tabs ?? clubMain ?? leagueShell
 
       if (!anchor) {
         timer = window.setTimeout(attach, 100)
@@ -46,10 +48,13 @@ export default function SponsorProfilePortal() {
       }
 
       if (clubMatch) {
-        if (tabs?.parentElement) {
-          if (node.previousElementSibling !== tabs) tabs.insertAdjacentElement('afterend', node)
-        } else if (clubMain?.parentElement) {
-          if (node.nextElementSibling !== clubMain) clubMain.insertAdjacentElement('beforebegin', node)
+        node.classList.toggle('pf-team-selection-sponsor', Boolean(teamActive && teamSlot))
+        if (teamActive && teamSlot) {
+          if (node.parentElement !== teamSlot || node !== teamSlot.lastElementChild) teamSlot.append(node)
+        } else if (tabs?.parentElement && node.previousElementSibling !== tabs) {
+          tabs.insertAdjacentElement('afterend', node)
+        } else if (!tabs && clubMain?.parentElement && node.nextElementSibling !== clubMain) {
+          clubMain.insertAdjacentElement('beforebegin', node)
         }
       } else if (leagueShell?.parentElement && node.nextElementSibling !== leagueShell) {
         leagueShell.insertAdjacentElement('beforebegin', node)
@@ -66,16 +71,21 @@ export default function SponsorProfilePortal() {
       })
     }
 
-    attach()
-    const observer = new MutationObserver(() => {
+    const scheduleAttach = () => {
       window.clearTimeout(timer)
-      timer = window.setTimeout(attach, 50)
-    })
-    observer.observe(document.body, { childList: true, subtree: true })
+      timer = window.setTimeout(attach, 30)
+    }
+
+    attach()
+    window.addEventListener('pf-team-selection-change', scheduleAttach)
+    const root = document.getElementById('root') ?? document.body
+    const observer = new MutationObserver(scheduleAttach)
+    observer.observe(root, { childList: true, subtree: true })
 
     return () => {
       cancelled = true
       observer.disconnect()
+      window.removeEventListener('pf-team-selection-change', scheduleAttach)
       window.clearTimeout(timer)
       document.getElementById('pf-club-sponsor-profile-slot')?.remove()
       document.getElementById('pf-league-sponsor-profile-slot')?.remove()
@@ -89,7 +99,7 @@ export default function SponsorProfilePortal() {
       <SponsorShowcase scope={target.scope} entityId={target.entityId} entityName={target.entityName} />
     </div>
     <style>{`
-      .pf-profile-sponsor-slot{background:#eef3f7;border-top:1px solid #dfe6ec;border-bottom:1px solid #dfe6ec}.pf-profile-sponsor-shell{width:min(1180px,calc(100% - 40px));margin:0 auto;padding:22px 0}.pf-profile-sponsor-shell>.pf-sponsor-showcase{overflow:hidden;border:1px solid #dfe5ea;border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(17,24,39,.06)}@media(max-width:760px){.pf-profile-sponsor-shell{width:calc(100% - 28px);padding:16px 0}}
+      .pf-profile-sponsor-slot{background:#eef3f7;border-top:1px solid #dfe6ec;border-bottom:1px solid #dfe6ec}.pf-profile-sponsor-shell{width:min(1180px,calc(100% - 40px));margin:0 auto;padding:22px 0}.pf-profile-sponsor-shell>.pf-sponsor-showcase{overflow:hidden;border:1px solid #dfe5ea;border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(17,24,39,.06)}.pf-team-selection-sponsor{margin-top:22px;background:transparent;border:0}.pf-team-selection-sponsor .pf-profile-sponsor-shell{width:100%;padding:0}.pf-team-selection-sponsor .pf-sponsor-showcase{box-shadow:0 5px 18px rgba(17,24,39,.055)}@media(max-width:760px){.pf-profile-sponsor-shell{width:calc(100% - 28px);padding:16px 0}.pf-team-selection-sponsor .pf-profile-sponsor-shell{width:100%;padding:0}}
     `}</style>
   </>, target.node)
 }
