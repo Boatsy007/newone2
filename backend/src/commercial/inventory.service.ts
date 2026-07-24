@@ -1,22 +1,16 @@
 /**
  * Advertising inventory service (Phase B8).
- * ─────────────────────────────────────────────────────────────────────────────
- * Bookable ad slots per placement. Seeds the default placement set, and supports
- * booking a slot to a sponsorship + releasing it. Soft-delete only; audited.
+ * Bookable platform placements only. Entity cards use their club/player sponsor.
  */
-
 import { prisma } from '../db/client.js'
 import { logCommercialAction } from './audit.js'
 
 export const PLACEMENTS = [
-  { placement: 'HOMEPAGE_HERO', label: 'Homepage Hero Card' },
-  { placement: 'HOMEPAGE_TOP_20', label: 'National Top 20 Cards' },
-  { placement: 'HOMEPAGE_MVP', label: 'Homepage MVP Cards' },
-  { placement: 'HOMEPAGE_GOAL_KICKERS', label: 'Homepage Goal Kicker Cards' },
-  { placement: 'HOMEPAGE_WEEKLY_RECORDS', label: 'This Week in Footy Cards' },
-  { placement: 'HOMEPAGE_YEARLY_RECORDS', label: 'Yearly Records Cards' },
-  { placement: 'HOMEPAGE_FEATURES', label: 'Homepage Feature Cards' },
-  { placement: 'HOMEPAGE_LATEST_NEWS', label: 'Homepage Latest News Cards' },
+  { placement: 'HOMEPAGE_HERO', label: 'Homepage Hero' },
+  { placement: 'HOMEPAGE_TOP_20', label: 'National Top 20' },
+  { placement: 'HOMEPAGE_GOAL_KICKERS', label: 'Homepage Goal Kickers' },
+  { placement: 'HOMEPAGE_WEEKLY_RECORDS', label: 'This Week in Footy' },
+  { placement: 'HOMEPAGE_YEARLY_RECORDS', label: 'Yearly Records' },
   { placement: 'HOMEPAGE_SIDEBAR', label: 'Homepage Sidebar' },
   { placement: 'RANKINGS_SIDEBAR', label: 'Rankings Sidebar' },
   { placement: 'LEAGUE_PAGE', label: 'League Page' },
@@ -27,7 +21,6 @@ export const PLACEMENTS = [
   { placement: 'STATISTICS_PAGE', label: 'Statistics Page' },
 ]
 
-/** Idempotently ensure one default inventory row per placement exists. */
 export async function seedInventory(): Promise<{ seeded: number }> {
   let seeded = 0
   for (const p of PLACEMENTS) {
@@ -41,35 +34,17 @@ export async function seedInventory(): Promise<{ seeded: number }> {
 
 export async function listInventory(opts: { placement?: string; availableOnly?: boolean } = {}) {
   const rows = await prisma.adInventory.findMany({
-    where: {
-      deletedAt: null,
-      ...(opts.placement ? { placement: opts.placement } : {}),
-      ...(opts.availableOnly ? { available: true } : {}),
-    },
+    where: { deletedAt: null, ...(opts.placement ? { placement: opts.placement } : {}), ...(opts.availableOnly ? { available: true } : {}) },
     orderBy: [{ placement: 'asc' }, { priority: 'desc' }],
   })
-
   const sponsorshipIds = [...new Set(rows.map(row => row.activeSponsorshipId).filter((id): id is string => Boolean(id)))]
   if (sponsorshipIds.length === 0) return rows.map(row => ({ ...row, sponsorship: null }))
-
-  const sponsorships = await prisma.sponsorship.findMany({
-    where: { id: { in: sponsorshipIds }, deletedAt: null },
-  })
+  const sponsorships = await prisma.sponsorship.findMany({ where: { id: { in: sponsorshipIds }, deletedAt: null } })
   const sponsorIds = [...new Set(sponsorships.map(deal => deal.sponsorId))]
-  const sponsors = sponsorIds.length
-    ? await prisma.commercialSponsor.findMany({
-        where: { id: { in: sponsorIds }, deletedAt: null },
-        select: { id: true, name: true, logoUrl: true, websiteUrl: true, tier: true },
-      })
-    : []
-
+  const sponsors = sponsorIds.length ? await prisma.commercialSponsor.findMany({ where: { id: { in: sponsorIds }, deletedAt: null }, select: { id: true, name: true, logoUrl: true, websiteUrl: true, tier: true } }) : []
   const sponsorById = new Map(sponsors.map(sponsor => [sponsor.id, sponsor]))
   const sponsorshipById = new Map(sponsorships.map(deal => [deal.id, { ...deal, sponsor: sponsorById.get(deal.sponsorId) ?? null }]))
-
-  return rows.map(row => ({
-    ...row,
-    sponsorship: row.activeSponsorshipId ? sponsorshipById.get(row.activeSponsorshipId) ?? null : null,
-  }))
+  return rows.map(row => ({ ...row, sponsorship: row.activeSponsorshipId ? sponsorshipById.get(row.activeSponsorshipId) ?? null : null }))
 }
 
 export async function createInventory(body: Record<string, unknown>, performedBy = 'admin') {
@@ -79,7 +54,6 @@ export async function createInventory(body: Record<string, unknown>, performedBy
   return { ok: true as const, inventory: row }
 }
 
-/** Book an inventory slot to a sponsorship for a window. */
 export async function bookInventory(inventoryId: string, sponsorshipId: string, opts: { start?: string; end?: string; performedBy?: string } = {}) {
   const inv = await prisma.adInventory.findUnique({ where: { id: inventoryId } })
   if (!inv || inv.deletedAt) return { ok: false as const, error: 'inventory not found' }
