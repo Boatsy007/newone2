@@ -4,7 +4,8 @@ import { useLocation } from 'react-router-dom'
 import ShareButton from './ShareButton'
 
 function targetSelector(pathname: string) {
-  if (/^\/team\/[^/]+$/.test(pathname)) return '.club-hero-claim'
+  // Club profiles keep their React tree fully native. Injecting a portal into the
+  // club hero can conflict with tab rerenders on mobile Safari.
   if (/^\/league\/[^/]+$/.test(pathname)) return '.league-hero-actions'
   if (/^\/player\/[^/]+$/.test(pathname)) return '.player-links'
   return null
@@ -22,7 +23,7 @@ export default function ProfileShareButton() {
     const resolve = () => {
       const found = document.querySelector<HTMLElement>(selector)
       if (!found) return false
-      setTarget(pathname.startsWith('/team/') ? found.parentElement : found)
+      setTarget(found)
       return true
     }
 
@@ -40,9 +41,7 @@ export default function ProfileShareButton() {
 
   return <>
     {createPortal(
-      pathname.startsWith('/team/')
-        ? <span className="pf-profile-share-mount club-profile-share-mount">{button}</span>
-        : <span className="pf-profile-share-mount">{button}</span>,
+      <span className="pf-profile-share-mount">{button}</span>,
       target,
     )}
     <style>{`
@@ -50,11 +49,7 @@ export default function ProfileShareButton() {
       .pf-profile-inline-share{display:inline-flex!important;align-items:center;justify-content:center;gap:8px!important;min-height:46px!important;padding:0 18px!important;border:1px solid #2daaf5!important;border-radius:999px!important;background:#2daaf5!important;color:#050505!important;box-shadow:none!important;font-family:'Barlow Condensed',Arial,sans-serif!important;font-size:12px!important;font-weight:950!important;letter-spacing:.1em!important;text-transform:uppercase!important;cursor:pointer!important}
       .pf-profile-inline-share:hover,.pf-profile-inline-share:focus-visible{background:#59bdff!important;border-color:#59bdff!important;outline:none!important}
       .pf-profile-inline-share:disabled{opacity:.72;cursor:wait!important}
-      .club-profile-share-mount{margin-left:auto;order:90}
-      .club-profile-share-mount + .club-hero-claim{margin-left:0!important}
       @media(max-width:720px){
-        .club-profile-share-mount{margin-left:0;width:auto;order:80}
-        .club-profile-share-mount .pf-profile-inline-share{min-width:132px}
         .league-hero-actions .pf-profile-share-mount{flex:1 1 100%}
         .league-hero-actions .pf-profile-inline-share{width:100%}
         .player-links .pf-profile-inline-share{min-height:40px!important;padding:0 15px!important}
