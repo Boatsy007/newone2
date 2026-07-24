@@ -71,20 +71,37 @@ export default function AdminPlayerSponsorLinks() {
             && (!leagueId || player?.leagueId === leagueId)
             && (!clubId || player?.clubId === clubId)
           row.style.display = visible ? '' : 'none'
-          const cell = publicLink.closest('td')
-          if (!cell) continue
+          row.classList.add('admin-player-edit-row')
+          row.tabIndex = 0
+          row.setAttribute('role', 'button')
+          row.setAttribute('aria-label', `Edit ${playerName}`)
+
+          const openEditor = () => navigate(`/admin/player-sponsors/${encodeURIComponent(id)}?name=${encodeURIComponent(playerName)}`)
+          row.onclick = event => {
+            if ((event.target as Element | null)?.closest('a,button,input,select,textarea')) return
+            openEditor()
+          }
+          row.onkeydown = event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            openEditor()
+          }
+
           publicLink.textContent = 'View profile'
-          let edit = cell.querySelector<HTMLButtonElement>('.admin-player-sponsor-link')
+          const nameCell = row.querySelector<HTMLTableCellElement>('td:first-child')
+          if (!nameCell) continue
+          let edit = nameCell.querySelector<HTMLButtonElement>('.admin-player-sponsor-link')
           if (!edit) {
             edit = document.createElement('button')
             edit.type = 'button'
             edit.className = 'admin-player-sponsor-link'
-            cell.appendChild(edit)
+            nameCell.appendChild(edit)
           }
           edit.textContent = 'Edit player'
           edit.onclick = event => {
             event.preventDefault()
-            navigate(`/admin/player-sponsors/${encodeURIComponent(id)}?name=${encodeURIComponent(playerName)}`)
+            event.stopPropagation()
+            openEditor()
           }
         }
       }, 50)
@@ -95,7 +112,7 @@ export default function AdminPlayerSponsorLinks() {
     return () => {
       window.clearTimeout(timer)
       observer.disconnect()
-      document.querySelectorAll<HTMLTableRowElement>('.table tbody tr').forEach(row => { row.style.display = '' })
+      document.querySelectorAll<HTMLTableRowElement>('.table tbody tr').forEach(row => { row.style.display = ''; row.onclick = null; row.onkeydown = null; row.classList.remove('admin-player-edit-row'); row.removeAttribute('role'); row.removeAttribute('aria-label'); row.removeAttribute('tabindex') })
       document.querySelectorAll<HTMLElement>('.admin-player-filter-host').forEach(node => node.remove())
     }
   }, [navigate, pathname, players, state, leagueId, clubId, query])
@@ -111,4 +128,4 @@ export default function AdminPlayerSponsorLinks() {
   </div>, host)}<style>{styles}</style></>
 }
 
-const styles = `.admin-player-filter-host{margin-bottom:15px}.admin-player-filters{display:grid;grid-template-columns:minmax(180px,1.3fr) repeat(3,minmax(145px,1fr));gap:9px}.admin-player-filters input,.admin-player-filters select{width:100%;border:1px solid #dce3eb;border-radius:11px;background:#fff;padding:11px 12px;font:inherit;box-sizing:border-box}.admin-player-sponsor-link{display:block;margin-top:7px;border:0;border-radius:999px;background:#42b8ff;color:#050505;padding:7px 10px;font:900 10px/1 Barlow,Inter,Arial,sans-serif;text-transform:uppercase;cursor:pointer;white-space:nowrap}@media(max-width:820px){.admin-player-filters{grid-template-columns:1fr 1fr}}@media(max-width:520px){.admin-player-filters{grid-template-columns:1fr}}`
+const styles = `.admin-player-filter-host{margin-bottom:15px}.admin-player-filters{display:grid;grid-template-columns:minmax(180px,1.3fr) repeat(3,minmax(145px,1fr));gap:9px}.admin-player-filters input,.admin-player-filters select{width:100%;border:1px solid #dce3eb;border-radius:11px;background:#fff;padding:11px 12px;font:inherit;box-sizing:border-box}.admin-player-edit-row{cursor:pointer}.admin-player-edit-row:hover{background:#f4faff}.admin-player-edit-row:focus-visible{outline:3px solid #42b8ff;outline-offset:-3px}.admin-player-sponsor-link{display:block;margin-top:9px;border:0;border-radius:999px;background:#42b8ff;color:#050505;padding:8px 11px;font:900 10px/1 Barlow,Inter,Arial,sans-serif;text-transform:uppercase;cursor:pointer;white-space:nowrap}@media(max-width:820px){.admin-player-filters{grid-template-columns:1fr 1fr}.admin-player-sponsor-link{font-size:11px;padding:9px 12px}}@media(max-width:520px){.admin-player-filters{grid-template-columns:1fr}.admin-player-edit-row td:first-child{min-width:145px}}`
