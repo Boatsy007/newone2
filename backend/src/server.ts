@@ -51,7 +51,7 @@ import { adminHighlightsRouter } from './admin/highlights.js'
 import { resultsRouter, fixturesRouter, clubMatchRouter, leagueMatchRouter } from './api/routes/results.js'
 import { historyRouter } from './api/routes/history.js'
 import { championshipsRouter } from './api/routes/championships.js'
-import { sponsorsRouter, commercialRouter, commercialClubRouter, commercialLeagueRouter } from './api/routes/sponsors.js'
+import { sponsorsRouter, commercialRouter, commercialClubRouter, commercialLeagueRouter, commercialPlayerRouter } from './api/routes/sponsors.js'
 import { notificationsRouter } from './api/routes/notifications.js'
 import { analyticsRouter } from './api/routes/analytics.js'
 import { claimsRouter } from './api/routes/claims.js'
@@ -123,6 +123,7 @@ app.use('/api/sponsors', sponsorsRouter)
 app.use('/api/commercial', commercialRouter)
 app.use('/api/clubs', commercialClubRouter)
 app.use('/api/leagues', commercialLeagueRouter)
+app.use('/api/players', commercialPlayerRouter)
 app.use('/api/notifications', notificationsRouter)
 app.use('/api/analytics', analyticsRouter)
 app.use('/api', rankingsRouter)
