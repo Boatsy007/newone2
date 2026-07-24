@@ -14,7 +14,7 @@ type PlayerProfileDetail = {
   photoUrl: string | null
 }
 
-router.get('/:id', publicRateLimit, async (req, res) => {
+router.get(['/:id', '/:id/details'], publicRateLimit, async (req, res) => {
   try {
     const table = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(
       `SELECT to_regclass('public.player_profile_details') IS NOT NULL AS "exists"`,
