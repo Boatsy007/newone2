@@ -39,6 +39,7 @@ import AdminUniversalImports from './pages/AdminUniversalImports.tsx'
 import AdminLadderImageImports from './pages/AdminLadderImageImports.tsx'
 import AdminHighlights from './pages/AdminHighlights.tsx'
 import AdminTeamSheets from './pages/AdminTeamSheets.tsx'
+import AdminHomepageSponsors from './pages/AdminHomepageSponsors.tsx'
 import Highlights from './pages/Highlights.tsx'
 import HighlightDetail from './pages/HighlightDetail.tsx'
 import ClubPortal from './pages/ClubPortal.tsx'
@@ -121,6 +122,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/admin/profile-images" element={<AdminProfileImageImports/>}/>
     <Route path="/admin/highlights" element={<AdminHighlights/>}/>
     <Route path="/admin/team-sheets" element={<AdminTeamSheets/>}/>
+    <Route path="/admin/homepage-sponsors" element={<AdminHomepageSponsors/>}/>
     <Route path="/admin/claims" element={<ClubClaimsAdmin/>}/>
     <Route path="/championship" element={<Championship/>}/>
     <Route path="/club-packages" element={<Navigate to="/" replace/>}/>
