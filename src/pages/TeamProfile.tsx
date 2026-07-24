@@ -8,7 +8,6 @@ import Nav from '../components/layout/Nav'
 import ProductSearch from '../components/rankings/ProductSearch'
 import Footer from '../components/layout/Footer'
 import ClubLiveHub from '../components/club/ClubLiveHub'
-import ClubMvpPanel from '../components/club/ClubMvpPanel'
 import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickersPanel'
 import SponsorShowcase from '../components/sponsors/SponsorShowcase'
 import { useSeo } from '../lib/seo'
@@ -68,9 +67,8 @@ export default function TeamProfile() {
               <div className="club-profile-area" role="tabpanel">
                 <div className="club-profile-main">
                   {activeTab === 'overview' && <div className="club-overview-stack">
-                    <ClubLiveHub club={data} />
-                    <ClubMvpPanel clubId={clubId} clubName={data.clubName} />
                     <SponsorShowcase scope="club" entityId={clubId} entityName={data.clubName} />
+                    <ClubLiveHub club={data} />
                   </div>}
                   {activeTab === 'news' && <div className="club-feed-card"><Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}><ClubNews club={data} /></Suspense></div>}
                   {activeTab === 'information' && <ClubInformationPanel club={data} />}
