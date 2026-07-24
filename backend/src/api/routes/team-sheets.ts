@@ -60,6 +60,14 @@ function ensureTeamSheetTables() {
   return teamSheetTablesPromise
 }
 
+function normaliseRoundLabel(value: unknown) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return ''
+  if (!/^round\b/i.test(raw)) return raw
+  const numberOrName = raw.replace(/^(?:round\s+)+/i, '').trim()
+  return numberOrName ? `Round ${numberOrName}` : 'Round'
+}
+
 type SheetRow = {
   id: string; clubId: string; clubName: string | null; clubLogoUrl: string | null; primaryColour: string | null; secondaryColour: string | null
   leagueId: string | null; leagueName: string | null; season: string; grade: string; roundLabel: string; opponentName: string | null
@@ -88,7 +96,7 @@ async function loadSheet(sheetId: string) {
     WHERE tsp.team_sheet_id::text = $1
     ORDER BY tsp.position_code
   `, sheetId)
-  return { ...sheet, players }
+  return { ...sheet, roundLabel: normaliseRoundLabel(sheet.roundLabel), players }
 }
 
 const publicRouter = Router()
@@ -100,7 +108,7 @@ publicRouter.get('/club/:clubId', async (req, res) => {
       WHERE club_id = $1 AND status = 'PUBLISHED'
       ORDER BY match_date DESC NULLS LAST, published_at DESC NULLS LAST, created_at DESC LIMIT 1
     `, clubId)
-    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=180')
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
     if (!rows[0]) return res.json({ data: null, positions: POSITIONS })
     res.json({ data: await loadSheet(rows[0].id), positions: POSITIONS })
   } catch (error) { res.status(500).json({ error: 'failed to load selected team', detail: String(error) }) }
@@ -145,7 +153,7 @@ adminRouter.post('/club/:clubId/sheets', async (req, res) => {
     await ensureTeamSheetTables()
     const season = String(req.body?.season ?? new Date().getFullYear())
     const grade = String(req.body?.grade ?? 'Senior Football').trim()
-    const roundLabel = String(req.body?.roundLabel ?? '').trim()
+    const roundLabel = normaliseRoundLabel(req.body?.roundLabel)
     if (!roundLabel) return res.status(400).json({ error: 'roundLabel is required' })
     const rows = await prisma.$queryRawUnsafe<Array<{ id:string }>>(`
       INSERT INTO football_team_sheets (club_id, league_id, season, grade, round_label, opponent_name, match_date)
@@ -161,6 +169,10 @@ adminRouter.put('/:sheetId', async (req, res) => {
   try {
     await ensureTeamSheetTables()
     const status = String(req.body?.status ?? 'DRAFT').toUpperCase() === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT'
+    if (status === 'PUBLISHED') {
+      const counts = await prisma.$queryRawUnsafe<Array<{ count:number }>>(`SELECT COUNT(*)::int AS count FROM football_team_sheet_players WHERE team_sheet_id=$1::uuid`, req.params.sheetId)
+      if (!counts[0]?.count) return res.status(400).json({ error: 'Save at least one player position before publishing the team' })
+    }
     await prisma.$executeRawUnsafe(`UPDATE football_team_sheets SET status=$2::text, published_at=CASE WHEN $2::text='PUBLISHED' THEN now() ELSE NULL END, opponent_name=COALESCE($3::text,opponent_name), match_date=COALESCE($4::date,match_date), updated_at=now() WHERE id::text=$1::text`, req.params.sheetId, status, req.body?.opponentName ?? null, req.body?.matchDate ? String(req.body.matchDate).slice(0,10) : null)
     res.json({ data: await loadSheet(req.params.sheetId) })
   } catch (error) { res.status(500).json({ error: 'failed to update team sheet', detail: String(error) }) }
