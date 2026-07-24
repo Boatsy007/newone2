@@ -21,19 +21,19 @@ export default function SponsorProfilePortal() {
     if (!clubMatch && !leagueMatch) return
 
     let cancelled = false
-    let attempts = 0
     let timer = 0
 
     const attach = () => {
       if (cancelled) return
       const scope = clubMatch ? 'club' as const : 'league' as const
       const entityId = decodeURIComponent((clubMatch ?? leagueMatch)![1])
-      const anchor = clubMatch
-        ? document.querySelector<HTMLElement>('.club-profile-tabs')
-        : document.querySelector<HTMLElement>('.league-profile-shell')
+      const tabs = clubMatch ? document.querySelector<HTMLElement>('.club-profile-tabs') : null
+      const clubMain = clubMatch ? document.querySelector<HTMLElement>('.club-profile-main') : null
+      const leagueShell = leagueMatch ? document.querySelector<HTMLElement>('.league-profile-shell') : null
+      const anchor = tabs ?? clubMain ?? leagueShell
 
       if (!anchor) {
-        if (attempts++ < 40) timer = window.setTimeout(attach, 100)
+        timer = window.setTimeout(attach, 100)
         return
       }
 
@@ -43,20 +43,39 @@ export default function SponsorProfilePortal() {
         node = document.createElement('div')
         node.id = slotId
         node.className = 'pf-profile-sponsor-slot'
-        if (clubMatch) anchor.insertAdjacentElement('afterend', node)
-        else anchor.insertAdjacentElement('beforebegin', node)
+      }
+
+      if (clubMatch) {
+        if (tabs?.parentElement) {
+          if (node.previousElementSibling !== tabs) tabs.insertAdjacentElement('afterend', node)
+        } else if (clubMain?.parentElement) {
+          if (node.nextElementSibling !== clubMain) clubMain.insertAdjacentElement('beforebegin', node)
+        }
+      } else if (leagueShell?.parentElement && node.nextElementSibling !== leagueShell) {
+        leagueShell.insertAdjacentElement('beforebegin', node)
       }
 
       const heading = clubMatch
         ? document.querySelector<HTMLElement>('.club-profile-tabs [role="tablist"]')?.getAttribute('aria-label')?.replace(/ profile sections$/i, '')
+          ?? document.querySelector<HTMLElement>('.club-profile-page h1')?.textContent?.trim()
         : document.querySelector<HTMLElement>('.league-profile-page h1')?.textContent?.trim()
 
-      setTarget({ node, scope, entityId, entityName: heading || (scope === 'club' ? 'Club' : 'League') })
+      setTarget(previous => {
+        if (previous?.node === node && previous.scope === scope && previous.entityId === entityId && previous.entityName === (heading || (scope === 'club' ? 'Club' : 'League'))) return previous
+        return { node, scope, entityId, entityName: heading || (scope === 'club' ? 'Club' : 'League') }
+      })
     }
 
     attach()
+    const observer = new MutationObserver(() => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(attach, 50)
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+
     return () => {
       cancelled = true
+      observer.disconnect()
       window.clearTimeout(timer)
       document.getElementById('pf-club-sponsor-profile-slot')?.remove()
       document.getElementById('pf-league-sponsor-profile-slot')?.remove()
