@@ -77,8 +77,6 @@ export async function refreshMvpScores(season?: string) {
 }
 
 export async function listMvpEntries(options: { season?: string; limit?: number; leagueId?: string; clubId?: string } = {}) {
-  await ensureMvpTable()
-  await refreshMvpScores(options.season)
   const season = options.season ?? new Date().getFullYear().toString()
   const limit = Math.min(Math.max(options.limit ?? 100, 1), 1000)
   const params: unknown[] = [season]
@@ -87,6 +85,14 @@ export async function listMvpEntries(options: { season?: string; limit?: number;
   if (options.clubId) { params.push(options.clubId); filters += ` AND m.club_id = $${params.length}` }
   params.push(limit)
   const rows = await prisma.$queryRawUnsafe<MvpRow[]>(`
+    WITH scored AS (
+      SELECT
+        m.*,
+        LEAST(5, GREATEST(1, ROUND(COALESCE(l."finalStrengthRating", 3))))::integer AS live_league_stars
+      FROM football_mvp_entries m
+      JOIN leagues l ON l.id = m.league_id
+      WHERE m.season = $1${filters}
+    )
     SELECT
       m.id,
       m.player_id AS "playerId",
@@ -101,15 +107,14 @@ export async function listMvpEntries(options: { season?: string; limit?: number;
       m.grade,
       m.bp,
       m.games_played AS "gamesPlayed",
-      m.league_stars AS "leagueStars",
-      m.strength_factor AS "strengthFactor",
-      m.mvp_points AS "mvpPoints",
+      m.live_league_stars AS "leagueStars",
+      LEAST(1.0, GREATEST(0.6, 0.5 + (m.live_league_stars * 0.1))) AS "strengthFactor",
+      CEIL(GREATEST(0, TRUNC(m.bp)) * 3 * LEAST(1.0, GREATEST(0.6, 0.5 + (m.live_league_stars * 0.1))))::integer AS "mvpPoints",
       m.imported_at AS "importedAt"
-    FROM football_mvp_entries m
+    FROM scored m
     LEFT JOIN clubs c ON c.id::text = m.club_id
     LEFT JOIN states s ON s.id = c."stateId"
-    WHERE m.season = $1${filters}
-    ORDER BY m.mvp_points DESC, m.bp DESC, m.games_played ASC NULLS LAST, m.player_name ASC
+    ORDER BY "mvpPoints" DESC, m.bp DESC, m.games_played ASC NULLS LAST, m.player_name ASC
     LIMIT $${params.length}
   `, ...params)
   return rows.map((row, index) => ({ ...row, rank: index + 1 }))
