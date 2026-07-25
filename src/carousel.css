@@ -1,3 +1,5 @@
+@import './top-performers-logo-fit.css';
+
 /* Shared horizontal carousel behaviour across PlayFooty.
  * Keep native touch momentum, but always settle on a complete card.
  */
