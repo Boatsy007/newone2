@@ -61,19 +61,21 @@ export default function HomeFeaturedHighlights() {
     let cancelled = false
     const attach = () => {
       if (cancelled) return true
-      const leaders = document.getElementById('pf-home-mvp-slot')
-      if (!leaders?.parentElement) return false
+      const featureGrid = document.querySelector<HTMLElement>('.pf-feature-grid')
+      if (!featureGrid?.parentElement) return false
       let slot = document.getElementById('pf-home-featured-highlights-slot')
       if (!slot) {
         slot = document.createElement('div')
         slot.id = 'pf-home-featured-highlights-slot'
-        leaders.insertAdjacentElement('afterend', slot)
+      }
+      if (slot.nextElementSibling !== featureGrid) {
+        featureGrid.parentElement.insertBefore(slot, featureGrid)
       }
       setTarget(slot)
       return true
     }
 
-    if (attach()) return () => { cancelled = true }
+    attach()
     const observer = new MutationObserver(() => {
       if (attach()) observer.disconnect()
     })
