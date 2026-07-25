@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import { Play } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { TeamLogo } from '../rankings/bits'
@@ -48,45 +48,49 @@ const categoryLabel = (category: string) => {
 
 export default function HomeFeaturedHighlights() {
   const { pathname } = useLocation()
-  const [target, setTarget] = useState<HTMLElement | null>(null)
   const [rows, setRows] = useState<DisplayHighlight[]>([])
+  const rootRef = useRef<Root | null>(null)
+  const slotRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
-    if (pathname !== '/') {
-      setTarget(null)
-      document.getElementById('pf-home-featured-highlights-slot')?.remove()
-      return
-    }
+    if (pathname !== '/') return
 
     let cancelled = false
+    let observer: MutationObserver | null = null
+    let timeout = 0
+
     const attach = () => {
-      if (cancelled) return true
+      if (cancelled || rootRef.current) return true
       const featureGrid = document.querySelector<HTMLElement>('.pf-feature-grid')
       if (!featureGrid?.parentElement) return false
+
       let slot = document.getElementById('pf-home-featured-highlights-slot')
       if (!slot) {
         slot = document.createElement('div')
         slot.id = 'pf-home-featured-highlights-slot'
       }
-      if (slot.nextElementSibling !== featureGrid) {
-        featureGrid.parentElement.insertBefore(slot, featureGrid)
-      }
-      setTarget(slot)
+      featureGrid.parentElement.insertBefore(slot, featureGrid)
+      slotRef.current = slot
+      rootRef.current = createRoot(slot)
       return true
     }
 
-    attach()
-    const observer = new MutationObserver(() => {
-      if (attach()) observer.disconnect()
-    })
-    observer.observe(document.body, { childList: true, subtree: true })
-    const timeout = window.setTimeout(() => observer.disconnect(), 10000)
+    if (!attach()) {
+      observer = new MutationObserver(() => {
+        if (attach()) observer?.disconnect()
+      })
+      observer.observe(document.body, { childList: true, subtree: true })
+      timeout = window.setTimeout(() => observer?.disconnect(), 10000)
+    }
+
     return () => {
       cancelled = true
-      window.clearTimeout(timeout)
-      observer.disconnect()
-      setTarget(null)
-      document.getElementById('pf-home-featured-highlights-slot')?.remove()
+      if (timeout) window.clearTimeout(timeout)
+      observer?.disconnect()
+      rootRef.current?.unmount()
+      rootRef.current = null
+      slotRef.current?.remove()
+      slotRef.current = null
     }
   }, [pathname])
 
@@ -107,39 +111,55 @@ export default function HomeFeaturedHighlights() {
     return () => { active = false }
   }, [pathname])
 
-  if (!target || pathname !== '/') return null
+  useEffect(() => {
+    if (pathname !== '/' || !rootRef.current) return
+    const displayRows = placeholders.map((placeholder, index) =>
+      rows.find(row => row.featuredOrder === index + 1) ?? rows[index] ?? placeholder,
+    )
+    rootRef.current.render(<FeaturedHighlightsSection rows={displayRows} />)
+  }, [pathname, rows])
 
-  const displayRows = placeholders.map((placeholder, index) =>
-    rows.find(row => row.featuredOrder === index + 1) ?? rows[index] ?? placeholder,
-  )
+  useEffect(() => {
+    if (pathname !== '/') return
+    const interval = window.setInterval(() => {
+      if (!rootRef.current) return
+      const displayRows = placeholders.map((placeholder, index) =>
+        rows.find(row => row.featuredOrder === index + 1) ?? rows[index] ?? placeholder,
+      )
+      rootRef.current.render(<FeaturedHighlightsSection rows={displayRows} />)
+      window.clearInterval(interval)
+    }, 100)
+    return () => window.clearInterval(interval)
+  }, [pathname, rows])
 
-  return createPortal(
-    <section className="pf-featured-highlights pf-shell">
-      <header>
-        <div><span>Marks, goals and moments of the week</span><h2>Featured Highlights</h2></div>
-        <Link to="/highlights">All highlights</Link>
-      </header>
-      <div className="pf-featured-highlights-row">
-        {displayRows.map(row => (
-          <article key={row.id} className={`pf-featured-highlight-card${row.placeholder ? ' is-placeholder' : ''}`}>
-            <Link to={row.detailUrl || `/highlights/${row.id}`} className="pf-featured-highlight-media" aria-label={row.placeholder ? categoryLabel(row.category) : `Watch ${row.playerName} ${categoryLabel(row.category)}`}>
-              {row.thumbnailUrl ? <img src={row.thumbnailUrl} alt="" loading="lazy" /> : <span className="pf-featured-highlight-placeholder" />}
-              <span className="pf-featured-highlight-shade" />
-              <span className="pf-featured-highlight-category">{categoryLabel(row.category)}</span>
-              <span className="pf-featured-highlight-player">{row.playerName}</span>
-              <span className="pf-featured-highlight-play"><Play size={34} fill="currentColor" /></span>
-            </Link>
-            <div className="pf-featured-highlight-club">
-              {row.clubId ? <Link to={`/team/${row.clubId}`} aria-label={`Open ${row.clubName} club profile`}><TeamLogo name={row.clubName} src={row.clubLogoUrl ?? undefined} size={58} /></Link> : <span className="pf-featured-highlight-empty-logo"><span>PF</span></span>}
-              <div><strong>{row.clubName}</strong><small>{row.leagueName ?? row.description ?? 'Community football highlight'}</small></div>
-            </div>
-          </article>
-        ))}
-      </div>
-      <style>{styles}</style>
-    </section>,
-    target,
-  )
+  return null
+}
+
+function FeaturedHighlightsSection({ rows }: { rows: DisplayHighlight[] }) {
+  return <section className="pf-featured-highlights pf-shell">
+    <header>
+      <div><span>Marks, goals and moments of the week</span><h2>Featured Highlights</h2></div>
+      <Link to="/highlights">All highlights</Link>
+    </header>
+    <div className="pf-featured-highlights-row">
+      {rows.map(row => (
+        <article key={row.id} className={`pf-featured-highlight-card${row.placeholder ? ' is-placeholder' : ''}`}>
+          <Link to={row.detailUrl || `/highlights/${row.id}`} className="pf-featured-highlight-media" aria-label={row.placeholder ? categoryLabel(row.category) : `Watch ${row.playerName} ${categoryLabel(row.category)}`}>
+            {row.thumbnailUrl ? <img src={row.thumbnailUrl} alt="" loading="lazy" /> : <span className="pf-featured-highlight-placeholder" />}
+            <span className="pf-featured-highlight-shade" />
+            <span className="pf-featured-highlight-category">{categoryLabel(row.category)}</span>
+            <span className="pf-featured-highlight-player">{row.playerName}</span>
+            <span className="pf-featured-highlight-play"><Play size={34} fill="currentColor" /></span>
+          </Link>
+          <div className="pf-featured-highlight-club">
+            {row.clubId ? <Link to={`/team/${row.clubId}`} aria-label={`Open ${row.clubName} club profile`}><TeamLogo name={row.clubName} src={row.clubLogoUrl ?? undefined} size={58} /></Link> : <span className="pf-featured-highlight-empty-logo"><span>PF</span></span>}
+            <div><strong>{row.clubName}</strong><small>{row.leagueName ?? row.description ?? 'Community football highlight'}</small></div>
+          </div>
+        </article>
+      ))}
+    </div>
+    <style>{styles}</style>
+  </section>
 }
 
 const styles = `
