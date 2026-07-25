@@ -1,4 +1,5 @@
 import { prisma } from '../db/client.js'
+import { upsertCanonicalGoalKicker } from './canonical-goal-kicker-upsert.js'
 
 export type MvpRow = {
   id: string
@@ -136,5 +137,27 @@ export async function listMvpEntries(options: { season?: string; limit?: number;
     ORDER BY "mvpPoints" DESC, m.bp DESC, m.games_played ASC NULLS LAST, m.player_name ASC
     LIMIT $${params.length}
   `, ...params)
-  return rows.map((row, index) => ({ ...row, rank: index + 1 }))
+
+  const ranked = rows.map((row, index) => ({ ...row, rank: index + 1 }))
+  return Promise.all(ranked.map(async row => {
+    if (row.playerId || !row.clubId) return row
+    try {
+      const profile = await upsertCanonicalGoalKicker({
+        playerName: row.playerName,
+        clubId: row.clubId,
+        clubName: row.clubName,
+        leagueId: row.leagueId,
+        leagueName: row.leagueName,
+        season: row.season,
+        grade: row.grade,
+        goals: 0,
+        matches: row.gamesPlayed,
+        sourceUrl: null,
+        sourceType: 'MVP_IMPORT',
+      })
+      return { ...row, playerId: profile.playerRowId }
+    } catch {
+      return row
+    }
+  }))
 }
