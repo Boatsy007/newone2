@@ -1,0 +1,49 @@
+.pfleaders-feature-logo {
+  box-sizing: border-box;
+  padding: 11px;
+  overflow: hidden;
+}
+
+.pfleaders-feature-logo img,
+.pfleaders-feature-logo svg {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 72px !important;
+  max-height: 72px !important;
+  object-fit: contain !important;
+  object-position: center !important;
+}
+
+.pfleaders-list-logo {
+  box-sizing: border-box;
+  padding: 5px !important;
+  overflow: hidden;
+}
+
+.pfleaders-list-logo img,
+.pfleaders-list-logo svg {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 32px !important;
+  max-height: 32px !important;
+  object-fit: contain !important;
+  object-position: center !important;
+}
+
+@media (max-width: 620px) {
+  .pfleaders-feature-logo {
+    padding: 12px;
+  }
+
+  .pfleaders-feature-logo img,
+  .pfleaders-feature-logo svg {
+    max-width: 62px !important;
+    max-height: 62px !important;
+  }
+
+  .pfleaders-list-logo img,
+  .pfleaders-list-logo svg {
+    max-width: 30px !important;
+    max-height: 30px !important;
+  }
+}
