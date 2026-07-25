@@ -9,11 +9,12 @@ import ProductSearch from '../components/rankings/ProductSearch'
 import Footer from '../components/layout/Footer'
 import ClubLiveHub from '../components/club/ClubLiveHub'
 import ClubTeamSheet from '../components/club/ClubTeamSheetPortal'
+import ClubSponsorsLive from '../components/club/ClubSponsorsLive'
 import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickersPanel'
 import { useSeo } from '../lib/seo'
 import { fetchClub, fetchClubExplain, useAsync, strengthLabel, strengthStars, type ClubProfile, type ClubExplanation } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
-import { ClubHero, ClubSnapshot, ClubLadder, ClubClaim, ClubInfo, ClubGallery, ClubSponsors, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
+import { ClubHero, ClubSnapshot, ClubLadder, ClubClaim, ClubInfo, ClubGallery, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
 
 const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubWhy })))
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
@@ -81,21 +82,21 @@ export default function TeamProfile() {
               <div className="club-profile-area" role="tabpanel">
                 <div className="club-profile-main">
                   <div className="club-overview-stack" style={{ display: activeTab === 'overview' ? 'grid' : 'none' }} aria-hidden={activeTab !== 'overview'}>
-                    <div className="club-feed-card"><ClubSponsors club={data} /></div>
+                    <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>
                     <ClubLiveHub club={data} />
                   </div>
                   <div className="club-team-selection-stack" style={{ display: activeTab === 'team-selection' ? 'grid' : 'none' }} aria-hidden={activeTab !== 'team-selection'}>
                     {teamSelectionOpened && (
                       <>
                         <ClubTeamSheet clubId={clubId} />
-                        <div className="club-feed-card"><ClubSponsors club={data} /></div>
+                        <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>
                       </>
                     )}
                   </div>
                   {activeTab === 'news' && <div className="club-feed-card"><Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}><ClubNews club={data} /></Suspense></div>}
                   {activeTab === 'information' && <ClubInformationPanel club={data} />}
                   {activeTab === 'photos' && <div className="club-feed-card"><ClubGallery club={data} /></div>}
-                  {activeTab === 'sponsors' && <div className="club-feed-card"><ClubSponsors club={data} /></div>}
+                  {activeTab === 'sponsors' && <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>}
                   {activeTab === 'stats' && (
                     <div className="club-stats-stack">
                       <PublicGoalKickersPanel clubId={clubId} eyebrow={`${data.season?.match(/\d{4}/)?.[0] ?? new Date().getFullYear()} club leaders`} title="Leading goal kickers" />
