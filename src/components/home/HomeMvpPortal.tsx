@@ -23,6 +23,17 @@ type GoalKickerRow = {
   goalsPerGame: number | null
 }
 
+type RankingRow = {
+  rank: number
+  clubId: string
+  clubName: string
+  logoUrl: string | null
+  leagueName: string
+  state: string
+  powerRating: number
+  record: { wins: number; losses: number; draws: number; played: number }
+}
+
 type PlayerBag = {
   playerId: string
   playerName: string
@@ -63,6 +74,7 @@ export default function HomeMvpPortal() {
   const [target, setTarget] = useState<HTMLElement | null>(null)
   const [clubTarget, setClubTarget] = useState<HTMLElement | null>(null)
   const [clubName, setClubName] = useState('Club')
+  const [rankingRows, setRankingRows] = useState<RankingRow[]>([])
   const [mvpRows, setMvpRows] = useState<MvpEntry[]>([])
   const [goalRows, setGoalRows] = useState<GoalKickerRow[]>([])
   const [gpgRows, setGpgRows] = useState<GoalKickerRow[]>([])
@@ -106,6 +118,7 @@ export default function HomeMvpPortal() {
         top.insertAdjacentElement('afterend', slot)
       }
 
+      hideLegacySection(top, 'pfLegacyRankingsHidden')
       hideLegacySection(playerRecords, 'pfLegacyPlayerRecordsHidden')
       hideLegacySection(records, 'pfLegacyRecordsHidden')
       document.querySelectorAll<HTMLElement>('.pf-goal-row').forEach(row => {
@@ -124,8 +137,9 @@ export default function HomeMvpPortal() {
     return () => {
       active = false
       observer.disconnect()
-      document.querySelectorAll<HTMLElement>('[data-pf-legacy-goal-hidden="true"],[data-pf-legacy-player-records-hidden="true"],[data-pf-legacy-records-hidden="true"]').forEach(section => {
+      document.querySelectorAll<HTMLElement>('[data-pf-legacy-rankings-hidden="true"],[data-pf-legacy-goal-hidden="true"],[data-pf-legacy-player-records-hidden="true"],[data-pf-legacy-records-hidden="true"]').forEach(section => {
         section.style.removeProperty('display')
+        delete section.dataset.pfLegacyRankingsHidden
         delete section.dataset.pfLegacyGoalHidden
         delete section.dataset.pfLegacyPlayerRecordsHidden
         delete section.dataset.pfLegacyRecordsHidden
@@ -142,6 +156,7 @@ export default function HomeMvpPortal() {
     const season = new Date().getFullYear()
 
     void Promise.allSettled([
+      fetch('/api/rankings/top10').then(response => response.ok ? response.json() as Promise<{ data?: RankingRow[] }> : Promise.reject(new Error(`HTTP ${response.status}`))),
       fetch('/api/mvp?limit=5').then(response => response.ok ? response.json() as Promise<{ data?: MvpEntry[] }> : Promise.reject(new Error(`HTTP ${response.status}`))),
       fetch('/api/goal-kickers?sort=goals&limit=5').then(response => response.ok ? response.json() as Promise<{ data?: GoalKickerRow[] }> : Promise.reject(new Error(`HTTP ${response.status}`))),
       fetch('/api/goal-kickers?sort=gpg&limit=5').then(response => response.ok ? response.json() as Promise<{ data?: GoalKickerRow[] }> : Promise.reject(new Error(`HTTP ${response.status}`))),
@@ -151,7 +166,8 @@ export default function HomeMvpPortal() {
       loadHomeCardLogoMaps(),
     ]).then(results => {
       if (!active) return
-      const [mvpResult, goalsResult, gpgResult, weekResult, seasonResult, playerRecordResult, logoResult] = results
+      const [rankingsResult, mvpResult, goalsResult, gpgResult, weekResult, seasonResult, playerRecordResult, logoResult] = results
+      const rankings = rankingsResult.status === 'fulfilled' ? rankingsResult.value.data ?? [] : []
       const mvp = mvpResult.status === 'fulfilled' ? mvpResult.value.data ?? [] : []
       const goals = goalsResult.status === 'fulfilled' ? goalsResult.value.data ?? [] : []
       const gpg = gpgResult.status === 'fulfilled' ? gpgResult.value.data ?? [] : []
@@ -160,6 +176,7 @@ export default function HomeMvpPortal() {
       const playerRecords = playerRecordResult.status === 'fulfilled' ? playerRecordResult.value.data : undefined
       const logos = logoResult.status === 'fulfilled' ? logoResult.value : null
 
+      setRankingRows(Array.isArray(rankings) ? rankings : [])
       setMvpRows(Array.isArray(mvp) ? mvp : [])
       setGoalRows(Array.isArray(goals) ? goals : [])
       setGpgRows(Array.isArray(gpg) ? gpg : [])
@@ -218,6 +235,20 @@ export default function HomeMvpPortal() {
 
   const cards: LeaderCard[] = [
     {
+      title: 'National rankings', label: 'Power rating', href: '/rankings',
+      rows: rankingRows.slice(0, 5).map(row => ({
+        key: row.clubId,
+        destination: `/team/${row.clubId}`,
+        clubId: row.clubId,
+        name: row.clubName,
+        secondary: `${row.record.wins}-${row.record.losses}${row.record.draws ? `-${row.record.draws}` : ''}`,
+        detail: `${row.leagueName} · ${row.state}`,
+        clubName: row.clubName,
+        clubLogoUrl: row.logoUrl,
+        value: row.powerRating.toFixed(1),
+      })),
+    },
+    {
       title: 'Goals', label: 'Goals', href: '/goal-kickers',
       rows: goalRows.slice(0, 5).map(row => ({ key: row.id, destination: `/player/${row.id}`, clubId: row.clubId, name: row.playerName, secondary: row.clubName, detail: row.leagueName, clubName: row.clubName, clubLogoUrl: row.clubLogoUrl, value: String(row.goals) })),
     },
@@ -235,10 +266,10 @@ export default function HomeMvpPortal() {
 
   return createPortal(
     <section className="pfleaders pf-shell">
-      <div className="pfleaders-head"><div><span>National player and match leaders</span><h2>Top performers</h2></div></div>
+      <div className="pfleaders-head"><div><span>National club, player and match leaders</span><h2>Top performers</h2></div></div>
       <div className="pfleaders-row" aria-busy={loading}>
         {loading
-          ? Array.from({ length: 5 }, (_, index) => <LeaderSkeleton key={index} />)
+          ? Array.from({ length: 6 }, (_, index) => <LeaderSkeleton key={index} />)
           : cards.map(card => <LeaderBoardCard key={card.title} card={card} navigate={navigate} />)}
       </div>
       {!loading && cards.every(card => card.rows.length === 0) ? <p className="pfleaders-empty">Leaderboards are temporarily unavailable.</p> : null}
