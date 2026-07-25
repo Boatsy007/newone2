@@ -56,7 +56,7 @@ async function buildFeaturedGames(ids: string[]) {
     const fixtureClubIds = [fixture.homeClubId, fixture.awayClubId].filter((value): value is string => Boolean(value))
     const [footballRows, legacyRows] = await Promise.all([
       prisma.footballLadderEntry.findMany({
-        where: { leagueId: fixture.leagueId, season: fixture.season, grade: fixture.grade, published: true },
+        where: { leagueId: fixture.leagueId, season: fixture.season, published: true },
         orderBy: { position: 'asc' },
         select: { clubId: true, clubName: true, position: true, played: true, wins: true, losses: true, draws: true, pointsFor: true, pointsAgainst: true, percentage: true },
       }),
@@ -132,8 +132,8 @@ adminRouter.put('/', async (req, res) => {
   }
   await prisma.setting.upsert({
     where: { key: SETTING_KEY },
-    create: { key: SETTING_KEY, value: JSON.stringify(fixtureIds), description: 'Fixture IDs displayed in the homepage Featured Games section' },
-    update: { value: JSON.stringify(fixtureIds), description: 'Fixture IDs displayed in the homepage Featured Games section' },
+    create: { key: SETTING_KEY, value: JSON.stringify(fixtureIds) },
+    update: { value: JSON.stringify(fixtureIds) },
   })
   res.json({ data: { fixtureIds, games: await buildFeaturedGames(fixtureIds) } })
 })
