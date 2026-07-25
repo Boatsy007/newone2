@@ -12,12 +12,15 @@ export function ensureHighlightTables() {
       "submitter_email" TEXT NOT NULL, "status" TEXT NOT NULL DEFAULT 'PENDING',
       "week_key" TEXT NOT NULL, "voting_opens_at" TIMESTAMPTZ, "voting_closes_at" TIMESTAMPTZ,
       "published_at" TIMESTAMPTZ, "winner" BOOLEAN NOT NULL DEFAULT FALSE,
+      "featured" BOOLEAN NOT NULL DEFAULT FALSE, "featured_order" INTEGER,
       "moderation_note" TEXT, "dedupe_key" TEXT, "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`)
     await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "player_id" TEXT`)
     await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "match_id" TEXT`)
     await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "dedupe_key" TEXT`)
+    await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "featured" BOOLEAN NOT NULL DEFAULT FALSE`)
+    await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "featured_order" INTEGER`)
     await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "highlight_votes" (
       "id" TEXT PRIMARY KEY, "submission_id" TEXT NOT NULL REFERENCES "highlight_submissions"("id") ON DELETE CASCADE,
       "category" TEXT NOT NULL, "week_key" TEXT NOT NULL, "voter_key" TEXT NOT NULL,
@@ -25,6 +28,7 @@ export function ensureHighlightTables() {
     )`)
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "highlight_submissions_public_idx" ON "highlight_submissions" ("status", "week_key", "category")`)
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "highlight_submissions_archive_idx" ON "highlight_submissions" ("winner", "week_key")`)
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "highlight_submissions_featured_idx" ON "highlight_submissions" ("featured", "featured_order", "published_at")`)
     await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "highlight_submissions_dedupe_idx" ON "highlight_submissions" ("dedupe_key") WHERE "dedupe_key" IS NOT NULL`)
     await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "highlight_winner_one_per_category_week" ON "highlight_submissions" ("week_key", "category") WHERE "winner" = TRUE`)
     await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "highlight_votes_one_per_category_week" ON "highlight_votes" ("category", "week_key", "voter_key")`)
