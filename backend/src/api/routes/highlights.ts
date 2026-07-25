@@ -17,15 +17,16 @@ type PublicHighlightRow = {
   id: string; category: string; playerId: string | null; playerName: string; clubId: string | null; clubName: string
   leagueId: string | null; leagueName: string | null; matchId: string | null; matchDate: Date | null; roundLabel: string | null
   videoUrl: string; thumbnailUrl: string | null; description: string | null; weekKey: string
-  votingOpensAt: Date | null; votingClosesAt: Date | null; winner: boolean; publishedAt: Date | null; votes: bigint | number
+  votingOpensAt: Date | null; votingClosesAt: Date | null; winner: boolean; featured: boolean; featuredOrder: number | null
+  publishedAt: Date | null; votes: bigint | number
 }
 
 const selectSql = `
   SELECT s.id, s.category, s.player_id AS "playerId", s.player_name AS "playerName", s.club_id AS "clubId", s.club_name AS "clubName",
     s.league_id AS "leagueId", s.league_name AS "leagueName", s.match_id AS "matchId", s.match_date AS "matchDate", s.round_label AS "roundLabel",
     s.video_url AS "videoUrl", s.thumbnail_url AS "thumbnailUrl", s.description, s.week_key AS "weekKey",
-    s.voting_opens_at AS "votingOpensAt", s.voting_closes_at AS "votingClosesAt", s.winner, s.published_at AS "publishedAt",
-    COUNT(v.id)::int AS votes
+    s.voting_opens_at AS "votingOpensAt", s.voting_closes_at AS "votingClosesAt", s.winner,
+    s.featured, s.featured_order AS "featuredOrder", s.published_at AS "publishedAt", COUNT(v.id)::int AS votes
   FROM highlight_submissions s LEFT JOIN highlight_votes v ON v.submission_id = s.id
 `
 
@@ -44,6 +45,16 @@ function serialize(row: PublicHighlightRow) {
     shareCardType: row.winner ? 'HIGHLIGHT_WINNER' : 'HIGHLIGHT_NOMINEE',
   }
 }
+
+router.get('/featured', async (_req, res) => {
+  try {
+    const rows = await prisma.$queryRawUnsafe<PublicHighlightRow[]>(`${selectSql} WHERE s.status = 'APPROVED' AND s.featured = TRUE GROUP BY s.id ORDER BY s.featured_order ASC NULLS LAST, s.published_at DESC, s.created_at DESC LIMIT 3`)
+    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120')
+    res.json({ data: rows.map(serialize) })
+  } catch {
+    res.json({ data: [] })
+  }
+})
 
 router.get('/', async (req, res) => {
   const week = clean(req.query.week, 20) || currentWeekKey()
