@@ -125,7 +125,10 @@ function SponsorMark({ sponsorship }: { sponsorship?: Sponsorship | null }) {
   const sponsor = sponsorship?.sponsor ?? null
   const href = sponsorship?.ctaUrl || sponsor?.websiteUrl || null
   const content = <>
-    <span className="pf-card-sponsor-label">Sponsored by</span>
+    <span className="pf-card-sponsor-copy">
+      <span className="pf-card-sponsor-label">Sponsored by</span>
+      {sponsor?.name ? <strong className="pf-card-sponsor-name">{sponsor.name}</strong> : null}
+    </span>
     <span className={`pf-card-sponsor-logo${sponsor ? ' has-sponsor' : ''}`}>
       {sponsor?.logoUrl ? <img src={sponsor.logoUrl} alt={`${sponsor.name} logo`} /> : <span>{sponsor?.name || 'Sponsor logo'}</span>}
     </span>
@@ -144,10 +147,10 @@ function sameTargets(current: EntityTarget[], next: EntityTarget[]) {
 
 const styles = `
 .pf-card-sponsor-slot{display:block;width:100%;margin-top:auto;padding-top:11px;box-sizing:border-box;position:relative;z-index:4}
-.pf-card-sponsor-mark{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0;color:#687385;text-decoration:none;font-family:Barlow,Inter,Arial,sans-serif}
-.pf-card-sponsor-mark.is-linked{cursor:pointer}.pf-card-sponsor-label{flex:0 0 auto;font-size:8px!important;font-weight:900!important;letter-spacing:.13em!important;text-transform:uppercase!important;color:#7a8593!important;line-height:1!important;margin:0!important;padding:0!important;background:none!important}
+.pf-card-sponsor-mark{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-width:0;color:#687385;text-decoration:none;font-family:Barlow,Inter,Arial,sans-serif}
+.pf-card-sponsor-mark.is-linked{cursor:pointer}.pf-card-sponsor-copy{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}.pf-card-sponsor-label{flex:0 0 auto;font-size:8px!important;font-weight:900!important;letter-spacing:.13em!important;text-transform:uppercase!important;color:#7a8593!important;line-height:1!important;margin:0!important;padding:0!important;background:none!important}.pf-card-sponsor-name{display:block;max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111318!important;font-size:10px!important;font-weight:900!important;line-height:1.1!important;text-transform:none!important;letter-spacing:0!important}
 .pf-card-sponsor-logo{display:grid!important;place-items:center;min-width:74px;max-width:112px;height:30px;padding:3px 7px;border:1px dashed #bac5cf;border-radius:6px;background:#f8fafb;color:#8b95a2!important;font-size:8px!important;font-weight:850!important;letter-spacing:.06em!important;text-transform:uppercase!important;line-height:1!important;overflow:hidden;box-sizing:border-box;margin:0!important}
 .pf-card-sponsor-logo.has-sponsor{border-style:solid;background:#fff}.pf-card-sponsor-logo img{display:block;max-width:96px;width:auto;height:23px;object-fit:contain}.pf-card-sponsor-mark.is-linked:hover .pf-card-sponsor-logo{border-color:#42b8ff;box-shadow:0 0 0 2px rgba(66,184,255,.12)}
 .pf-number-one>.pf-card-sponsor-slot{grid-column:1/-1;padding-top:5px}.pf-number-one .pf-card-sponsor-mark{justify-content:flex-end}.pfhmvp-card>.pf-card-sponsor-slot{padding-top:8px;margin-bottom:25px}.pf-goal-row>.pf-card-sponsor-slot{grid-column:1/-1}
-@media(max-width:620px){.pf-card-sponsor-slot{padding-top:10px}.pf-card-sponsor-mark{gap:10px}.pf-card-sponsor-label{font-size:9px!important}.pf-card-sponsor-logo{min-width:90px;max-width:124px;height:36px;padding:4px 8px}.pf-card-sponsor-logo img{max-width:108px;height:28px}}
+@media(max-width:620px){.pf-card-sponsor-slot{padding-top:11px}.pf-card-sponsor-mark{gap:12px}.pf-card-sponsor-copy{gap:4px}.pf-card-sponsor-label{font-size:9px!important}.pf-card-sponsor-name{max-width:155px;font-size:12px!important;line-height:1.15!important}.pf-card-sponsor-logo{min-width:96px;max-width:118px;height:40px;padding:4px 8px}.pf-card-sponsor-logo img{max-width:110px;height:30px}}
 `
