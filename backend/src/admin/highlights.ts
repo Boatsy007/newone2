@@ -15,8 +15,8 @@ type AdminHighlightRow = {
   leagueId: string | null; leagueName: string | null; matchId: string | null; matchDate: Date | null; roundLabel: string | null
   videoUrl: string; thumbnailUrl: string | null; description: string | null; submitterName: string
   submitterEmail: string; status: string; weekKey: string; votingOpensAt: Date | null
-  votingClosesAt: Date | null; publishedAt: Date | null; winner: boolean; moderationNote: string | null
-  createdAt: Date; votes: bigint | number
+  votingClosesAt: Date | null; publishedAt: Date | null; winner: boolean; featured: boolean; featuredOrder: number | null
+  moderationNote: string | null; createdAt: Date; votes: bigint | number
 }
 
 const selectSql = `
@@ -25,8 +25,8 @@ const selectSql = `
     s.video_url AS "videoUrl", s.thumbnail_url AS "thumbnailUrl", s.description,
     s.submitter_name AS "submitterName", s.submitter_email AS "submitterEmail", s.status,
     s.week_key AS "weekKey", s.voting_opens_at AS "votingOpensAt", s.voting_closes_at AS "votingClosesAt",
-    s.published_at AS "publishedAt", s.winner, s.moderation_note AS "moderationNote", s.created_at AS "createdAt",
-    COUNT(v.id)::int AS votes
+    s.published_at AS "publishedAt", s.winner, s.featured, s.featured_order AS "featuredOrder",
+    s.moderation_note AS "moderationNote", s.created_at AS "createdAt", COUNT(v.id)::int AS votes
   FROM highlight_submissions s LEFT JOIN highlight_votes v ON v.submission_id = s.id
 `
 
@@ -34,8 +34,8 @@ router.get('/', async (req, res) => {
   const status = clean(req.query.status, 20).toUpperCase()
   const where = status && STATUSES.includes(status) ? `WHERE s.status = $1` : ''
   const rows = status && STATUSES.includes(status)
-    ? await prisma.$queryRawUnsafe<AdminHighlightRow[]>(`${selectSql} ${where} GROUP BY s.id ORDER BY s.created_at DESC`, status)
-    : await prisma.$queryRawUnsafe<AdminHighlightRow[]>(`${selectSql} GROUP BY s.id ORDER BY s.created_at DESC`)
+    ? await prisma.$queryRawUnsafe<AdminHighlightRow[]>(`${selectSql} ${where} GROUP BY s.id ORDER BY s.featured DESC, s.featured_order ASC NULLS LAST, s.created_at DESC`, status)
+    : await prisma.$queryRawUnsafe<AdminHighlightRow[]>(`${selectSql} GROUP BY s.id ORDER BY s.featured DESC, s.featured_order ASC NULLS LAST, s.created_at DESC`)
   res.json({ data: rows.map(row => ({ ...row, votes: Number(row.votes) })) })
 })
 
@@ -47,9 +47,12 @@ router.patch('/:id', async (req, res) => {
   const closes = body.votingClosesAt ? new Date(String(body.votingClosesAt)) : null
   if ((opens && Number.isNaN(opens.getTime())) || (closes && Number.isNaN(closes.getTime()))) return res.status(400).json({ error: 'Invalid voting date' })
   if (opens && closes && closes <= opens) return res.status(400).json({ error: 'Voting close must be after voting open' })
+  const featured = typeof body.featured === 'boolean' ? body.featured : null
+  const featuredOrder = body.featuredOrder == null || body.featuredOrder === '' ? null : Number(body.featuredOrder)
+  if ('featuredOrder' in body && featuredOrder != null && (!Number.isInteger(featuredOrder) || featuredOrder < 1 || featuredOrder > 3)) return res.status(400).json({ error: 'Featured order must be 1, 2 or 3' })
 
-  const rows = await prisma.$queryRawUnsafe<Array<{ id: string; clubId: string | null; leagueId: string | null; playerId: string | null; matchId: string | null; votingOpensAt: Date | null; votingClosesAt: Date | null }>>(`
-    SELECT id, club_id AS "clubId", league_id AS "leagueId", player_id AS "playerId", match_id AS "matchId",
+  const rows = await prisma.$queryRawUnsafe<Array<{ id: string; status: string; clubId: string | null; leagueId: string | null; playerId: string | null; matchId: string | null; votingOpensAt: Date | null; votingClosesAt: Date | null }>>(`
+    SELECT id, status, club_id AS "clubId", league_id AS "leagueId", player_id AS "playerId", match_id AS "matchId",
       voting_opens_at AS "votingOpensAt", voting_closes_at AS "votingClosesAt"
     FROM highlight_submissions WHERE id = $1 LIMIT 1
   `, req.params.id)
@@ -63,29 +66,38 @@ router.patch('/:id', async (req, res) => {
     if (nextClose <= nextOpen) return res.status(400).json({ error: 'Voting close must be after voting open' })
     if (!current.clubId || !current.leagueId) return res.status(400).json({ error: 'Link the canonical club and league before approval' })
   }
+  if (featured === true && (status || current.status) !== 'APPROVED') return res.status(400).json({ error: 'Only approved highlights can be featured' })
 
-  await prisma.$executeRawUnsafe(`
-    UPDATE highlight_submissions SET
-      status = COALESCE($2, status),
-      moderation_note = CASE WHEN $3::text IS NULL THEN moderation_note ELSE $3 END,
-      week_key = COALESCE($4, week_key),
-      player_id = CASE WHEN $5::boolean THEN $6 ELSE player_id END,
-      club_id = CASE WHEN $7::boolean THEN $8 ELSE club_id END,
-      league_id = CASE WHEN $9::boolean THEN $10 ELSE league_id END,
-      match_id = CASE WHEN $11::boolean THEN $12 ELSE match_id END,
-      voting_opens_at = CASE WHEN $13::boolean THEN $14 ELSE voting_opens_at END,
-      voting_closes_at = CASE WHEN $15::boolean THEN $16 ELSE voting_closes_at END,
-      published_at = CASE WHEN COALESCE($2, status) = 'APPROVED' AND published_at IS NULL THEN NOW() ELSE published_at END,
-      winner = CASE WHEN COALESCE($2, status) <> 'APPROVED' THEN FALSE ELSE winner END,
-      updated_at = NOW()
-    WHERE id = $1
-  `, req.params.id, status || null, 'moderationNote' in body ? clean(body.moderationNote, 1000) || null : null,
-    clean(body.weekKey, 20) || null,
-    'playerId' in body, clean(body.playerId, 100) || null,
-    'clubId' in body, clean(body.clubId, 100) || null,
-    'leagueId' in body, clean(body.leagueId, 100) || null,
-    'matchId' in body, clean(body.matchId, 120) || null,
-    'votingOpensAt' in body, opens, 'votingClosesAt' in body, closes)
+  await prisma.$transaction(async tx => {
+    if (featured === true && featuredOrder != null) {
+      await tx.$executeRawUnsafe(`UPDATE highlight_submissions SET featured = FALSE, featured_order = NULL, updated_at = NOW() WHERE featured_order = $1 AND id <> $2`, featuredOrder, req.params.id)
+    }
+    await tx.$executeRawUnsafe(`
+      UPDATE highlight_submissions SET
+        status = COALESCE($2, status),
+        moderation_note = CASE WHEN $3::text IS NULL THEN moderation_note ELSE $3 END,
+        week_key = COALESCE($4, week_key),
+        player_id = CASE WHEN $5::boolean THEN $6 ELSE player_id END,
+        club_id = CASE WHEN $7::boolean THEN $8 ELSE club_id END,
+        league_id = CASE WHEN $9::boolean THEN $10 ELSE league_id END,
+        match_id = CASE WHEN $11::boolean THEN $12 ELSE match_id END,
+        voting_opens_at = CASE WHEN $13::boolean THEN $14 ELSE voting_opens_at END,
+        voting_closes_at = CASE WHEN $15::boolean THEN $16 ELSE voting_closes_at END,
+        featured = CASE WHEN $17::boolean THEN $18 ELSE featured END,
+        featured_order = CASE WHEN $17::boolean THEN CASE WHEN $18 THEN $19 ELSE NULL END ELSE featured_order END,
+        published_at = CASE WHEN COALESCE($2, status) = 'APPROVED' AND published_at IS NULL THEN NOW() ELSE published_at END,
+        winner = CASE WHEN COALESCE($2, status) <> 'APPROVED' THEN FALSE ELSE winner END,
+        updated_at = NOW()
+      WHERE id = $1
+    `, req.params.id, status || null, 'moderationNote' in body ? clean(body.moderationNote, 1000) || null : null,
+      clean(body.weekKey, 20) || null,
+      'playerId' in body, clean(body.playerId, 100) || null,
+      'clubId' in body, clean(body.clubId, 100) || null,
+      'leagueId' in body, clean(body.leagueId, 100) || null,
+      'matchId' in body, clean(body.matchId, 120) || null,
+      'votingOpensAt' in body, opens, 'votingClosesAt' in body, closes,
+      'featured' in body, featured === true, featuredOrder)
+  })
 
   const updated = await prisma.$queryRawUnsafe<AdminHighlightRow[]>(`${selectSql} WHERE s.id = $1 GROUP BY s.id`, req.params.id)
   res.json({ data: { ...updated[0], votes: Number(updated[0]?.votes ?? 0) } })
