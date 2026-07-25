@@ -76,6 +76,48 @@ export default function HomeDesktopPolish() {
       text-shadow: 0 1px 0 rgba(255,255,255,.4) !important;
     }
 
+    .pfleaders-feature-logo {
+      width: 78px !important;
+      height: 78px !important;
+      right: 16px !important;
+      bottom: 20px !important;
+      padding: 8px !important;
+      box-sizing: border-box !important;
+      overflow: hidden !important;
+      display: grid !important;
+      place-items: center !important;
+    }
+
+    .pfleaders-feature-logo > *,
+    .pfleaders-feature-logo img,
+    .pfleaders-feature-logo svg {
+      width: 60px !important;
+      height: 60px !important;
+      max-width: 60px !important;
+      max-height: 60px !important;
+      object-fit: contain !important;
+      object-position: center !important;
+      margin: auto !important;
+    }
+
+    .pfleaders-list-logo {
+      display: grid !important;
+      place-items: center !important;
+      overflow: hidden !important;
+    }
+
+    .pfleaders-list-logo > *,
+    .pfleaders-list-logo img,
+    .pfleaders-list-logo svg {
+      width: 34px !important;
+      height: 34px !important;
+      max-width: 34px !important;
+      max-height: 34px !important;
+      object-fit: contain !important;
+      object-position: center !important;
+      margin: auto !important;
+    }
+
     @media (min-width: 981px) {
       .pf-player-records-strip,
       .pf-records-strip {
@@ -150,6 +192,36 @@ export default function HomeDesktopPolish() {
       .pf-records-home {
         padding-top: 24px !important;
         padding-bottom: 46px !important;
+      }
+
+      .pfleaders-feature {
+        padding-right: 98px !important;
+      }
+
+      .pfleaders-feature-logo {
+        width: 74px !important;
+        height: 74px !important;
+        right: 14px !important;
+        bottom: 20px !important;
+        padding: 8px !important;
+      }
+
+      .pfleaders-feature-logo > *,
+      .pfleaders-feature-logo img,
+      .pfleaders-feature-logo svg {
+        width: 56px !important;
+        height: 56px !important;
+        max-width: 56px !important;
+        max-height: 56px !important;
+      }
+
+      .pfleaders-list-logo > *,
+      .pfleaders-list-logo img,
+      .pfleaders-list-logo svg {
+        width: 32px !important;
+        height: 32px !important;
+        max-width: 32px !important;
+        max-height: 32px !important;
       }
     }
   `}</style>
