@@ -6,6 +6,7 @@ type PlayerProfile = {
   playerId?: string
   playerName: string
   clubId: string | null
+  clubName: string
   season: string
 }
 
@@ -13,9 +14,14 @@ type MvpEntry = {
   playerId: string | null
   playerName: string
   clubId: string | null
+  clubName: string
   rank: number
   mvpPoints: number
   bp: number
+}
+
+function normalise(value: string | null | undefined) {
+  return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
 export default function PlayerMvpRank() {
@@ -41,8 +47,8 @@ export default function PlayerMvpRank() {
     observer.observe(document.body, { childList: true, subtree: true })
 
     const rawId = pathname.slice('/player/'.length).split('/')[0]
-    const playerId = decodeURIComponent(rawId)
-    void fetch(`/api/goal-kickers/player/${encodeURIComponent(playerId)}`)
+    const profileRowId = decodeURIComponent(rawId)
+    void fetch(`/api/goal-kickers/player/${encodeURIComponent(profileRowId)}`)
       .then(async response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         const payload = await response.json() as { data?: PlayerProfile }
@@ -54,9 +60,15 @@ export default function PlayerMvpRank() {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         const payload = await response.json() as { data?: MvpEntry[] }
         const rows = Array.isArray(payload.data) ? payload.data : []
-        return rows.find(row => row.playerId === playerId)
-          ?? rows.find(row => row.playerName.trim().toLowerCase() === profile.playerName.trim().toLowerCase() && (!profile.clubId || row.clubId === profile.clubId))
-          ?? null
+        const profileName = normalise(profile.playerName)
+        const profileClub = normalise(profile.clubName)
+        const sameName = rows.filter(row => normalise(row.playerName) === profileName)
+
+        return rows.find(row => row.playerId === profileRowId)
+          ?? rows.find(row => Boolean(profile.playerId) && row.playerId === profile.playerId)
+          ?? sameName.find(row => Boolean(profile.clubId) && row.clubId === profile.clubId)
+          ?? sameName.find(row => profileClub && normalise(row.clubName) === profileClub)
+          ?? (sameName.length === 1 ? sameName[0] : null)
       })
       .then(result => { if (active) setEntry(result) })
       .catch(() => { if (active) setEntry(null) })
