@@ -16,6 +16,7 @@ import { goalKickersRouter } from './api/routes/goal-kickers.js'
 import { playerProfileDetailsRouter } from './api/routes/player-profile-details.js'
 import { mvpRouter } from './api/routes/mvp.js'
 import { teamSheetsRouter, adminTeamSheetsRouter } from './api/routes/team-sheets.js'
+import { featuredGamesRouter, adminFeaturedGamesRouter } from './api/routes/featured-games.js'
 import { newsRouter } from './api/routes/news.js'
 import { highlightsRouter } from './api/routes/highlights.js'
 import { searchRouter } from './api/routes/search.js'
@@ -110,6 +111,7 @@ app.use('/api/goal-kickers', goalKickersRouter)
 app.use('/api/player-profile-details', playerProfileDetailsRouter)
 app.use('/api/mvp', mvpRouter)
 app.use('/api/team-sheets', teamSheetsRouter)
+app.use('/api/featured-games', featuredGamesRouter)
 app.use('/api/news', newsRouter)
 app.use('/api/highlights', highlightsRouter)
 app.use('/api/club-portal', clubPortalAccessRouter)
@@ -161,6 +163,7 @@ app.use('/admin/ladder', adminLadderRouter)
 app.use('/admin/season', adminSeasonRouter)
 app.use('/admin/playhq', adminPlayhqRouter)
 app.use('/admin/highlights', adminHighlightsRouter)
+app.use('/admin/featured-games', adminFeaturedGamesRouter)
 app.use('/admin/team-sheets', adminTeamSheetsRouter)
 app.use('/admin/goal-kicker-achievements', goalKickerAlertControlsRouter)
 
