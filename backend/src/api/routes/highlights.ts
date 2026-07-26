@@ -16,7 +16,7 @@ const currentWeekKey = () => {
 type PublicHighlightRow = {
   id: string; category: string; playerId: string | null; playerName: string; clubId: string | null; clubName: string
   leagueId: string | null; leagueName: string | null; matchId: string | null; matchDate: Date | null; roundLabel: string | null
-  videoUrl: string; thumbnailUrl: string | null; description: string | null; weekKey: string
+  videoUrl: string; thumbnailUrl: string | null; description: string | null; headline: string | null; articleBody: string | null; mediaSource: string; weekKey: string
   votingOpensAt: Date | null; votingClosesAt: Date | null; winner: boolean; featured: boolean; featuredOrder: number | null
   publishedAt: Date | null; votes: bigint | number
 }
@@ -24,7 +24,7 @@ type PublicHighlightRow = {
 const selectSql = `
   SELECT s.id, s.category, s.player_id AS "playerId", s.player_name AS "playerName", s.club_id AS "clubId", s.club_name AS "clubName",
     s.league_id AS "leagueId", s.league_name AS "leagueName", s.match_id AS "matchId", s.match_date AS "matchDate", s.round_label AS "roundLabel",
-    s.video_url AS "videoUrl", s.thumbnail_url AS "thumbnailUrl", s.description, s.week_key AS "weekKey",
+    s.video_url AS "videoUrl", s.thumbnail_url AS "thumbnailUrl", s.description, s.headline, s.article_body AS "articleBody", s.media_source AS "mediaSource", s.week_key AS "weekKey",
     s.voting_opens_at AS "votingOpensAt", s.voting_closes_at AS "votingClosesAt", s.winner,
     s.featured, s.featured_order AS "featuredOrder", s.published_at AS "publishedAt", COUNT(v.id)::int AS votes
   FROM highlight_submissions s LEFT JOIN highlight_votes v ON v.submission_id = s.id
@@ -35,6 +35,7 @@ function serialize(row: PublicHighlightRow) {
   return {
     ...row,
     votes: Number(row.votes),
+    title: row.headline || `${row.playerName} · ${row.category} of the week`,
     votingOpen: opens != null && closes != null && now >= opens && now < closes,
     votingState: opens == null || closes == null ? 'UNSCHEDULED' : now < opens ? 'UPCOMING' : now >= closes ? 'CLOSED' : 'OPEN',
     detailUrl: `/highlights/${row.id}`,
@@ -51,9 +52,7 @@ router.get('/featured', async (_req, res) => {
     const rows = await prisma.$queryRawUnsafe<PublicHighlightRow[]>(`${selectSql} WHERE s.status = 'APPROVED' AND s.featured = TRUE GROUP BY s.id ORDER BY s.featured_order ASC NULLS LAST, s.published_at DESC, s.created_at DESC LIMIT 3`)
     res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120')
     res.json({ data: rows.map(serialize) })
-  } catch {
-    res.json({ data: [] })
-  }
+  } catch { res.json({ data: [] }) }
 })
 
 router.get('/', async (req, res) => {
@@ -101,12 +100,13 @@ router.post('/submissions', async (req, res) => {
     await prisma.$executeRawUnsafe(`
       INSERT INTO highlight_submissions (
         id, category, player_id, player_name, club_id, club_name, league_id, league_name, match_id, match_date, round_label,
-        video_url, thumbnail_url, description, submitter_name, submitter_email, status, week_key, dedupe_key
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'PENDING',$17,$18)
+        video_url, thumbnail_url, description, headline, article_body, media_source, submitter_name, submitter_email, status, week_key, dedupe_key
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'URL',$17,$18,'PENDING',$19,$20)
     `, id, body.category, clean(body.playerId, 100) || null, playerName, clean(body.clubId, 100) || null, clubName,
       clean(body.leagueId, 100) || null, clean(body.leagueName, 180) || null, clean(body.matchId, 120) || null,
       body.matchDate ? new Date(String(body.matchDate)) : null, clean(body.roundLabel, 80) || null, videoUrl,
-      clean(body.thumbnailUrl, 1000) || null, clean(body.description, 1000) || null, submitterName, submitterEmail, weekKey, dedupeKey)
+      clean(body.thumbnailUrl, 1000) || null, clean(body.description, 1000) || null, clean(body.headline, 220) || null,
+      clean(body.articleBody, 30000) || null, submitterName, submitterEmail, weekKey, dedupeKey)
   } catch (error) {
     if (String(error).includes('highlight_submissions_dedupe_idx') || String(error).includes('Unique constraint')) return res.status(409).json({ error: 'This highlight has already been submitted' })
     throw error
