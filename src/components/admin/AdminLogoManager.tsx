@@ -5,7 +5,7 @@ import { admin, getKey, type ClubProfileDetail, type LeagueProfileDetail } from 
 
 type EntityKind = 'club' | 'league' | 'article'
 type Target = { kind: EntityKind; id: string; host: HTMLElement }
-type ArticleProfile = { id: string; title: string; heroSeed: string; slug: string }
+type ArticleProfile = { id: string; title: string; heroSeed: string; slug: string; tags?: string | Record<string, unknown> | null }
 type Profile = ClubProfileDetail | LeagueProfileDetail | ArticleProfile
 
 const input: CSSProperties = {
@@ -24,6 +24,12 @@ async function adminRequest<T>(method: string, path: string, body?: unknown): Pr
   const json = await response.json().catch(() => ({})) as { error?: string }
   if (!response.ok) throw new Error(json.error ?? `HTTP ${response.status}`)
   return json as T
+}
+
+function articleTags(profile: ArticleProfile | null): Record<string, unknown> {
+  if (!profile?.tags) return {}
+  if (typeof profile.tags === 'object') return profile.tags
+  try { return JSON.parse(profile.tags) as Record<string, unknown> } catch { return {} }
 }
 
 export default function AdminLogoManager() {
@@ -139,18 +145,33 @@ export default function AdminLogoManager() {
     finally { setBusy(false) }
   }
 
+  const setHomepageFeatured = async (featured: boolean) => {
+    if (target.kind !== 'article') return
+    setBusy(true)
+    setMessage(featured ? 'Adding article to homepage features…' : 'Removing article from homepage features…')
+    try {
+      const current = articleTags(profile as ArticleProfile | null)
+      await adminRequest('PATCH', `/admin/newsroom/articles/${target.id}`, { tags: { ...current, homepageFeatured: featured } })
+      await refresh()
+      setMessage(featured ? 'This article is selected for the homepage hero once published.' : 'This article will no longer appear in the homepage hero.')
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
+    finally { setBusy(false) }
+  }
+
   const isArticle = target.kind === 'article'
-  const currentImage = isArticle ? (profile as ArticleProfile | null)?.heroSeed : (profile as ClubProfileDetail | LeagueProfileDetail | null)?.logoUrl
+  const articleProfile = isArticle ? profile as ArticleProfile | null : null
+  const featured = Boolean(articleTags(articleProfile).homepageFeatured)
+  const currentImage = isArticle ? articleProfile?.heroSeed : (profile as ClubProfileDetail | LeagueProfileDetail | null)?.logoUrl
   const hasRealArticleImage = isArticle && Boolean(currentImage && (/^https?:\/\//i.test(currentImage) || currentImage.startsWith('/')))
   const preview = localPreview || (hasRealArticleImage || !isArticle ? currentImage ?? '' : '')
-  const name = isArticle ? (profile as ArticleProfile | null)?.title ?? 'Article' : (profile as ClubProfileDetail | LeagueProfileDetail | null)?.name ?? target.kind
+  const name = isArticle ? articleProfile?.title ?? 'Article' : (profile as ClubProfileDetail | LeagueProfileDetail | null)?.name ?? target.kind
 
   return createPortal(
     <section className={`admin-editor-logo-card${isArticle ? ' is-news-image' : ''}`}>
       <div className="admin-editor-logo-copy">
         <small>{isArticle ? 'NEWS PRESENTATION' : 'PROFILE BRANDING'}</small>
         <h3>{isArticle ? 'Article hero image' : target.kind === 'club' ? 'Club logo' : 'League logo'}</h3>
-        <p>{isArticle ? 'Upload the main image used on the homepage hero carousel, News cards and the full article.' : 'Upload or replace the logo for this exact profile. The updated logo appears here immediately.'}</p>
+        <p>{isArticle ? 'Upload the main image and choose whether this article should appear in the homepage hero carousel.' : 'Upload or replace the logo for this exact profile. The updated logo appears here immediately.'}</p>
       </div>
       <div className="admin-editor-logo-preview">
         {preview ? <img src={preview} alt={`${name} ${isArticle ? 'hero' : 'logo'}`} /> : <strong>{isArticle ? 'Generated image fallback' : 'No logo'}</strong>}
@@ -159,6 +180,10 @@ export default function AdminLogoManager() {
         <span>{isArticle ? 'Hero image' : 'Logo image'}</span>
         <input id={`admin-editor-image-file-${target.kind}-${target.id}`} style={input} type="file" accept={isArticle ? 'image/png,image/jpeg,image/webp' : 'image/png,image/jpeg,image/webp,image/svg+xml'} onChange={event => setFile(event.target.files?.[0] ?? null)} />
       </label>
+      {isArticle && <label className="admin-news-feature-toggle">
+        <input type="checkbox" checked={featured} disabled={busy} onChange={event => { void setHomepageFeatured(event.target.checked) }} />
+        <span><strong>Feature on homepage</strong><small>When published, this article can fill one of the three News slides in the homepage hero.</small></span>
+      </label>}
       {message && <div className="admin-editor-logo-message">{message}</div>}
       <div className="admin-editor-logo-actions">
         <button type="button" style={button} disabled={busy} onClick={() => { void upload() }}>{busy ? 'Working…' : preview ? `Replace ${isArticle ? 'image' : 'logo'}` : `Upload ${isArticle ? 'image' : 'logo'}`}</button>
@@ -172,8 +197,9 @@ export default function AdminLogoManager() {
         .admin-editor-logo-preview{width:96px;height:96px;border-radius:16px;background:#fff;border:1px solid #e2e7ec;display:grid;place-items:center;overflow:hidden;color:#687385;text-align:center}.admin-editor-logo-preview img{width:100%;height:100%;object-fit:contain}
         .is-news-image .admin-editor-logo-preview{width:100%;height:auto;aspect-ratio:16/9;border-radius:14px}.is-news-image .admin-editor-logo-preview img{object-fit:cover}
         .admin-editor-logo-file{grid-column:1/-1;display:grid;gap:6px}.admin-editor-logo-file>span{font-size:11px;font-weight:950;color:#687385;text-transform:uppercase}
+        .admin-news-feature-toggle{grid-column:1/-1;display:flex;align-items:flex-start;gap:12px;padding:14px;border:1px solid #b8def5;border-radius:13px;background:#eef8ff}.admin-news-feature-toggle input{width:22px;height:22px;margin:1px 0 0}.admin-news-feature-toggle span{display:grid;gap:3px}.admin-news-feature-toggle strong{color:#0b3851}.admin-news-feature-toggle small{color:#557183;font-weight:700}
         .admin-editor-logo-message{grid-column:1/-1;padding:11px 13px;border-radius:11px;background:#eef8ff;color:#174a68;font-weight:800}.admin-editor-logo-actions{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.admin-editor-logo-remove{border:1px solid #d71920;border-radius:999px;background:#fff;color:#d71920;padding:10px 16px;font-weight:950;text-transform:uppercase;cursor:pointer}
-        @media(max-width:620px){.admin-editor-logo-card,.admin-editor-logo-card.is-news-image{grid-template-columns:1fr}.admin-editor-logo-preview{width:82px;height:82px}.is-news-image .admin-editor-logo-preview{width:100%;height:auto}.admin-editor-logo-file,.admin-editor-logo-message,.admin-editor-logo-actions{grid-column:auto}}
+        @media(max-width:620px){.admin-editor-logo-card,.admin-editor-logo-card.is-news-image{grid-template-columns:1fr}.admin-editor-logo-preview{width:82px;height:82px}.is-news-image .admin-editor-logo-preview{width:100%;height:auto}.admin-editor-logo-file,.admin-editor-logo-message,.admin-editor-logo-actions,.admin-news-feature-toggle{grid-column:auto}}
       `}</style>
     </section>,
     target.host,
