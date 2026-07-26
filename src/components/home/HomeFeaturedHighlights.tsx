@@ -101,16 +101,27 @@ export default function HomeFeaturedHighlights() {
   useEffect(() => {
     if (pathname !== '/') return
     let active = true
-    void Promise.all([
-      fetch('/api/highlights/featured').then(response => response.ok ? response.json() as Promise<{ data?: FeaturedHighlight[] }> : Promise.reject(new Error(`HTTP ${response.status}`))),
-      loadHomeCardLogoMaps(),
-    ]).then(([payload, logoMaps]) => {
-      if (!active) return
-      const highlights = Array.isArray(payload.data) ? payload.data.slice(0, 3) : []
-      const mapped = highlights.map(row => ({ ...row, clubLogoUrl: row.clubId ? logoMaps.byClubId.get(row.clubId) ?? null : null }))
-      setRows(mapped)
-      setActiveId(mapped[0]?.id ?? null)
-    }).catch(() => { if (active) setRows([]) })
+
+    void fetch('/api/highlights/featured')
+      .then(response => response.ok ? response.json() as Promise<{ data?: FeaturedHighlight[] }> : Promise.reject(new Error(`HTTP ${response.status}`)))
+      .then(payload => {
+        if (!active) return
+        const highlights = Array.isArray(payload.data) ? payload.data.slice(0, 3) : []
+        const immediate = highlights.map(row => ({ ...row, clubLogoUrl: null }))
+        setRows(immediate)
+        setActiveId(immediate[0]?.id ?? null)
+
+        void loadHomeCardLogoMaps()
+          .then(logoMaps => {
+            if (!active) return
+            setRows(current => current.map(row => ({ ...row, clubLogoUrl: row.clubId ? logoMaps.byClubId.get(row.clubId) ?? null : null })))
+          })
+          .catch(() => {})
+      })
+      .catch(() => {
+        if (active) setRows([])
+      })
+
     return () => { active = false }
   }, [pathname])
 
@@ -174,9 +185,9 @@ function HighlightMedia({ row, active }: { row: DisplayHighlight; active: boolea
     {row.placeholder ? <span className="pf-featured-highlight-placeholder" /> : youtubeUrl && active ? (
       <iframe src={youtubeUrl} title={`${row.playerName} ${categoryLabel(row.category)}`} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
     ) : directVideo ? (
-      <video ref={videoRef} src={row.videoUrl} poster={row.thumbnailUrl ?? undefined} muted loop playsInline controls preload={active ? 'auto' : 'metadata'} />
+      <video ref={videoRef} src={row.videoUrl} poster={row.thumbnailUrl ?? undefined} muted loop playsInline controls preload="metadata" />
     ) : row.thumbnailUrl ? (
-      <a href={row.videoUrl} target="_blank" rel="noreferrer"><img src={row.thumbnailUrl} alt="" loading="lazy" /><span className="pf-featured-highlight-play"><Play size={34} fill="currentColor" /></span></a>
+      <a href={row.videoUrl} target="_blank" rel="noreferrer"><img src={row.thumbnailUrl} alt="" loading="eager" /><span className="pf-featured-highlight-play"><Play size={34} fill="currentColor" /></span></a>
     ) : (
       <a href={row.videoUrl} target="_blank" rel="noreferrer"><span className="pf-featured-highlight-placeholder" /><span className="pf-featured-highlight-play"><Play size={34} fill="currentColor" /></span></a>
     )}
