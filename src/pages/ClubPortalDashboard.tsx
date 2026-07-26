@@ -30,10 +30,10 @@ export default function ClubPortalDashboard(){
   const actions=useMemo(()=>data?[
     {label:'Team selection',detail:data.teamSelection?`${data.teamSelection.roundLabel} · ${data.teamSelection.playerCount} selected`:'No team selected yet',icon:Trophy,allowed:data.membership.permissions.teamSelection,to:`/club-portal/${data.club.id}/team-selection`},
     {label:'Club news',detail:`${data.news.published} published · ${data.news.drafts+data.news.pending} in progress`,icon:Newspaper,allowed:data.membership.permissions.media,to:`/club-portal/${data.club.id}/news`},
-    {label:'Photos and media',detail:`${data.profile.photoCount} club photos connected`,icon:Image,allowed:data.membership.permissions.media,to:`/team/${data.club.id}`},
-    {label:'Sponsors',detail:`${data.sponsors.active} active sponsor${data.sponsors.active===1?'':'s'}`,icon:Building2,allowed:data.membership.permissions.sponsors,to:`/team/${data.club.id}#sponsors`},
-    {label:'Club profile',detail:`${data.profile.completion}% complete`,icon:FileText,allowed:data.membership.permissions.profile,to:`/team/${data.club.id}`},
-    {label:'Club users',detail:`${data.users.pending} awaiting approval`,icon:Users,allowed:data.membership.permissions.manageUsers,to:'/club-portal'},
+    {label:'Photos and media',detail:`${data.profile.photoCount} club photos connected`,icon:Image,allowed:data.membership.permissions.profile,to:`/club-portal/${data.club.id}/profile`},
+    {label:'Sponsors',detail:`${data.sponsors.active} active sponsor${data.sponsors.active===1?'':'s'}`,icon:Building2,allowed:data.membership.permissions.sponsors,to:`/club-portal/${data.club.id}/sponsors`},
+    {label:'Club profile',detail:`${data.profile.completion}% complete`,icon:FileText,allowed:data.membership.permissions.profile,to:`/club-portal/${data.club.id}/profile`},
+    {label:'Club users',detail:`${data.users.pending} awaiting approval`,icon:Users,allowed:data.membership.permissions.manageUsers,to:`/club-portal/${data.club.id}/users`},
   ]:[],[data])
 
   return <><Nav/><main className="cp-dashboard">{loading?<div className="cp-state">Loading your club workspace…</div>:error||!data?<section className="cp-error"><ShieldCheck size={38}/><h1>Club access required</h1><p>{error||'This dashboard is unavailable.'}</p><Link to="/club-portal">Return to Club Portal <ArrowRight size={16}/></Link></section>:<>
