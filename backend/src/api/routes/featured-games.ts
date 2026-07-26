@@ -6,6 +6,7 @@ import { cachePublic } from '../middleware/cache-middleware.js'
 
 const SETTING_KEY = 'homepageFeaturedGames'
 const MAX_FEATURED_GAMES = 3
+const FOOTBALL_TIME_ZONE = 'Australia/Melbourne'
 
 const cleanIds = (value: unknown) => {
   const rows = Array.isArray(value) ? value : []
@@ -16,6 +17,24 @@ async function readSelection() {
   const setting = await prisma.setting.findUnique({ where: { key: SETTING_KEY } }).catch(() => null)
   if (!setting?.value) return [] as string[]
   try { return cleanIds(JSON.parse(setting.value)) } catch { return [] as string[] }
+}
+
+function currentFootballWeek() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: FOOTBALL_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const value = Object.fromEntries(parts.map(part => [part.type, part.value]))
+  const localDate = new Date(Date.UTC(Number(value.year), Number(value.month) - 1, Number(value.day)))
+  const daysSinceMonday = (localDate.getUTCDay() + 6) % 7
+  const start = new Date(localDate)
+  start.setUTCDate(start.getUTCDate() - daysSinceMonday)
+  start.setUTCHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setUTCDate(end.getUTCDate() + 7)
+  return { start, end }
 }
 
 type TeamMetric = {
@@ -40,19 +59,24 @@ type AutoCandidate = {
   score: number
 }
 
-async function automaticallySelectGames(limit: number, excludedIds: string[] = []) {
+async function currentWeekManualIds(ids: string[], start: Date, end: Date) {
+  if (!ids.length) return [] as string[]
+  const fixtures = await prisma.footballFixture.findMany({
+    where: { id: { in: ids }, matchDate: { gte: start, lt: end } },
+    select: { id: true },
+  })
+  const available = new Set(fixtures.map(row => row.id))
+  return ids.filter(id => available.has(id))
+}
+
+async function automaticallySelectGames(limit: number, excludedIds: string[] = [], week = currentFootballWeek()) {
   if (limit <= 0) return [] as string[]
 
   const now = new Date()
-  const startOfToday = new Date(now)
-  startOfToday.setHours(0, 0, 0, 0)
-  const horizon = new Date(now)
-  horizon.setDate(horizon.getDate() + 120)
-
   const fixtures = await prisma.footballFixture.findMany({
     where: {
       id: excludedIds.length ? { notIn: excludedIds } : undefined,
-      matchDate: { gte: startOfToday, lte: horizon },
+      matchDate: { gte: week.start, lt: week.end },
       homeClubId: { not: null },
       awayClubId: { not: null },
     },
@@ -112,9 +136,9 @@ async function automaticallySelectGames(limit: number, excludedIds: string[] = [
     const awayPosition = ladderByLeagueSeasonClub.get(`${fixture.leagueId}:${fixture.season}:${fixture.awayClubId}`) ?? null
     const homeRank = rankByClub.get(fixture.homeClubId) ?? null
     const awayRank = rankByClub.get(fixture.awayClubId) ?? null
-    const daysAway = Math.max(0, Math.floor((fixture.matchDate.getTime() - now.getTime()) / 86_400_000))
+    const hoursAway = Math.abs(fixture.matchDate.getTime() - now.getTime()) / 3_600_000
 
-    let score = Math.max(0, 1200 - daysAway * 10)
+    let score = Math.max(0, 1_200 - hoursAway)
 
     if (homePosition != null && awayPosition != null) {
       const low = Math.min(homePosition, awayPosition)
@@ -165,9 +189,17 @@ async function automaticallySelectGames(limit: number, excludedIds: string[] = [
 }
 
 async function resolveFeaturedGameIds() {
-  const manualIds = await readSelection()
-  const automaticIds = await automaticallySelectGames(MAX_FEATURED_GAMES - manualIds.length, manualIds)
-  return { manualIds, automaticIds, ids: [...manualIds, ...automaticIds].slice(0, MAX_FEATURED_GAMES) }
+  const week = currentFootballWeek()
+  const storedManualIds = await readSelection()
+  const manualIds = await currentWeekManualIds(storedManualIds, week.start, week.end)
+  const automaticIds = await automaticallySelectGames(MAX_FEATURED_GAMES - manualIds.length, manualIds, week)
+  return {
+    manualIds,
+    automaticIds,
+    ids: [...manualIds, ...automaticIds].slice(0, MAX_FEATURED_GAMES),
+    weekStart: week.start,
+    weekEnd: week.end,
+  }
 }
 
 async function buildFeaturedGames(ids: string[]) {
@@ -256,6 +288,9 @@ publicRouter.get('/', publicRateLimit, cachePublic(120), async (_req, res) => {
         manual: selection.manualIds.length,
         automatic: selection.automaticIds.length,
         mode: selection.manualIds.length ? 'MANUAL_WITH_AUTOMATIC_FILL' : 'AUTOMATIC',
+        weekStart: selection.weekStart,
+        weekEnd: selection.weekEnd,
+        timeZone: FOOTBALL_TIME_ZONE,
       },
     })
   } catch (error) {
@@ -267,7 +302,8 @@ const adminRouter = Router()
 adminRouter.use(requireAdminKey)
 adminRouter.get('/', async (_req, res) => {
   const fixtureIds = await readSelection()
-  res.json({ data: { fixtureIds, automaticWhenEmpty: true } })
+  const week = currentFootballWeek()
+  res.json({ data: { fixtureIds, automaticWhenEmpty: true, weekStart: week.start, weekEnd: week.end } })
 })
 adminRouter.put('/', async (req, res) => {
   const fixtureIds = cleanIds(req.body?.fixtureIds)
@@ -281,7 +317,7 @@ adminRouter.put('/', async (req, res) => {
     update: { value: JSON.stringify(fixtureIds) },
   })
   const selection = await resolveFeaturedGameIds()
-  res.json({ data: { fixtureIds, automaticFixtureIds: selection.automaticIds, games: await buildFeaturedGames(selection.ids) } })
+  res.json({ data: { fixtureIds, automaticFixtureIds: selection.automaticIds, games: await buildFeaturedGames(selection.ids), weekStart: selection.weekStart, weekEnd: selection.weekEnd } })
 })
 
 export { publicRouter as featuredGamesRouter, adminRouter as adminFeaturedGamesRouter }
