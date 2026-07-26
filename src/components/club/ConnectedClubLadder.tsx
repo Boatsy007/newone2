@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { fetchLeague, leaguePath, teamPath, type ClubProfile, type LeagueDetail } from '../../lib/rankings'
-import { clubNameLogoKey, loadHomeCardLogoMaps } from '../../lib/homeCardLogos'
+import { loadHomeCardLogoMaps } from '../../lib/homeCardLogos'
 import { TeamLogo } from '../rankings/bits'
 import { clubIdentity } from './sections'
 
@@ -57,7 +57,6 @@ export default function ConnectedClubLadder({ club }: { club: ClubProfile }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const [logosById, setLogosById] = useState<Map<string, string>>(new Map())
-  const [logosByName, setLogosByName] = useState<Map<string, string>>(new Map())
   const identity = clubIdentity(club)
 
   useEffect(() => {
@@ -79,11 +78,7 @@ export default function ConnectedClubLadder({ club }: { club: ClubProfile }) {
   useEffect(() => {
     let active = true
     void loadHomeCardLogoMaps()
-      .then(maps => {
-        if (!active) return
-        setLogosById(maps.byClubId)
-        setLogosByName(maps.byClubName)
-      })
+      .then(maps => { if (active) setLogosById(maps.byClubId) })
       .catch(() => {})
     return () => { active = false }
   }, [])
@@ -96,11 +91,10 @@ export default function ConnectedClubLadder({ club }: { club: ClubProfile }) {
       const resolvedClubId = row.clubId || (isCurrentClub ? club.clubId : null)
       const resolvedLogoUrl = row.logoUrl
         ?? (resolvedClubId ? logosById.get(resolvedClubId) ?? null : null)
-        ?? logosByName.get(clubNameLogoKey(row.clubName))
         ?? (isCurrentClub ? club.logoUrl ?? null : null)
       return { ...row, resolvedClubId, resolvedLogoUrl }
     })
-  }, [club.clubId, club.logoUrl, clubNameKey, league, logosById, logosByName])
+  }, [club.clubId, club.logoUrl, clubNameKey, league, logosById])
 
   if (!club.leagueId) return null
 
@@ -130,6 +124,8 @@ export default function ConnectedClubLadder({ club }: { club: ClubProfile }) {
           {ladder.map(row => {
             const isClub = row.resolvedClubId === club.clubId || normaliseName(row.clubName) === clubNameKey
             const topFour = (row.position ?? 999) <= 4
+            const className = `connected-club-ladder-grid connected-club-ladder-row${isClub ? ' is-club' : ''}${topFour ? ' is-top-four' : ''}`
+            const style = isClub ? { '--club-accent': identity.accent, '--club-wash': identity.wash } as CSSProperties : undefined
             const content = (
               <>
                 <b>{row.position}</b>
@@ -139,8 +135,6 @@ export default function ConnectedClubLadder({ club }: { club: ClubProfile }) {
                 <b>{row.points}</b>
               </>
             )
-            const className = `connected-club-ladder-grid connected-club-ladder-row${isClub ? ' is-club' : ''}${topFour ? ' is-top-four' : ''}`
-            const style = isClub ? { '--club-accent': identity.accent, '--club-wash': identity.wash } as React.CSSProperties : undefined
 
             return row.resolvedClubId ? (
               <Link key={rowKey(row)} to={teamPath(row.resolvedClubId)} className={className} style={style} aria-label={`Open ${row.clubName} club profile`}>
