@@ -51,6 +51,7 @@ import ClubPortalNews from './pages/ClubPortalNews.tsx'
 import ClubPortalProfile from './pages/ClubPortalProfile.tsx'
 import ClubPortalSponsors from './pages/ClubPortalSponsors.tsx'
 import ClubPortalUsers from './pages/ClubPortalUsers.tsx'
+import ClubPortalActivity from './pages/ClubPortalActivity.tsx'
 import ClubClaimsAdmin from './pages/ClubClaimsAdmin.tsx'
 import AutoShareButtons from './components/sharing/AutoShareButtons.tsx'
 import ProfileShareButton from './components/sharing/ProfileShareButton.tsx'
@@ -121,6 +122,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/club-portal/:clubId/profile" element={<ClubPortalProfile/>}/>
     <Route path="/club-portal/:clubId/sponsors" element={<ClubPortalSponsors/>}/>
     <Route path="/club-portal/:clubId/users" element={<ClubPortalUsers/>}/>
+    <Route path="/club-portal/:clubId/activity" element={<ClubPortalActivity/>}/>
     <Route path="/club-portal/:clubId" element={<ClubPortalDashboard/>}/>
     <Route path="/league/:leagueId" element={<LeagueProfile/>}/>
     <Route path="/leagues" element={<Leagues/>}/>
