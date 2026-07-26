@@ -2,11 +2,13 @@ import { Router } from 'express'
 import { prisma } from '../../db/client.js'
 import { authenticateClubUser, membershipForClub, requireActiveClubMembership, roleCan } from '../../auth/club-auth.js'
 import { clubInsights } from '../../analytics/insights.js'
+import { getClubSponsorships } from '../../commercial/sponsorships.service.js'
 
 const router = Router()
 router.use(authenticateClubUser)
 
 type ActionItem = { id:string; type:string; severity:'INFO'|'WARNING'|'URGENT'; title:string; detail:string; href:string|null; permission:string|null; createdAt:string|null }
+type SponsorItem = { id:string; status:string; endDate:Date|null; updatedAt:Date; sponsor:{name:string;logoUrl:string|null}|null }
 
 function daysUntil(value: Date | string | null | undefined) {
   if (!value) return null
@@ -24,10 +26,10 @@ router.get('/clubs/:clubId/insights', requireActiveClubMembership, async (req, r
       prisma.club.findFirst({ where:{ id:clubId, archivedAt:null }, select:{ id:true,name:true,logoUrl:true,description:true,contactEmail:true,websiteUrl:true,facebookUrl:true,instagramUrl:true } }),
       prisma.clubProfile.upsert({ where:{clubId}, create:{clubId}, update:{}, select:{ ground:true,address:true,email:true,phone:true,history:true,trainingNights:true,clubColours:true,foundedYear:true,updatedAt:true } }),
       clubInsights(clubId),
-      prisma.notification.findMany({ where:{ recipientScope:'CLUB',recipientId:clubId }, orderBy:{createdAt:'desc'}, take:30, select:{ id:true,type:true,category:true,severity:true,status:true,title:true,body:true,entityType:true,entityId:true,createdAt:true,readAt:true,data:true } }),
+      prisma.notification.findMany({ where:{ recipientScope:'CLUB',recipientId:clubId }, orderBy:{createdAt:'desc'}, take:30, select:{ id:true,type:true,category:true,severity:true,status:true,title:true,body:true,entityType:true,entityId:true,createdAt:true,readAt:true } }),
       prisma.$queryRawUnsafe<Array<{id:string;roundLabel:string;opponentName:string|null;matchDate:string|null;status:string;updatedAt:Date;playerCount:number}>>(`SELECT s.id::text AS id,s.round_label AS "roundLabel",s.opponent_name AS "opponentName",s.match_date::text AS "matchDate",s.status,s.updated_at AS "updatedAt",COUNT(p.id)::int AS "playerCount" FROM football_team_sheets s LEFT JOIN football_team_sheet_players p ON p.team_sheet_id=s.id WHERE s.club_id=$1 GROUP BY s.id ORDER BY s.updated_at DESC LIMIT 12`,clubId),
       prisma.articleLink.findMany({ where:{entityType:'CLUB',entityId:clubId}, select:{articleId:true} }),
-      prisma.sponsorship.findMany({ where:{clubId,deletedAt:null}, orderBy:{updatedAt:'desc'}, take:30, include:{sponsor:{select:{name:true,logoUrl:true}}} }),
+      getClubSponsorships(clubId,false),
       prisma.$queryRawUnsafe<Array<{count:number}>>(`SELECT COUNT(*)::int AS count FROM club_portal_memberships WHERE club_id=$1 AND status IN ('PENDING','INVITED')`,clubId),
     ])
 
@@ -39,7 +41,7 @@ router.get('/clubs/:clubId/insights', requireActiveClubMembership, async (req, r
     const sheets = sheetsResult.status === 'fulfilled' ? sheetsResult.value : []
     const articleIds = articleLinksResult.status === 'fulfilled' ? [...new Set(articleLinksResult.value.map(row=>row.articleId))] : []
     const articles = articleIds.length ? await prisma.generatedArticle.findMany({ where:{id:{in:articleIds},status:{not:'ARCHIVED'}}, orderBy:{updatedAt:'desc'}, select:{id:true,title:true,slug:true,status:true,updatedAt:true,publishedAt:true} }) : []
-    const sponsors = sponsorsResult.status === 'fulfilled' ? sponsorsResult.value : []
+    const sponsors = (sponsorsResult.status === 'fulfilled' ? sponsorsResult.value : []) as SponsorItem[]
     const pendingUsers = pendingUsersResult.status === 'fulfilled' ? pendingUsersResult.value[0]?.count ?? 0 : 0
 
     const permissions = {
@@ -67,8 +69,9 @@ router.get('/clubs/:clubId/insights', requireActiveClubMembership, async (req, r
       ...sheets.map(item=>({id:`sheet-${item.id}`,type:'TEAM_SELECTION',title:item.roundLabel,status:item.status,createdAt:new Date(item.updatedAt).toISOString(),href:`/club-portal/${clubId}/team-selection`})),
       ...sponsors.map(item=>({id:`sponsor-${item.id}`,type:'SPONSOR',title:item.sponsor?.name??'Sponsor',status:item.status,createdAt:item.updatedAt.toISOString(),href:`/club-portal/${clubId}/sponsors`})),
     ].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,12)
+    const severityOrder:Record<ActionItem['severity'],number>={URGENT:0,WARNING:1,INFO:2}
 
-    res.json({data:{club:{id:clubData.id,name:clubData.name,logoUrl:clubData.logoUrl},membership:{role:membership.role,permissions},analytics,actions:actions.sort((a,b)=>({URGENT:0,WARNING:1,INFO:2}[a.severity]-({URGENT:0,WARNING:1,INFO:2}[b.severity])),notifications,activity:recentActivity,summary:{openActions:actions.length,unreadNotifications:notifications.filter(item=>!['READ','SUPPRESSED'].includes(item.status)).length,pendingApprovals:actions.filter(item=>item.title.toLowerCase().includes('approval')).length,expiringSponsors:actions.filter(item=>item.id.startsWith('sponsor-expiry-')).length},generatedAt:new Date().toISOString()}})
+    res.json({data:{club:{id:clubData.id,name:clubData.name,logoUrl:clubData.logoUrl},membership:{role:membership.role,permissions},analytics,actions:actions.sort((a,b)=>severityOrder[a.severity]-severityOrder[b.severity]),notifications,activity:recentActivity,summary:{openActions:actions.length,unreadNotifications:notifications.filter(item=>!['READ','SUPPRESSED'].includes(item.status)).length,pendingApprovals:actions.filter(item=>item.title.toLowerCase().includes('approval')).length,expiringSponsors:actions.filter(item=>item.id.startsWith('sponsor-expiry-')).length},generatedAt:new Date().toISOString()}})
   } catch (error) { res.status(500).json({error:'Unable to load club insights',detail:String(error)}) }
 })
 
