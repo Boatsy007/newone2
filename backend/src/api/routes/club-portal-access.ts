@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { prisma } from '../../db/client.js'
 import { publicRateLimit } from '../middleware/rate-limit.js'
 import { logChanges } from '../../services/change-log.service.js'
+import { clubMembershipsRouter } from './club-memberships.js'
 
 const router = Router()
 const editableProfileFields = [
@@ -69,4 +70,7 @@ router.post('/revoke', async (req, res) => {
   await prisma.$executeRawUnsafe(`UPDATE club_portal_access SET revoked_at = NOW() WHERE token_hash = $1`, hashToken(token))
   res.json({ data: { revoked: true } })
 })
+
+router.use('/', clubMembershipsRouter)
+
 export { router as clubPortalAccessRouter }
