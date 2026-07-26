@@ -48,6 +48,7 @@ import ClubPortal from './pages/ClubPortal.tsx'
 import ClubPortalDashboard from './pages/ClubPortalDashboard.tsx'
 import ClubPortalTeamSelection from './pages/ClubPortalTeamSelection.tsx'
 import ClubPortalNews from './pages/ClubPortalNews.tsx'
+import ClubPortalProfile from './pages/ClubPortalProfile.tsx'
 import ClubClaimsAdmin from './pages/ClubClaimsAdmin.tsx'
 import AutoShareButtons from './components/sharing/AutoShareButtons.tsx'
 import ProfileShareButton from './components/sharing/ProfileShareButton.tsx'
@@ -81,6 +82,7 @@ import PublicClaimRemoval from './components/club/PublicClaimRemoval.tsx'
 import TeamSelectionDeepLink from './components/club/TeamSelectionDeepLink.tsx'
 import ConnectedClubLadderPortal from './components/club/ConnectedClubLadderPortal.tsx'
 import ClubPortalDashboardLink from './components/club/ClubPortalDashboardLink.tsx'
+import ClubPortalProfileLinks from './components/club/ClubPortalProfileLinks.tsx'
 import DirectoryPublicFix from './components/directory/DirectoryPublicFix.tsx'
 import LeaguesPublicFinder from './components/leagues/LeaguesPublicFinder.tsx'
 import NewsChannelFilter from './components/news/NewsChannelFilter.tsx'
@@ -95,7 +97,7 @@ function ScrollToTop(){const{pathname}=useLocation();useEffect(()=>{window.scrol
 function HomePlayerProfileLinks(){const navigate=useNavigate();const{pathname}=useLocation();const[players,setPlayers]=useState<HomeGoalKicker[]>([]);useEffect(()=>{if(pathname!=='/')return;let active=true;void fetch('/api/goal-kickers?mode=raw&limit=5').then(r=>r.ok?r.json():Promise.reject(new Error(`HTTP ${r.status}`))).then((p:{data?:HomeGoalKicker[]})=>{if(active)setPlayers(Array.isArray(p.data)?p.data:[])}).catch(()=>{if(active)setPlayers([])});return()=>{active=false}},[pathname]);useEffect(()=>{if(pathname!=='/'||players.length===0)return;const handleClick=(event:MouseEvent)=>{const element=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('.pf-goal-row'):null;if(!element)return;const rows=Array.from(document.querySelectorAll<HTMLAnchorElement>('.pf-goal-row'));const player=players[rows.indexOf(element)];if(!player?.id)return;event.preventDefault();navigate(`/player/${encodeURIComponent(player.id)}`)};document.addEventListener('click',handleClick);return()=>document.removeEventListener('click',handleClick)},[navigate,pathname,players]);return null}
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><BrowserRouter><ScrollToTop/><PublicClaimRemoval/><TeamSelectionDeepLink/><ConnectedClubLadderPortal/><ClubPortalDashboardLink/><ImportHandoffInjector/><UniversalBatchImportEnhancer/><UniversalBulkImportActions/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><AdminMvpLink/><AdminOperationsMenu/><AdminLogoManager/><AdminSponsorManager/><AdminPlayerSponsorLinks/><AdminManualNewsCreator/><GoalKickerReviewEnhancer/><GoalKickerPublicIntegration/><GoalKickerAchievementsPortal/><HighlightPublicIntegration/><RankingHealthPortal/><UnifiedSearchExtras/><HomePlayerProfileLinks/><HomeHeroCarouselConnected/><HomeRecordsPortal/><HomePlayerRecordsPortal/><HomeMvpPortal/><HomeFeaturedHighlights/><HomeFeaturedGames/><HomeFeatureCopy/><HomeDesktopPolish/><HomeSponsorLabels/><DirectoryPublicFix/><LeaguesPublicFinder/><NewsChannelFilter/><NewsEditorialLayout/><SponsorProfilePortal/><AutoShareButtons/><ProfileShareButton/><PlayerMvpRank/><HomeMobilePolish/><ErrorBoundary><Routes>
+  <StrictMode><BrowserRouter><ScrollToTop/><PublicClaimRemoval/><TeamSelectionDeepLink/><ConnectedClubLadderPortal/><ClubPortalDashboardLink/><ClubPortalProfileLinks/><ImportHandoffInjector/><UniversalBatchImportEnhancer/><UniversalBulkImportActions/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><AdminMvpLink/><AdminOperationsMenu/><AdminLogoManager/><AdminSponsorManager/><AdminPlayerSponsorLinks/><AdminManualNewsCreator/><GoalKickerReviewEnhancer/><GoalKickerPublicIntegration/><GoalKickerAchievementsPortal/><HighlightPublicIntegration/><RankingHealthPortal/><UnifiedSearchExtras/><HomePlayerProfileLinks/><HomeHeroCarouselConnected/><HomeRecordsPortal/><HomePlayerRecordsPortal/><HomeMvpPortal/><HomeFeaturedHighlights/><HomeFeaturedGames/><HomeFeatureCopy/><HomeDesktopPolish/><HomeSponsorLabels/><DirectoryPublicFix/><LeaguesPublicFinder/><NewsChannelFilter/><NewsEditorialLayout/><SponsorProfilePortal/><AutoShareButtons/><ProfileShareButton/><PlayerMvpRank/><HomeMobilePolish/><ErrorBoundary><Routes>
     <Route path="/" element={<App/>}/>
     <Route path="/power-rankings" element={<PowerRankings/>}/>
     <Route path="/rankings" element={<FullRankings/>}/>
@@ -113,6 +115,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/club-portal" element={<ClubPortal/>}/>
     <Route path="/club-portal/:clubId/team-selection" element={<ClubPortalTeamSelection/>}/>
     <Route path="/club-portal/:clubId/news" element={<ClubPortalNews/>}/>
+    <Route path="/club-portal/:clubId/profile" element={<ClubPortalProfile/>}/>
     <Route path="/club-portal/:clubId" element={<ClubPortalDashboard/>}/>
     <Route path="/league/:leagueId" element={<LeagueProfile/>}/>
     <Route path="/leagues" element={<Leagues/>}/>
