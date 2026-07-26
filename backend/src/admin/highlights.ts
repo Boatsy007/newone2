@@ -133,55 +133,77 @@ router.post('/', async (req, res) => {
 })
 
 router.patch('/:id', async (req, res) => {
-  const body = (req.body ?? {}) as Record<string, unknown>
-  const status = clean(body.status, 20).toUpperCase()
-  if (status && !STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status' })
-  const opens = body.votingOpensAt ? new Date(String(body.votingOpensAt)) : null
-  const closes = body.votingClosesAt ? new Date(String(body.votingClosesAt)) : null
-  if ((opens && Number.isNaN(opens.getTime())) || (closes && Number.isNaN(closes.getTime()))) return res.status(400).json({ error: 'Invalid voting date' })
-  if (opens && closes && closes <= opens) return res.status(400).json({ error: 'Voting close must be after voting open' })
-  const featured = typeof body.featured === 'boolean' ? body.featured : null
-  const featuredOrder = body.featuredOrder == null || body.featuredOrder === '' ? null : Number(body.featuredOrder)
-  if ('featuredOrder' in body && featuredOrder != null && (!Number.isInteger(featuredOrder) || featuredOrder < 1 || featuredOrder > 3)) return res.status(400).json({ error: 'Featured order must be 1, 2 or 3' })
-  const currentRows = await prisma.$queryRawUnsafe<Array<{ id: string; status: string }>>(`SELECT id, status FROM highlight_submissions WHERE id = $1 LIMIT 1`, req.params.id)
-  const current = currentRows[0]
-  if (!current) return res.status(404).json({ error: 'Submission not found' })
-  if (featured === true && (status || current.status) !== 'APPROVED') return res.status(400).json({ error: 'Only approved highlights can be featured' })
+  try {
+    const body = (req.body ?? {}) as Record<string, unknown>
+    const currentRows = await prisma.$queryRawUnsafe<Array<{ id: string; status: string }>>(`SELECT id, status FROM highlight_submissions WHERE id = $1 LIMIT 1`, req.params.id)
+    const current = currentRows[0]
+    if (!current) return res.status(404).json({ error: 'Submission not found' })
 
-  await prisma.$transaction(async tx => {
-    if (featured === true && featuredOrder != null) await tx.$executeRawUnsafe(`UPDATE highlight_submissions SET featured = FALSE, featured_order = NULL, updated_at = NOW() WHERE featured_order = $1 AND id <> $2`, featuredOrder, req.params.id)
-    await tx.$executeRawUnsafe(`
-      UPDATE highlight_submissions SET
-        status = COALESCE($2, status), moderation_note = CASE WHEN $3::boolean THEN $4 ELSE moderation_note END,
-        week_key = CASE WHEN $5::boolean THEN $6 ELSE week_key END,
-        player_id = CASE WHEN $7::boolean THEN $8 ELSE player_id END, club_id = CASE WHEN $9::boolean THEN $10 ELSE club_id END,
-        league_id = CASE WHEN $11::boolean THEN $12 ELSE league_id END, match_id = CASE WHEN $13::boolean THEN $14 ELSE match_id END,
-        voting_opens_at = CASE WHEN $15::boolean THEN $16 ELSE voting_opens_at END, voting_closes_at = CASE WHEN $17::boolean THEN $18 ELSE voting_closes_at END,
-        featured = CASE WHEN $19::boolean THEN $20 ELSE featured END,
-        featured_order = CASE WHEN $19::boolean THEN CASE WHEN $20 THEN $21 ELSE NULL END ELSE featured_order END,
-        video_url = CASE WHEN $22::boolean THEN $23 ELSE video_url END, thumbnail_url = CASE WHEN $24::boolean THEN $25 ELSE thumbnail_url END,
-        description = CASE WHEN $26::boolean THEN $27 ELSE description END, headline = CASE WHEN $28::boolean THEN $29 ELSE headline END,
-        article_body = CASE WHEN $30::boolean THEN $31 ELSE article_body END, media_source = CASE WHEN $32::boolean THEN $33 ELSE media_source END,
-        player_name = CASE WHEN $34::boolean THEN $35 ELSE player_name END, club_name = CASE WHEN $36::boolean THEN $37 ELSE club_name END,
-        league_name = CASE WHEN $38::boolean THEN $39 ELSE league_name END,
-        published_at = CASE WHEN COALESCE($2, status) = 'APPROVED' AND published_at IS NULL THEN NOW() ELSE published_at END,
-        winner = CASE WHEN COALESCE($2, status) <> 'APPROVED' THEN FALSE ELSE winner END, updated_at = NOW()
-      WHERE id = $1
-    `, req.params.id, status || null,
-      'moderationNote' in body, clean(body.moderationNote, 1000) || null,
-      'weekKey' in body, clean(body.weekKey, 20) || currentWeekKey(),
-      'playerId' in body, clean(body.playerId, 100) || null, 'clubId' in body, clean(body.clubId, 100) || null,
-      'leagueId' in body, clean(body.leagueId, 100) || null, 'matchId' in body, clean(body.matchId, 120) || null,
-      'votingOpensAt' in body, opens, 'votingClosesAt' in body, closes,
-      'featured' in body, featured === true, featuredOrder,
-      'videoUrl' in body, clean(body.videoUrl, 1200), 'thumbnailUrl' in body, clean(body.thumbnailUrl, 1200) || null,
-      'description' in body, clean(body.description, 1200) || null, 'headline' in body, clean(body.headline, 220) || null,
-      'articleBody' in body, clean(body.articleBody, 30000) || null, 'mediaSource' in body, clean(body.mediaSource, 20).toUpperCase() === 'UPLOAD' ? 'UPLOAD' : 'URL',
-      'playerName' in body, clean(body.playerName, 120), 'clubName' in body, clean(body.clubName, 160),
-      'leagueName' in body, clean(body.leagueName, 180) || null)
-  })
-  const updated = await prisma.$queryRawUnsafe<AdminHighlightRow[]>(`${selectSql} WHERE s.id = $1 GROUP BY s.id`, req.params.id)
-  res.json({ data: { ...updated[0], votes: Number(updated[0]?.votes ?? 0) } })
+    const status = 'status' in body ? clean(body.status, 20).toUpperCase() : ''
+    if (status && !STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status' })
+
+    const featured = typeof body.featured === 'boolean' ? body.featured : undefined
+    const featuredOrder = body.featuredOrder == null || body.featuredOrder === '' ? null : Number(body.featuredOrder)
+    if ('featuredOrder' in body && featuredOrder != null && (!Number.isInteger(featuredOrder) || featuredOrder < 1 || featuredOrder > 3)) return res.status(400).json({ error: 'Featured order must be 1, 2 or 3' })
+    if (featured === true && (status || current.status) !== 'APPROVED') return res.status(400).json({ error: 'Only approved highlights can be featured' })
+
+    const opens = 'votingOpensAt' in body && body.votingOpensAt ? new Date(String(body.votingOpensAt)) : null
+    const closes = 'votingClosesAt' in body && body.votingClosesAt ? new Date(String(body.votingClosesAt)) : null
+    if ((opens && Number.isNaN(opens.getTime())) || (closes && Number.isNaN(closes.getTime()))) return res.status(400).json({ error: 'Invalid voting date' })
+    if (opens && closes && closes <= opens) return res.status(400).json({ error: 'Voting close must be after voting open' })
+
+    const assignments: string[] = []
+    const values: unknown[] = [req.params.id]
+    const add = (column: string, value: unknown) => {
+      values.push(value)
+      assignments.push(`${column} = $${values.length}`)
+    }
+
+    if (status) add('status', status)
+    if ('moderationNote' in body) add('moderation_note', clean(body.moderationNote, 1000) || null)
+    if ('weekKey' in body) add('week_key', clean(body.weekKey, 20) || currentWeekKey())
+    if ('playerId' in body) add('player_id', clean(body.playerId, 100) || null)
+    if ('clubId' in body) add('club_id', clean(body.clubId, 100) || null)
+    if ('leagueId' in body) add('league_id', clean(body.leagueId, 100) || null)
+    if ('matchId' in body) add('match_id', clean(body.matchId, 120) || null)
+    if ('votingOpensAt' in body) add('voting_opens_at', opens)
+    if ('votingClosesAt' in body) add('voting_closes_at', closes)
+    if ('videoUrl' in body) {
+      const nextVideo = clean(body.videoUrl, 1200)
+      if (!nextVideo || !/^https?:\/\//i.test(nextVideo)) return res.status(400).json({ error: 'Video URL must start with http:// or https://' })
+      add('video_url', nextVideo)
+    }
+    if ('thumbnailUrl' in body) add('thumbnail_url', clean(body.thumbnailUrl, 1200) || null)
+    if ('description' in body) add('description', clean(body.description, 1200) || null)
+    if ('headline' in body) add('headline', clean(body.headline, 220) || null)
+    if ('articleBody' in body) add('article_body', clean(body.articleBody, 30000) || null)
+    if ('mediaSource' in body) add('media_source', clean(body.mediaSource, 20).toUpperCase() === 'UPLOAD' ? 'UPLOAD' : 'URL')
+    if ('playerName' in body) add('player_name', clean(body.playerName, 120))
+    if ('clubName' in body) add('club_name', clean(body.clubName, 160))
+    if ('leagueName' in body) add('league_name', clean(body.leagueName, 180) || null)
+    if (featured !== undefined) {
+      add('featured', featured)
+      add('featured_order', featured ? featuredOrder : null)
+    }
+
+    await prisma.$transaction(async tx => {
+      if (featured === true && featuredOrder != null) {
+        await tx.$executeRawUnsafe(`UPDATE highlight_submissions SET featured = FALSE, featured_order = NULL, updated_at = NOW() WHERE featured_order = $1 AND id <> $2`, featuredOrder, req.params.id)
+      }
+      if (assignments.length) {
+        assignments.push('updated_at = NOW()')
+        if (status === 'APPROVED') assignments.push('published_at = COALESCE(published_at, NOW())')
+        if (status && status !== 'APPROVED') assignments.push('winner = FALSE')
+        await tx.$executeRawUnsafe(`UPDATE highlight_submissions SET ${assignments.join(', ')} WHERE id = $1`, ...values)
+      }
+    })
+
+    const updated = await prisma.$queryRawUnsafe<AdminHighlightRow[]>(`${selectSql} WHERE s.id = $1 GROUP BY s.id`, req.params.id)
+    res.json({ data: { ...updated[0], votes: Number(updated[0]?.votes ?? 0) } })
+  } catch (error) {
+    console.error('Highlight update failed', error)
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Could not save highlight changes.' })
+  }
 })
 
 router.post('/:id/winner', async (req, res) => {
