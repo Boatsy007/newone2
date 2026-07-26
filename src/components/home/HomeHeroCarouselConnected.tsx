@@ -48,9 +48,12 @@ export default function HomeHeroCarouselConnected() {
     }
   }, [pathname])
 
-  if (pathname !== '/' || !newsReady) return null
+  if (pathname !== '/') return null
   return <>
-    <HomeHeroCarousel top={home.entries[0]} updatedAt={home.generatedAt} />
-    <HomeHeroNumberOneMobileFix />
+    <style>{`.pf-hero{display:none!important}`}</style>
+    {newsReady && <>
+      <HomeHeroCarousel top={home.entries[0]} updatedAt={home.generatedAt} />
+      <HomeHeroNumberOneMobileFix />
+    </>}
   </>
 }
