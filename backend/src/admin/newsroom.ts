@@ -2,7 +2,6 @@
 import { Router } from 'express'
 import { prisma } from '../db/client.js'
 import { requireAdminKey } from '../api/middleware/auth.js'
-import { runNewsroom } from '../newsroom/index.js'
 import { analyseWeek } from '../newsroom/analysis.js'
 import { getEditorialCalendar } from '../newsroom/calendar.js'
 import { rebuildSearchIndex } from '../newsroom/search.js'
@@ -13,6 +12,7 @@ router.use(requireAdminKey)
 
 const clean = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0, max) : undefined
 const parseJson = <T>(value: string | null, fallback: T): T => { try { return value ? JSON.parse(value) as T : fallback } catch { return fallback } }
+const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 150)
 const NEWS_BUCKET = process.env.SUPABASE_NEWS_BUCKET || process.env.SUPABASE_LOGO_BUCKET || 'playfooty-logos'
 const MAX_NEWS_IMAGE_BYTES = 8 * 1024 * 1024
 const NEWS_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp'])
@@ -64,15 +64,49 @@ async function removeStoredNewsImage(imageUrl: string | null | undefined) {
   }).catch(() => {})
 }
 
-router.post('/run', async (req, res) => {
-  const b = (req.body ?? {}) as { force?: boolean; dryRun?: boolean; reindex?: boolean }
-  try { res.json({ data: await runNewsroom({ force: b.force, dryRun: b.dryRun, reindex: b.reindex }) }) }
-  catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : 'newsroom run failed' }) }
+router.post('/run', async (_req, res) => {
+  res.status(410).json({ error: 'Automatic article generation is disabled. Create articles manually in Admin → News.' })
 })
 
 router.post('/validate', async (_req, res) => {
   try { res.json({ data: await validateFootballDrafts() }) }
   catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : 'validation failed' }) }
+})
+
+router.post('/articles/manual', async (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const title = clean(body.title, 220)
+  const summary = clean(body.summary, 1000)
+  const articleText = clean(body.body, 20000)
+  if (!title || !summary || !articleText) return res.status(400).json({ error: 'Headline, summary and article body are required.' })
+
+  const base = slugify(title) || 'article'
+  let slug = base
+  let suffix = 2
+  while (await prisma.generatedArticle.findUnique({ where: { slug }, select: { id: true } })) slug = `${base}-${suffix++}`
+
+  const blocks = articleText.split(/\n{2,}/).map(text => text.trim()).filter(Boolean).map(text => ({ type: 'p', text }))
+  const article = await prisma.generatedArticle.create({
+    data: {
+      slug,
+      kind: 'MANUAL',
+      category: clean(body.category, 60) || 'club-news',
+      title,
+      subtitle: clean(body.subtitle, 300) ?? null,
+      summary,
+      body: JSON.stringify(blocks),
+      heroSeed: slug,
+      tags: JSON.stringify({}),
+      status: 'DRAFT',
+      author: clean(body.author, 120) || 'PlayFooty',
+      sourceData: JSON.stringify({ source: 'MANUAL_ADMIN', createdBy: 'admin', createdAt: new Date().toISOString() }),
+      confidence: 1,
+      reasoning: 'Manually created by the PlayFooty administrator.',
+      seoTitle: title,
+      seoDescription: summary.slice(0, 500),
+    },
+  })
+  res.status(201).json({ data: article })
 })
 
 router.get('/articles', async (req, res) => {
