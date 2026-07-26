@@ -1,16 +1,8 @@
 /**
  * CLI trigger for the Weekly Update Engine (Backend Phase B1).
  *
- * Runs the full Monday weekly update. The ladder sync step needs a browser
- * (Playwright/Chromium), so this is dispatched to GitHub Actions via
- * .github/workflows/weekly-update.yml — but it also runs locally.
- *
- * Usage:
- *   tsx src/jobs/weekly-update-trigger.ts                 # full run (sync all + recalc + sweep + drafts)
- *   tsx src/jobs/weekly-update-trigger.ts --no-sync       # skip ladder sync (serverless-safe steps only)
- *   tsx src/jobs/weekly-update-trigger.ts --league=<id>   # sync just one league
- *   tsx src/jobs/weekly-update-trigger.ts --no-backup     # skip the pre-run backup
- *   tsx src/jobs/weekly-update-trigger.ts --dry-run       # plan only, writes nothing
+ * Runs the Monday data update. News publishing is manual-only, so this trigger
+ * never asks the weekly engine to generate article drafts.
  */
 
 import { prisma }          from '../db/client.js'
@@ -31,7 +23,7 @@ async function main() {
     backupFirst:    !has('no-backup'),
     recalculate:    !has('no-recalc'),
     sweep:          !has('no-sweep'),
-    generateDrafts: !has('no-drafts'),
+    generateDrafts: false,
     dryRun:         has('dry-run'),
     source:         'CLI',
   })
@@ -40,7 +32,6 @@ async function main() {
   console.log(JSON.stringify(report, null, 2))
 
   await prisma.$disconnect()
-  // Non-zero exit if any step that ran failed, so CI surfaces problems.
   const anyFailed = report.steps.some(s => s.ran && !s.ok)
   if (anyFailed) process.exit(1)
 }
