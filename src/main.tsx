@@ -53,12 +53,11 @@ import UniversalBatchImportEnhancer from './components/admin/UniversalBatchImpor
 import UniversalBulkImportActions from './components/admin/UniversalBulkImportActions.tsx'
 import AdminWorkflowMobileFix from './components/admin/AdminWorkflowMobileFix.tsx'
 import AdminClubProfileFallback from './components/admin/AdminClubProfileFallback.tsx'
-import AdminHealthLink from './components/admin/AdminHealthLink.tsx'
 import AdminMvpLink from './components/admin/AdminMvpLink.tsx'
 import AdminLogoManager from './components/admin/AdminLogoManager.tsx'
 import AdminSponsorManager from './components/admin/AdminSponsorManager.tsx'
 import AdminPlayerSponsorLinks from './components/admin/AdminPlayerSponsorLinks.tsx'
-import AdminRankingRecalculate from './components/admin/AdminRankingRecalculate.tsx'
+import AdminOperationsMenu from './components/admin/AdminOperationsMenu.tsx'
 import AdminManualNewsCreator from './components/admin/AdminManualNewsCreator.tsx'
 import GoalKickerReviewEnhancer from './components/admin/GoalKickerReviewEnhancer.tsx'
 import GoalKickerPublicIntegration from './components/goal-kickers/GoalKickerPublicIntegration.tsx'
@@ -91,7 +90,7 @@ function ScrollToTop(){const{pathname}=useLocation();useEffect(()=>{window.scrol
 function HomePlayerProfileLinks(){const navigate=useNavigate();const{pathname}=useLocation();const[players,setPlayers]=useState<HomeGoalKicker[]>([]);useEffect(()=>{if(pathname!=='/')return;let active=true;void fetch('/api/goal-kickers?mode=raw&limit=5').then(r=>r.ok?r.json():Promise.reject(new Error(`HTTP ${r.status}`))).then((p:{data?:HomeGoalKicker[]})=>{if(active)setPlayers(Array.isArray(p.data)?p.data:[])}).catch(()=>{if(active)setPlayers([])});return()=>{active=false}},[pathname]);useEffect(()=>{if(pathname!=='/'||players.length===0)return;const handleClick=(event:MouseEvent)=>{const element=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('.pf-goal-row'):null;if(!element)return;const rows=Array.from(document.querySelectorAll<HTMLAnchorElement>('.pf-goal-row'));const player=players[rows.indexOf(element)];if(!player?.id)return;event.preventDefault();navigate(`/player/${encodeURIComponent(player.id)}`)};document.addEventListener('click',handleClick);return()=>document.removeEventListener('click',handleClick)},[navigate,pathname,players]);return null}
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><BrowserRouter><ScrollToTop/><PublicClaimRemoval/><TeamSelectionDeepLink/><ImportHandoffInjector/><UniversalBatchImportEnhancer/><UniversalBulkImportActions/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><AdminHealthLink/><AdminMvpLink/><AdminLogoManager/><AdminSponsorManager/><AdminPlayerSponsorLinks/><AdminRankingRecalculate/><AdminManualNewsCreator/><GoalKickerReviewEnhancer/><GoalKickerPublicIntegration/><GoalKickerAchievementsPortal/><HighlightPublicIntegration/><RankingHealthPortal/><UnifiedSearchExtras/><HomePlayerProfileLinks/><HomeHeroCarouselConnected/><HomeRecordsPortal/><HomePlayerRecordsPortal/><HomeMvpPortal/><HomeFeaturedHighlights/><HomeFeaturedGames/><HomeFeatureCopy/><HomeDesktopPolish/><HomeSponsorLabels/><DirectoryPublicFix/><LeaguesPublicFinder/><NewsChannelFilter/><NewsEditorialLayout/><SponsorProfilePortal/><AutoShareButtons/><ProfileShareButton/><PlayerMvpRank/><HomeMobilePolish/><ErrorBoundary><Routes>
+  <StrictMode><BrowserRouter><ScrollToTop/><PublicClaimRemoval/><TeamSelectionDeepLink/><ImportHandoffInjector/><UniversalBatchImportEnhancer/><UniversalBulkImportActions/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><AdminMvpLink/><AdminOperationsMenu/><AdminLogoManager/><AdminSponsorManager/><AdminPlayerSponsorLinks/><AdminManualNewsCreator/><GoalKickerReviewEnhancer/><GoalKickerPublicIntegration/><GoalKickerAchievementsPortal/><HighlightPublicIntegration/><RankingHealthPortal/><UnifiedSearchExtras/><HomePlayerProfileLinks/><HomeHeroCarouselConnected/><HomeRecordsPortal/><HomePlayerRecordsPortal/><HomeMvpPortal/><HomeFeaturedHighlights/><HomeFeaturedGames/><HomeFeatureCopy/><HomeDesktopPolish/><HomeSponsorLabels/><DirectoryPublicFix/><LeaguesPublicFinder/><NewsChannelFilter/><NewsEditorialLayout/><SponsorProfilePortal/><AutoShareButtons/><ProfileShareButton/><PlayerMvpRank/><HomeMobilePolish/><ErrorBoundary><Routes>
     <Route path="/" element={<App/>}/>
     <Route path="/power-rankings" element={<PowerRankings/>}/>
     <Route path="/rankings" element={<FullRankings/>}/>
