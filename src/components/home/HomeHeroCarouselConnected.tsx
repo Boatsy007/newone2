@@ -1,15 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { allArticles, loadPublished } from '../../news/content'
-import { useHomeData } from './useHomeData'
 import HomeHeroCarousel from './HomeHeroCarousel'
-import HomeHeroNumberOneMobileFix from './HomeHeroNumberOneMobileFix'
 
 type PublicArticle = { slug: string; tags?: Record<string, unknown> }
 
 export default function HomeHeroCarouselConnected() {
   const { pathname } = useLocation()
-  const home = useHomeData()
   const [newsReady, setNewsReady] = useState(false)
 
   useEffect(() => {
@@ -51,9 +48,6 @@ export default function HomeHeroCarouselConnected() {
   if (pathname !== '/') return null
   return <>
     <style>{`.pf-hero{display:none!important}`}</style>
-    {newsReady && <>
-      <HomeHeroCarousel top={home.entries[0]} updatedAt={home.generatedAt} />
-      <HomeHeroNumberOneMobileFix />
-    </>}
+    {newsReady && <HomeHeroCarousel />}
   </>
 }
