@@ -16,7 +16,7 @@ export default function HomeFeaturedGames(){
   useEffect(()=>{if(pathname!=='/')return;let active=true;void fetch('/api/featured-games').then(r=>r.ok?r.json():Promise.reject(new Error(`HTTP ${r.status}`))).then((payload:{data?:FeaturedGame[]})=>{if(active)setGames(Array.isArray(payload.data)?payload.data.slice(0,3):[])}).catch(()=>{if(active)setGames([])});return()=>{active=false}},[pathname])
   if(!target||pathname!=='/')return null
   const rows=placeholders.map((placeholder,index)=>games[index]??placeholder)
-  return createPortal(<section className="pf-featured-games gk-no-auto-share"><header><div><span>This week's featured match-ups</span><h2>Featured Games</h2></div><Link to="/matches">All games</Link></header><div className="pf-featured-games-row">{rows.map(game=><GameCard key={game.id} game={game} placeholder={game.id.startsWith('featured-game-placeholder-')}/>)}</div><style>{styles}</style></section>,target)
+  return createPortal(<section className="pf-featured-games gk-no-auto-share"><header><div><span>This week's featured match-ups</span><h2>Around the Grounds</h2></div><Link to="/matches">All games</Link></header><div className="pf-featured-games-row">{rows.map(game=><GameCard key={game.id} game={game} placeholder={game.id.startsWith('featured-game-placeholder-')}/>)}</div><style>{styles}</style></section>,target)
 }
 
 function GameCard({game,placeholder}:{game:FeaturedGame;placeholder:boolean}){
