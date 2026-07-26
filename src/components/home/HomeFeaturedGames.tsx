@@ -20,21 +20,28 @@ export default function HomeFeaturedGames(){
 }
 
 function GameCard({game,placeholder}:{game:FeaturedGame;placeholder:boolean}){
+  const [homeWins,awayWins]=relativeHigher(game.home.wins,game.away.wins)
+  const [homeLosses,awayLosses]=relativeLower(game.home.losses,game.away.losses)
+  const [homePercentage,awayPercentage]=relativeHigher(game.home.percentage,game.away.percentage)
   const metrics=[
-    {label:'National ranking',home:rank(game.home.nationalRank),away:rank(game.away.nationalRank),homeScore:inverse(game.home.nationalRank),awayScore:inverse(game.away.nationalRank)},
-    {label:'League ladder',home:rank(game.home.ladderPosition),away:rank(game.away.ladderPosition),homeScore:inverse(game.home.ladderPosition),awayScore:inverse(game.away.ladderPosition)},
-    {label:'Attack rating',home:game.home.attackRating.toFixed(1),away:game.away.attackRating.toFixed(1),homeScore:game.home.attackRating,awayScore:game.away.attackRating},
-    {label:'Defensive rating',home:game.home.defensiveRating.toFixed(1),away:game.away.defensiveRating.toFixed(1),homeScore:inverse(game.home.defensiveRating),awayScore:inverse(game.away.defensiveRating)},
-    {label:'Wins',home:String(game.home.wins),away:String(game.away.wins),homeScore:game.home.wins,awayScore:game.away.wins},
-    {label:'Losses',home:String(game.home.losses),away:String(game.away.losses),homeScore:inverse(game.home.losses),awayScore:inverse(game.away.losses)},
-    {label:'Percentage',home:`${game.home.percentage.toFixed(1)}%`,away:`${game.away.percentage.toFixed(1)}%`,homeScore:game.home.percentage,awayScore:game.away.percentage},
+    {label:'National ranking',home:rank(game.home.nationalRank),away:rank(game.away.nationalRank),homeWidth:rankWidth(game.home.nationalRank),awayWidth:rankWidth(game.away.nationalRank)},
+    {label:'League ladder',home:rank(game.home.ladderPosition),away:rank(game.away.ladderPosition),homeWidth:rankWidth(game.home.ladderPosition),awayWidth:rankWidth(game.away.ladderPosition)},
+    {label:'Attack rating',home:game.home.attackRating.toFixed(1),away:game.away.attackRating.toFixed(1),homeWidth:ratingWidth(game.home.attackRating),awayWidth:ratingWidth(game.away.attackRating)},
+    {label:'Defensive rating',home:game.home.defensiveRating.toFixed(1),away:game.away.defensiveRating.toFixed(1),homeWidth:ratingWidth(game.home.defensiveRating),awayWidth:ratingWidth(game.away.defensiveRating)},
+    {label:'Wins',home:String(game.home.wins),away:String(game.away.wins),homeWidth:homeWins,awayWidth:awayWins},
+    {label:'Losses',home:String(game.home.losses),away:String(game.away.losses),homeWidth:homeLosses,awayWidth:awayLosses},
+    {label:'Percentage',home:`${game.home.percentage.toFixed(1)}%`,away:`${game.away.percentage.toFixed(1)}%`,homeWidth:homePercentage,awayWidth:awayPercentage},
   ]
   return <article className={`pf-featured-game-card${placeholder?' is-placeholder':''}`}><div className="pf-featured-game-top"><small>{game.leagueName}</small><div className="pf-featured-game-teams"><Team team={game.home}/><b>VS</b><Team team={game.away}/></div></div><div className="pf-featured-game-metrics">{metrics.map(metric=><Metric key={metric.label}{...metric}/>)}</div><footer><Link to={game.home.teamSelectionUrl}>See {shortName(game.home.clubName)} team<ArrowRight size={16}/></Link><Link to={game.away.teamSelectionUrl}>See {shortName(game.away.clubName)} team<ArrowRight size={16}/></Link></footer></article>
 }
 function Team({team}:{team:TeamMetric}){return <div><span className="pf-featured-game-logo"><TeamLogo name={team.clubName} src={team.logoUrl??undefined} size={92}/></span><strong>{team.clubName}</strong></div>}
-function Metric({label,home,away,homeScore,awayScore}:{label:string;home:string;away:string;homeScore:number;awayScore:number}){const total=Math.max(homeScore+awayScore,1),homeWidth=Math.max(8,Math.min(92,(homeScore/total)*100)),awayWidth=Math.max(8,Math.min(92,(awayScore/total)*100));return <div className="pf-game-metric"><div><strong>{home}</strong><span>{label}</span><strong>{away}</strong></div><div className="pf-game-bars"><i><b style={{width:`${homeWidth}%`}}/></i><i><b style={{width:`${awayWidth}%`}}/></i></div></div>}
+function Metric({label,home,away,homeWidth,awayWidth}:{label:string;home:string;away:string;homeWidth:number;awayWidth:number}){return <div className="pf-game-metric"><div><strong>{home}</strong><span>{label}</span><strong>{away}</strong></div><div className="pf-game-bars"><i><b style={{width:`${clampWidth(homeWidth)}%`}}/></i><i><b style={{width:`${clampWidth(awayWidth)}%`}}/></i></div></div>}
 const rank=(value:number|null)=>value?`#${value}`:'—'
-const inverse=(value:number|null)=>value==null?0:1000/(Math.max(value,0)+1)
+const clampWidth=(value:number)=>Math.max(0,Math.min(100,Number.isFinite(value)?value:0))
+const rankWidth=(value:number|null)=>value==null||value<=0?0:100/value
+const ratingWidth=(value:number)=>clampWidth((value/200)*100)
+const relativeHigher=(home:number,away:number):[number,number]=>{const best=Math.max(home,away);return best<=0?[0,0]:[(home/best)*100,(away/best)*100]}
+const relativeLower=(home:number,away:number):[number,number]=>{const worst=Math.max(home,away);if(worst<=0)return[100,100];return[((worst-home)/worst)*100,((worst-away)/worst)*100]}
 const shortName=(value:string)=>value.split(/\s+/).slice(0,2).join(' ')
 
 const styles=`
