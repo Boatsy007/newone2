@@ -38,6 +38,31 @@ const selectSql = `
   FROM highlight_submissions s LEFT JOIN highlight_votes v ON v.submission_id = s.id
 `
 
+function storageConfig() {
+  const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '')
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
+  if (!supabaseUrl || !serviceKey) return null
+  return { supabaseUrl, serviceKey }
+}
+
+async function ensureHighlightBucket(supabaseUrl: string, serviceKey: string) {
+  const headers = { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': 'application/json' }
+  const existing = await fetch(`${supabaseUrl}/storage/v1/bucket/${encodeURIComponent(HIGHLIGHT_BUCKET)}`, { headers })
+  if (existing.ok) return
+  if (existing.status !== 404) {
+    const payload = await existing.json().catch(() => ({})) as { message?: string; error?: string }
+    throw new Error(payload.message || payload.error || 'Could not check highlight video storage.')
+  }
+  const created = await fetch(`${supabaseUrl}/storage/v1/bucket`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ id: HIGHLIGHT_BUCKET, name: HIGHLIGHT_BUCKET, public: true, allowed_mime_types: Array.from(VIDEO_TYPES) }),
+  })
+  if (!created.ok && created.status !== 409) {
+    const payload = await created.json().catch(() => ({})) as { message?: string; error?: string }
+    throw new Error(payload.message || payload.error || 'Could not create highlight video storage.')
+  }
+}
+
 router.get('/', async (req, res) => {
   const status = clean(req.query.status, 20).toUpperCase()
   const where = status && STATUSES.includes(status) ? `WHERE s.status = $1` : ''
@@ -48,25 +73,29 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/upload-url', async (req, res) => {
-  const body = (req.body ?? {}) as Record<string, unknown>
-  const contentType = clean(body.contentType, 100).toLowerCase()
-  if (!VIDEO_TYPES.has(contentType)) return res.status(400).json({ error: 'Use an MP4, MOV, M4V or WEBM video.' })
-  const fileName = clean(body.fileName, 180).replace(/[^a-z0-9._-]+/gi, '-') || 'highlight.mp4'
-  const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '')
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
-  if (!supabaseUrl || !serviceKey) return res.status(503).json({ error: 'Highlight video storage is not configured.' })
-  const path = `videos/${new Date().getUTCFullYear()}/${randomUUID()}-${fileName}`
-  const response = await fetch(`${supabaseUrl}/storage/v1/object/upload/sign/${HIGHLIGHT_BUCKET}/${path}`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': 'application/json' },
-    body: JSON.stringify({}),
-  })
-  const payload = await response.json().catch(() => ({})) as { url?: string; token?: string; message?: string }
-  if (!response.ok || (!payload.url && !payload.token)) return res.status(502).json({ error: payload.message || 'Could not prepare video upload.' })
-  const uploadUrl = payload.url
-    ? (payload.url.startsWith('http') ? payload.url : `${supabaseUrl}/storage/v1${payload.url}`)
-    : `${supabaseUrl}/storage/v1/object/upload/sign/${HIGHLIGHT_BUCKET}/${path}?token=${encodeURIComponent(payload.token!)}`
-  res.json({ data: { uploadUrl, publicUrl: `${supabaseUrl}/storage/v1/object/public/${HIGHLIGHT_BUCKET}/${path}`, path } })
+  try {
+    const body = (req.body ?? {}) as Record<string, unknown>
+    const contentType = clean(body.contentType, 100).toLowerCase()
+    if (!VIDEO_TYPES.has(contentType)) return res.status(400).json({ error: 'Use an MP4, MOV, M4V or WEBM video.' })
+    const fileName = clean(body.fileName, 180).replace(/[^a-z0-9._-]+/gi, '-') || 'highlight.mp4'
+    const config = storageConfig()
+    if (!config) return res.status(503).json({ error: 'Highlight video storage is not configured.' })
+    await ensureHighlightBucket(config.supabaseUrl, config.serviceKey)
+    const path = `videos/${new Date().getUTCFullYear()}/${randomUUID()}-${fileName}`
+    const response = await fetch(`${config.supabaseUrl}/storage/v1/object/upload/sign/${HIGHLIGHT_BUCKET}/${path}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${config.serviceKey}`, apikey: config.serviceKey, 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    const payload = await response.json().catch(() => ({})) as { url?: string; token?: string; message?: string; error?: string }
+    if (!response.ok || (!payload.url && !payload.token)) return res.status(502).json({ error: payload.message || payload.error || 'Could not prepare video upload.' })
+    const uploadUrl = payload.url
+      ? (payload.url.startsWith('http') ? payload.url : `${config.supabaseUrl}/storage/v1${payload.url}`)
+      : `${config.supabaseUrl}/storage/v1/object/upload/sign/${HIGHLIGHT_BUCKET}/${path}?token=${encodeURIComponent(payload.token!)}`
+    res.json({ data: { uploadUrl, publicUrl: `${config.supabaseUrl}/storage/v1/object/public/${HIGHLIGHT_BUCKET}/${path}`, path } })
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : 'Could not prepare video upload.' })
+  }
 })
 
 router.post('/', async (req, res) => {
@@ -75,8 +104,10 @@ router.post('/', async (req, res) => {
   if (!CATEGORIES.includes(category)) return res.status(400).json({ error: 'Choose a valid highlight category.' })
   const playerName = clean(body.playerName, 120)
   const clubName = clean(body.clubName, 160)
+  const leagueId = clean(body.leagueId, 100)
+  const clubId = clean(body.clubId, 100)
   const videoUrl = clean(body.videoUrl, 1200)
-  if (!playerName || !clubName || !videoUrl) return res.status(400).json({ error: 'Player, club and video are required.' })
+  if (!playerName || !clubName || !leagueId || !clubId || !videoUrl) return res.status(400).json({ error: 'Player, league, club and video are required.' })
   if (!/^https?:\/\//i.test(videoUrl)) return res.status(400).json({ error: 'Video URL must start with http:// or https://' })
   const id = randomUUID()
   const status = clean(body.status, 20).toUpperCase() === 'APPROVED' ? 'APPROVED' : 'PENDING'
@@ -90,8 +121,8 @@ router.post('/', async (req, res) => {
         video_url, thumbnail_url, description, headline, article_body, media_source, submitter_name, submitter_email,
         status, week_key, featured, featured_order, published_at
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'PlayFooty Admin','admin@playfooty.com.au',$18,$19,$20,$21,CASE WHEN $18='APPROVED' THEN NOW() ELSE NULL END)
-    `, id, category, clean(body.playerId, 100) || null, playerName, clean(body.clubId, 100) || null, clubName,
-      clean(body.leagueId, 100) || null, clean(body.leagueName, 180) || null, clean(body.matchId, 120) || null,
+    `, id, category, clean(body.playerId, 100) || null, playerName, clubId, clubName,
+      leagueId, clean(body.leagueName, 180) || null, clean(body.matchId, 120) || null,
       body.matchDate ? new Date(String(body.matchDate)) : null, clean(body.roundLabel, 80) || null, videoUrl,
       clean(body.thumbnailUrl, 1200) || null, clean(body.description, 1200) || null, clean(body.headline, 220) || null,
       clean(body.articleBody, 30000) || null, clean(body.mediaSource, 20).toUpperCase() === 'UPLOAD' ? 'UPLOAD' : 'URL',
