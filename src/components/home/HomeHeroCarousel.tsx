@@ -3,12 +3,28 @@ import { createPortal } from 'react-dom'
 import { ArrowRight } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { EditorialImage } from '../../news/components'
-import { categoryOf, featuredArticles, loadPublished, newsPath, type Article } from '../../news/content'
+import { newsPath } from '../../news/content'
 
-type NewsSlot = { key: string; article?: Article; title: string; summary: string; label: string }
-type Slide =
-  | { kind: 'news'; key: string; slot: NewsSlot }
-  | { kind: 'feature'; key: string }
+type HeroArticle = {
+  slug: string
+  title: string
+  summary: string
+  category: string
+  heroSeed: string
+  date: string
+  homepageOrder: number
+}
+type NewsSlot = { key: string; article?: HeroArticle; title: string; summary: string; label: string }
+type Slide = { kind: 'news'; key: string; slot: NewsSlot } | { kind: 'feature'; key: string }
+type ApiArticle = {
+  slug: string
+  title: string
+  summary: string
+  category: string
+  heroSeed: string
+  date: string
+  tags?: Record<string, unknown>
+}
 
 const AUTOPLAY_MS = 5000
 const PLACEHOLDERS: NewsSlot[] = [
@@ -20,7 +36,7 @@ const PLACEHOLDERS: NewsSlot[] = [
 export default function HomeHeroCarousel() {
   const { pathname } = useLocation()
   const [target, setTarget] = useState<HTMLElement | null>(null)
-  const [articles, setArticles] = useState<Article[]>([])
+  const [articles, setArticles] = useState<HeroArticle[]>([])
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(false)
   const startX = useRef<number | null>(null)
@@ -32,7 +48,6 @@ export default function HomeHeroCarousel() {
       document.querySelector<HTMLElement>('.pf-hero[data-pf-original-hero="true"]')?.style.removeProperty('display')
       return
     }
-
     let mounted = true
     const attach = () => {
       if (!mounted) return false
@@ -49,13 +64,11 @@ export default function HomeHeroCarousel() {
       setTarget(slot)
       return true
     }
-
     let observer: MutationObserver | null = null
     if (!attach()) {
       observer = new MutationObserver(() => { if (attach()) observer?.disconnect() })
       observer.observe(document.body, { childList: true, subtree: true })
     }
-
     return () => {
       mounted = false
       observer?.disconnect()
@@ -68,24 +81,33 @@ export default function HomeHeroCarousel() {
   useEffect(() => {
     if (pathname !== '/') return
     let alive = true
-    void loadPublished().then(() => {
-      if (!alive) return
-      const seen = new Set<string>()
-      const chosen = featuredArticles().filter(article => {
-        if (!article.heroSeed || seen.has(article.slug)) return false
-        seen.add(article.slug)
-        return true
-      }).slice(0, 3)
-      setArticles(chosen)
-    }).catch(() => { if (alive) setArticles([]) })
+    const query = new URLSearchParams({ homepage: '1', ts: String(Date.now()) })
+    void fetch(`/api/news?${query.toString()}`, { cache: 'no-store' })
+      .then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
+      .then((payload: { data?: ApiArticle[] }) => {
+        if (!alive) return
+        const chosen = (Array.isArray(payload.data) ? payload.data : [])
+          .filter(article => article.tags?.homepageFeatured === true)
+          .map(article => ({
+            slug: article.slug,
+            title: article.title,
+            summary: article.summary,
+            category: article.category,
+            heroSeed: article.heroSeed,
+            date: article.date,
+            homepageOrder: Math.max(1, Math.min(3, Number(article.tags?.homepageOrder ?? 99))),
+          }))
+          .filter(article => article.homepageOrder <= 3)
+          .sort((a, b) => a.homepageOrder - b.homepageOrder)
+        setArticles(chosen)
+      })
+      .catch(() => { if (alive) setArticles([]) })
     return () => { alive = false }
   }, [pathname])
 
   const newsSlots = useMemo<NewsSlot[]>(() => PLACEHOLDERS.map((placeholder, index) => {
-    const article = articles[index]
-    return article
-      ? { key: article.slug, article, title: article.title, summary: article.summary, label: categoryOf(article.category).label }
-      : placeholder
+    const article = articles.find(row => row.homepageOrder === index + 1)
+    return article ? { key: article.slug, article, title: article.title, summary: article.summary, label: categoryLabel(article.category) } : placeholder
   }), [articles])
 
   const slides = useMemo<Slide[]>(() => [
@@ -102,10 +124,7 @@ export default function HomeHeroCarousel() {
 
   if (!target || pathname !== '/') return null
   const go = (index: number) => setActive((index + slides.length) % slides.length)
-  const touchStart = (event: React.TouchEvent) => {
-    startX.current = event.touches[0]?.clientX ?? null
-    setPaused(true)
-  }
+  const touchStart = (event: React.TouchEvent) => { startX.current = event.touches[0]?.clientX ?? null; setPaused(true) }
   const touchEnd = (event: React.TouchEvent) => {
     const from = startX.current
     const to = event.changedTouches[0]?.clientX
@@ -115,26 +134,11 @@ export default function HomeHeroCarousel() {
   }
 
   return createPortal(
-    <section
-      className="pf-hero-carousel gk-no-auto-share"
-      aria-roledescription="carousel"
-      aria-label="Featured PlayFooty stories"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocusCapture={() => setPaused(true)}
-      onBlurCapture={() => setPaused(false)}
-      onTouchStart={touchStart}
-      onTouchEnd={touchEnd}
-    >
+    <section className="pf-hero-carousel gk-no-auto-share" aria-roledescription="carousel" aria-label="Featured PlayFooty stories" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={() => setPaused(false)} onTouchStart={touchStart} onTouchEnd={touchEnd}>
       <div className="pf-hero-carousel-track" style={{ transform: `translateX(-${active * 100}%)` }}>
-        {slides.map(slide => <div className="pf-hero-carousel-slide" key={slide.key} aria-hidden={slides[active]?.key !== slide.key}>
-          {slide.kind === 'news' && <NewsSlide slot={slide.slot} />}
-          {slide.kind === 'feature' && <FeatureSlide />}
-        </div>)}
+        {slides.map(slide => <div className="pf-hero-carousel-slide" key={slide.key} aria-hidden={slides[active]?.key !== slide.key}>{slide.kind === 'news' ? <NewsSlide slot={slide.slot} /> : <FeatureSlide />}</div>)}
       </div>
-      <div className="pf-hero-carousel-controls" aria-label="Choose hero slide">
-        {slides.map((slide, index) => <button key={slide.key} type="button" className={index === active ? 'is-active' : ''} onClick={() => setActive(index)} aria-label={`Show slide ${index + 1}`}><span /></button>)}
-      </div>
+      <div className="pf-hero-carousel-controls" aria-label="Choose hero slide">{slides.map((slide, index) => <button key={slide.key} type="button" className={index === active ? 'is-active' : ''} onClick={() => setActive(index)} aria-label={`Show slide ${index + 1}`}><span /></button>)}</div>
       <style>{styles}</style>
     </section>,
     target,
@@ -143,38 +147,18 @@ export default function HomeHeroCarousel() {
 
 function NewsSlide({ slot }: { slot: NewsSlot }) {
   const content = <>
-    <div className="pfhc-news-image">{slot.article
-      ? <EditorialImage seed={slot.article.heroSeed} ratio="16 / 7" rounded={0} />
-      : <div className="pfhc-placeholder-art"><span>PLAYFOOTY NEWS</span></div>}
-    </div>
+    <div className="pfhc-news-image">{slot.article ? <EditorialImage seed={slot.article.heroSeed} ratio="16 / 7" rounded={0} /> : <div className="pfhc-placeholder-art"><span>PLAYFOOTY NEWS</span></div>}</div>
     <div className="pfhc-news-shade" />
-    <div className="pfhc-news-copy pfhc-shell">
-      <span>{slot.label}{slot.article ? ` · ${formatShortDate(slot.article.date)}` : ''}</span>
-      <h2>{slot.title}</h2>
-      <p>{slot.summary}</p>
-      <b>{slot.article ? 'Read story' : 'News publishing soon'} <ArrowRight size={18} /></b>
-    </div>
+    <div className="pfhc-news-copy pfhc-shell"><span>{slot.label}{slot.article ? ` · ${formatShortDate(slot.article.date)}` : ''}</span><h2>{slot.title}</h2><p>{slot.summary}</p><b>{slot.article ? 'Read story' : 'News publishing soon'} <ArrowRight size={18} /></b></div>
   </>
-  return slot.article
-    ? <Link to={newsPath(slot.article.slug)} className="pfhc-news">{content}</Link>
-    : <div className="pfhc-news is-placeholder">{content}</div>
+  return slot.article ? <Link to={newsPath(slot.article.slug)} className="pfhc-news">{content}</Link> : <div className="pfhc-news is-placeholder">{content}</div>
 }
 
 function FeatureSlide() {
-  return <Link to="/matches" className="pfhc-feature">
-    <div className="pfhc-feature-art"><span>PF</span><i /><b /></div>
-    <div className="pfhc-feature-copy pfhc-shell">
-      <span>Every club. Every player. Every week.</span>
-      <h2>Follow every<br /><em>big moment</em></h2>
-      <p>Featured games, team selections, rankings, records and community football news in one place.</p>
-      <b>Explore match centre <ArrowRight size={18} /></b>
-    </div>
-  </Link>
+  return <Link to="/matches" className="pfhc-feature"><div className="pfhc-feature-art"><span>PF</span><i /><b /></div><div className="pfhc-feature-copy pfhc-shell"><span>Every club. Every player. Every week.</span><h2>Follow every<br /><em>big moment</em></h2><p>Featured games, team selections, rankings, records and community football news in one place.</p><b>Explore match centre <ArrowRight size={18} /></b></div></Link>
 }
-
-function formatShortDate(value: string) {
-  return new Date(value).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
-}
+function categoryLabel(value: string) { return value.split('-').map(word => word ? word[0].toUpperCase() + word.slice(1) : '').join(' ') }
+function formatShortDate(value: string) { return new Date(value).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) }
 
 const styles = `
 #pf-home-hero-carousel-slot{display:block;width:100%}.pf-hero-carousel{position:relative;width:100%;overflow:hidden;border-bottom:1px solid #e3e7ec;background:#071727;font-family:Barlow,Inter,Arial,sans-serif}.pf-hero-carousel-track{display:flex;width:100%;transition:transform .65s cubic-bezier(.22,1,.36,1);will-change:transform}.pf-hero-carousel-slide{flex:0 0 100%;min-width:0;min-height:620px}.pfhc-shell{width:min(1440px,calc(100% - 48px));margin:0 auto}
