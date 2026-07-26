@@ -92,6 +92,12 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
       }),
     ])
 
+    const publishedClubIds = [...new Set(footballLadder.flatMap(row => row.clubId ? [row.clubId] : []))]
+    const publishedClubs = publishedClubIds.length
+      ? await prisma.club.findMany({ where: { id: { in: publishedClubIds } }, select: { id: true, logoUrl: true } })
+      : []
+    const publishedLogoByClubId = new Map(publishedClubs.map(club => [club.id, club.logoUrl]))
+
     const rankedTeams = latestRun
       ? await prisma.rankingEntry.findMany({
           where: { runId: latestRun.id, leagueId: league.id }, orderBy: { rank: 'asc' },
@@ -101,8 +107,8 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
 
     const ladder = footballLadder.length
       ? footballLadder.filter(row => row.clubId).map(row => ({
-          clubId: row.clubId!, clubName: row.clubName, position: row.position,
-          played: row.played, wins: row.wins, losses: row.losses, draws: row.draws,
+          clubId: row.clubId!, clubName: row.clubName, logoUrl: publishedLogoByClubId.get(row.clubId!) ?? null,
+          position: row.position, played: row.played, wins: row.wins, losses: row.losses, draws: row.draws,
           goalsFor: row.pointsFor, goalsAgainst: row.pointsAgainst,
           percentage: row.percentage, points: row.premiershipPoints,
         }))
