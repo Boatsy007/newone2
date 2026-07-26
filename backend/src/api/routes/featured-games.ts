@@ -230,12 +230,22 @@ async function buildFeaturedGames(ids: string[]) {
         select: { clubId: true, clubName: true, position: true, played: true, wins: true, losses: true, draws: true, pointsFor: true, pointsAgainst: true, percentage: true },
       }),
       prisma.clubLeagueSeason.findMany({
-        where: { leagueId: fixture.leagueId, season: fixture.season, clubId: { in: fixtureClubIds }, isActive: true },
+        where: { leagueId: fixture.leagueId, season: fixture.season, isActive: true },
         select: { clubId: true, position: true, played: true, wins: true, losses: true, draws: true, goalsFor: true, goalsAgainst: true, percentage: true },
       }),
     ])
     const footballByClub = new Map(footballRows.filter(row => row.clubId).map(row => [row.clubId as string, row]))
     const legacyByClub = new Map(legacyRows.map(row => [row.clubId, row]))
+
+    const leagueRates = footballRows
+      .filter(row => (row.played ?? 0) > 0)
+      .map(row => ({ scored: Number(row.pointsFor ?? 0) / Number(row.played), conceded: Number(row.pointsAgainst ?? 0) / Number(row.played) }))
+    const fallbackLeagueRates = legacyRows
+      .filter(row => (row.played ?? 0) > 0)
+      .map(row => ({ scored: Number(row.goalsFor ?? 0) / Number(row.played), conceded: Number(row.goalsAgainst ?? 0) / Number(row.played) }))
+    const rates = leagueRates.length ? leagueRates : fallbackLeagueRates
+    const leagueScoringAverage = rates.length ? rates.reduce((sum, row) => sum + row.scored, 0) / rates.length : 0
+    const leagueConcedingAverage = rates.length ? rates.reduce((sum, row) => sum + row.conceded, 0) / rates.length : 0
 
     for (const clubId of fixtureClubIds) {
       const club = clubsById.get(clubId)
@@ -244,14 +254,23 @@ async function buildFeaturedGames(ids: string[]) {
       const played = football?.played ?? legacy?.played ?? 0
       const pointsFor = football?.pointsFor ?? legacy?.goalsFor ?? 0
       const pointsAgainst = football?.pointsAgainst ?? legacy?.goalsAgainst ?? 0
+      const scoringAverage = played > 0 ? Number(pointsFor) / Number(played) : 0
+      const concedingAverage = played > 0 ? Number(pointsAgainst) / Number(played) : 0
+      const attackRating = leagueScoringAverage > 0 && scoringAverage > 0
+        ? Math.min(200, Math.round((scoringAverage / leagueScoringAverage) * 1000) / 10)
+        : 0
+      const defensiveRating = leagueConcedingAverage > 0 && concedingAverage >= 0
+        ? Math.min(200, concedingAverage === 0 ? 200 : Math.round((leagueConcedingAverage / concedingAverage) * 1000) / 10)
+        : 0
+
       metricByFixtureClub.set(`${fixture.id}:${clubId}`, {
         clubId,
         clubName: club?.name ?? football?.clubName ?? (clubId === fixture.homeClubId ? fixture.homeName : fixture.awayName),
         logoUrl: club?.logoUrl ?? null,
         nationalRank: rankByClub.get(clubId) ?? null,
         ladderPosition: football?.position ?? legacy?.position ?? null,
-        attackRating: played > 0 ? Math.round((pointsFor / played) * 10) / 10 : 0,
-        defensiveRating: played > 0 ? Math.round((pointsAgainst / played) * 10) / 10 : 0,
+        attackRating,
+        defensiveRating,
         wins: football?.wins ?? legacy?.wins ?? 0,
         losses: football?.losses ?? legacy?.losses ?? 0,
         draws: football?.draws ?? legacy?.draws ?? 0,
