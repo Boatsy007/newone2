@@ -22,9 +22,7 @@ async function readSelection() {
 function currentFootballWeek() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: FOOTBALL_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+    year: 'numeric', month: '2-digit', day: '2-digit',
   }).formatToParts(new Date())
   const value = Object.fromEntries(parts.map(part => [part.type, part.value]))
   const localDate = new Date(Date.UTC(Number(value.year), Number(value.month) - 1, Number(value.day)))
@@ -36,6 +34,10 @@ function currentFootballWeek() {
   end.setUTCDate(end.getUTCDate() + 7)
   return { start, end }
 }
+
+const normalise = (value: string | null | undefined) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+const fixtureKey = (row: { leagueId: string; season: string; grade: string; round: string | null; homeName: string; awayName: string }) =>
+  [row.leagueId, row.season, row.grade, row.round ?? '', normalise(row.homeName), normalise(row.awayName)].join('|')
 
 type TeamMetric = {
   clubId: string
@@ -57,23 +59,32 @@ type AutoCandidate = {
   leagueId: string
   matchDate: Date
   score: number
+  reason: string
 }
 
-async function currentWeekManualIds(ids: string[], start: Date, end: Date) {
+async function publishedResultKeys(start: Date, end: Date) {
+  const rows = await prisma.footballResult.findMany({
+    where: { published: true, matchDate: { gte: start, lt: end } },
+    select: { leagueId: true, season: true, grade: true, round: true, homeName: true, awayName: true },
+  })
+  return new Set(rows.map(fixtureKey))
+}
+
+async function currentWeekManualIds(ids: string[], start: Date, end: Date, completed: Set<string>) {
   if (!ids.length) return [] as string[]
   const fixtures = await prisma.footballFixture.findMany({
     where: { id: { in: ids }, matchDate: { gte: start, lt: end } },
-    select: { id: true },
+    select: { id: true, leagueId: true, season: true, grade: true, round: true, homeName: true, awayName: true },
   })
-  const available = new Set(fixtures.map(row => row.id))
+  const available = new Set(fixtures.filter(row => !completed.has(fixtureKey(row))).map(row => row.id))
   return ids.filter(id => available.has(id))
 }
 
-async function automaticallySelectGames(limit: number, excludedIds: string[] = [], week = currentFootballWeek()) {
-  if (limit <= 0) return [] as string[]
+async function automaticallySelectGames(limit: number, excludedIds: string[] = [], week = currentFootballWeek(), completed = new Set<string>()) {
+  if (limit <= 0) return [] as AutoCandidate[]
 
   const now = new Date()
-  const fixtures = await prisma.footballFixture.findMany({
+  const fixtureRows = await prisma.footballFixture.findMany({
     where: {
       id: excludedIds.length ? { notIn: excludedIds } : undefined,
       matchDate: { gte: week.start, lt: week.end },
@@ -83,32 +94,23 @@ async function automaticallySelectGames(limit: number, excludedIds: string[] = [
     orderBy: { matchDate: 'asc' },
     take: 600,
     select: {
-      id: true,
-      leagueId: true,
-      season: true,
-      matchDate: true,
-      homeClubId: true,
-      awayClubId: true,
+      id: true, leagueId: true, season: true, grade: true, round: true, matchDate: true,
+      homeClubId: true, awayClubId: true, homeName: true, awayName: true,
     },
   })
-  if (!fixtures.length) return [] as string[]
+  const fixtures = fixtureRows.filter(row => row.matchDate && !completed.has(fixtureKey(row)))
+  if (!fixtures.length) return [] as AutoCandidate[]
 
   const clubIds = [...new Set(fixtures.flatMap(row => [row.homeClubId, row.awayClubId]).filter((value): value is string => Boolean(value)))]
   const leagueIds = [...new Set(fixtures.map(row => row.leagueId))]
   const seasons = [...new Set(fixtures.map(row => row.season))]
 
   const latestRun = await prisma.rankingRun.findFirst({
-    where: { status: 'COMPLETED' },
-    orderBy: { completedAt: 'desc' },
-    select: { id: true },
+    where: { status: 'COMPLETED' }, orderBy: { completedAt: 'desc' }, select: { id: true },
   })
-
   const [rankingRows, footballRows, legacyRows] = await Promise.all([
     latestRun
-      ? prisma.rankingEntry.findMany({
-          where: { runId: latestRun.id, clubId: { in: clubIds } },
-          select: { clubId: true, rank: true },
-        })
+      ? prisma.rankingEntry.findMany({ where: { runId: latestRun.id, clubId: { in: clubIds } }, select: { clubId: true, rank: true } })
       : Promise.resolve([]),
     prisma.footballLadderEntry.findMany({
       where: { leagueId: { in: leagueIds }, season: { in: seasons }, published: true },
@@ -139,17 +141,16 @@ async function automaticallySelectGames(limit: number, excludedIds: string[] = [
     const hoursAway = Math.abs(fixture.matchDate.getTime() - now.getTime()) / 3_600_000
 
     let score = Math.max(0, 1_200 - hoursAway)
+    let reason = 'Strongest available matchup this week'
 
     if (homePosition != null && awayPosition != null) {
       const low = Math.min(homePosition, awayPosition)
       const high = Math.max(homePosition, awayPosition)
       const gap = high - low
-
-      if (low === 1 && high === 2) score += 20_000
-      else if (high <= 4) score += 14_000
-      else if (high <= 6) score += 9_000
+      if (low === 1 && high === 2) { score += 20_000; reason = '1st v 2nd on the league ladder' }
+      else if (high <= 4) { score += 14_000; reason = 'Top-four league matchup' }
+      else if (high <= 6) { score += 9_000; reason = 'Top-six league matchup' }
       else score += Math.max(0, 7_000 - (homePosition + awayPosition) * 350)
-
       score += Math.max(0, 2_000 - gap * 300)
       score += Math.max(0, 1_500 - (homePosition + awayPosition) * 100)
     } else if (homePosition != null || awayPosition != null) {
@@ -159,55 +160,54 @@ async function automaticallySelectGames(limit: number, excludedIds: string[] = [
     if (homeRank != null && awayRank != null) {
       score += Math.max(0, 6_000 - (homeRank + awayRank) * 25)
       score += Math.max(0, 1_000 - Math.abs(homeRank - awayRank) * 15)
+      if (reason === 'Strongest available matchup this week' && homeRank <= 50 && awayRank <= 50) reason = 'Two nationally ranked top-50 clubs'
     } else if (homeRank != null || awayRank != null) {
       score += Math.max(0, 2_500 - (homeRank ?? awayRank ?? 100) * 15)
     }
-
     if (homePosition != null && awayPosition != null) score += 750
     if (homeRank != null && awayRank != null) score += 500
 
-    return [{ id: fixture.id, leagueId: fixture.leagueId, matchDate: fixture.matchDate, score }]
+    return [{ id: fixture.id, leagueId: fixture.leagueId, matchDate: fixture.matchDate, score, reason }]
   })
 
   candidates.sort((a, b) => b.score - a.score || a.matchDate.getTime() - b.matchDate.getTime())
-
-  const selected: string[] = []
+  const selected: AutoCandidate[] = []
   const usedLeagues = new Set<string>()
-
   for (const candidate of candidates) {
     if (selected.length >= limit) break
     if (usedLeagues.has(candidate.leagueId)) continue
-    selected.push(candidate.id)
+    selected.push(candidate)
     usedLeagues.add(candidate.leagueId)
   }
   for (const candidate of candidates) {
     if (selected.length >= limit) break
-    if (!selected.includes(candidate.id)) selected.push(candidate.id)
+    if (!selected.some(row => row.id === candidate.id)) selected.push(candidate)
   }
-
   return selected
 }
 
 async function resolveFeaturedGameIds() {
   const week = currentFootballWeek()
+  const completed = await publishedResultKeys(week.start, week.end)
   const storedManualIds = await readSelection()
-  const manualIds = await currentWeekManualIds(storedManualIds, week.start, week.end)
-  const automaticIds = await automaticallySelectGames(MAX_FEATURED_GAMES - manualIds.length, manualIds, week)
+  const manualIds = await currentWeekManualIds(storedManualIds, week.start, week.end, completed)
+  const automatic = await automaticallySelectGames(MAX_FEATURED_GAMES - manualIds.length, manualIds, week, completed)
+  const reasons = new Map<string, string>([
+    ...manualIds.map(id => [id, 'Manually featured in Admin'] as const),
+    ...automatic.map(row => [row.id, row.reason] as const),
+  ])
+  const automaticIds = automatic.map(row => row.id)
   return {
-    manualIds,
-    automaticIds,
+    manualIds, automaticIds, reasons,
     ids: [...manualIds, ...automaticIds].slice(0, MAX_FEATURED_GAMES),
-    weekStart: week.start,
-    weekEnd: week.end,
+    weekStart: week.start, weekEnd: week.end,
   }
 }
 
-async function buildFeaturedGames(ids: string[]) {
+async function buildFeaturedGames(ids: string[], reasons = new Map<string, string>()) {
   if (!ids.length) return []
-
   const fixtures = await prisma.footballFixture.findMany({
-    where: { id: { in: ids } },
-    include: { league: { include: { state: true } } },
+    where: { id: { in: ids } }, include: { league: { include: { state: true } } },
   })
   const order = new Map(ids.map((id, index) => [id, index]))
   fixtures.sort((a, b) => (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999))
@@ -215,7 +215,6 @@ async function buildFeaturedGames(ids: string[]) {
   const clubIds = [...new Set(fixtures.flatMap(row => [row.homeClubId, row.awayClubId]).filter((value): value is string => Boolean(value)))]
   const clubs = await prisma.club.findMany({ where: { id: { in: clubIds } }, select: { id: true, name: true, logoUrl: true } })
   const clubsById = new Map(clubs.map(row => [row.id, row]))
-
   const latestRun = await prisma.rankingRun.findFirst({ where: { status: 'COMPLETED' }, orderBy: { completedAt: 'desc' }, select: { id: true } })
   const rankings = latestRun ? await prisma.rankingEntry.findMany({ where: { runId: latestRun.id, clubId: { in: clubIds } }, select: { clubId: true, rank: true } }) : []
   const rankByClub = new Map(rankings.map(row => [row.clubId, row.rank]))
@@ -225,8 +224,7 @@ async function buildFeaturedGames(ids: string[]) {
     const fixtureClubIds = [fixture.homeClubId, fixture.awayClubId].filter((value): value is string => Boolean(value))
     const [footballRows, legacyRows] = await Promise.all([
       prisma.footballLadderEntry.findMany({
-        where: { leagueId: fixture.leagueId, season: fixture.season, published: true },
-        orderBy: { position: 'asc' },
+        where: { leagueId: fixture.leagueId, season: fixture.season, published: true }, orderBy: { position: 'asc' },
         select: { clubId: true, clubName: true, position: true, played: true, wins: true, losses: true, draws: true, pointsFor: true, pointsAgainst: true, percentage: true },
       }),
       prisma.clubLeagueSeason.findMany({
@@ -236,14 +234,9 @@ async function buildFeaturedGames(ids: string[]) {
     ])
     const footballByClub = new Map(footballRows.filter(row => row.clubId).map(row => [row.clubId as string, row]))
     const legacyByClub = new Map(legacyRows.map(row => [row.clubId, row]))
-
-    const leagueRates = footballRows
-      .filter(row => (row.played ?? 0) > 0)
-      .map(row => ({ scored: Number(row.pointsFor ?? 0) / Number(row.played), conceded: Number(row.pointsAgainst ?? 0) / Number(row.played) }))
-    const fallbackLeagueRates = legacyRows
-      .filter(row => (row.played ?? 0) > 0)
-      .map(row => ({ scored: Number(row.goalsFor ?? 0) / Number(row.played), conceded: Number(row.goalsAgainst ?? 0) / Number(row.played) }))
-    const rates = leagueRates.length ? leagueRates : fallbackLeagueRates
+    const leagueRates = footballRows.filter(row => row.played > 0).map(row => ({ scored: row.pointsFor / row.played, conceded: row.pointsAgainst / row.played }))
+    const fallbackRates = legacyRows.filter(row => row.played > 0).map(row => ({ scored: row.goalsFor / row.played, conceded: row.goalsAgainst / row.played }))
+    const rates = leagueRates.length ? leagueRates : fallbackRates
     const leagueScoringAverage = rates.length ? rates.reduce((sum, row) => sum + row.scored, 0) / rates.length : 0
     const leagueConcedingAverage = rates.length ? rates.reduce((sum, row) => sum + row.conceded, 0) / rates.length : 0
 
@@ -254,23 +247,17 @@ async function buildFeaturedGames(ids: string[]) {
       const played = football?.played ?? legacy?.played ?? 0
       const pointsFor = football?.pointsFor ?? legacy?.goalsFor ?? 0
       const pointsAgainst = football?.pointsAgainst ?? legacy?.goalsAgainst ?? 0
-      const scoringAverage = played > 0 ? Number(pointsFor) / Number(played) : 0
-      const concedingAverage = played > 0 ? Number(pointsAgainst) / Number(played) : 0
-      const attackRating = leagueScoringAverage > 0 && scoringAverage > 0
-        ? Math.min(200, Math.round((scoringAverage / leagueScoringAverage) * 1000) / 10)
-        : 0
-      const defensiveRating = leagueConcedingAverage > 0 && concedingAverage >= 0
-        ? Math.min(200, concedingAverage === 0 ? 200 : Math.round((leagueConcedingAverage / concedingAverage) * 1000) / 10)
-        : 0
-
+      const scoringAverage = played > 0 ? Number(pointsFor) / played : 0
+      const concedingAverage = played > 0 ? Number(pointsAgainst) / played : 0
+      const attackRating = leagueScoringAverage > 0 && scoringAverage > 0 ? Math.min(200, Math.round((scoringAverage / leagueScoringAverage) * 1000) / 10) : 0
+      const defensiveRating = leagueConcedingAverage > 0 && concedingAverage >= 0 ? Math.min(200, concedingAverage === 0 ? 200 : Math.round((leagueConcedingAverage / concedingAverage) * 1000) / 10) : 0
       metricByFixtureClub.set(`${fixture.id}:${clubId}`, {
         clubId,
         clubName: club?.name ?? football?.clubName ?? (clubId === fixture.homeClubId ? fixture.homeName : fixture.awayName),
         logoUrl: club?.logoUrl ?? null,
         nationalRank: rankByClub.get(clubId) ?? null,
         ladderPosition: football?.position ?? legacy?.position ?? null,
-        attackRating,
-        defensiveRating,
+        attackRating, defensiveRating,
         wins: football?.wins ?? legacy?.wins ?? 0,
         losses: football?.losses ?? legacy?.losses ?? 0,
         draws: football?.draws ?? legacy?.draws ?? 0,
@@ -291,6 +278,7 @@ async function buildFeaturedGames(ids: string[]) {
     round: row.round,
     matchDate: row.matchDate,
     venue: row.venue,
+    selectionReason: reasons.get(row.id) ?? 'Featured matchup this week',
     home: row.homeClubId ? metricByFixtureClub.get(`${row.id}:${row.homeClubId}`) ?? null : null,
     away: row.awayClubId ? metricByFixtureClub.get(`${row.id}:${row.awayClubId}`) ?? null : null,
   })).filter(row => row.home && row.away)
@@ -301,7 +289,7 @@ publicRouter.get('/', publicRateLimit, cachePublic(120), async (_req, res) => {
   try {
     const selection = await resolveFeaturedGameIds()
     res.json({
-      data: await buildFeaturedGames(selection.ids),
+      data: await buildFeaturedGames(selection.ids, selection.reasons),
       meta: {
         selected: selection.ids.length,
         manual: selection.manualIds.length,
@@ -336,7 +324,7 @@ adminRouter.put('/', async (req, res) => {
     update: { value: JSON.stringify(fixtureIds) },
   })
   const selection = await resolveFeaturedGameIds()
-  res.json({ data: { fixtureIds, automaticFixtureIds: selection.automaticIds, games: await buildFeaturedGames(selection.ids), weekStart: selection.weekStart, weekEnd: selection.weekEnd } })
+  res.json({ data: { fixtureIds, automaticFixtureIds: selection.automaticIds, games: await buildFeaturedGames(selection.ids, selection.reasons), weekStart: selection.weekStart, weekEnd: selection.weekEnd } })
 })
 
 export { publicRouter as featuredGamesRouter, adminRouter as adminFeaturedGamesRouter }
