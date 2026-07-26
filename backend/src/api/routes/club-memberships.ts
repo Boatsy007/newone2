@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { prisma } from '../../db/client.js'
 import { acceptClubInvitation, authenticateClubUser, createPendingMembership, membershipForClub, membershipsForUser, requireActiveClubMembership, roleCan } from '../../auth/club-auth.js'
 import { getClubSponsorships } from '../../commercial/sponsorships.service.js'
+import { clubInsights } from '../../analytics/insights.js'
 import { publicRateLimit } from '../middleware/rate-limit.js'
 
 const router = Router()
@@ -87,16 +88,31 @@ router.get('/clubs/:clubId/dashboard', authenticateClubUser, requireActiveClubMe
     const season = club.clubSeasons[0]
     const latestSheet = sheetResult.status === 'fulfilled' ? sheetResult.value[0] ?? null : null
     const sponsors = sponsorsResult.status === 'fulfilled' && Array.isArray(sponsorsResult.value) ? sponsorsResult.value : []
+    const pendingUsers = pendingUsersResult.status==='fulfilled' ? pendingUsersResult.value[0]?.count??0 : 0
+    const unreadNotifications = notificationsResult.status==='fulfilled' ? notificationsResult.value : 0
+    const analytics = await clubInsights(clubId).catch(() => ({ clubId,clubName:club.name,profileViews:{all:0,last7:0,last30:0},uniqueVisitors:{all:0,last7:0},weeklyGrowthPct:0,monthlyGrowthPct:0,searches:0,sponsorClicks:0,newsReads:0 }))
+    const draftCount = articles.filter(article=>article.status==='DRAFT').length
+    const approvalCount = articles.filter(article=>article.status==='APPROVED').length
+    const actionItems = [
+      completedFields < profileChecks.length ? { type:'PROFILE',title:'Complete the club profile',detail:`${profileChecks.length-completedFields} key details are still missing`,href:roleCan(membership.role,'profile')?`/club-portal/${clubId}/profile`:null } : null,
+      latestSheet && latestSheet.status !== 'PUBLISHED' ? { type:'TEAM_SELECTION',title:'Team selection is not published',detail:`${latestSheet.roundLabel} · ${latestSheet.playerCount} players selected`,href:roleCan(membership.role,'team_selection')?`/club-portal/${clubId}/team-selection`:null } : null,
+      draftCount ? { type:'NEWS',title:`${draftCount} club stor${draftCount===1?'y':'ies'} still in draft`,detail:'Finish and submit club news for PlayFooty approval',href:roleCan(membership.role,'media')?`/club-portal/${clubId}/news`:null } : null,
+      approvalCount ? { type:'NEWS',title:`${approvalCount} stor${approvalCount===1?'y is':'ies are'} awaiting approval`,detail:'PlayFooty will review submitted club news',href:roleCan(membership.role,'media')?`/club-portal/${clubId}/news`:null } : null,
+      pendingUsers ? { type:'USERS',title:`${pendingUsers} access request${pendingUsers===1?'':'s'} waiting`,detail:'Review club users and invitations',href:roleCan(membership.role,'manage_users')?`/club-portal/${clubId}/users`:null } : null,
+      unreadNotifications ? { type:'NOTIFICATION',title:`${unreadNotifications} unread notification${unreadNotifications===1?'':'s'}`,detail:'Club activity needs attention',href:null } : null,
+    ].filter(Boolean)
 
     res.json({ data: {
       club: { id:club.id,name:club.name,shortName:club.shortName,logoUrl:club.logoUrl,primaryColour:club.primaryColour,secondaryColour:club.secondaryColour,state:club.state.code,stateName:club.state.name,leagueId:season?.leagueId??null,leagueName:season?.league.name??null,season:season?.season??null,grade:season?.grade??null },
       membership: { id:membership.id,role:membership.role,status:membership.status,permissions:{manageUsers:roleCan(membership.role,'manage_users'),teamSelection:roleCan(membership.role,'team_selection'),media:roleCan(membership.role,'media'),sponsors:roleCan(membership.role,'sponsors'),profile:roleCan(membership.role,'profile'),view:true} },
       profile: { completion:Math.round((completedFields/profileChecks.length)*100),completedFields,totalFields:profileChecks.length,lastUpdatedAt:profile.updatedAt,photoCount:jsonArrayLength(profile.gallery)+jsonArrayLength(profile.uniformPhotos),partnerLogoCount:jsonArrayLength(profile.partnerLogos),missing:[!club.logoUrl?'Club logo':null,!(club.description||profile.history)?'Club story':null,!profile.ground?'Home ground':null,!profile.address?'Address':null,!(club.contactEmail||profile.email)?'Contact email':null,!profile.phone?'Phone':null].filter(Boolean) },
       teamSelection: latestSheet,
-      news: { total:articles.length,drafts:articles.filter(article=>article.status==='DRAFT').length,pending:articles.filter(article=>article.status==='APPROVED').length,published:articles.filter(article=>article.status==='PUBLISHED').length,recent:articles },
-      sponsors: { active:sponsors.length,items:sponsors.slice(0,4) },
-      users: { pending:pendingUsersResult.status==='fulfilled' ? pendingUsersResult.value[0]?.count??0 : 0 },
-      notifications: { unread:notificationsResult.status==='fulfilled' ? notificationsResult.value : 0 },
+      news: { total:articles.length,drafts:draftCount,pending:approvalCount,published:articles.filter(article=>article.status==='PUBLISHED').length,recent:articles },
+      sponsors: { active:sponsors.filter((item:{status?:string})=>['APPROVED','ACTIVE','PAYMENT_COMPLETE','RENEWAL_DUE'].includes(String(item.status))).length,items:sponsors.slice(0,4) },
+      users: { pending:pendingUsers },
+      notifications: { unread:unreadNotifications },
+      analytics,
+      actionCentre:{total:actionItems.length,items:actionItems},
       generatedAt:new Date().toISOString(),
     } })
   } catch (error) { res.status(500).json({ error:'Unable to load club dashboard',detail:String(error) }) }
