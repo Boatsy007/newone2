@@ -2,53 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { fetchLeague, leaguePath, teamPath, type ClubProfile, type LeagueDetail } from '../../lib/rankings'
+import { ladderRowKey, normaliseClubName, normaliseLeagueLadder } from '../../lib/leagueLadder'
 import { TeamLogo } from '../rankings/bits'
 import { clubIdentity } from './sections'
-
-type LadderRow = LeagueDetail['ladder'][number]
-
-function normaliseName(value: string | null | undefined) {
-  return (value ?? '')
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/\b(seniors?|senior men|a grade|football club|fc)\b/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-}
-
-function rowKey(row: LadderRow) {
-  return row.clubId || normaliseName(row.clubName)
-}
-
-function scoreRow(row: LadderRow) {
-  return (Number(row.played) || 0) * 100000
-    + (Number(row.points) || 0) * 1000
-    + (Number(row.percentage) || 0)
-    - (Number(row.position) || 999)
-}
-
-function cleanLadder(rows: LadderRow[]) {
-  const byClub = new Map<string, LadderRow>()
-
-  for (const row of rows) {
-    const key = rowKey(row)
-    if (!key) continue
-    const current = byClub.get(key)
-    if (!current || scoreRow(row) > scoreRow(current)) byClub.set(key, row)
-  }
-
-  const cleaned = [...byClub.values()]
-  cleaned.sort((a, b) => {
-    const aPos = Number(a.position)
-    const bPos = Number(b.position)
-    if (Number.isFinite(aPos) && aPos > 0 && Number.isFinite(bPos) && bPos > 0 && aPos !== bPos) return aPos - bPos
-    if ((b.points ?? 0) !== (a.points ?? 0)) return (b.points ?? 0) - (a.points ?? 0)
-    if ((b.percentage ?? 0) !== (a.percentage ?? 0)) return (b.percentage ?? 0) - (a.percentage ?? 0)
-    return a.clubName.localeCompare(b.clubName)
-  })
-
-  return cleaned.map((row, index) => ({ ...row, position: index + 1 }))
-}
 
 export default function ConnectedClubLadder({ club }: { club: ClubProfile }) {
   const [league, setLeague] = useState<LeagueDetail | null>(null)
@@ -72,11 +28,11 @@ export default function ConnectedClubLadder({ club }: { club: ClubProfile }) {
     return () => { active = false }
   }, [club.leagueId])
 
-  const ladder = useMemo(() => cleanLadder(Array.isArray(league?.ladder) ? league!.ladder : []), [league])
+  const ladder = useMemo(() => normaliseLeagueLadder(league?.ladder), [league])
   if (!club.leagueId) return null
 
   const shortName = (league?.shortName || league?.name || club.leagueName || 'League').replace(/\s*-\s*a grade.*/i, '')
-  const clubNameKey = normaliseName(club.clubName)
+  const clubNameKey = normaliseClubName(club.clubName)
   const hasDraws = ladder.some(row => (row.draws ?? 0) > 0)
 
   return (
@@ -100,11 +56,11 @@ export default function ConnectedClubLadder({ club }: { club: ClubProfile }) {
             <span>Pos</span><span>Club</span><span>W-L{hasDraws ? '-D' : ''}</span><span>%</span><span>Pts</span>
           </div>
           {ladder.map(row => {
-            const isClub = row.clubId === club.clubId || normaliseName(row.clubName) === clubNameKey
+            const isClub = row.clubId === club.clubId || normaliseClubName(row.clubName) === clubNameKey
             const topFour = (row.position ?? 999) <= 4
             return (
               <Link
-                key={rowKey(row)}
+                key={ladderRowKey(row)}
                 to={teamPath(row.clubId)}
                 className={`connected-club-ladder-grid connected-club-ladder-row${isClub ? ' is-club' : ''}${topFour ? ' is-top-four' : ''}`}
                 style={isClub ? { '--club-accent': identity.accent, '--club-wash': identity.wash } as React.CSSProperties : undefined}
