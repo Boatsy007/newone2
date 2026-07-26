@@ -13,6 +13,56 @@ router.use(requireAdminKey)
 
 const clean = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0, max) : undefined
 const parseJson = <T>(value: string | null, fallback: T): T => { try { return value ? JSON.parse(value) as T : fallback } catch { return fallback } }
+const NEWS_BUCKET = process.env.SUPABASE_NEWS_BUCKET || process.env.SUPABASE_LOGO_BUCKET || 'playfooty-logos'
+const MAX_NEWS_IMAGE_BYTES = 8 * 1024 * 1024
+const NEWS_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp'])
+const NEWS_IMAGE_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/webp': 'webp' }
+
+function safeFileName(value: unknown, fallback: string) {
+  const raw = typeof value === 'string' ? value : fallback
+  return raw.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || fallback
+}
+
+function decodeNewsImage(body: Record<string, unknown>) {
+  const contentType = typeof body.contentType === 'string' ? body.contentType : 'image/jpeg'
+  if (!NEWS_IMAGE_TYPES.has(contentType)) throw new Error('Unsupported image type. Use PNG, JPG or WEBP.')
+  const raw = typeof body.dataUrl === 'string' ? body.dataUrl : typeof body.base64 === 'string' ? body.base64 : ''
+  if (!raw) throw new Error('Image file data required')
+  const base64 = raw.includes(',') ? raw.split(',').pop()! : raw
+  const buffer = Buffer.from(base64, 'base64')
+  if (!buffer.length) throw new Error('Image file is empty')
+  if (buffer.length > MAX_NEWS_IMAGE_BYTES) throw new Error('News images must be 8 MB or smaller')
+  const fallback = `hero.${NEWS_IMAGE_EXT[contentType] ?? 'jpg'}`
+  return { buffer, contentType, fileName: safeFileName(body.fileName, fallback) }
+}
+
+async function uploadNewsImage(articleId: string, body: Record<string, unknown>) {
+  const supabaseUrl = process.env.SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
+  if (!supabaseUrl || !serviceKey) throw new Error('Supabase Storage is not configured.')
+  const { buffer, contentType, fileName } = decodeNewsImage(body)
+  const path = `news-images/${articleId}/${Date.now()}-${fileName}`
+  const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/${NEWS_BUCKET}/${path}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey, 'content-type': contentType, 'x-upsert': 'true' },
+    body: buffer,
+  })
+  if (!response.ok) throw new Error(`News image upload failed: HTTP ${response.status} ${await response.text().catch(() => '')}`.trim())
+  return { path, publicUrl: `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${NEWS_BUCKET}/${path}` }
+}
+
+async function removeStoredNewsImage(imageUrl: string | null | undefined) {
+  const supabaseUrl = process.env.SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
+  if (!supabaseUrl || !serviceKey || !imageUrl) return
+  const marker = `/storage/v1/object/public/${NEWS_BUCKET}/`
+  const index = imageUrl.indexOf(marker)
+  if (index === -1) return
+  const path = imageUrl.slice(index + marker.length)
+  await fetch(`${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/${NEWS_BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`, {
+    method: 'DELETE', headers: { authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
+  }).catch(() => {})
+}
 
 router.post('/run', async (req, res) => {
   const b = (req.body ?? {}) as { force?: boolean; dryRun?: boolean; reindex?: boolean }
@@ -46,6 +96,25 @@ router.get('/articles', async (req, res) => {
   })) })
 })
 
+router.post('/articles/:id/image', async (req, res) => {
+  const article = await prisma.generatedArticle.findUnique({ where: { id: String(req.params.id) } })
+  if (!article) return res.status(404).json({ error: 'article not found' })
+  try {
+    const uploaded = await uploadNewsImage(article.id, (req.body ?? {}) as Record<string, unknown>)
+    await removeStoredNewsImage(article.heroSeed)
+    const updated = await prisma.generatedArticle.update({ where: { id: article.id }, data: { heroSeed: uploaded.publicUrl } })
+    res.json({ data: updated, image: uploaded })
+  } catch (err) { res.status(400).json({ error: err instanceof Error ? err.message : 'news image upload failed' }) }
+})
+
+router.delete('/articles/:id/image', async (req, res) => {
+  const article = await prisma.generatedArticle.findUnique({ where: { id: String(req.params.id) } })
+  if (!article) return res.status(404).json({ error: 'article not found' })
+  await removeStoredNewsImage(article.heroSeed)
+  const updated = await prisma.generatedArticle.update({ where: { id: article.id }, data: { heroSeed: article.slug } })
+  res.json({ data: updated })
+})
+
 router.patch('/articles/:id', async (req, res) => {
   const existing = await prisma.generatedArticle.findUnique({ where: { id: String(req.params.id) } })
   if (!existing) return res.status(404).json({ error: 'article not found' })
@@ -58,7 +127,7 @@ router.patch('/articles/:id', async (req, res) => {
     ...(body.subtitle !== undefined ? { subtitle: clean(body.subtitle, 300) ?? null } : {}),
     ...(clean(body.summary, 1000) ? { summary: clean(body.summary, 1000)! } : {}),
     ...(clean(body.category, 60) ? { category: clean(body.category, 60)! } : {}),
-    ...(clean(body.heroSeed, 500) ? { heroSeed: clean(body.heroSeed, 500)! } : {}),
+    ...(clean(body.heroSeed, 1000) ? { heroSeed: clean(body.heroSeed, 1000)! } : {}),
     ...(body.seoTitle !== undefined ? { seoTitle: clean(body.seoTitle, 220) ?? null } : {}),
     ...(body.seoDescription !== undefined ? { seoDescription: clean(body.seoDescription, 500) ?? null } : {}),
     ...(body.tags && typeof body.tags === 'object' ? { tags: JSON.stringify(body.tags) } : {}),
