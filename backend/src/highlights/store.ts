@@ -8,7 +8,8 @@ export function ensureHighlightTables() {
       "id" TEXT PRIMARY KEY, "category" TEXT NOT NULL, "player_id" TEXT, "player_name" TEXT NOT NULL,
       "club_id" TEXT, "club_name" TEXT NOT NULL, "league_id" TEXT, "league_name" TEXT,
       "match_id" TEXT, "match_date" TIMESTAMPTZ, "round_label" TEXT, "video_url" TEXT NOT NULL,
-      "thumbnail_url" TEXT, "description" TEXT, "submitter_name" TEXT NOT NULL,
+      "thumbnail_url" TEXT, "description" TEXT, "headline" TEXT, "article_body" TEXT,
+      "media_source" TEXT NOT NULL DEFAULT 'URL', "submitter_name" TEXT NOT NULL,
       "submitter_email" TEXT NOT NULL, "status" TEXT NOT NULL DEFAULT 'PENDING',
       "week_key" TEXT NOT NULL, "voting_opens_at" TIMESTAMPTZ, "voting_closes_at" TIMESTAMPTZ,
       "published_at" TIMESTAMPTZ, "winner" BOOLEAN NOT NULL DEFAULT FALSE,
@@ -21,6 +22,9 @@ export function ensureHighlightTables() {
     await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "dedupe_key" TEXT`)
     await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "featured" BOOLEAN NOT NULL DEFAULT FALSE`)
     await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "featured_order" INTEGER`)
+    await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "headline" TEXT`)
+    await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "article_body" TEXT`)
+    await prisma.$executeRawUnsafe(`ALTER TABLE "highlight_submissions" ADD COLUMN IF NOT EXISTS "media_source" TEXT NOT NULL DEFAULT 'URL'`)
     await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "highlight_votes" (
       "id" TEXT PRIMARY KEY, "submission_id" TEXT NOT NULL REFERENCES "highlight_submissions"("id") ON DELETE CASCADE,
       "category" TEXT NOT NULL, "week_key" TEXT NOT NULL, "voter_key" TEXT NOT NULL,
