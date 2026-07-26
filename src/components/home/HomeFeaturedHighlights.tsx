@@ -93,7 +93,7 @@ export default function HomeFeaturedHighlights() {
   return createPortal(
     <section className="pf-featured-highlights">
       <header>
-        <div><span>Marks, goals and moments of the week</span><h2>Featured Highlights</h2></div>
+        <div><span>Marks, goals and moments of the week</span><h2>Plays of the Week</h2></div>
         <Link to="/highlights">All highlights</Link>
       </header>
       <div className="pf-featured-highlights-row">
