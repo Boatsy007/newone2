@@ -7,6 +7,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { Trophy } from 'lucide-react'
 import { teamPath, type LeagueDetail, type LeagueRankedTeam, type FormResult } from '../../lib/rankings'
+import { ladderRowKey, normaliseLeagueLadder } from '../../lib/leagueLadder'
 import { TeamLogo, FormPips } from '../rankings/bits'
 import { Section, SectionHead, Reveal, Move, TEXT, MUTE, FAINT, LINE, PINK, GOLD, GOLD_DK, UP } from '../home/ui'
 import { leagueAccent, winStreak, LeagueClubSearch } from './sections'
@@ -16,10 +17,11 @@ const TOP4_BG = 'rgba(244,193,77,0.055)'
 export function LeagueLadder({ league, query, onQuery }: { league: LeagueDetail; query: string; onQuery: (v: string) => void }) {
   const navigate = useNavigate()
   const id = leagueAccent(league.name)
-  const formByClub = new Map(league.rankedTeams.map(t => [t.clubId, t]))
+  const canonicalLadder = normaliseLeagueLadder(league.ladder)
+  const formByClub = new Map(league.rankedTeams.map(team => [team.clubId, team]))
   const q = query.trim().toLowerCase()
-  const rows = league.ladder.filter(r => !q || r.clubName.toLowerCase().includes(q))
-  const last = league.ladder.length > 1 ? league.ladder[league.ladder.length - 1] : null
+  const rows = canonicalLadder.filter(row => !q || row.clubName.toLowerCase().includes(q))
+  const last = canonicalLadder.length > 1 ? canonicalLadder[canonicalLadder.length - 1] : null
 
   return (
     <Section id="ladder">
@@ -28,11 +30,10 @@ export function LeagueLadder({ league, query, onQuery }: { league: LeagueDetail;
         title={<>THE <span style={{ color: id.accent }}>LADDER</span></>}
         sub="Live standings. The top four play finals; every club links to its full profile."
       />
-      <LeagueClubSearch league={league} value={query} onChange={onQuery} />
+      <LeagueClubSearch league={{ ...league, ladder: canonicalLadder }} value={query} onChange={onQuery} />
 
       <Reveal>
         <div className="gn-card" style={{ overflow: 'hidden' }}>
-          {/* header */}
           <div className="font-condensed lad-grid" style={{ display: 'grid', gap: 10, alignItems: 'center', padding: '12px clamp(12px, 2vw, 22px)', borderBottom: `2px solid ${TEXT}`, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: FAINT }}>
             <span>Pos</span><span>Club</span>
             <span className="hide-sm" style={{ textAlign: 'center' }}>P</span>
@@ -51,30 +52,30 @@ export function LeagueLadder({ league, query, onQuery }: { league: LeagueDetail;
             </div>
           )}
 
-          {rows.map(r => {
-            const pos = r.position ?? league.ladder.indexOf(r) + 1
-            const ranked = formByClub.get(r.clubId)
-            const isLeader = pos === 1
-            const isTop4 = pos <= 4
-            const isLast = last != null && r.clubId === last.clubId && pos > 4
+          {rows.map(row => {
+            const position = row.position ?? canonicalLadder.indexOf(row) + 1
+            const ranked = formByClub.get(row.clubId)
+            const isLeader = position === 1
+            const isTopFour = position <= 4
+            const isLast = last != null && row.clubId === last.clubId && position > 4
             const streak = winStreak(ranked?.recentForm)
             return (
-              <button key={r.clubId} onClick={() => navigate(teamPath(r.clubId))} className="gn-row lad-grid"
-                aria-label={`${r.clubName}, position ${pos}${isLeader ? ', ladder leader' : ''}`}
+              <button key={ladderRowKey(row)} onClick={() => navigate(teamPath(row.clubId))} className="gn-row lad-grid"
+                aria-label={`${row.clubName}, position ${position}${isLeader ? ', ladder leader' : ''}`}
                 style={{
                   width: '100%', display: 'grid', gap: 10, alignItems: 'center', textAlign: 'left', font: 'inherit', color: TEXT,
                   padding: '13px clamp(12px, 2vw, 22px)', border: 'none', cursor: 'pointer',
                   borderBottom: `1px solid ${LINE}`,
-                  borderLeft: `3px solid ${isLeader ? GOLD : isTop4 ? id.accent : 'transparent'}`,
-                  background: isLeader ? 'linear-gradient(90deg, rgba(244,193,77,0.12), transparent 45%)' : isTop4 ? TOP4_BG : isLast ? 'rgba(17,17,17,0.02)' : 'transparent',
+                  borderLeft: `3px solid ${isLeader ? GOLD : isTopFour ? id.accent : 'transparent'}`,
+                  background: isLeader ? 'linear-gradient(90deg, rgba(244,193,77,0.12), transparent 45%)' : isTopFour ? TOP4_BG : isLast ? 'rgba(17,17,17,0.02)' : 'transparent',
                 }}>
-                <span className="font-display" style={{ fontSize: 21, color: isLeader ? GOLD_DK : isTop4 ? TEXT : FAINT, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {isLeader && <Trophy size={13} color={GOLD_DK} aria-hidden />}{pos}
+                <span className="font-display" style={{ fontSize: 21, color: isLeader ? GOLD_DK : isTopFour ? TEXT : FAINT, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {isLeader && <Trophy size={13} color={GOLD_DK} aria-hidden />}{position}
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-                  <TeamLogo name={r.clubName} size={34} />
+                  <TeamLogo name={row.clubName} src={row.logoUrl ?? undefined} size={34} />
                   <span style={{ minWidth: 0 }}>
-                    <span className="font-display" style={{ display: 'block', fontSize: 16.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.clubName.toUpperCase()}</span>
+                    <span className="font-display" style={{ display: 'block', fontSize: 16.5, lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.clubName.toUpperCase()}</span>
                     <span className="font-condensed" style={{ display: 'flex', gap: 8, color: MUTE, fontSize: 11, marginTop: 2, alignItems: 'center', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                       {ranked && <span>#{ranked.rank} nationally</span>}
                       {ranked && <Move delta={ranked.rankMovement ?? 0} size={10.5} />}
@@ -83,19 +84,19 @@ export function LeagueLadder({ league, query, onQuery }: { league: LeagueDetail;
                     </span>
                   </span>
                 </span>
-                <span className="hide-sm" style={{ textAlign: 'center', color: MUTE, fontSize: 13 }}>{r.played}</span>
-                <span className="hide-sm font-display" style={{ textAlign: 'center', fontSize: 15.5 }}>{r.wins}</span>
-                <span className="hide-sm font-display" style={{ textAlign: 'center', fontSize: 15.5 }}>{r.losses}</span>
-                <span className="hide-sm font-display" style={{ textAlign: 'center', fontSize: 15.5 }}>{r.draws}</span>
-                <span className="hide-sm" style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: r.percentage >= 100 ? TEXT : MUTE }}>{r.percentage ? r.percentage.toFixed(0) : '·'}</span>
+                <span className="hide-sm" style={{ textAlign: 'center', color: MUTE, fontSize: 13 }}>{row.played}</span>
+                <span className="hide-sm font-display" style={{ textAlign: 'center', fontSize: 15.5 }}>{row.wins}</span>
+                <span className="hide-sm font-display" style={{ textAlign: 'center', fontSize: 15.5 }}>{row.losses}</span>
+                <span className="hide-sm font-display" style={{ textAlign: 'center', fontSize: 15.5 }}>{row.draws}</span>
+                <span className="hide-sm" style={{ textAlign: 'right', fontSize: 13, fontWeight: 700, color: row.percentage >= 100 ? TEXT : MUTE }}>{row.percentage ? row.percentage.toFixed(0) : '·'}</span>
                 <span className="hide-sm font-display" style={{ textAlign: 'right', fontSize: 15.5, color: ranked ? PINK : FAINT }}>{ranked ? `#${ranked.rank}` : '·'}</span>
                 <span className="hide-sm" style={{ display: 'flex', justifyContent: 'center' }}>{ranked?.recentForm?.length ? <FormPips form={ranked.recentForm} /> : <span style={{ color: FAINT }}>·</span>}</span>
-                <span className="font-display" style={{ textAlign: 'right', fontSize: 19, color: isLeader ? GOLD_DK : TEXT }}>{r.points}<small className="show-sm" style={{ display: 'none', color: MUTE, fontSize: 11, marginLeft: 6 }}>{r.wins}-{r.losses}{r.draws > 0 ? `-${r.draws}` : ''}</small></span>
+                <span className="font-display" style={{ textAlign: 'right', fontSize: 19, color: isLeader ? GOLD_DK : TEXT }}>{row.points}<small className="show-sm" style={{ display: 'none', color: MUTE, fontSize: 11, marginLeft: 6 }}>{row.wins}-{row.losses}{row.draws > 0 ? `-${row.draws}` : ''}</small></span>
               </button>
             )
           })}
 
-          {league.ladder.length > 4 && (
+          {canonicalLadder.length > 4 && (
             <div className="font-condensed" style={{ display: 'flex', gap: 18, padding: '11px clamp(12px, 2vw, 22px)', color: FAINT, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', flexWrap: 'wrap' }}>
               <span><span style={{ color: GOLD, marginRight: 5 }}>&#9679;</span>Leader</span>
               <span><span style={{ color: id.accent, marginRight: 5 }}>&#9679;</span>Top four · finals</span>
@@ -112,12 +113,12 @@ export function LeagueLadder({ league, query, onQuery }: { league: LeagueDetail;
   )
 }
 
-// ─── National club ranking cards ─────────────────────────────────────────────
 export function ClubRankingCards({ league, query, totalRanked }: { league: LeagueDetail; query: string; totalRanked?: number }) {
   const id = leagueAccent(league.name)
-  const posByClub = new Map(league.ladder.map(r => [r.clubId, r.position]))
+  const canonicalLadder = normaliseLeagueLadder(league.ladder)
+  const positionByClub = new Map(canonicalLadder.map(row => [row.clubId, row.position]))
   const q = query.trim().toLowerCase()
-  const teams = league.rankedTeams.filter(t => !q || t.clubName.toLowerCase().includes(q))
+  const teams = league.rankedTeams.filter(team => !q || team.clubName.toLowerCase().includes(q))
 
   return (
     <Section id="clubs" band>
@@ -134,11 +135,11 @@ export function ClubRankingCards({ league, query, totalRanked }: { league: Leagu
           </span>
         </div>
       )}
-      {teams.length > 0 && <RankedClubTable teams={teams} posByClub={posByClub} />}
+      {teams.length > 0 && <RankedClubTable teams={teams} posByClub={positionByClub} />}
       <div className="crc-grid" style={{ display: 'grid', gap: 14 }}>
-        {teams.map((t, i) => (
-          <Reveal key={t.clubId} delay={Math.min(i, 6) * 0.04}>
-            <ClubCard t={t} ladderPos={posByClub.get(t.clubId) ?? null} accent={id.accent} />
+        {teams.map((team, index) => (
+          <Reveal key={team.clubId} delay={Math.min(index, 6) * 0.04}>
+            <ClubCard t={team} ladderPos={positionByClub.get(team.clubId) ?? null} accent={id.accent} />
           </Reveal>
         ))}
       </div>
@@ -157,14 +158,14 @@ function RankedClubTable({ teams, posByClub }: { teams: LeagueRankedTeam[]; posB
       <div className="gn-card ranked-table-wrap" style={{ overflow: 'hidden' }}>
         <table className="ranked-table">
           <thead><tr><th>National Rank</th><th>Move</th><th>Club</th><th>Rating</th><th>Ladder</th><th>Form</th></tr></thead>
-          <tbody>{teams.map(t => (
-            <tr key={t.clubId} className={t.rank <= 25 ? 'top25' : ''}>
-              <td><Link to={teamPath(t.clubId)} className="ranked-rank">#{t.rank}</Link></td>
-              <td><Move delta={t.rankMovement ?? 0} /></td>
-              <td><Link to={teamPath(t.clubId)} className="ranked-club-cell"><TeamLogo name={t.clubName} size={38} /><span><b>{t.clubName}</b><small>{t.state}</small></span></Link></td>
-              <td><span className="ranked-rating">{t.powerRating.toFixed(1)}</span></td>
-              <td>{posByClub.get(t.clubId) != null ? ordinalPos(posByClub.get(t.clubId)!) : '—'}</td>
-              <td>{t.recentForm && t.recentForm.length > 0 ? <FormPips form={t.recentForm as FormResult[]} /> : <span style={{ color: FAINT }}>—</span>}</td>
+          <tbody>{teams.map(team => (
+            <tr key={team.clubId} className={team.rank <= 25 ? 'top25' : ''}>
+              <td><Link to={teamPath(team.clubId)} className="ranked-rank">#{team.rank}</Link></td>
+              <td><Move delta={team.rankMovement ?? 0} /></td>
+              <td><Link to={teamPath(team.clubId)} className="ranked-club-cell"><TeamLogo name={team.clubName} size={38} /><span><b>{team.clubName}</b><small>{team.state}</small></span></Link></td>
+              <td><span className="ranked-rating">{team.powerRating.toFixed(1)}</span></td>
+              <td>{posByClub.get(team.clubId) != null ? ordinalPos(posByClub.get(team.clubId)!) : '—'}</td>
+              <td>{team.recentForm && team.recentForm.length > 0 ? <FormPips form={team.recentForm as FormResult[]} /> : <span style={{ color: FAINT }}>—</span>}</td>
             </tr>
           ))}</tbody>
         </table>
@@ -207,6 +208,6 @@ function ClubCard({ t, ladderPos, accent }: { t: LeagueRankedTeam; ladderPos: nu
 }
 
 function ordinalPos(n: number) {
-  const s = ['th', 'st', 'nd', 'rd'], v = n % 100
-  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0])
+  const suffixes = ['th', 'st', 'nd', 'rd'], value = n % 100
+  return n + (suffixes[(value - 20) % 10] ?? suffixes[value] ?? suffixes[0])
 }
