@@ -7,7 +7,6 @@ import { Link } from 'react-router-dom'
 import { Clock, Zap } from 'lucide-react'
 import { type Article, categoryOf, formatDate, newsPath } from './content'
 
-// Brand tokens (values only — no import of other app modules)
 export const PINK = '#d71920'
 export const GOLD = '#f4c14d'
 export const GOLD_DK = '#b8860b'
@@ -19,7 +18,6 @@ export const PAGE = '#ffffff'
 export const PAGE_ALT = '#f5f4f0'
 export const DARK = '#0b0e17'
 
-// ── Scoped styles ────────────────────────────────────────────────────────────
 export function NewsStyles() {
   return (
     <style>{`
@@ -40,15 +38,27 @@ export function NewsStyles() {
   )
 }
 
-// Deterministic editorial "photography" placeholder (swap heroSeed for a real
-// image URL later with zero layout change).
 function hash(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h) }
 const DUOS: [string, string, string][] = [
   ['#d71920', '#7a0f43', '#1a0512'], ['#f4c14d', '#8a5a10', '#1a1204'],
   ['#4dd9f4', '#0f5f70', '#03151a'], ['#0b0e17', '#26305a', '#d71920'],
   ['#111111', '#3a2140', '#f4c14d'], ['#ff6bb5', '#7a0f43', '#0b0e17'],
 ]
+
+function isImageUrl(value: string) {
+  return /^https?:\/\//i.test(value) || value.startsWith('/') || value.startsWith('data:image/') || value.startsWith('blob:')
+}
+
 export function EditorialImage({ seed, ratio = '16 / 10', label, rounded = 14 }: { seed: string; ratio?: string; label?: string; rounded?: number }) {
+  if (isImageUrl(seed)) {
+    return (
+      <div className="cnews-img-wrap" style={{ aspectRatio: ratio, borderRadius: rounded, position: 'relative', background: '#e9eef2' }}>
+        <img className="cnews-img" src={seed} alt={label ?? ''} loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
+        {label && <span className="font-condensed" style={{ position: 'absolute', left: 14, bottom: 12, color: '#fff', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', fontSize: 11, textShadow: '0 1px 5px rgba(0,0,0,.8)' }}>{label}</span>}
+      </div>
+    )
+  }
+
   const [a, b, c] = DUOS[hash(seed) % DUOS.length]
   const ang = 90 + (hash(seed) % 120)
   return (
@@ -100,7 +110,6 @@ export function SectionHead({ title, to }: { title: string; to?: string }) {
   )
 }
 
-// ── Article cards ────────────────────────────────────────────────────────────
 export function ArticleCard({ article, variant = 'default' }: { article: Article; variant?: 'default' | 'large' | 'compact' }) {
   if (variant === 'compact') {
     return (
@@ -130,7 +139,6 @@ export function ArticleCard({ article, variant = 'default' }: { article: Article
   )
 }
 
-// ── Breaking news ticker ─────────────────────────────────────────────────────
 export function BreakingBar({ items }: { items: { slug: string; title: string }[] }) {
   if (!items.length) return null
   const loop = [...items, ...items]
