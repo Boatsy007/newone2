@@ -15,24 +15,12 @@ type PlayerLogo = { clubId: string | null; clubName: string; leagueName: string;
 
 export type HomeCardLogoMaps = {
   byClubId: Map<string, string>
-  byClubName: Map<string, string>
   byPlayerId: Map<string, PlayerLogo>
   byPlayerClubLeague: Map<string, PlayerLogo>
 }
 
 function normalise(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/\b(seniors?|senior men|a grade|football club|fc)\b/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-export function clubNameLogoKey(clubName: string) {
-  return normalise(clubName)
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
 export function playerClubLeagueKey(playerName: string, clubName: string, leagueName: string) {
@@ -46,30 +34,23 @@ export async function loadHomeCardLogoMaps(): Promise<HomeCardLogoMaps> {
   ])
 
   const byClubId = new Map<string, string>()
-  const byClubName = new Map<string, string>()
   const byPlayerId = new Map<string, PlayerLogo>()
   const byPlayerClubLeague = new Map<string, PlayerLogo>()
 
   if (rankingsResult.status === 'fulfilled') {
     for (const row of rankingsResult.value.data ?? []) {
-      if (!row.logoUrl) continue
-      if (row.clubId) byClubId.set(row.clubId, row.logoUrl)
-      if (row.clubName) byClubName.set(clubNameLogoKey(row.clubName), row.logoUrl)
+      if (row.clubId && row.logoUrl) byClubId.set(row.clubId, row.logoUrl)
     }
   }
 
   if (goalKickersResult.status === 'fulfilled') {
     for (const row of goalKickersResult.value.data ?? []) {
-      if (row.clubLogoUrl) {
-        if (row.clubId && !byClubId.has(row.clubId)) byClubId.set(row.clubId, row.clubLogoUrl)
-        const nameKey = clubNameLogoKey(row.clubName)
-        if (nameKey && !byClubName.has(nameKey)) byClubName.set(nameKey, row.clubLogoUrl)
-      }
+      if (row.clubId && row.clubLogoUrl && !byClubId.has(row.clubId)) byClubId.set(row.clubId, row.clubLogoUrl)
       const resolved: PlayerLogo = {
         clubId: row.clubId,
         clubName: row.clubName,
         leagueName: row.leagueName,
-        logoUrl: row.clubLogoUrl ?? (row.clubId ? byClubId.get(row.clubId) ?? null : null) ?? byClubName.get(clubNameLogoKey(row.clubName)) ?? null,
+        logoUrl: row.clubLogoUrl ?? (row.clubId ? byClubId.get(row.clubId) ?? null : null),
       }
       if (row.playerId && !byPlayerId.has(row.playerId)) byPlayerId.set(row.playerId, resolved)
       const exactKey = playerClubLeagueKey(row.playerName, row.clubName, row.leagueName)
@@ -77,5 +58,5 @@ export async function loadHomeCardLogoMaps(): Promise<HomeCardLogoMaps> {
     }
   }
 
-  return { byClubId, byClubName, byPlayerId, byPlayerClubLeague }
+  return { byClubId, byPlayerId, byPlayerClubLeague }
 }
