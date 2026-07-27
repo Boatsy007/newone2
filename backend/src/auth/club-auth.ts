@@ -61,7 +61,7 @@ export async function authenticateClubUser(req: Request, res: Response, next: Ne
   const apiKey = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
   if (!supabaseUrl || !apiKey) return res.status(503).json({ error: 'Club authentication is not configured' })
   try {
-    const response = await fetch(`${supabaseUrl}/auth/v1/user`, { headers: { authorization: `Bearer ${token}`, apikey: apiKey } })
+    const response = await fetch(`${supabaseUrl}/auth/v1/user`, { headers: { authorization: `Bearer ${token}`, apikey: apiKey }, signal: AbortSignal.timeout(6000) })
     if (!response.ok) return res.status(401).json({ error: 'Your session is invalid or has expired' })
     const identity = await response.json() as { id?: string; email?: string | null }
     if (!identity.id) return res.status(401).json({ error: 'Unable to verify this account' })
@@ -75,11 +75,9 @@ const membershipSelect = `id, user_id AS "userId", email, club_id AS "clubId", r
  invited_by AS "invitedBy", approved_by AS "approvedBy", approved_at AS "approvedAt", revoked_at AS "revokedAt",
  created_at AS "createdAt", updated_at AS "updatedAt"`
 export async function membershipsForUser(userId: string): Promise<ClubMembership[]> {
-  await ensureClubMembershipSchema()
   return prisma.$queryRawUnsafe<ClubMembership[]>(`SELECT ${membershipSelect} FROM club_portal_memberships WHERE user_id=$1 AND status<>'REVOKED' ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'PENDING' THEN 1 WHEN 'INVITED' THEN 2 ELSE 3 END, created_at`, userId)
 }
 export async function membershipForClub(userId: string, clubId: string) {
-  await ensureClubMembershipSchema()
   const rows = await prisma.$queryRawUnsafe<ClubMembership[]>(`SELECT ${membershipSelect} FROM club_portal_memberships WHERE user_id=$1 AND club_id=$2 LIMIT 1`, userId, clubId)
   return rows[0] ?? null
 }
