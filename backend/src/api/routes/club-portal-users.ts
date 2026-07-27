@@ -18,7 +18,6 @@ async function activeOwnerCount(clubId: string) {
 
 router.get('/clubs/:clubId/users', requireActiveClubMembership, requireOwner, async (req, res) => {
   try {
-    await ensureClubMembershipSchema()
     const members = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(`
       SELECT id,user_id AS "userId",email,role,status,applicant_name AS "applicantName",
         club_position AS "clubPosition",phone,review_notes AS "reviewNotes",approved_at AS "approvedAt",
@@ -55,6 +54,20 @@ router.post('/clubs/:clubId/users/invitations', requireActiveClubMembership, req
   } catch(error){res.status(500).json({error:'Unable to create invitation',detail:String(error)})}
 })
 
+router.post('/clubs/:clubId/users/invitations/:invitationId/resend', requireActiveClubMembership, requireOwner, async (req,res)=>{
+  try {
+    await ensureClubMembershipSchema()
+    const rows=await prisma.$queryRawUnsafe<Array<{id:string;email:string;role:ClubRole;acceptedAt:Date|null}>>(`SELECT id,email,role,accepted_at AS "acceptedAt" FROM club_portal_invitations WHERE id=$1 AND club_id=$2 LIMIT 1`,req.params.invitationId,req.params.clubId)
+    const invitation=rows[0]
+    if(!invitation)return res.status(404).json({error:'Invitation not found'})
+    if(invitation.acceptedAt)return res.status(409).json({error:'This invitation has already been accepted'})
+    await prisma.$executeRawUnsafe(`UPDATE club_portal_invitations SET revoked_at=NOW() WHERE club_id=$1 AND lower(email)=lower($2) AND accepted_at IS NULL AND revoked_at IS NULL`,req.params.clubId,invitation.email)
+    const token=await issueClubInvitation(req.params.clubId,invitation.email,invitation.role,req.clubUser!.id)
+    await auditMembership(null,req.params.clubId,null,'INVITATION_RESENT',req.clubUser!.id,{email:invitation.email,role:invitation.role,previousInvitationId:invitation.id})
+    res.json({data:{email:invitation.email,role:invitation.role,invitePath:`/club-portal?invite=${token}`,expiresInDays:7},message:'A new invitation link was created'})
+  }catch(error){res.status(500).json({error:'Unable to resend invitation',detail:String(error)})}
+})
+
 router.patch('/clubs/:clubId/users/:membershipId', requireActiveClubMembership, requireOwner, async (req, res) => {
   try {
     await ensureClubMembershipSchema()
@@ -68,7 +81,7 @@ router.patch('/clubs/:clubId/users/:membershipId', requireActiveClubMembership, 
     if(!target)return res.status(404).json({error:'Club membership not found'})
     if(target.userId===req.clubUser!.id&&['SUSPEND','REVOKE','REJECT'].includes(action))return res.status(400).json({error:'You cannot remove or suspend your own club access'})
     const removesOwner=(target.role==='OWNER'&&target.status==='ACTIVE'&&(['SUSPEND','REVOKE','REJECT'].includes(action)||(action==='CHANGE_ROLE'&&role!=='OWNER')))
-    if(removesOwner&&await activeOwnerCount(req.params.clubId)<=1)return res.status(400).json({error:'The club must retain at least one active owner'})
+    if(removesOwner&&await activeOwnerCount(req.params.clubId)<=1)return res.status(409).json({error:'The club must retain at least one active Owner'})
     let nextStatus=target.status,nextRole=target.role
     if(action==='CHANGE_ROLE')nextRole=role
     if(action==='APPROVE'){nextStatus='ACTIVE';nextRole=role}
