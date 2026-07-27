@@ -1,9 +1,17 @@
+export type PortalClubAccount = {
+  clubId: string
+  clubName: string
+  logoUrl?: string | null
+  role: string
+}
+
 export type PortalAuthSession = {
   access_token: string
   refresh_token: string
   expires_at?: number
   expires_in?: number
   user?: { id?: string; email?: string | null }
+  club_accounts?: PortalClubAccount[]
 }
 
 type AuthErrorPayload = { error_description?: string; msg?: string; error?: string }
@@ -20,7 +28,8 @@ async function request(path: string, body: Record<string, unknown>, authorizatio
 }
 
 export function signInPortal(email: string, password: string) {
-  return request('signin', { email: email.trim(), password })
+  const invite = new URLSearchParams(window.location.search).get('invite')
+  return request('signin-club', { email: email.trim(), password, ...(invite ? { invite } : {}) })
 }
 
 export function signUpPortal(email: string, password: string) {
