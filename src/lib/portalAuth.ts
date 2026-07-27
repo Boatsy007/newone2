@@ -44,6 +44,30 @@ export function requestPortalPasswordReset(email: string, redirectPath: string) 
   return request('recover', { email: email.trim(), redirect_to: redirectTo })
 }
 
+export function recoveryTokenFromLocation() {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const query = new URLSearchParams(window.location.search)
+  const type = hash.get('type') ?? query.get('type')
+  const accessToken = hash.get('access_token') ?? query.get('access_token')
+  return type === 'recovery' && accessToken ? accessToken : null
+}
+
+export async function updatePortalPassword(accessToken: string, password: string) {
+  const { url, key } = config()
+  const response = await fetch(`${url}/auth/v1/user`, {
+    method: 'PUT',
+    headers: {
+      apikey: key,
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ password }),
+  })
+  const payload = await response.json().catch(() => ({})) as AuthErrorPayload
+  if (!response.ok) throw new Error(payload.error_description || payload.msg || payload.error || 'Unable to update password')
+  return payload
+}
+
 export function sessionNeedsRefresh(session: PortalAuthSession | null, bufferSeconds = 120) {
   if (!session?.access_token || !session.refresh_token) return false
   if (!session.expires_at) return false
