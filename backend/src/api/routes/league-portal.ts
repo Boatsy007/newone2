@@ -6,6 +6,7 @@ import { leaguePortalNewsRouter } from './league-portal-news.js'
 import { leaguePortalSponsorsRouter } from './league-portal-sponsors.js'
 import { leaguePortalUsersRouter } from './league-portal-users.js'
 import { leaguePortalActivityRouter } from './league-portal-activity.js'
+import { leaguePortalMediaRouter } from './league-portal-media.js'
 import {
   LEAGUE_ROLES,
   acceptLeagueInvitation,
@@ -26,6 +27,7 @@ router.use('/', leaguePortalNewsRouter)
 router.use('/', leaguePortalSponsorsRouter)
 router.use('/', leaguePortalUsersRouter)
 router.use('/', leaguePortalActivityRouter)
+router.use('/', leaguePortalMediaRouter)
 
 let profileSchemaReady: Promise<void> | null = null
 function ensureLeagueProfileFields() {
