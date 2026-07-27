@@ -12,11 +12,24 @@ import {
   issueLeagueInvitation,
   membershipsForLeagueUser,
   requireActiveLeagueMembership,
+  roleCanManageLeagueAction,
   type LeagueRole,
 } from '../../auth/league-auth.js'
 
 const router = Router()
 router.use(publicRateLimit)
+
+let profileSchemaReady: Promise<void> | null = null
+function ensureLeagueProfileFields() {
+  if (!profileSchemaReady) profileSchemaReady = (async () => {
+    for (const sql of [
+      `ALTER TABLE leagues ADD COLUMN IF NOT EXISTS "instagramUrl" TEXT`,
+      `ALTER TABLE leagues ADD COLUMN IF NOT EXISTS "contactEmail" TEXT`,
+      `ALTER TABLE leagues ADD COLUMN IF NOT EXISTS "contactPhone" TEXT`,
+    ]) await prisma.$executeRawUnsafe(sql)
+  })().catch(error => { profileSchemaReady = null; throw error })
+  return profileSchemaReady
+}
 
 router.get('/me', authenticateLeagueUser, async (req, res) => {
   const memberships = await membershipsForLeagueUser(req.clubUser!.id)
@@ -68,6 +81,34 @@ router.get('/leagues/:leagueId', authenticateLeagueUser, requireActiveLeagueMemb
   res.json({ data: { league: { id: league.id, name: league.name, logoUrl: league.logoUrl, state: league.state.code || league.state.name }, membership: res.locals.leagueMembership } })
 })
 
+router.get('/leagues/:leagueId/profile', authenticateLeagueUser, requireActiveLeagueMembership, async (req, res) => {
+  await ensureLeagueProfileFields()
+  const rows = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(`SELECT l.id,l.name,l."shortName",l."logoUrl",l.description,l."websiteUrl",l."facebookUrl",l."instagramUrl",l."contactEmail",l."contactPhone",s.code AS state FROM leagues l JOIN states s ON s.id=l."stateId" WHERE l.id=$1 AND l."archivedAt" IS NULL LIMIT 1`, req.params.leagueId)
+  const league = rows[0]
+  if (!league) return res.status(404).json({ error: 'League not found' })
+  res.json({ data: { league, membership: res.locals.leagueMembership } })
+})
+
+router.patch('/leagues/:leagueId/profile', authenticateLeagueUser, requireActiveLeagueMembership, async (req, res) => {
+  await ensureLeagueProfileFields()
+  const membership = res.locals.leagueMembership as { id: string; role: LeagueRole }
+  if (!roleCanManageLeagueAction(membership.role, 'profile')) return res.status(403).json({ error: 'Your league role cannot manage the league profile' })
+  const clean = (value: unknown, max: number) => String(value ?? '').trim().slice(0, max) || null
+  const description = clean(req.body?.description, 5000)
+  const websiteUrl = clean(req.body?.websiteUrl, 500)
+  const facebookUrl = clean(req.body?.facebookUrl, 500)
+  const instagramUrl = clean(req.body?.instagramUrl, 500)
+  const contactEmail = clean(req.body?.contactEmail, 320)
+  const contactPhone = clean(req.body?.contactPhone, 80)
+  const logoUrl = clean(req.body?.logoUrl, 1000)
+  if (contactEmail && !contactEmail.includes('@')) return res.status(400).json({ error: 'Enter a valid contact email address' })
+  const before = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(`SELECT description,"websiteUrl","facebookUrl","instagramUrl","contactEmail","contactPhone","logoUrl" FROM leagues WHERE id=$1 LIMIT 1`, req.params.leagueId)
+  if (!before[0]) return res.status(404).json({ error: 'League not found' })
+  await prisma.$executeRawUnsafe(`UPDATE leagues SET description=$1,"websiteUrl"=$2,"facebookUrl"=$3,"instagramUrl"=$4,"contactEmail"=$5,"contactPhone"=$6,"logoUrl"=$7,"updatedAt"=NOW() WHERE id=$8`, description, websiteUrl, facebookUrl, instagramUrl, contactEmail, contactPhone, logoUrl, req.params.leagueId)
+  await auditLeagueMembership(membership.id, req.params.leagueId, req.clubUser!.id, 'PROFILE_UPDATED', req.clubUser!.id, { before: before[0], after: { description, websiteUrl, facebookUrl, instagramUrl, contactEmail, contactPhone, logoUrl } })
+  res.json({ message: 'League profile saved', data: { description, websiteUrl, facebookUrl, instagramUrl, contactEmail, contactPhone, logoUrl } })
+})
+
 const admin = Router()
 admin.use(requireAdminKey)
 
@@ -80,7 +121,7 @@ admin.get('/', async (req, res) => {
   res.json({ data: rows })
 })
 
-admin.get('/audit', async (req, res) => {
+admin.get('/audit', async (_req, res) => {
   await ensureLeagueMembershipSchema()
   const rows = await prisma.$queryRawUnsafe(`SELECT a.id,a.membership_id AS "membershipId",a.league_id AS "leagueId",l.name AS "leagueName",a.user_id AS "userId",a.action,a.actor_id AS "actorId",a.detail,a.created_at AS "createdAt" FROM league_portal_membership_audit a LEFT JOIN leagues l ON l.id=a.league_id ORDER BY a.created_at DESC LIMIT 100`)
   res.json({ data: rows })
