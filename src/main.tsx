@@ -56,6 +56,7 @@ import ClubPortalUsers from './pages/ClubPortalUsers.tsx'
 import ClubPortalActivity from './pages/ClubPortalActivity.tsx'
 import ClubPortalPlans from './pages/ClubPortalPlans.tsx'
 import ClubClaimsAdmin from './pages/ClubClaimsAdmin.tsx'
+import AdminLeagueClaims from './pages/AdminLeagueClaims.tsx'
 import AutoShareButtons from './components/sharing/AutoShareButtons.tsx'
 import ProfileShareButton from './components/sharing/ProfileShareButton.tsx'
 import ImportHandoffInjector from './components/admin/ImportHandoffInjector.tsx'
@@ -159,6 +160,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/admin/player-sponsors/:playerId" element={<AdminPlayerSponsors/>}/>
     <Route path="/admin/club-plans" element={<AdminClubPlans/>}/>
     <Route path="/admin/claims" element={<ClubClaimsAdmin/>}/>
+    <Route path="/admin/league-claims" element={<AdminLeagueClaims/>}/>
     <Route path="/championship" element={<Championship/>}/>
     <Route path="/club-packages" element={<Navigate to="/" replace/>}/>
     <Route path="*" element={<NotFound/>}/>
