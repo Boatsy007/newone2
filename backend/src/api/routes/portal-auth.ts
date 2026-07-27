@@ -20,9 +20,11 @@ function playFootyRedirect(req: import('express').Request, requestedPath: unknow
   const safePath = allowedPaths.includes(pathname) ? pathname : '/club-portal'
   const params = new URLSearchParams(query)
   const invite = params.get('invite')?.trim() ?? ''
-  const safeQuery = invite && /^[A-Za-z0-9_-]{20,200}$/.test(invite) && safePath !== '/reset-password'
-    ? `?invite=${encodeURIComponent(invite)}`
-    : ''
+  const portal = params.get('portal') === 'league' ? 'league' : params.get('portal') === 'club' ? 'club' : ''
+  const safeParams = new URLSearchParams()
+  if (invite && /^[A-Za-z0-9_-]{20,200}$/.test(invite) && safePath !== '/reset-password') safeParams.set('invite', invite)
+  if (portal && safePath === '/reset-password') safeParams.set('portal', portal)
+  const safeQuery = safeParams.size ? `?${safeParams.toString()}` : ''
   const configuredOrigin = String(process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? '').replace(/\/$/, '')
   const requestOrigin = String(req.get('origin') ?? '').replace(/\/$/, '')
   const origin = configuredOrigin || requestOrigin || 'https://playfooty.com.au'
@@ -91,21 +93,11 @@ router.post('/signin-club', async (req, res) => {
     const auth = result.payload as AuthPayload
     const user = authenticatedUser(auth, email)
     if (invite) await acceptClubInvitation(user, invite)
-
     const memberships = (await membershipsForUser(user.id)).filter(item => item.status === 'ACTIVE')
     const clubIds = [...new Set(memberships.map(item => item.clubId))]
-    const clubs = clubIds.length
-      ? await prisma.club.findMany({ where: { id: { in: clubIds }, archivedAt: null }, select: { id: true, name: true, logoUrl: true } })
-      : []
+    const clubs = clubIds.length ? await prisma.club.findMany({ where: { id: { in: clubIds }, archivedAt: null }, select: { id: true, name: true, logoUrl: true } }) : []
     const clubById = new Map(clubs.map(club => [club.id, club]))
-    const clubAccounts = memberships.map(membership => ({
-      clubId: membership.clubId,
-      clubName: clubById.get(membership.clubId)?.name ?? 'Club',
-      logoUrl: clubById.get(membership.clubId)?.logoUrl ?? null,
-      role: membership.role,
-    }))
-
-    return res.json({ ...auth, club_accounts: clubAccounts })
+    return res.json({ ...auth, club_accounts: memberships.map(membership => ({ clubId: membership.clubId, clubName: clubById.get(membership.clubId)?.name ?? 'Club', logoUrl: clubById.get(membership.clubId)?.logoUrl ?? null, role: membership.role })) })
   } catch (reason) {
     const error = reason as Error & { status?: number }
     return res.status(error.status ?? 503).json({ error: error.message || 'Unable to sign in to this club' })
@@ -122,21 +114,11 @@ router.post('/signin-league', async (req, res) => {
     const auth = result.payload as AuthPayload
     const user = authenticatedUser(auth, email)
     if (invite) await acceptLeagueInvitation(user, invite)
-
     const memberships = (await membershipsForLeagueUser(user.id)).filter(item => item.status === 'ACTIVE')
     const leagueIds = [...new Set(memberships.map(item => item.leagueId))]
-    const leagues = leagueIds.length
-      ? await prisma.league.findMany({ where: { id: { in: leagueIds }, archivedAt: null }, select: { id: true, name: true, logoUrl: true } })
-      : []
+    const leagues = leagueIds.length ? await prisma.league.findMany({ where: { id: { in: leagueIds }, archivedAt: null }, select: { id: true, name: true, logoUrl: true } }) : []
     const leagueById = new Map(leagues.map(league => [league.id, league]))
-    const leagueAccounts = memberships.map(membership => ({
-      leagueId: membership.leagueId,
-      leagueName: leagueById.get(membership.leagueId)?.name ?? 'League',
-      logoUrl: leagueById.get(membership.leagueId)?.logoUrl ?? null,
-      role: membership.role,
-    }))
-
-    return res.json({ ...auth, league_accounts: leagueAccounts })
+    return res.json({ ...auth, league_accounts: memberships.map(membership => ({ leagueId: membership.leagueId, leagueName: leagueById.get(membership.leagueId)?.name ?? 'League', logoUrl: leagueById.get(membership.leagueId)?.logoUrl ?? null, role: membership.role })) })
   } catch (reason) {
     const error = reason as Error & { status?: number }
     return res.status(error.status ?? 503).json({ error: error.message || 'Unable to sign in to this league' })
@@ -159,7 +141,9 @@ router.post('/refresh', async (req, res) => {
 router.post('/recover', async (req, res) => {
   const email = String(req.body?.email ?? '').trim().toLowerCase()
   if (!email) return res.status(400).json({ error: 'Email is required' })
-  const redirectTo = playFootyRedirect(req, '/reset-password')
+  const requested = String(req.body?.redirect_path ?? '/club-portal')
+  const portal = requested.startsWith('/league-portal') ? 'league' : 'club'
+  const redirectTo = playFootyRedirect(req, `/reset-password?portal=${portal}`)
   return relayAuth(res, `recover?redirect_to=${encodeURIComponent(redirectTo)}`, { email })
 })
 
