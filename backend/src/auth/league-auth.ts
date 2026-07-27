@@ -2,12 +2,13 @@ import type { NextFunction, Request, Response } from 'express'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { prisma } from '../db/client.js'
 import { authenticateClubUser, type AuthenticatedClubUser } from './club-auth.js'
+import { LEAGUE_PORTAL_ROLES, leagueRoleCan, type LeaguePortalAction, type LeaguePortalRole } from './portal-role-contract.js'
 
-export const LEAGUE_ROLES = ['OWNER', 'ADMIN', 'DATA_MANAGER', 'MEDIA_MANAGER', 'SPONSOR_MANAGER', 'VIEWER'] as const
+export const LEAGUE_ROLES = LEAGUE_PORTAL_ROLES
 export const LEAGUE_MEMBERSHIP_STATUSES = ['INVITED', 'PENDING', 'ACTIVE', 'SUSPENDED', 'REVOKED'] as const
-export type LeagueRole = typeof LEAGUE_ROLES[number]
+export type LeagueRole = LeaguePortalRole
 export type LeagueMembershipStatus = typeof LEAGUE_MEMBERSHIP_STATUSES[number]
-export type LeagueAction = 'manage_users' | 'competition_data' | 'media' | 'sponsors' | 'profile' | 'view'
+export type LeagueAction = LeaguePortalAction
 
 export type LeagueMembership = {
   id: string
@@ -117,12 +118,7 @@ export async function requireActiveLeagueMembership(req: Request, res: Response,
 }
 
 export function roleCanManageLeagueAction(role: LeagueRole, action: LeagueAction) {
-  if (role === 'OWNER') return true
-  if (role === 'ADMIN') return true
-  if (role === 'DATA_MANAGER') return action === 'competition_data' || action === 'view'
-  if (role === 'MEDIA_MANAGER') return action === 'media' || action === 'profile' || action === 'view'
-  if (role === 'SPONSOR_MANAGER') return action === 'sponsors' || action === 'view'
-  return action === 'view'
+  return leagueRoleCan(role, action)
 }
 
 export async function createPendingLeagueMembership(user: AuthenticatedClubUser, leagueId: string, claim: { applicantName: string; leaguePosition: string; phone?: string; reason: string }) {
