@@ -11,21 +11,21 @@ export type ClubPortalRole = typeof CLUB_PORTAL_ROLES[number]
 export type LeaguePortalRole = typeof LEAGUE_PORTAL_ROLES[number]
 
 const CLUB_PERMISSIONS: Record<ClubPortalRole, ReadonlySet<ClubPortalAction>> = {
-  OWNER: new Set(CLUB_PORTAL_ACTIONS),
-  ADMIN: new Set(['team_selection', 'media', 'sponsors', 'profile', 'view']),
-  TEAM_MANAGER: new Set(['team_selection', 'view']),
-  MEDIA_MANAGER: new Set(['media', 'view']),
-  SPONSOR_MANAGER: new Set(['sponsors', 'view']),
-  VIEWER: new Set(['view']),
+  OWNER: new Set<ClubPortalAction>(CLUB_PORTAL_ACTIONS),
+  ADMIN: new Set<ClubPortalAction>(['team_selection', 'media', 'sponsors', 'profile', 'view']),
+  TEAM_MANAGER: new Set<ClubPortalAction>(['team_selection', 'view']),
+  MEDIA_MANAGER: new Set<ClubPortalAction>(['media', 'view']),
+  SPONSOR_MANAGER: new Set<ClubPortalAction>(['sponsors', 'view']),
+  VIEWER: new Set<ClubPortalAction>(['view']),
 }
 
 const LEAGUE_PERMISSIONS: Record<LeaguePortalRole, ReadonlySet<LeaguePortalAction>> = {
-  OWNER: new Set(LEAGUE_PORTAL_ACTIONS),
-  ADMIN: new Set(['competition_data', 'media', 'sponsors', 'profile', 'view']),
-  DATA_MANAGER: new Set(['competition_data', 'view']),
-  MEDIA_MANAGER: new Set(['media', 'profile', 'view']),
-  SPONSOR_MANAGER: new Set(['sponsors', 'view']),
-  VIEWER: new Set(['view']),
+  OWNER: new Set<LeaguePortalAction>(LEAGUE_PORTAL_ACTIONS),
+  ADMIN: new Set<LeaguePortalAction>(['competition_data', 'media', 'sponsors', 'profile', 'view']),
+  DATA_MANAGER: new Set<LeaguePortalAction>(['competition_data', 'view']),
+  MEDIA_MANAGER: new Set<LeaguePortalAction>(['media', 'profile', 'view']),
+  SPONSOR_MANAGER: new Set<LeaguePortalAction>(['sponsors', 'view']),
+  VIEWER: new Set<LeaguePortalAction>(['view']),
 }
 
 export function clubRoleCan(role: ClubPortalRole, action: ClubPortalAction) {
