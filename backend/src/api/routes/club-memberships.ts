@@ -2,7 +2,6 @@ import { Router } from 'express'
 import { prisma } from '../../db/client.js'
 import { acceptClubInvitation, authenticateClubUser, createPendingMembership, membershipForClub, membershipsForUser, requireActiveClubMembership, roleCan } from '../../auth/club-auth.js'
 import { getClubSponsorships } from '../../commercial/sponsorships.service.js'
-import { clubInsights } from '../../analytics/insights.js'
 import { publicRateLimit } from '../middleware/rate-limit.js'
 
 const router = Router()
@@ -48,12 +47,11 @@ router.get('/clubs/:clubId/dashboard', authenticateClubUser, requireActiveClubMe
     })
     if (!club) return res.status(404).json({ error: 'Club not found' })
 
-    const profile = await prisma.clubProfile.upsert({
-      where: { clubId }, create: { clubId }, update: {},
-      select: { ground:true,address:true,websiteUrl:true,facebookUrl:true,instagramUrl:true,email:true,phone:true,trainingNights:true,clubColours:true,history:true,foundedYear:true,gallery:true,uniformPhotos:true,partnerLogos:true,updatedAt:true },
-    })
-
-    const [sheetResult, articleLinksResult, sponsorsResult, pendingUsersResult, notificationsResult] = await Promise.allSettled([
+    const [profileResult, sheetResult, articlesResult, sponsorsResult, pendingUsersResult, notificationsResult] = await Promise.allSettled([
+      prisma.clubProfile.findUnique({
+        where: { clubId },
+        select: { ground:true,address:true,websiteUrl:true,facebookUrl:true,instagramUrl:true,email:true,phone:true,trainingNights:true,clubColours:true,history:true,foundedYear:true,gallery:true,uniformPhotos:true,partnerLogos:true,updatedAt:true },
+      }),
       prisma.$queryRawUnsafe<Array<{ id:string; roundLabel:string; opponentName:string|null; matchDate:string|null; status:string; publishedAt:string|null; playerCount:number }>>(`
         SELECT s.id::text AS id, s.round_label AS "roundLabel", s.opponent_name AS "opponentName",
           s.match_date::text AS "matchDate", s.status, s.published_at AS "publishedAt",
@@ -65,18 +63,28 @@ router.get('/clubs/:clubId/dashboard', authenticateClubUser, requireActiveClubMe
         ORDER BY s.match_date DESC NULLS LAST, s.updated_at DESC
         LIMIT 1
       `, clubId),
-      prisma.articleLink.findMany({ where: { entityType: 'CLUB', entityId: clubId }, orderBy: { createdAt: 'desc' }, take: 8, select: { articleId: true } }),
+      (async () => {
+        const links = await prisma.articleLink.findMany({ where: { entityType: 'CLUB', entityId: clubId }, orderBy: { createdAt: 'desc' }, take: 8, select: { articleId: true } })
+        const ids = [...new Set(links.map(link => link.articleId))]
+        return ids.length ? prisma.generatedArticle.findMany({
+          where: { id: { in: ids }, status: { not: 'ARCHIVED' } },
+          orderBy: { updatedAt: 'desc' }, take: 5,
+          select: { id:true,slug:true,title:true,summary:true,status:true,heroSeed:true,updatedAt:true,publishedAt:true },
+        }) : []
+      })(),
       getClubSponsorships(clubId, false),
       prisma.$queryRawUnsafe<Array<{ count:number }>>(`SELECT COUNT(*)::int AS count FROM club_portal_memberships WHERE club_id=$1 AND status IN ('PENDING','INVITED')`, clubId),
       prisma.notification.count({ where: { recipientScope: 'CLUB', recipientId: clubId, status: { in: ['PENDING','QUEUED','SENT','DELIVERED'] } } }),
     ])
 
-    const articleIds = articleLinksResult.status === 'fulfilled' ? [...new Set(articleLinksResult.value.map(link => link.articleId))] : []
-    const articles = articleIds.length ? await prisma.generatedArticle.findMany({
-      where: { id: { in: articleIds }, status: { not: 'ARCHIVED' } },
-      orderBy: { updatedAt: 'desc' }, take: 5,
-      select: { id:true,slug:true,title:true,summary:true,status:true,heroSeed:true,updatedAt:true,publishedAt:true },
-    }) : []
+    const profile = profileResult.status === 'fulfilled' && profileResult.value ? profileResult.value : {
+      ground:null,address:null,websiteUrl:null,facebookUrl:null,instagramUrl:null,email:null,phone:null,trainingNights:null,clubColours:null,history:null,foundedYear:null,gallery:null,uniformPhotos:null,partnerLogos:null,updatedAt:new Date(0),
+    }
+    const latestSheet = sheetResult.status === 'fulfilled' ? sheetResult.value[0] ?? null : null
+    const articles = articlesResult.status === 'fulfilled' ? articlesResult.value : []
+    const sponsors = sponsorsResult.status === 'fulfilled' && Array.isArray(sponsorsResult.value) ? sponsorsResult.value : []
+    const pendingUsers = pendingUsersResult.status === 'fulfilled' ? pendingUsersResult.value[0]?.count ?? 0 : 0
+    const unreadNotifications = notificationsResult.status === 'fulfilled' ? notificationsResult.value : 0
 
     const profileChecks = [
       Boolean(club.logoUrl), Boolean(club.description || profile.history), Boolean(profile.ground), Boolean(profile.address),
@@ -86,21 +94,8 @@ router.get('/clubs/:clubId/dashboard', authenticateClubUser, requireActiveClubMe
     ]
     const completedFields = profileChecks.filter(Boolean).length
     const season = club.clubSeasons[0]
-    const latestSheet = sheetResult.status === 'fulfilled' ? sheetResult.value[0] ?? null : null
-    const sponsors = sponsorsResult.status === 'fulfilled' && Array.isArray(sponsorsResult.value) ? sponsorsResult.value : []
-    const pendingUsers = pendingUsersResult.status==='fulfilled' ? pendingUsersResult.value[0]?.count??0 : 0
-    const unreadNotifications = notificationsResult.status==='fulfilled' ? notificationsResult.value : 0
-    const analytics = await clubInsights(clubId).catch(() => ({ clubId,clubName:club.name,profileViews:{all:0,last7:0,last30:0},uniqueVisitors:{all:0,last7:0},weeklyGrowthPct:0,monthlyGrowthPct:0,searches:0,sponsorClicks:0,newsReads:0 }))
-    const draftCount = articles.filter(article=>article.status==='DRAFT').length
-    const approvalCount = articles.filter(article=>article.status==='APPROVED').length
-    const actionItems = [
-      completedFields < profileChecks.length ? { type:'PROFILE',title:'Complete the club profile',detail:`${profileChecks.length-completedFields} key details are still missing`,href:roleCan(membership.role,'profile')?`/club-portal/${clubId}/profile`:null } : null,
-      latestSheet && latestSheet.status !== 'PUBLISHED' ? { type:'TEAM_SELECTION',title:'Team selection is not published',detail:`${latestSheet.roundLabel} · ${latestSheet.playerCount} players selected`,href:roleCan(membership.role,'team_selection')?`/club-portal/${clubId}/team-selection`:null } : null,
-      draftCount ? { type:'NEWS',title:`${draftCount} club stor${draftCount===1?'y':'ies'} still in draft`,detail:'Finish and submit club news for PlayFooty approval',href:roleCan(membership.role,'media')?`/club-portal/${clubId}/news`:null } : null,
-      approvalCount ? { type:'NEWS',title:`${approvalCount} stor${approvalCount===1?'y is':'ies are'} awaiting approval`,detail:'PlayFooty will review submitted club news',href:roleCan(membership.role,'media')?`/club-portal/${clubId}/news`:null } : null,
-      pendingUsers ? { type:'USERS',title:`${pendingUsers} access request${pendingUsers===1?'':'s'} waiting`,detail:'Review club users and invitations',href:roleCan(membership.role,'manage_users')?`/club-portal/${clubId}/users`:null } : null,
-      unreadNotifications ? { type:'NOTIFICATION',title:`${unreadNotifications} unread notification${unreadNotifications===1?'':'s'}`,detail:'Club activity needs attention',href:null } : null,
-    ].filter(Boolean)
+    const draftCount = articles.filter(article => article.status === 'DRAFT').length
+    const approvalCount = articles.filter(article => article.status === 'APPROVED').length
 
     res.json({ data: {
       club: { id:club.id,name:club.name,shortName:club.shortName,logoUrl:club.logoUrl,primaryColour:club.primaryColour,secondaryColour:club.secondaryColour,state:club.state.code,stateName:club.state.name,leagueId:season?.leagueId??null,leagueName:season?.league.name??null,season:season?.season??null,grade:season?.grade??null },
@@ -111,11 +106,11 @@ router.get('/clubs/:clubId/dashboard', authenticateClubUser, requireActiveClubMe
       sponsors: { active:sponsors.filter((item:{status?:string})=>['APPROVED','ACTIVE','PAYMENT_COMPLETE','RENEWAL_DUE'].includes(String(item.status))).length,items:sponsors.slice(0,4) },
       users: { pending:pendingUsers },
       notifications: { unread:unreadNotifications },
-      analytics,
-      actionCentre:{total:actionItems.length,items:actionItems},
       generatedAt:new Date().toISOString(),
     } })
-  } catch (error) { res.status(500).json({ error:'Unable to load club dashboard',detail:String(error) }) }
+  } catch (error) {
+    res.status(500).json({ error:'Unable to load club dashboard',detail:String(error) })
+  }
 })
 
 router.post('/clubs/:clubId/request-access', authenticateClubUser, async (req,res) => {
