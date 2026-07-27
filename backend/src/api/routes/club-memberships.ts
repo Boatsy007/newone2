@@ -137,7 +137,7 @@ router.post('/invitations/accept', authenticateClubUser, async (req,res) => {
   try {
     const membership=await acceptClubInvitation(req.clubUser!,token)
     if (!membership) return res.status(404).json({error:'This invitation is invalid, expired or already used'})
-    res.json({data:membership,message:'Club invitation accepted'})
+    res.json({data:{membership},message:'Club invitation accepted'})
   } catch(error){res.status(403).json({error:error instanceof Error?error.message:'Unable to accept invitation'})}
 })
 
