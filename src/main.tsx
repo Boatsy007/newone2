@@ -49,6 +49,7 @@ import ClubPortal from './pages/ClubPortal.tsx'
 import LeaguePortal from './pages/LeaguePortal.tsx'
 import LeaguePortalDashboard from './pages/LeaguePortalDashboard.tsx'
 import LeaguePortalProfile from './pages/LeaguePortalProfile.tsx'
+import LeaguePortalNews from './pages/LeaguePortalNews.tsx'
 import ClubPortalDashboard from './pages/ClubPortalDashboard.tsx'
 import ClubPortalTeamSelection from './pages/ClubPortalTeamSelection.tsx'
 import ClubPortalNews from './pages/ClubPortalNews.tsx'
@@ -126,6 +127,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/club-portal" element={<ClubPortal/>}/>
     <Route path="/league-portal" element={<LeaguePortal/>}/>
     <Route path="/league-portal/:leagueId/profile" element={<LeaguePortalProfile/>}/>
+    <Route path="/league-portal/:leagueId/news" element={<LeaguePortalNews/>}/>
     <Route path="/league-portal/:leagueId" element={<LeaguePortalDashboard/>}/>
     <Route path="/club-portal/:clubId/team-selection" element={<ClubPortalTeamSelection/>}/>
     <Route path="/club-portal/:clubId/news" element={<ClubPortalNews/>}/>
