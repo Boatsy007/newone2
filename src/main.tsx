@@ -109,82 +109,22 @@ import NewsEditorialLayout from './components/news/NewsEditorialLayout.tsx'
 import SponsorProfilePortal from './components/sponsors/SponsorProfilePortal.tsx'
 import HomeSponsorLabels from './components/sponsors/HomeSponsorLabels.tsx'
 import PlayerMvpRank from './components/players/PlayerMvpRank.tsx'
+import PortalSessionBoundary from './components/portal/PortalSessionBoundary.tsx'
 import { ErrorBoundary } from './components/ui/ErrorBoundary.tsx'
 
 type HomeGoalKicker = { id: string }
 function ScrollToTop(){const{pathname}=useLocation();useEffect(()=>{window.scrollTo(0,0)},[pathname]);return null}
 function HomePlayerProfileLinks(){const navigate=useNavigate();const{pathname}=useLocation();const[players,setPlayers]=useState<HomeGoalKicker[]>([]);useEffect(()=>{if(pathname!=='/')return;let active=true;void fetch('/api/goal-kickers?mode=raw&limit=5').then(r=>r.ok?r.json():Promise.reject(new Error(`HTTP ${r.status}`))).then((p:{data?:HomeGoalKicker[]})=>{if(active)setPlayers(Array.isArray(p.data)?p.data:[])}).catch(()=>{if(active)setPlayers([])});return()=>{active=false}},[pathname]);useEffect(()=>{if(pathname!=='/'||players.length===0)return;const handleClick=(event:MouseEvent)=>{const element=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('.pf-goal-row'):null;if(!element)return;const rows=Array.from(document.querySelectorAll<HTMLAnchorElement>('.pf-goal-row'));const player=players[rows.indexOf(element)];if(!player?.id)return;event.preventDefault();navigate(`/player/${encodeURIComponent(player.id)}`)};document.addEventListener('click',handleClick);return()=>document.removeEventListener('click',handleClick)},[navigate,pathname,players]);return null}
+const clubRoute=(page:React.ReactNode)=><PortalSessionBoundary kind="club">{page}</PortalSessionBoundary>
+const leagueRoute=(page:React.ReactNode)=><PortalSessionBoundary kind="league">{page}</PortalSessionBoundary>
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><BrowserRouter><ScrollToTop/><PublicClaimRemoval/><TeamSelectionDeepLink/><ConnectedClubLadderPortal/><ClubPortalDashboardLink/><ClubPortalProfileLinks/><ClubPortalSponsorLink/><ClubPortalPlanLink/><ImportHandoffInjector/><UniversalBatchImportEnhancer/><UniversalBulkImportActions/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><AdminMvpLink/><AdminOperationsMenu/><AdminLogoManager/><AdminSponsorManager/><AdminPlayerSponsorLinks/><AdminManualNewsCreator/><GoalKickerReviewEnhancer/><GoalKickerPublicIntegration/><GoalKickerAchievementsPortal/><HighlightPublicIntegration/><RankingHealthPortal/><UnifiedSearchExtras/><HomePlayerProfileLinks/><HomeHeroCarouselConnected/><HomeRecordsPortal/><HomePlayerRecordsPortal/><HomeMvpPortal/><HomeFeaturedHighlights/><HomeFeaturedGames/><HomeFeatureCopy/><HomeDesktopPolish/><HomeSponsorLabels/><DirectoryPublicFix/><LeaguesPublicFinder/><NewsChannelFilter/><NewsEditorialLayout/><SponsorProfilePortal/><AutoShareButtons/><ProfileShareButton/><PlayerMvpRank/><HomeMobilePolish/><ErrorBoundary><Routes>
-    <Route path="/" element={<App/>}/>
-    <Route path="/power-rankings" element={<PowerRankings/>}/>
-    <Route path="/rankings" element={<FullRankings/>}/>
-    <Route path="/records" element={<Records/>}/>
-    <Route path="/goal-kickers" element={<GoalKickers/>}/>
-    <Route path="/mvp" element={<MvpLeaderboard/>}/>
-    <Route path="/player/:playerId" element={<PlayerProfile/>}/>
-    <Route path="/matches" element={<MatchCentre/>}/>
-    <Route path="/match/:kind/:matchId" element={<MatchDetail/>}/>
-    <Route path="/feed" element={<SupporterFeed/>}/>
-    <Route path="/notifications" element={<Notifications/>}/>
-    <Route path="/highlights" element={<Highlights/>}/>
-    <Route path="/highlights/:highlightId" element={<HighlightDetail/>}/>
-    <Route path="/team/:clubId" element={<TeamProfile/>}/>
-    <Route path="/club-portal" element={<ClubPortal/>}/>
-    <Route path="/league-portal" element={<LeaguePortal/>}/>
-    <Route path="/reset-password" element={<ResetPassword/>}/>
-    <Route path="/league-portal/:leagueId/profile" element={<LeaguePortalProfile/>}/>
-    <Route path="/league-portal/:leagueId/news" element={<LeaguePortalNews/>}/>
-    <Route path="/league-portal/:leagueId/sponsors" element={<LeaguePortalSponsors/>}/>
-    <Route path="/league-portal/:leagueId/users" element={<LeaguePortalUsers/>}/>
-    <Route path="/league-portal/:leagueId/activity" element={<LeaguePortalActivity/>}/>
-    <Route path="/league-portal/:leagueId/notifications" element={<LeaguePortalActivity/>}/>
-    <Route path="/league-portal/:leagueId/media" element={<LeaguePortalMedia/>}/>
-    <Route path="/league-portal/:leagueId/contacts" element={<LeaguePortalContacts/>}/>
-    <Route path="/league-portal/:leagueId" element={<LeaguePortalDashboard/>}/>
-    <Route path="/club-portal/:clubId/team-selection" element={<ClubPortalTeamSelection/>}/>
-    <Route path="/club-portal/:clubId/news" element={<ClubPortalNews/>}/>
-    <Route path="/club-portal/:clubId/profile" element={<ClubPortalProfile/>}/>
-    <Route path="/club-portal/:clubId/sponsors" element={<ClubPortalSponsors/>}/>
-    <Route path="/club-portal/:clubId/users" element={<ClubPortalUsers/>}/>
-    <Route path="/club-portal/:clubId/activity" element={<ClubPortalActivity/>}/>
-    <Route path="/club-portal/:clubId/plans" element={<ClubPortalPlans/>}/>
-    <Route path="/club-portal/:clubId" element={<ClubPortalDashboard/>}/>
-    <Route path="/league/:leagueId" element={<LeagueProfile/>}/>
-    <Route path="/leagues" element={<Leagues/>}/>
-    <Route path="/news" element={<News/>}/>
-    <Route path="/news/:slug" element={<NewsArticle/>}/>
-    <Route path="/directory" element={<Directory/>}/>
-    <Route path="/about" element={<About/>}/>
-    <Route path="/privacy" element={<PublicInformation/>}/>
-    <Route path="/terms" element={<PublicInformation/>}/>
-    <Route path="/disclaimer" element={<PublicInformation/>}/>
-    <Route path="/community-guidelines" element={<PublicInformation/>}/>
-    <Route path="/support" element={<PublicInformation/>}/>
-    <Route path="/admin" element={<AdminWorkflow/>}/>
-    <Route path="/admin/health" element={<AdminHealth/>}/>
-    <Route path="/admin/launch-readiness" element={<AdminLaunchReadiness/>}/>
-    <Route path="/admin/notification-delivery" element={<AdminNotificationDelivery/>}/>
-    <Route path="/admin/portal-rollout" element={<AdminPortalRollout/>}/>
-    <Route path="/admin/league-coverage" element={<AdminLeagueCoverage/>}/>
-    <Route path="/admin/maintenance-queue" element={<AdminMaintenanceQueue/>}/>
-    <Route path="/admin/universal-imports" element={<AdminUniversalImports/>}/>
-    <Route path="/admin/ladder-images" element={<AdminLadderImageImports/>}/>
-    <Route path="/admin/match-images" element={<AdminMatchImageImports/>}/>
-    <Route path="/admin/goal-kicker-images" element={<AdminGoalKickerImages/>}/>
-    <Route path="/admin/mvp-images" element={<AdminMvpImages/>}/>
-    <Route path="/admin/profile-images" element={<AdminProfileImageImports/>}/>
-    <Route path="/admin/highlights" element={<AdminHighlights/>}/>
-    <Route path="/admin/featured-games" element={<AdminFeaturedGames/>}/>
-    <Route path="/admin/team-sheets" element={<AdminTeamSheets/>}/>
-    <Route path="/admin/player-sponsors/:playerId" element={<AdminPlayerSponsors/>}/>
-    <Route path="/admin/club-plans" element={<AdminClubPlans/>}/>
-    <Route path="/admin/claims" element={<ClubClaimsAdmin/>}/>
-    <Route path="/admin/league-claims" element={<AdminLeagueClaims/>}/>
-    <Route path="/admin/league-access" element={<AdminLeagueClaims/>}/>
-    <Route path="/championship" element={<Championship/>}/>
-    <Route path="/club-packages" element={<Navigate to="/" replace/>}/>
-    <Route path="*" element={<NotFound/>}/>
+    <Route path="/" element={<App/>}/><Route path="/power-rankings" element={<PowerRankings/>}/><Route path="/rankings" element={<FullRankings/>}/><Route path="/records" element={<Records/>}/><Route path="/goal-kickers" element={<GoalKickers/>}/><Route path="/mvp" element={<MvpLeaderboard/>}/><Route path="/player/:playerId" element={<PlayerProfile/>}/><Route path="/matches" element={<MatchCentre/>}/><Route path="/match/:kind/:matchId" element={<MatchDetail/>}/><Route path="/feed" element={<SupporterFeed/>}/><Route path="/notifications" element={<Notifications/>}/><Route path="/highlights" element={<Highlights/>}/><Route path="/highlights/:highlightId" element={<HighlightDetail/>}/><Route path="/team/:clubId" element={<TeamProfile/>}/>
+    <Route path="/club-portal" element={<ClubPortal/>}/><Route path="/league-portal" element={<LeaguePortal/>}/><Route path="/reset-password" element={<ResetPassword/>}/>
+    <Route path="/league-portal/:leagueId/profile" element={leagueRoute(<LeaguePortalProfile/>)}/><Route path="/league-portal/:leagueId/news" element={leagueRoute(<LeaguePortalNews/>)}/><Route path="/league-portal/:leagueId/sponsors" element={leagueRoute(<LeaguePortalSponsors/>)}/><Route path="/league-portal/:leagueId/users" element={leagueRoute(<LeaguePortalUsers/>)}/><Route path="/league-portal/:leagueId/activity" element={leagueRoute(<LeaguePortalActivity/>)}/><Route path="/league-portal/:leagueId/notifications" element={leagueRoute(<LeaguePortalActivity/>)}/><Route path="/league-portal/:leagueId/media" element={leagueRoute(<LeaguePortalMedia/>)}/><Route path="/league-portal/:leagueId/contacts" element={leagueRoute(<LeaguePortalContacts/>)}/><Route path="/league-portal/:leagueId" element={leagueRoute(<LeaguePortalDashboard/>)}/>
+    <Route path="/club-portal/:clubId/team-selection" element={clubRoute(<ClubPortalTeamSelection/>)}/><Route path="/club-portal/:clubId/news" element={clubRoute(<ClubPortalNews/>)}/><Route path="/club-portal/:clubId/profile" element={clubRoute(<ClubPortalProfile/>)}/><Route path="/club-portal/:clubId/sponsors" element={clubRoute(<ClubPortalSponsors/>)}/><Route path="/club-portal/:clubId/users" element={clubRoute(<ClubPortalUsers/>)}/><Route path="/club-portal/:clubId/activity" element={clubRoute(<ClubPortalActivity/>)}/><Route path="/club-portal/:clubId/plans" element={clubRoute(<ClubPortalPlans/>)}/><Route path="/club-portal/:clubId" element={clubRoute(<ClubPortalDashboard/>)}/>
+    <Route path="/league/:leagueId" element={<LeagueProfile/>}/><Route path="/leagues" element={<Leagues/>}/><Route path="/news" element={<News/>}/><Route path="/news/:slug" element={<NewsArticle/>}/><Route path="/directory" element={<Directory/>}/><Route path="/about" element={<About/>}/><Route path="/privacy" element={<PublicInformation/>}/><Route path="/terms" element={<PublicInformation/>}/><Route path="/disclaimer" element={<PublicInformation/>}/><Route path="/community-guidelines" element={<PublicInformation/>}/><Route path="/support" element={<PublicInformation/>}/>
+    <Route path="/admin" element={<AdminWorkflow/>}/><Route path="/admin/health" element={<AdminHealth/>}/><Route path="/admin/launch-readiness" element={<AdminLaunchReadiness/>}/><Route path="/admin/notification-delivery" element={<AdminNotificationDelivery/>}/><Route path="/admin/portal-rollout" element={<AdminPortalRollout/>}/><Route path="/admin/league-coverage" element={<AdminLeagueCoverage/>}/><Route path="/admin/maintenance-queue" element={<AdminMaintenanceQueue/>}/><Route path="/admin/universal-imports" element={<AdminUniversalImports/>}/><Route path="/admin/ladder-images" element={<AdminLadderImageImports/>}/><Route path="/admin/match-images" element={<AdminMatchImageImports/>}/><Route path="/admin/goal-kicker-images" element={<AdminGoalKickerImages/>}/><Route path="/admin/mvp-images" element={<AdminMvpImages/>}/><Route path="/admin/profile-images" element={<AdminProfileImageImports/>}/><Route path="/admin/highlights" element={<AdminHighlights/>}/><Route path="/admin/featured-games" element={<AdminFeaturedGames/>}/><Route path="/admin/team-sheets" element={<AdminTeamSheets/>}/><Route path="/admin/player-sponsors/:playerId" element={<AdminPlayerSponsors/>}/><Route path="/admin/club-plans" element={<AdminClubPlans/>}/><Route path="/admin/claims" element={<ClubClaimsAdmin/>}/><Route path="/admin/league-claims" element={<AdminLeagueClaims/>}/><Route path="/admin/league-access" element={<AdminLeagueClaims/>}/><Route path="/championship" element={<Championship/>}/><Route path="/club-packages" element={<Navigate to="/" replace/>}/><Route path="*" element={<NotFound/>}/>
   </Routes></ErrorBoundary></BrowserRouter></StrictMode>,
 )
