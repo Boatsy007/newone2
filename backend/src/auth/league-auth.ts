@@ -76,15 +76,33 @@ const membershipSelect = `id,user_id AS "userId",email,league_id AS "leagueId",r
   approved_at AS "approvedAt",revoked_at AS "revokedAt",created_at AS "createdAt",updated_at AS "updatedAt"`
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
 
+function missingLeagueTable(error: unknown) {
+  const text = String(error)
+  return text.includes('league_portal_memberships') && (text.includes('does not exist') || text.includes('42P01'))
+}
+
 export async function membershipsForLeagueUser(userId: string) {
-  await ensureLeagueMembershipSchema()
-  return prisma.$queryRawUnsafe<LeagueMembership[]>(`SELECT ${membershipSelect} FROM league_portal_memberships WHERE user_id=$1 ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'PENDING' THEN 1 WHEN 'INVITED' THEN 2 WHEN 'SUSPENDED' THEN 3 ELSE 4 END,created_at`, userId)
+  const query = () => prisma.$queryRawUnsafe<LeagueMembership[]>(`SELECT ${membershipSelect} FROM league_portal_memberships WHERE user_id=$1 AND status<>'REVOKED' ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'PENDING' THEN 1 WHEN 'INVITED' THEN 2 WHEN 'SUSPENDED' THEN 3 ELSE 4 END,created_at`, userId)
+  try {
+    return await query()
+  } catch (error) {
+    if (!missingLeagueTable(error)) throw error
+    await ensureLeagueMembershipSchema()
+    return query()
+  }
 }
 
 export async function membershipForLeague(userId: string, leagueId: string) {
-  await ensureLeagueMembershipSchema()
-  const rows = await prisma.$queryRawUnsafe<LeagueMembership[]>(`SELECT ${membershipSelect} FROM league_portal_memberships WHERE user_id=$1 AND league_id=$2 LIMIT 1`, userId, leagueId)
-  return rows[0] ?? null
+  const query = () => prisma.$queryRawUnsafe<LeagueMembership[]>(`SELECT ${membershipSelect} FROM league_portal_memberships WHERE user_id=$1 AND league_id=$2 LIMIT 1`, userId, leagueId)
+  try {
+    const rows = await query()
+    return rows[0] ?? null
+  } catch (error) {
+    if (!missingLeagueTable(error)) throw error
+    await ensureLeagueMembershipSchema()
+    const rows = await query()
+    return rows[0] ?? null
+  }
 }
 
 export async function requireActiveLeagueMembership(req: Request, res: Response, next: NextFunction) {
