@@ -4,6 +4,8 @@ import { requireAdminKey } from '../middleware/auth.js'
 import { publicRateLimit } from '../middleware/rate-limit.js'
 import { leaguePortalNewsRouter } from './league-portal-news.js'
 import { leaguePortalSponsorsRouter } from './league-portal-sponsors.js'
+import { leaguePortalUsersRouter } from './league-portal-users.js'
+import { leaguePortalActivityRouter } from './league-portal-activity.js'
 import {
   LEAGUE_ROLES,
   acceptLeagueInvitation,
@@ -22,6 +24,8 @@ const router = Router()
 router.use(publicRateLimit)
 router.use('/', leaguePortalNewsRouter)
 router.use('/', leaguePortalSponsorsRouter)
+router.use('/', leaguePortalUsersRouter)
+router.use('/', leaguePortalActivityRouter)
 
 let profileSchemaReady: Promise<void> | null = null
 function ensureLeagueProfileFields() {
