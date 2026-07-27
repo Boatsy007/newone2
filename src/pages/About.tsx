@@ -1,5 +1,5 @@
 /**
- * About PlayFooty — mission and how the prototype rankings work. Editorial, static.
+ * About PlayFooty — mission and how the platform works. Editorial, static.
  */
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
@@ -7,13 +7,13 @@ import { Link } from 'react-router-dom'
 import { useSeo } from '../lib/seo'
 
 const TEXT = '#111111'
-const PINK = '#d71920'
-const MUTE = 'rgba(17,17,17,0.55)'
+const BLUE = '#2daaf5'
+const MUTE = 'rgba(17,17,17,0.58)'
 
 export default function About() {
   useSeo({
     title: 'About PlayFooty — Australia’s community football platform',
-    description: 'PlayFooty is Australia’s community football platform: a prototype for rankings, league ladders, club profiles, results and local footy stories.',
+    description: 'PlayFooty connects community football rankings, league ladders, club and player profiles, results, news, highlights and supporter updates across Australia.',
     path: '/about',
   })
 
@@ -22,26 +22,25 @@ export default function About() {
       <Nav />
       <main style={{ background: '#ffffff' }}>
         <div style={{ maxWidth: 820, margin: '0 auto', padding: '56px 20px 90px' }}>
-          <p className="font-condensed font-bold tracking-[0.28em] uppercase" style={{ fontSize: '0.72rem', color: PINK, marginBottom: 16 }}>
+          <p className="font-condensed font-bold tracking-[0.28em] uppercase" style={{ fontSize: '0.72rem', color: BLUE, marginBottom: 16 }}>
             About
           </p>
           <h1 className="font-display leading-none" style={{ fontSize: 'clamp(2.6rem, 6vw, 5rem)', color: TEXT, marginBottom: 24 }}>
-            AUSTRALIA’S COMMUNITY<br /><span style={{ color: PINK }}>FOOTBALL PLATFORM</span>
+            AUSTRALIA’S COMMUNITY<br /><span style={{ color: BLUE }}>FOOTBALL PLATFORM</span>
           </h1>
 
           <div style={{ color: MUTE, fontSize: 16.5, lineHeight: 1.75, display: 'grid', gap: 18 }}>
             <p>
-              PlayFooty exists to help answer one question clearly: <strong style={{ color: TEXT }}>what is happening across
-              community football clubs and leagues in Australia?</strong>
+              PlayFooty exists to make community football easier to discover, follow and celebrate across Australia.
             </p>
             <p>
-              The prototype is built to integrate with official competition data where available, while also supporting manually managed league, ladder and result data when API access is not yet available.
+              The platform connects national and league rankings, ladders, fixtures, results, goal kickers, MVP voting, player and club profiles, records, news, highlights and supporter updates.
             </p>
             <p>
-              PlayFooty is designed for clubs, leagues, supporters and partners: rankings, results, ladders, fixtures, statistics and editorial coverage in one public sports-media experience.
+              Official competition systems remain responsible for registrations and competition administration. PlayFooty adds the connected public experience around that data for clubs, leagues, players, supporters and commercial partners.
             </p>
             <p>
-              Rankings. Results. Ladders. Clubs. News. Built for local footy and ready for official competition feeds when they are available.
+              Every public feature is designed to connect back to the canonical club, league, player, fixture, result or article record rather than creating competing versions of the same information.
             </p>
           </div>
 
