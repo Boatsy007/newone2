@@ -12,16 +12,15 @@ function assertContainsAll(value: string, fragments: string[], label: string) {
 
 test('club user management remains owner-only and membership protected', async () => {
   const value = await source('../api/routes/club-portal-users.ts')
-  assertContainsAll(value, ['authenticateClubUser', 'requireActiveClubMembership', 'requireOwner'], 'club user routes')
-  assert.match(value, /role\s*!==\s*['"]OWNER['"]|role===['"]OWNER['"]/)
-  assert.match(value, /final Owner|at least one active Owner/i)
+  assertContainsAll(value, ['authenticateClubUser', 'requireActiveClubMembership', 'requireOwner', "roleCan(membership.role, 'manage_users')"], 'club user routes')
+  assert.match(value, /at least one active Owner/i)
   assert.match(value, /cannot remove or suspend your own/i)
 })
 
 test('league user management remains owner-only and membership protected', async () => {
   const value = await source('../api/routes/league-portal-users.ts')
   assertContainsAll(value, ['authenticateLeagueUser', 'requireActiveLeagueMembership', 'requireOwner'], 'league user routes')
-  assert.match(value, /role!=='OWNER'|role\s*!==\s*['"]OWNER['"]/)
+  assert.match(value, /role\s*!==\s*['"]OWNER['"]|role!=='OWNER'/)
   assert.match(value, /at least one active Owner/i)
   assert.match(value, /cannot remove or suspend your own/i)
 })
@@ -32,9 +31,12 @@ test('club content routes enforce active membership and role permissions', async
     source('../api/routes/club-portal-sponsors.ts'),
     source('../api/routes/club-portal-team-sheets.ts'),
   ])
-  assertContainsAll(news, ['authenticateClubUser', 'requireActiveClubMembership', "roleCan(membership.role,'media')"], 'club news routes')
-  assertContainsAll(sponsors, ['authenticateClubUser', 'requireActiveClubMembership', "roleCan(membership.role,'sponsors')"], 'club sponsor routes')
-  assertContainsAll(teamSheets, ['authenticateClubUser', 'requireActiveClubMembership', "roleCan(membership.role, 'team_selection')"], 'club team-sheet routes')
+  assertContainsAll(news, ['authenticateClubUser', 'requireActiveClubMembership', 'roleCan'], 'club news routes')
+  assert.match(news, /roleCan\([^)]*['"]media['"]\)/)
+  assertContainsAll(sponsors, ['authenticateClubUser', 'requireActiveClubMembership', 'roleCan'], 'club sponsor routes')
+  assert.match(sponsors, /roleCan\([^)]*['"]sponsors['"]\)/)
+  assertContainsAll(teamSheets, ['authenticateClubUser', 'requireActiveClubMembership', 'roleCan'], 'club team-sheet routes')
+  assert.match(teamSheets, /roleCan\([^)]*['"]team_selection['"]\)/)
 })
 
 test('league content routes enforce active membership and role permissions', async () => {
@@ -44,13 +46,16 @@ test('league content routes enforce active membership and role permissions', asy
     source('../api/routes/league-portal-media.ts'),
     source('../api/routes/league-portal.ts'),
   ])
-  assertContainsAll(news, ['authenticateLeagueUser', 'requireActiveLeagueMembership', "roleCanManageLeagueAction(membership.role,'media')"], 'league news routes')
-  assertContainsAll(sponsors, ['authenticateLeagueUser', 'requireActiveLeagueMembership', "roleCanManageLeagueAction(membership.role,'sponsors')"], 'league sponsor routes')
-  assertContainsAll(media, ['authenticateLeagueUser', 'requireActiveLeagueMembership', 'roleCanManageLeagueAction'], 'league media routes')
-  assertContainsAll(profile, ['authenticateLeagueUser', 'requireActiveLeagueMembership', "roleCanManageLeagueAction(membership.role, 'profile')"], 'league profile routes')
+  for (const [label, value] of [['league news routes', news], ['league sponsor routes', sponsors], ['league media routes', media]] as const) {
+    assertContainsAll(value, ['authenticateLeagueUser', 'requireActiveLeagueMembership', 'roleCanManageLeagueAction'], label)
+  }
+  assert.match(news, /roleCanManageLeagueAction\([^)]*['"]media['"]\)/)
+  assert.match(sponsors, /roleCanManageLeagueAction\([^)]*['"]sponsors['"]\)/)
+  assertContainsAll(profile, ['authenticateLeagueUser', 'requireActiveLeagueMembership', 'roleCanManageLeagueAction'], 'league profile routes')
+  assert.match(profile, /roleCanManageLeagueAction\([^)]*['"]profile['"]\)/)
 })
 
-test('destructive portal actions keep explicit confirmation and draft or editable-state checks', async () => {
+test('destructive portal actions retain editable-state protections', async () => {
   const [clubNews, leagueNews, clubSponsors, leagueSponsors, teamSheets] = await Promise.all([
     source('../api/routes/club-portal-news.ts'),
     source('../api/routes/league-portal-news.ts'),
