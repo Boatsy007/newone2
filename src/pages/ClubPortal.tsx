@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight, Building2, LogOut, Search, ShieldCheck, UserPlus } from 'lucide-react'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
@@ -13,6 +13,7 @@ type Membership = {
   club: { id: string; name: string; logoUrl: string | null; state: string; leagueName: string | null } | null
 }
 type MePayload = { data?: { user: { email: string | null }; memberships: Membership[] }; error?: string }
+type InvitePayload = { message?: string; data?: { membership?: Membership }; error?: string }
 
 const SESSION_KEY = 'playfooty.clubPortal.session.v1'
 function readSession(): AuthSession | null {
@@ -24,7 +25,8 @@ function saveSession(session: AuthSession | null) {
 }
 
 export default function ClubPortal() {
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
   const [session, setSession] = useState<AuthSession | null>(() => readSession())
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [userEmail, setUserEmail] = useState<string | null>(session?.user?.email ?? null)
@@ -66,21 +68,23 @@ export default function ClubPortal() {
 
   async function loadMemberships(current: AuthSession) {
     const payload = await portalRequest('/api/club-portal/me', {}, current) as MePayload
+    const items = payload.data?.memberships ?? []
     setUserEmail(payload.data?.user.email ?? current.user?.email ?? null)
-    setMemberships(payload.data?.memberships ?? [])
+    setMemberships(items)
+    return items
   }
 
   async function acceptInvite(current: AuthSession) {
     const token = params.get('invite')
-    if (!token) return
+    if (!token) return null
     const payload = await portalRequest('/api/club-portal/invitations/accept', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token }),
-    }, current)
-    setMessage(payload.message || 'Invitation accepted')
-    const next = new URLSearchParams(params)
-    next.delete('invite')
-    setParams(next, { replace: true })
-    await loadMemberships(current)
+    }, current) as InvitePayload
+    const membership = payload.data?.membership
+    if (!membership?.clubId) throw new Error('The invitation was accepted, but the club could not be opened')
+    setMessage(payload.message || 'Club invitation accepted')
+    navigate(`/club-portal/${encodeURIComponent(membership.clubId)}`, { replace: true })
+    return membership
   }
 
   useEffect(() => {
@@ -88,7 +92,16 @@ export default function ClubPortal() {
     let live = true
     setLoading(true)
     void freshSession(session)
-      .then(current => { if (!current) throw new Error('Sign in is required'); return loadMemberships(current).then(() => acceptInvite(current)) })
+      .then(async current => {
+        if (!current) throw new Error('Sign in is required')
+        if (params.get('invite')) {
+          await acceptInvite(current)
+          return
+        }
+        const items = await loadMemberships(current)
+        const activeItems = items.filter(item => item.status === 'ACTIVE' && item.club?.id)
+        if (activeItems.length === 1) navigate(`/club-portal/${encodeURIComponent(activeItems[0].club!.id)}`, { replace: true })
+      })
       .catch(reason => { if (live) setError(reason instanceof Error ? reason.message : 'Unable to load club access') })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
@@ -111,11 +124,18 @@ export default function ClubPortal() {
     try {
       const result = mode === 'signup' ? await signUpPortal(email, password) : await signInPortal(email, password)
       if (!result.access_token) {
-        setMessage('Account created. Confirm your email, then sign in.')
+        setMessage('Account created. Confirm your email, then return to this invitation.')
         setMode('signin')
         return
       }
-      setSession(result); saveSession(result); await loadMemberships(result); await acceptInvite(result); setPassword('')
+      setSession(result); saveSession(result)
+      if (params.get('invite')) await acceptInvite(result)
+      else {
+        const items = await loadMemberships(result)
+        const activeItems = items.filter(item => item.status === 'ACTIVE' && item.club?.id)
+        if (activeItems.length === 1) navigate(`/club-portal/${encodeURIComponent(activeItems[0].club!.id)}`, { replace: true })
+      }
+      setPassword('')
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to sign in') }
     finally { setLoading(false) }
   }
@@ -157,24 +177,24 @@ export default function ClubPortal() {
         <section className="club-portal-intro">
           <span>PlayFooty Club Portal</span>
           <h1>Manage your club</h1>
-          <p>Secure club accounts, verified claims and role-based access.</p>
-          <div><b><ShieldCheck size={18} /> Every club claim is reviewed</b></div>
+          <p>Secure PlayFooty access for invited club representatives.</p>
+          <div><b><ShieldCheck size={18} /> Club access is controlled by PlayFooty invitations</b></div>
         </section>
         <section className="club-portal-panel">
           {!session ? (
             <>
               <h2>{mode === 'signin' ? 'Sign in' : 'Create account'}</h2>
-              {params.get('invite') && <p className="notice">Sign in with the email address that received the invitation.</p>}
+              {params.get('invite') && <p className="notice">Use the email address that received this club invitation.</p>}
               <form onSubmit={submitAuth}>
                 <label>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} required /></label>
                 <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} minLength={8} required /></label>
                 {error && <div className="error">{error}</div>}
                 {message && <div className="notice">{message}</div>}
-                <button disabled={loading}>{loading ? 'Please wait…' : mode === 'signin' ? 'Sign in securely' : 'Create account'} <ArrowRight size={16} /></button>
+                <button disabled={loading}>{loading ? 'Please wait…' : mode === 'signin' ? 'Sign in and open club' : 'Create account'} <ArrowRight size={16} /></button>
               </form>
               {mode === 'signin' && <button className="text-button" type="button" onClick={forgotPassword}>Forgot your password?</button>}
               <button className="text-button" onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}>
-                <UserPlus size={16} /> {mode === 'signin' ? 'Create a club account' : 'Already have an account? Sign in'}
+                <UserPlus size={16} /> {mode === 'signin' ? 'Create a PlayFooty account' : 'Already have an account? Sign in'}
               </button>
             </>
           ) : (
@@ -182,14 +202,14 @@ export default function ClubPortal() {
               <div className="account-bar"><div><span>Signed in as</span><strong>{userEmail}</strong></div><button onClick={signOut}><LogOut size={16} /> Sign out</button></div>
               {error && <div className="error">{error}</div>}
               {message && <div className="notice">{message}</div>}
-              {loading ? <div className="loading">Checking your club access…</div> : (
+              {loading ? <div className="loading">Opening your club portal…</div> : (
                 <>
                   {active.length > 0 && <MembershipList title="Your clubs" items={active} />}
                   {pending.length > 0 && <MembershipList title="Awaiting approval" items={pending} />}
                   <div className="claim-section">
                     <Building2 size={30} />
-                    <h2>Claim a club</h2>
-                    <p>Search for your club and provide enough information for PlayFooty to verify your role.</p>
+                    <h2>Request club access</h2>
+                    <p>Use this only when PlayFooty has not sent your club an invitation.</p>
                     <label className="search-field"><Search size={17} /><input value={query} onChange={event => { setQuery(event.target.value); setSelectedClub(null) }} placeholder="Search club name" /></label>
                     {clubs.length > 0 && !selectedClub && <div className="club-results">{clubs.slice(0, 8).map(club => <button key={club.clubId} onClick={() => { setSelectedClub(club); setQuery(club.clubName) }}><strong>{club.clubName}</strong><small>{club.leagueName} · {club.state}</small></button>)}</div>}
                     {selectedClub && (
@@ -199,7 +219,7 @@ export default function ClubPortal() {
                         <label>Your role at the club<input value={claim.clubPosition} onChange={event => setClaim({ ...claim, clubPosition: event.target.value })} placeholder="President, secretary, media manager…" required /></label>
                         <label>Phone number<input value={claim.phone} onChange={event => setClaim({ ...claim, phone: event.target.value })} /></label>
                         <label>How can we verify you?<textarea value={claim.reason} onChange={event => setClaim({ ...claim, reason: event.target.value })} minLength={20} required /></label>
-                        <button disabled={loading}>Submit club claim</button>
+                        <button disabled={loading}>Submit access request</button>
                       </form>
                     )}
                   </div>
