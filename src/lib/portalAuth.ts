@@ -31,8 +31,18 @@ async function request(path: string, body: Record<string, unknown>, authorizatio
     body: JSON.stringify(body),
   })
   const payload = await response.json().catch(() => ({})) as PortalAuthSession & AuthErrorPayload
-  if (!response.ok) throw new Error(payload.error_description || payload.msg || payload.error || 'PlayFooty account request failed')
+  if (!response.ok) throw new Error(friendlyAuthError(payload.error_description || payload.msg || payload.error || 'PlayFooty account request failed'))
   return payload
+}
+
+function friendlyAuthError(message: string) {
+  const value = message.toLowerCase()
+  if (value.includes('invalid login credentials')) return 'The email or password is incorrect.'
+  if (value.includes('email not confirmed')) return 'Confirm your email before signing in.'
+  if (value.includes('user already registered')) return 'A PlayFooty login already exists for this email. Sign in or reset your password.'
+  if (value.includes('rate limit') || value.includes('too many')) return 'Too many attempts. Wait a moment and try again.'
+  if (value.includes('expired') && value.includes('token')) return 'This sign-in link has expired. Request a new one.'
+  return message
 }
 
 export function signInPortal(email: string, password: string) {
@@ -68,8 +78,8 @@ export function refreshPortalSession(refreshToken: string) {
   return request('refresh', { refresh_token: refreshToken })
 }
 
-export function requestPortalPasswordReset(email: string, _redirectPath: string) {
-  return request('recover', { email: email.trim() })
+export function requestPortalPasswordReset(email: string, redirectPath: string) {
+  return request('recover', { email: email.trim(), redirect_path: redirectPath })
 }
 
 export function recoveryTokenFromLocation() {
@@ -94,4 +104,18 @@ export async function ensureFreshPortalSession(session: PortalAuthSession | null
   if (!sessionNeedsRefresh(session)) return session
   const refreshed = await refreshPortalSession(session.refresh_token)
   return { ...session, ...refreshed }
+}
+
+export function safePortalReturnTo(kind: 'club' | 'league') {
+  const value = new URLSearchParams(window.location.search).get('returnTo')?.trim() ?? ''
+  const prefix = kind === 'club' ? '/club-portal/' : '/league-portal/'
+  if (!value.startsWith(prefix) || value.startsWith('//') || value.includes('://')) return null
+  return value
+}
+
+export function portalReasonMessage() {
+  const reason = new URLSearchParams(window.location.search).get('reason')
+  if (reason === 'session-expired') return 'Your session expired. Sign in again and you will return to the page you were using.'
+  if (reason === 'signin-required') return 'Sign in to continue to that portal page.'
+  return ''
 }
