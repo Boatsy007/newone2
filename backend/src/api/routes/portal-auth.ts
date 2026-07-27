@@ -11,13 +11,19 @@ function supabaseConfig() {
 }
 
 function playFootyRedirect(req: import('express').Request, requestedPath: unknown) {
-  const path = String(requestedPath ?? '').trim()
-  const allowed = ['/club-portal', '/league-portal', '/reset-password']
-  const safePath = allowed.includes(path) ? path : '/club-portal'
+  const requested = String(requestedPath ?? '').trim()
+  const [pathname, query = ''] = requested.split('?', 2)
+  const allowedPaths = ['/club-portal', '/league-portal', '/reset-password']
+  const safePath = allowedPaths.includes(pathname) ? pathname : '/club-portal'
+  const params = new URLSearchParams(query)
+  const invite = params.get('invite')?.trim() ?? ''
+  const safeQuery = invite && /^[A-Za-z0-9_-]{20,200}$/.test(invite) && safePath !== '/reset-password'
+    ? `?invite=${encodeURIComponent(invite)}`
+    : ''
   const configuredOrigin = String(process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? '').replace(/\/$/, '')
   const requestOrigin = String(req.get('origin') ?? '').replace(/\/$/, '')
   const origin = configuredOrigin || requestOrigin || 'https://playfooty.com.au'
-  return `${origin}${safePath}`
+  return `${origin}${safePath}${safeQuery}`
 }
 
 async function relayAuth(res: import('express').Response, path: string, body: Record<string, unknown>, authorization?: string, method: 'POST' | 'PUT' = 'POST') {
