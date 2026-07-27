@@ -17,6 +17,17 @@ const score = (label: string, query: string, aliases: string[] = []) => {
   return 0
 }
 
+type TeamSelectionRow = {
+  id: string
+  clubId: string
+  clubName: string
+  leagueName: string | null
+  roundLabel: string
+  opponentName: string | null
+  matchDate: string | null
+  publishedAt: string | null
+}
+
 router.get('/', async (req, res) => {
   const q = clean(req.query.q)
   if (q.length < 2) return res.json({ data: empty(), meta: { query: q, total: 0, partial: [] } })
@@ -24,7 +35,7 @@ router.get('/', async (req, res) => {
   const partial: string[] = []
   const latestRun = await prisma.rankingRun.findFirst({ where: { status: 'COMPLETED' }, orderBy: { completedAt: 'desc' }, select: { id: true } }).catch(() => null)
 
-  const [clubsResult, leaguesResult, playersResult, fixturesResult, resultsResult, newsResult, highlightsResult] = await Promise.all([
+  const [clubsResult, leaguesResult, playersResult, fixturesResult, resultsResult, newsResult, highlightsResult, teamSelectionsResult] = await Promise.all([
     prisma.club.findMany({
       where: {
         sport: 'FOOTBALL', isActive: true, archivedAt: null, approvalStatus: 'APPROVED',
@@ -78,6 +89,18 @@ router.get('/', async (req, res) => {
       WHERE status = 'APPROVED' AND (player_name ILIKE $1 OR club_name ILIKE $1 OR COALESCE(league_name, '') ILIKE $1 OR COALESCE(description, '') ILIKE $1)
       ORDER BY winner DESC, published_at DESC NULLS LAST LIMIT 12
     `, `%${q}%`)).catch(() => { partial.push('highlights'); return [] }),
+    prisma.$queryRawUnsafe<TeamSelectionRow[]>(`
+      SELECT s.id::text AS id, s.club_id AS "clubId", c.name AS "clubName", l.name AS "leagueName",
+        s.round_label AS "roundLabel", s.opponent_name AS "opponentName", s.match_date::text AS "matchDate",
+        s.published_at::text AS "publishedAt"
+      FROM football_team_sheets s
+      JOIN clubs c ON c.id::text = s.club_id
+      LEFT JOIN leagues l ON l.id::text = s.league_id
+      WHERE s.status = 'PUBLISHED'
+        AND (c.name ILIKE $1 OR COALESCE(l.name, '') ILIKE $1 OR s.round_label ILIKE $1 OR COALESCE(s.opponent_name, '') ILIKE $1)
+      ORDER BY s.published_at DESC NULLS LAST, s.match_date DESC NULLS LAST
+      LIMIT 12
+    `, `%${q}%`).catch(() => { partial.push('team-selections'); return [] }),
   ])
 
   const rankings = latestRun && clubsResult.length
@@ -99,8 +122,19 @@ router.get('/', async (req, res) => {
   ].slice(0, 16)
   const news = newsResult.map(article => ({ id: article.slug, title: article.title, summary: article.summary, category: article.category, date: article.publishedAt, heroSeed: article.heroSeed, href: `/news/${article.slug}` }))
   const highlights = highlightsResult.map(row => ({ ...row, title: `${row.playerName} — ${row.category} of the week`, href: `/highlights/${row.id}` }))
+  const teamSelections = teamSelectionsResult.map(row => ({
+    id: row.id,
+    clubId: row.clubId,
+    clubName: row.clubName,
+    leagueName: row.leagueName,
+    roundLabel: row.roundLabel,
+    opponentName: row.opponentName,
+    matchDate: row.matchDate,
+    title: `${row.clubName} team selection`,
+    href: `/team/${row.clubId}?tab=team-selection`,
+  }))
   const records = /record|records|weekly|season|goal|goals|performance/i.test(q) ? [{ id: 'football-records', title: 'Football records', summary: 'Weekly and season club and player records.', href: '/records' }] : []
-  const data = { clubs, leagues, players, matches, news, highlights, records }
+  const data = { clubs, leagues, players, matches, teamSelections, news, highlights, records }
   const total = Object.values(data).reduce((sum, rows) => sum + rows.length, 0)
 
   void prisma.searchQuery.create({ data: { term: q, normalizedTerm: norm(q), scope: 'ALL', resultCount: total, zeroResult: total === 0 } }).catch(() => {})
@@ -108,6 +142,6 @@ router.get('/', async (req, res) => {
   res.json({ data, meta: { query: q, total, partial } })
 })
 
-function empty() { return { clubs: [], leagues: [], players: [], matches: [], news: [], highlights: [], records: [] } }
+function empty() { return { clubs: [], leagues: [], players: [], matches: [], teamSelections: [], news: [], highlights: [], records: [] } }
 
 export { router as searchRouter }
