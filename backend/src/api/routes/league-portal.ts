@@ -3,6 +3,7 @@ import { prisma } from '../../db/client.js'
 import { requireAdminKey } from '../middleware/auth.js'
 import { publicRateLimit } from '../middleware/rate-limit.js'
 import { leaguePortalNewsRouter } from './league-portal-news.js'
+import { leaguePortalSponsorsRouter } from './league-portal-sponsors.js'
 import {
   LEAGUE_ROLES,
   acceptLeagueInvitation,
@@ -20,6 +21,7 @@ import {
 const router = Router()
 router.use(publicRateLimit)
 router.use('/', leaguePortalNewsRouter)
+router.use('/', leaguePortalSponsorsRouter)
 
 let profileSchemaReady: Promise<void> | null = null
 function ensureLeagueProfileFields() {
