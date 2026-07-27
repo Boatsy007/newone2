@@ -23,6 +23,7 @@ import { searchRouter } from './api/routes/search.js'
 import { seoRouter } from './api/routes/seo.js'
 import { clubPortalAccessRouter } from './api/routes/club-portal-access.js'
 import { leaguePortalRouter } from './api/routes/league-portal.js'
+import { leaguePortalContactsRouter } from './api/routes/league-portal-contacts.js'
 import { followsRouter } from './api/routes/follows.js'
 import { shareCardsRouter } from './api/routes/share-cards.js'
 import { shareLinksRouter } from './api/routes/share-links.js'
@@ -118,6 +119,7 @@ app.use('/api/news', newsRouter)
 app.use('/api/highlights', highlightsRouter)
 app.use('/api/club-portal', clubPortalAccessRouter)
 app.use('/api/league-portal', leaguePortalRouter)
+app.use('/api/league-portal', leaguePortalContactsRouter)
 app.use('/api/follows', followsRouter)
 app.use('/api/share-card', shareCardsRouter)
 app.use('/api/share-link', shareLinksRouter)
