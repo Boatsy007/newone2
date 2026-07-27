@@ -8,17 +8,14 @@ export type PortalAuthSession = {
 
 type AuthErrorPayload = { error_description?: string; msg?: string; error?: string }
 
-async function request(path: string, body: Record<string, unknown>, accessToken?: string) {
+async function request(path: string, body: Record<string, unknown>, authorization?: string) {
   const response = await fetch(`/api/portal-auth/${path}`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
-    },
+    headers: { 'content-type': 'application/json', ...(authorization ? { authorization } : {}) },
     body: JSON.stringify(body),
   })
   const payload = await response.json().catch(() => ({})) as PortalAuthSession & AuthErrorPayload
-  if (!response.ok) throw new Error(payload.error_description || payload.msg || payload.error || 'Authentication failed')
+  if (!response.ok) throw new Error(payload.error_description || payload.msg || payload.error || 'PlayFooty account request failed')
   return payload
 }
 
@@ -27,16 +24,16 @@ export function signInPortal(email: string, password: string) {
 }
 
 export function signUpPortal(email: string, password: string) {
-  return request('signup', { email: email.trim(), password })
+  const redirectPath = window.location.pathname.startsWith('/league-portal') ? '/league-portal' : '/club-portal'
+  return request('signup', { email: email.trim(), password, redirect_path: redirectPath })
 }
 
 export function refreshPortalSession(refreshToken: string) {
   return request('refresh', { refresh_token: refreshToken })
 }
 
-export function requestPortalPasswordReset(email: string, redirectPath: string) {
-  const redirectTo = `${window.location.origin}${redirectPath}`
-  return request('recover', { email: email.trim(), redirect_to: redirectTo })
+export function requestPortalPasswordReset(email: string, _redirectPath: string) {
+  return request('recover', { email: email.trim() })
 }
 
 export function recoveryTokenFromLocation() {
@@ -47,13 +44,12 @@ export function recoveryTokenFromLocation() {
   return type === 'recovery' && accessToken ? accessToken : null
 }
 
-export function updatePortalPassword(accessToken: string, password: string) {
-  return request('update-password', { password }, accessToken)
+export async function updatePortalPassword(accessToken: string, password: string) {
+  return request('update-password', { password }, `Bearer ${accessToken}`)
 }
 
 export function sessionNeedsRefresh(session: PortalAuthSession | null, bufferSeconds = 120) {
-  if (!session?.access_token || !session.refresh_token) return false
-  if (!session.expires_at) return false
+  if (!session?.access_token || !session.refresh_token || !session.expires_at) return false
   return session.expires_at <= Math.floor(Date.now() / 1000) + bufferSeconds
 }
 
