@@ -49,7 +49,6 @@ import { adminHistoryRouter } from './admin/history.js'
 import { adminChampionshipsRouter } from './admin/championships.js'
 import { adminCommercialRouter } from './admin/commercial.js'
 import { adminNotificationsRouter } from './admin/notifications.js'
-import { adminPortalRolloutRouter } from './admin/portal-rollout.js'
 import { adminAnalyticsRouter } from './admin/analytics.js'
 import { adminLadderRouter } from './admin/ladder.js'
 import { adminSeasonRouter } from './admin/season.js'
@@ -166,7 +165,6 @@ app.use('/admin/history', adminHistoryRouter)
 app.use('/admin/championships', adminChampionshipsRouter)
 app.use('/admin/commercial', adminCommercialRouter)
 app.use('/admin/notifications', adminNotificationsRouter)
-app.use('/admin/portal-rollout', adminPortalRolloutRouter)
 app.use('/admin/analytics', adminAnalyticsRouter)
 app.use('/admin/ladder', adminLadderRouter)
 app.use('/admin/season', adminSeasonRouter)
