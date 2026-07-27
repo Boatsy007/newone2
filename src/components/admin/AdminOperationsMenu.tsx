@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { getKey } from '../../lib/admin'
 
 const accessLinks = [
+  { key: 'portal-rollout', label: 'Portal Rollout', path: '/admin/portal-rollout', icon: '◎' },
   { key: 'club-access', label: 'Club Access', path: '/admin/claims', icon: '♟' },
   { key: 'league-access', label: 'League Access', path: '/admin/league-access', icon: '♙' },
 ]
@@ -12,7 +13,7 @@ const operationLinks = [
   { key: 'featured-games', label: 'Featured Games', path: '/admin/featured-games', icon: '⚔' },
   { key: 'club-plans', label: 'Club Plans', path: '/admin/club-plans', icon: '♛' },
   { key: 'ocr-planner', label: 'OCR Planner', path: '/admin/maintenance-queue', icon: '◫' },
-  { key: 'league-rollout', label: 'League Rollout', path: '/admin/league-coverage', icon: '▱' },
+  { key: 'league-rollout', label: 'League Coverage', path: '/admin/league-coverage', icon: '▱' },
   { key: 'system-health', label: 'System Health', path: '/admin/health', icon: '⌁' },
 ]
 
