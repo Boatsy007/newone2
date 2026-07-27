@@ -23,21 +23,31 @@ export default function ClubClaimsAdmin(){
   fetch('/api/directory').then(async response=>{
    const payload=await response.json() as DirectoryResponse
    if(!response.ok)throw new Error(payload.error||'Unable to load leagues and clubs')
-   const next=(payload.states??[]).flatMap(state=>(state.leagues??[]).map(league=>({leagueId:league.leagueId,name:league.name,state:state.code,clubs:(league.clubs??[]).map(club=>({clubId:club.clubId,name:club.name})).sort((a,b)=>a.name.localeCompare(b.name))}))).sort((a,b)=>a.state.localeCompare(b.state)||a.name.localeCompare(b.name))
+   const leagueMap=new Map<string,{leagueId:string;name:string;states:Set<string>;clubs:Map<string,Club>}>()
+   for(const state of payload.states??[]){
+    for(const league of state.leagues??[]){
+     const existing=leagueMap.get(league.leagueId)??{leagueId:league.leagueId,name:league.name,states:new Set<string>(),clubs:new Map<string,Club>()}
+     existing.states.add(state.code)
+     if(!existing.name&&league.name)existing.name=league.name
+     for(const club of league.clubs??[])if(club.clubId&&!existing.clubs.has(club.clubId))existing.clubs.set(club.clubId,{clubId:club.clubId,name:club.name})
+     leagueMap.set(league.leagueId,existing)
+    }
+   }
+   const next=[...leagueMap.values()].map(item=>({leagueId:item.leagueId,name:item.name,state:[...item.states].sort().join('/'),clubs:[...item.clubs.values()].sort((a,b)=>a.name.localeCompare(b.name))})).sort((a,b)=>a.state.localeCompare(b.state)||a.name.localeCompare(b.name))
    setLeagues(next)
    if(!next.length)setMessage('No active football leagues or clubs were returned by the directory.')
   }).catch((error:Error)=>setMessage(error.message))
  },[])
 
  const review=async(row:Membership,action:string)=>{const role=action==='APPROVE'?window.prompt('Role: OWNER, ADMIN, TEAM_MANAGER, MEDIA_MANAGER, SPONSOR_MANAGER or VIEWER',row.role==='VIEWER'?'ADMIN':row.role)??'ADMIN':row.role;const notes=window.prompt('Review notes (optional)',row.reviewNotes??'')??'';const r=await fetch(`/api/club-portal/admin/${row.id}`,{method:'PATCH',headers:{'content-type':'application/json',authorization:`Bearer ${key()}`},body:JSON.stringify({action,role:role.toUpperCase(),notes})});const j=await r.json().catch(()=>({}));setMessage(r.ok?j.message??'Membership updated':j.error??'Update failed');if(r.ok)void load()}
- const sendInvite=async(e:React.FormEvent)=>{e.preventDefault();if(!selectedLeagueId||!invite.clubId)return setMessage('Choose a league and club first.');const r=await fetch('/api/club-portal/admin/invitations',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key()}`},body:JSON.stringify(invite)});const j=await r.json().catch(()=>({}));if(!r.ok)return setMessage(j.error??'Invitation failed');const url=`${window.location.origin}${j.data.invitePath}`;await navigator.clipboard?.writeText(url);setMessage(`Secure PlayFooty invitation copied. Send this link to ${invite.email}: ${url}`);setInvite({...invite,email:''})}
+ const sendInvite=async(e:React.FormEvent)=>{e.preventDefault();if(!selectedLeagueId||!invite.clubId)return setMessage('Choose a league and club first.');const r=await fetch('/api/club-portal/admin/invitations',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key()}`},body:JSON.stringify(invite)});const j=await r.json().catch(()=>({}));if(!r.ok)return setMessage(j.error??'Invitation failed');const url=`${window.location.origin}${j.data.invitePath}`;await navigator.clipboard?.writeText(url);setMessage(`Secure PlayFooty invitation copied. Send this link to ${invite.email}: ${url}`);setInvite(current=>({...current,email:''}))}
 
  return <main className="membership-admin"><header><div><span>PLAYFOOTY OPERATIONS</span><h1>Club access</h1></div><div><Link to="/admin">Admin home</Link><Link to="/admin/league-access">League access</Link><Link to="/club-portal">Club login</Link></div></header>
  <section className="invite-box"><div><h2>Invite a club representative</h2><p>Choose the league first, then the club. Enter the representative&apos;s email and generate their secure PlayFooty invitation.</p></div><form onSubmit={sendInvite}>
-  <select value={selectedLeagueId} onChange={e=>{setSelectedLeagueId(e.target.value);setInvite({...invite,clubId:''})}} required><option value="">1. Select league</option>{leagues.map(league=><option key={league.leagueId} value={league.leagueId}>{league.state} — {league.name}</option>)}</select>
-  <select value={invite.clubId} onChange={e=>setInvite({...invite,clubId:e.target.value})} required disabled={!selectedLeague}><option value="">2. Select club</option>{selectedLeague?.clubs.map(club=><option key={club.clubId} value={club.clubId}>{club.name}</option>)}</select>
-  <input type="email" placeholder="3. Representative email" value={invite.email} onChange={e=>setInvite({...invite,email:e.target.value})} required/>
-  <select value={invite.role} onChange={e=>setInvite({...invite,role:e.target.value})}>{roles.map(r=><option key={r}>{r}</option>)}</select>
+  <select value={selectedLeagueId} onChange={e=>{const leagueId=e.target.value;setSelectedLeagueId(leagueId);setInvite(current=>({...current,clubId:''}))}} required><option value="">1. Select league</option>{leagues.map(league=><option key={league.leagueId} value={league.leagueId}>{league.state} — {league.name}</option>)}</select>
+  <select key={selectedLeagueId||'no-league'} value={invite.clubId} onChange={e=>setInvite(current=>({...current,clubId:e.target.value}))} required disabled={!selectedLeague}><option value="">2. Select club</option>{selectedLeague?.clubs.map(club=><option key={club.clubId} value={club.clubId}>{club.name}</option>)}</select>
+  <input type="email" placeholder="3. Representative email" value={invite.email} onChange={e=>setInvite(current=>({...current,email:e.target.value}))} required/>
+  <select value={invite.role} onChange={e=>setInvite(current=>({...current,role:e.target.value}))}>{roles.map(r=><option key={r}>{r}</option>)}</select>
   <button>Generate invite link</button>
  </form></section>
  <section className="toolbar"><select value={filter} onChange={e=>setFilter(e.target.value)}><option>PENDING</option><option>ACTIVE</option><option>SUSPENDED</option><option>REVOKED</option><option>ALL</option></select><p>Access requests are a fallback only. Normal onboarding uses the invitation form above.</p></section>{message&&<div className="msg">{message}</div>}
