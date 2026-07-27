@@ -42,6 +42,7 @@ import AdminHighlights from './pages/AdminHighlights.tsx'
 import AdminFeaturedGames from './pages/AdminFeaturedGames.tsx'
 import AdminTeamSheets from './pages/AdminTeamSheets.tsx'
 import AdminPlayerSponsors from './pages/AdminPlayerSponsors.tsx'
+import AdminClubPlans from './pages/AdminClubPlans.tsx'
 import Highlights from './pages/Highlights.tsx'
 import HighlightDetail from './pages/HighlightDetail.tsx'
 import ClubPortal from './pages/ClubPortal.tsx'
@@ -52,6 +53,7 @@ import ClubPortalProfile from './pages/ClubPortalProfile.tsx'
 import ClubPortalSponsors from './pages/ClubPortalSponsors.tsx'
 import ClubPortalUsers from './pages/ClubPortalUsers.tsx'
 import ClubPortalActivity from './pages/ClubPortalActivity.tsx'
+import ClubPortalPlans from './pages/ClubPortalPlans.tsx'
 import ClubClaimsAdmin from './pages/ClubClaimsAdmin.tsx'
 import AutoShareButtons from './components/sharing/AutoShareButtons.tsx'
 import ProfileShareButton from './components/sharing/ProfileShareButton.tsx'
@@ -87,6 +89,7 @@ import ConnectedClubLadderPortal from './components/club/ConnectedClubLadderPort
 import ClubPortalDashboardLink from './components/club/ClubPortalDashboardLink.tsx'
 import ClubPortalProfileLinks from './components/club/ClubPortalProfileLinks.tsx'
 import ClubPortalSponsorLink from './components/club/ClubPortalSponsorLink.tsx'
+import ClubPortalPlanLink from './components/club/ClubPortalPlanLink.tsx'
 import DirectoryPublicFix from './components/directory/DirectoryPublicFix.tsx'
 import LeaguesPublicFinder from './components/leagues/LeaguesPublicFinder.tsx'
 import NewsChannelFilter from './components/news/NewsChannelFilter.tsx'
@@ -101,7 +104,7 @@ function ScrollToTop(){const{pathname}=useLocation();useEffect(()=>{window.scrol
 function HomePlayerProfileLinks(){const navigate=useNavigate();const{pathname}=useLocation();const[players,setPlayers]=useState<HomeGoalKicker[]>([]);useEffect(()=>{if(pathname!=='/')return;let active=true;void fetch('/api/goal-kickers?mode=raw&limit=5').then(r=>r.ok?r.json():Promise.reject(new Error(`HTTP ${r.status}`))).then((p:{data?:HomeGoalKicker[]})=>{if(active)setPlayers(Array.isArray(p.data)?p.data:[])}).catch(()=>{if(active)setPlayers([])});return()=>{active=false}},[pathname]);useEffect(()=>{if(pathname!=='/'||players.length===0)return;const handleClick=(event:MouseEvent)=>{const element=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('.pf-goal-row'):null;if(!element)return;const rows=Array.from(document.querySelectorAll<HTMLAnchorElement>('.pf-goal-row'));const player=players[rows.indexOf(element)];if(!player?.id)return;event.preventDefault();navigate(`/player/${encodeURIComponent(player.id)}`)};document.addEventListener('click',handleClick);return()=>document.removeEventListener('click',handleClick)},[navigate,pathname,players]);return null}
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode><BrowserRouter><ScrollToTop/><PublicClaimRemoval/><TeamSelectionDeepLink/><ConnectedClubLadderPortal/><ClubPortalDashboardLink/><ClubPortalProfileLinks/><ClubPortalSponsorLink/><ImportHandoffInjector/><UniversalBatchImportEnhancer/><UniversalBulkImportActions/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><AdminMvpLink/><AdminOperationsMenu/><AdminLogoManager/><AdminSponsorManager/><AdminPlayerSponsorLinks/><AdminManualNewsCreator/><GoalKickerReviewEnhancer/><GoalKickerPublicIntegration/><GoalKickerAchievementsPortal/><HighlightPublicIntegration/><RankingHealthPortal/><UnifiedSearchExtras/><HomePlayerProfileLinks/><HomeHeroCarouselConnected/><HomeRecordsPortal/><HomePlayerRecordsPortal/><HomeMvpPortal/><HomeFeaturedHighlights/><HomeFeaturedGames/><HomeFeatureCopy/><HomeDesktopPolish/><HomeSponsorLabels/><DirectoryPublicFix/><LeaguesPublicFinder/><NewsChannelFilter/><NewsEditorialLayout/><SponsorProfilePortal/><AutoShareButtons/><ProfileShareButton/><PlayerMvpRank/><HomeMobilePolish/><ErrorBoundary><Routes>
+  <StrictMode><BrowserRouter><ScrollToTop/><PublicClaimRemoval/><TeamSelectionDeepLink/><ConnectedClubLadderPortal/><ClubPortalDashboardLink/><ClubPortalProfileLinks/><ClubPortalSponsorLink/><ClubPortalPlanLink/><ImportHandoffInjector/><UniversalBatchImportEnhancer/><UniversalBulkImportActions/><AdminWorkflowMobileFix/><AdminClubProfileFallback/><AdminMvpLink/><AdminOperationsMenu/><AdminLogoManager/><AdminSponsorManager/><AdminPlayerSponsorLinks/><AdminManualNewsCreator/><GoalKickerReviewEnhancer/><GoalKickerPublicIntegration/><GoalKickerAchievementsPortal/><HighlightPublicIntegration/><RankingHealthPortal/><UnifiedSearchExtras/><HomePlayerProfileLinks/><HomeHeroCarouselConnected/><HomeRecordsPortal/><HomePlayerRecordsPortal/><HomeMvpPortal/><HomeFeaturedHighlights/><HomeFeaturedGames/><HomeFeatureCopy/><HomeDesktopPolish/><HomeSponsorLabels/><DirectoryPublicFix/><LeaguesPublicFinder/><NewsChannelFilter/><NewsEditorialLayout/><SponsorProfilePortal/><AutoShareButtons/><ProfileShareButton/><PlayerMvpRank/><HomeMobilePolish/><ErrorBoundary><Routes>
     <Route path="/" element={<App/>}/>
     <Route path="/power-rankings" element={<PowerRankings/>}/>
     <Route path="/rankings" element={<FullRankings/>}/>
@@ -123,6 +126,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/club-portal/:clubId/sponsors" element={<ClubPortalSponsors/>}/>
     <Route path="/club-portal/:clubId/users" element={<ClubPortalUsers/>}/>
     <Route path="/club-portal/:clubId/activity" element={<ClubPortalActivity/>}/>
+    <Route path="/club-portal/:clubId/plans" element={<ClubPortalPlans/>}/>
     <Route path="/club-portal/:clubId" element={<ClubPortalDashboard/>}/>
     <Route path="/league/:leagueId" element={<LeagueProfile/>}/>
     <Route path="/leagues" element={<Leagues/>}/>
@@ -151,6 +155,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/admin/featured-games" element={<AdminFeaturedGames/>}/>
     <Route path="/admin/team-sheets" element={<AdminTeamSheets/>}/>
     <Route path="/admin/player-sponsors/:playerId" element={<AdminPlayerSponsors/>}/>
+    <Route path="/admin/club-plans" element={<AdminClubPlans/>}/>
     <Route path="/admin/claims" element={<ClubClaimsAdmin/>}/>
     <Route path="/championship" element={<Championship/>}/>
     <Route path="/club-packages" element={<Navigate to="/" replace/>}/>
