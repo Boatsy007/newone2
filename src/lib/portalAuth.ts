@@ -24,8 +24,22 @@ export function signInPortal(email: string, password: string) {
 }
 
 export function signUpPortal(email: string, password: string) {
-  const redirectPath = window.location.pathname.startsWith('/league-portal') ? '/league-portal' : '/club-portal'
+  const portal = window.location.pathname.startsWith('/league-portal') ? '/league-portal' : '/club-portal'
+  const invite = new URLSearchParams(window.location.search).get('invite')
+  const redirectPath = invite ? `${portal}?invite=${encodeURIComponent(invite)}` : portal
   return request('signup', { email: email.trim(), password, redirect_path: redirectPath })
+}
+
+export function portalSessionFromLocation(): PortalAuthSession | null {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const accessToken = hash.get('access_token')
+  const refreshToken = hash.get('refresh_token')
+  if (!accessToken || !refreshToken) return null
+  const expiresAt = Number(hash.get('expires_at') || 0) || undefined
+  const expiresIn = Number(hash.get('expires_in') || 0) || undefined
+  const session: PortalAuthSession = { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt, expires_in: expiresIn }
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  return session
 }
 
 export function refreshPortalSession(refreshToken: string) {
