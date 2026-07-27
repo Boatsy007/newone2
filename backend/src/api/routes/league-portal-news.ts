@@ -1,8 +1,10 @@
 import { Router } from 'express'
 import { prisma } from '../../db/client.js'
 import { authenticateLeagueUser, membershipForLeague, requireActiveLeagueMembership, roleCanManageLeagueAction } from '../../auth/league-auth.js'
+import { leaguePortalUsersRouter } from './league-portal-users.js'
 
 const router=Router()
+router.use('/',leaguePortalUsersRouter)
 const clean=(value:unknown,max:number)=>typeof value==='string'?value.trim().slice(0,max):''
 const slugify=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,140)
 const paragraphs=(value:string)=>JSON.stringify(value.split(/\n{2,}/).map(text=>text.trim()).filter(Boolean).map(text=>({type:'p',text})))
