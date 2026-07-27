@@ -49,17 +49,17 @@ export default function PublicClaimRemoval() {
   }
 
   const invitationPanel = panel && signedIn ? createPortal(
-    <section className="pf-invite-first">
+    <section className="pf-invite-first" aria-label="Club access onboarding">
       <span>Club access</span>
-      <h2>{requestOpen ? 'Request access' : 'Access is provided by PlayFooty invitation'}</h2>
+      <h2>{requestOpen ? 'Request access without an invitation' : 'Your club access is supplied by PlayFooty'}</h2>
       {!requestOpen ? (
         <>
-          <p>PlayFooty contacts each club and invites its approved representatives. Open the secure link supplied by PlayFooty while signed in with this email address.</p>
-          <button type="button" onClick={() => setFallback(true)}>Don&apos;t have an invitation? Request access</button>
+          <p>PlayFooty will contact your club and send an approved representative a secure invitation link. Open that link while signed in with the invited email address.</p>
+          <button type="button" onClick={() => setFallback(true)}>No invitation yet? Request access</button>
         </>
       ) : (
         <div className="pf-request-note">
-          <p>Use the form below only when your club has asked for access but has not yet received an invitation. Every request is manually reviewed by PlayFooty.</p>
+          <p>Use the form below only when your club has already spoken with PlayFooty but has not yet received its invitation. Every request is manually reviewed.</p>
           <button type="button" onClick={() => setFallback(false)}>Back to invitation access</button>
         </div>
       )}
