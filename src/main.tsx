@@ -54,6 +54,7 @@ import LeaguePortalSponsors from './pages/LeaguePortalSponsors.tsx'
 import LeaguePortalUsers from './pages/LeaguePortalUsers.tsx'
 import LeaguePortalActivity from './pages/LeaguePortalActivity.tsx'
 import LeaguePortalMedia from './pages/LeaguePortalMedia.tsx'
+import LeaguePortalContacts from './pages/LeaguePortalContacts.tsx'
 import ClubPortalDashboard from './pages/ClubPortalDashboard.tsx'
 import ClubPortalTeamSelection from './pages/ClubPortalTeamSelection.tsx'
 import ClubPortalNews from './pages/ClubPortalNews.tsx'
@@ -137,6 +138,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/league-portal/:leagueId/activity" element={<LeaguePortalActivity/>}/>
     <Route path="/league-portal/:leagueId/notifications" element={<LeaguePortalActivity/>}/>
     <Route path="/league-portal/:leagueId/media" element={<LeaguePortalMedia/>}/>
+    <Route path="/league-portal/:leagueId/contacts" element={<LeaguePortalContacts/>}/>
     <Route path="/league-portal/:leagueId" element={<LeaguePortalDashboard/>}/>
     <Route path="/club-portal/:clubId/team-selection" element={<ClubPortalTeamSelection/>}/>
     <Route path="/club-portal/:clubId/news" element={<ClubPortalNews/>}/>
