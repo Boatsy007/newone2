@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { publicRateLimit } from '../middleware/rate-limit.js'
 import { acceptClubInvitation, membershipsForUser, type AuthenticatedClubUser } from '../../auth/club-auth.js'
+import { acceptLeagueInvitation, membershipsForLeagueUser } from '../../auth/league-auth.js'
 import { prisma } from '../../db/client.js'
 
 const router = Router()
@@ -57,6 +58,23 @@ async function relayAuth(res: import('express').Response, path: string, body: Re
   }
 }
 
+type AuthPayload = {
+  access_token?: string
+  refresh_token?: string
+  expires_at?: number
+  expires_in?: number
+  user?: { id?: string; email?: string | null }
+}
+
+function authenticatedUser(auth: AuthPayload, fallbackEmail: string): AuthenticatedClubUser {
+  if (!auth.access_token || !auth.user?.id) throw Object.assign(new Error('Unable to sign in to this PlayFooty account'), { status: 401 })
+  return {
+    id: auth.user.id,
+    email: auth.user.email?.trim().toLowerCase() ?? fallbackEmail,
+    accessToken: auth.access_token,
+  }
+}
+
 router.post('/signin', async (req, res) => {
   const email = String(req.body?.email ?? '').trim().toLowerCase(), password = String(req.body?.password ?? '')
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' })
@@ -70,20 +88,8 @@ router.post('/signin-club', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' })
   try {
     const result = await supabaseRequest('token?grant_type=password', { email, password })
-    const auth = result.payload as {
-      access_token?: string
-      refresh_token?: string
-      expires_at?: number
-      expires_in?: number
-      user?: { id?: string; email?: string | null }
-    }
-    if (!auth.access_token || !auth.user?.id) return res.status(401).json({ error: 'Unable to sign in to this PlayFooty account' })
-
-    const user: AuthenticatedClubUser = {
-      id: auth.user.id,
-      email: auth.user.email?.trim().toLowerCase() ?? email,
-      accessToken: auth.access_token,
-    }
+    const auth = result.payload as AuthPayload
+    const user = authenticatedUser(auth, email)
     if (invite) await acceptClubInvitation(user, invite)
 
     const memberships = (await membershipsForUser(user.id)).filter(item => item.status === 'ACTIVE')
@@ -103,6 +109,37 @@ router.post('/signin-club', async (req, res) => {
   } catch (reason) {
     const error = reason as Error & { status?: number }
     return res.status(error.status ?? 503).json({ error: error.message || 'Unable to sign in to this club' })
+  }
+})
+
+router.post('/signin-league', async (req, res) => {
+  const email = String(req.body?.email ?? '').trim().toLowerCase()
+  const password = String(req.body?.password ?? '')
+  const invite = String(req.body?.invite ?? '').trim()
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required' })
+  try {
+    const result = await supabaseRequest('token?grant_type=password', { email, password })
+    const auth = result.payload as AuthPayload
+    const user = authenticatedUser(auth, email)
+    if (invite) await acceptLeagueInvitation(user, invite)
+
+    const memberships = (await membershipsForLeagueUser(user.id)).filter(item => item.status === 'ACTIVE')
+    const leagueIds = [...new Set(memberships.map(item => item.leagueId))]
+    const leagues = leagueIds.length
+      ? await prisma.league.findMany({ where: { id: { in: leagueIds }, archivedAt: null }, select: { id: true, name: true, logoUrl: true } })
+      : []
+    const leagueById = new Map(leagues.map(league => [league.id, league]))
+    const leagueAccounts = memberships.map(membership => ({
+      leagueId: membership.leagueId,
+      leagueName: leagueById.get(membership.leagueId)?.name ?? 'League',
+      logoUrl: leagueById.get(membership.leagueId)?.logoUrl ?? null,
+      role: membership.role,
+    }))
+
+    return res.json({ ...auth, league_accounts: leagueAccounts })
+  } catch (reason) {
+    const error = reason as Error & { status?: number }
+    return res.status(error.status ?? 503).json({ error: error.message || 'Unable to sign in to this league' })
   }
 })
 
