@@ -6,6 +6,7 @@ const links = [
   { key: 'highlights', label: 'Featured Highlights', path: '/admin/highlights', icon: '▶' },
   { key: 'featured-games', label: 'Featured Games', path: '/admin/featured-games', icon: '⚔' },
   { key: 'club-plans', label: 'Club Plans', path: '/admin/club-plans', icon: '♛' },
+  { key: 'league-access', label: 'League Access', path: '/admin/league-access', icon: '♙' },
   { key: 'ocr-planner', label: 'OCR Planner', path: '/admin/maintenance-queue', icon: '◫' },
   { key: 'league-rollout', label: 'League Rollout', path: '/admin/league-coverage', icon: '▱' },
   { key: 'system-health', label: 'System Health', path: '/admin/health', icon: '⌁' },
