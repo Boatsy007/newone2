@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { publicRateLimit } from '../middleware/rate-limit.js'
+import { acceptClubInvitation, membershipsForUser, type AuthenticatedClubUser } from '../../auth/club-auth.js'
+import { prisma } from '../../db/client.js'
 
 const router = Router()
 router.use(publicRateLimit)
@@ -26,20 +28,32 @@ function playFootyRedirect(req: import('express').Request, requestedPath: unknow
   return `${origin}${safePath}${safeQuery}`
 }
 
-async function relayAuth(res: import('express').Response, path: string, body: Record<string, unknown>, authorization?: string, method: 'POST' | 'PUT' = 'POST') {
+async function supabaseRequest(path: string, body: Record<string, unknown>, authorization?: string, method: 'POST' | 'PUT' = 'POST') {
   const { url, key } = supabaseConfig()
-  if (!url || !key) return res.status(503).json({ error: 'PlayFooty account services are temporarily unavailable' })
+  if (!url || !key) throw new Error('PlayFooty account services are temporarily unavailable')
+  const response = await fetch(`${url}/auth/v1/${path}`, {
+    method,
+    headers: { apikey: key, 'content-type': 'application/json', ...(authorization ? { authorization } : {}) },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8000),
+  })
+  const payload = await response.json().catch(() => ({})) as Record<string, unknown>
+  if (!response.ok) {
+    const message = String(payload.error_description ?? payload.msg ?? payload.error ?? 'Account request failed')
+    const error = new Error(message) as Error & { status?: number }
+    error.status = response.status
+    throw error
+  }
+  return { status: response.status, payload }
+}
+
+async function relayAuth(res: import('express').Response, path: string, body: Record<string, unknown>, authorization?: string, method: 'POST' | 'PUT' = 'POST') {
   try {
-    const response = await fetch(`${url}/auth/v1/${path}`, {
-      method,
-      headers: { apikey: key, 'content-type': 'application/json', ...(authorization ? { authorization } : {}) },
-      body: JSON.stringify(body),
-    })
-    const payload = await response.json().catch(() => ({})) as Record<string, unknown>
-    if (!response.ok) return res.status(response.status).json({ error: String(payload.error_description ?? payload.msg ?? payload.error ?? 'Account request failed') })
-    return res.status(response.status).json(payload)
-  } catch {
-    return res.status(503).json({ error: 'PlayFooty account services are temporarily unavailable' })
+    const result = await supabaseRequest(path, body, authorization, method)
+    return res.status(result.status).json(result.payload)
+  } catch (reason) {
+    const error = reason as Error & { status?: number }
+    return res.status(error.status ?? 503).json({ error: error.message || 'PlayFooty account services are temporarily unavailable' })
   }
 }
 
@@ -47,6 +61,49 @@ router.post('/signin', async (req, res) => {
   const email = String(req.body?.email ?? '').trim().toLowerCase(), password = String(req.body?.password ?? '')
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' })
   return relayAuth(res, 'token?grant_type=password', { email, password })
+})
+
+router.post('/signin-club', async (req, res) => {
+  const email = String(req.body?.email ?? '').trim().toLowerCase()
+  const password = String(req.body?.password ?? '')
+  const invite = String(req.body?.invite ?? '').trim()
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required' })
+  try {
+    const result = await supabaseRequest('token?grant_type=password', { email, password })
+    const auth = result.payload as {
+      access_token?: string
+      refresh_token?: string
+      expires_at?: number
+      expires_in?: number
+      user?: { id?: string; email?: string | null }
+    }
+    if (!auth.access_token || !auth.user?.id) return res.status(401).json({ error: 'Unable to sign in to this PlayFooty account' })
+
+    const user: AuthenticatedClubUser = {
+      id: auth.user.id,
+      email: auth.user.email?.trim().toLowerCase() ?? email,
+      accessToken: auth.access_token,
+    }
+    if (invite) await acceptClubInvitation(user, invite)
+
+    const memberships = (await membershipsForUser(user.id)).filter(item => item.status === 'ACTIVE')
+    const clubIds = [...new Set(memberships.map(item => item.clubId))]
+    const clubs = clubIds.length
+      ? await prisma.club.findMany({ where: { id: { in: clubIds }, archivedAt: null }, select: { id: true, name: true, logoUrl: true } })
+      : []
+    const clubById = new Map(clubs.map(club => [club.id, club]))
+    const clubAccounts = memberships.map(membership => ({
+      clubId: membership.clubId,
+      clubName: clubById.get(membership.clubId)?.name ?? 'Club',
+      logoUrl: clubById.get(membership.clubId)?.logoUrl ?? null,
+      role: membership.role,
+    }))
+
+    return res.json({ ...auth, club_accounts: clubAccounts })
+  } catch (reason) {
+    const error = reason as Error & { status?: number }
+    return res.status(error.status ?? 503).json({ error: error.message || 'Unable to sign in to this club' })
+  }
 })
 
 router.post('/signup', async (req, res) => {
