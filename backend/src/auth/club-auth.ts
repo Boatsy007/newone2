@@ -1,10 +1,11 @@
 import type { NextFunction, Request, Response } from 'express'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { prisma } from '../db/client.js'
+import { CLUB_PORTAL_ROLES, clubRoleCan, type ClubPortalAction, type ClubPortalRole } from './portal-role-contract.js'
 
-export const CLUB_ROLES = ['OWNER', 'ADMIN', 'TEAM_MANAGER', 'MEDIA_MANAGER', 'SPONSOR_MANAGER', 'VIEWER'] as const
+export const CLUB_ROLES = CLUB_PORTAL_ROLES
 export const MEMBERSHIP_STATUSES = ['INVITED', 'PENDING', 'ACTIVE', 'SUSPENDED', 'REVOKED'] as const
-export type ClubRole = typeof CLUB_ROLES[number]
+export type ClubRole = ClubPortalRole
 export type MembershipStatus = typeof MEMBERSHIP_STATUSES[number]
 
 export type AuthenticatedClubUser = { id: string; email: string | null; accessToken: string }
@@ -90,13 +91,8 @@ export async function requireActiveClubMembership(req: Request, res: Response, n
   if (!membership || membership.status !== 'ACTIVE') return res.status(403).json({ error: 'You do not have active access to this club' })
   res.locals.clubMembership = membership; next()
 }
-export function roleCan(role: ClubRole, action: 'manage_users'|'team_selection'|'media'|'sponsors'|'profile'|'view') {
-  if (role === 'OWNER') return true
-  if (role === 'ADMIN') return action !== 'manage_users'
-  if (role === 'TEAM_MANAGER') return action === 'team_selection' || action === 'view'
-  if (role === 'MEDIA_MANAGER') return action === 'media' || action === 'view'
-  if (role === 'SPONSOR_MANAGER') return action === 'sponsors' || action === 'view'
-  return action === 'view'
+export function roleCan(role: ClubRole, action: ClubPortalAction) {
+  return clubRoleCan(role, action)
 }
 export async function createPendingMembership(user: AuthenticatedClubUser, clubId: string, claim: { applicantName?: string; clubPosition?: string; phone?: string; reason?: string } = {}) {
   await ensureClubMembershipSchema()
