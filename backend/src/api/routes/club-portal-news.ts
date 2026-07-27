@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../../db/client.js'
-import { authenticateClubUser, membershipForClub, requireActiveClubMembership, roleCan } from '../../auth/club-auth.js'
+import { authenticateClubUser, auditMembership, membershipForClub, requireActiveClubMembership, roleCan } from '../../auth/club-auth.js'
 
 const router = Router()
 const NEWS_BUCKET = process.env.SUPABASE_NEWS_BUCKET || process.env.SUPABASE_LOGO_BUCKET || 'playfooty-logos'
@@ -29,7 +29,7 @@ router.get('/clubs/:clubId/news',requireActiveClubMembership,requireMedia,async(
   const links=await prisma.articleLink.findMany({where:{entityType:'CLUB',entityId:req.params.clubId},orderBy:{createdAt:'desc'},select:{articleId:true}})
   const ids=[...new Set(links.map(item=>item.articleId))]
   const rows=ids.length?await prisma.generatedArticle.findMany({where:{id:{in:ids},status:{not:'ARCHIVED'}},orderBy:{updatedAt:'desc'}}):[]
-  res.json({data:rows.map(row=>({id:row.id,slug:row.slug,title:row.title,subtitle:row.subtitle,summary:row.summary,body:bodyText(row.body),heroSeed:row.heroSeed,status:row.status,author:row.author,createdAt:row.createdAt,updatedAt:row.updatedAt,publishedAt:row.publishedAt}))})
+  res.json({data:rows.map(row=>({id:row.id,slug:row.slug,title:row.title,subtitle:row.subtitle,summary:row.summary,body:bodyText(row.body),heroSeed:row.heroSeed,status:row.status,author:row.author,reasoning:row.reasoning,createdAt:row.createdAt,updatedAt:row.updatedAt,publishedAt:row.publishedAt}))})
 })
 
 router.post('/clubs/:clubId/news',requireActiveClubMembership,requireMedia,async(req,res)=>{
@@ -44,6 +44,8 @@ router.post('/clubs/:clubId/news',requireActiveClubMembership,requireMedia,async
     await tx.articleLink.create({data:{articleId:created.id,entityType:'CLUB',entityId:club.id,label:club.name}})
     return created
   })
+  const membership=res.locals.clubMembership as Awaited<ReturnType<typeof membershipForClub>>
+  await auditMembership(membership?.id??null,club.id,req.clubUser!.id,'NEWS_DRAFT_CREATED',req.clubUser!.id,{articleId:article.id,title})
   res.status(201).json({data:{...article,body:articleBody}})
 })
 
@@ -55,8 +57,20 @@ router.patch('/clubs/:clubId/news/:articleId',requireActiveClubMembership,requir
   if(!['DRAFT','APPROVED'].includes(requested))return res.status(400).json({error:'Club articles can only be draft or awaiting approval'})
   const title=clean(req.body?.title,220),summary=clean(req.body?.summary,1000),articleBody=clean(req.body?.body,20000)
   if(!title||!summary||!articleBody)return res.status(400).json({error:'Headline, summary and article body are required'})
-  const updated=await prisma.generatedArticle.update({where:{id:article.id},data:{title,subtitle:clean(req.body?.subtitle,300)||null,summary,body:paragraphs(articleBody),author:clean(req.body?.author,120)||article.author,status:requested,seoTitle:title,seoDescription:summary.slice(0,500),publishedAt:null}})
+  const updated=await prisma.generatedArticle.update({where:{id:article.id},data:{title,subtitle:clean(req.body?.subtitle,300)||null,summary,body:paragraphs(articleBody),author:clean(req.body?.author,120)||article.author,status:requested,reasoning:requested==='APPROVED'?'Submitted by an approved club representative for PlayFooty review.':article.reasoning,seoTitle:title,seoDescription:summary.slice(0,500),publishedAt:null}})
+  const membership=res.locals.clubMembership as Awaited<ReturnType<typeof membershipForClub>>
+  await auditMembership(membership?.id??null,req.params.clubId,req.clubUser!.id,requested==='APPROVED'?'NEWS_SUBMITTED':'NEWS_DRAFT_SAVED',req.clubUser!.id,{articleId:article.id,title})
   res.json({data:{...updated,body:articleBody},message:requested==='APPROVED'?'Article submitted for PlayFooty approval':'Draft saved'})
+})
+
+router.delete('/clubs/:clubId/news/:articleId',requireActiveClubMembership,requireMedia,async(req,res)=>{
+  const article=await ownedArticle(req.params.clubId,req.params.articleId)
+  if(!article)return res.status(404).json({error:'Club article not found'})
+  if(article.status==='PUBLISHED')return res.status(409).json({error:'Published articles can only be archived by PlayFooty Admin'})
+  await prisma.generatedArticle.update({where:{id:article.id},data:{status:'ARCHIVED'}})
+  const membership=res.locals.clubMembership as Awaited<ReturnType<typeof membershipForClub>>
+  await auditMembership(membership?.id??null,req.params.clubId,req.clubUser!.id,'NEWS_DRAFT_DELETED',req.clubUser!.id,{articleId:article.id,title:article.title})
+  res.json({data:{id:article.id,archived:true},message:'Draft deleted'})
 })
 
 router.post('/clubs/:clubId/news/:articleId/image',requireActiveClubMembership,requireMedia,async(req,res)=>{
@@ -76,6 +90,8 @@ router.post('/clubs/:clubId/news/:articleId/image',requireActiveClubMembership,r
   if(!upload.ok)return res.status(400).json({error:`Image upload failed: ${await upload.text().catch(()=>`HTTP ${upload.status}`)}`})
   const publicUrl=`${url}/storage/v1/object/public/${NEWS_BUCKET}/${path}`
   const updated=await prisma.generatedArticle.update({where:{id:article.id},data:{heroSeed:publicUrl}})
+  const membership=res.locals.clubMembership as Awaited<ReturnType<typeof membershipForClub>>
+  await auditMembership(membership?.id??null,req.params.clubId,req.clubUser!.id,'NEWS_IMAGE_UPDATED',req.clubUser!.id,{articleId:article.id})
   res.json({data:{id:updated.id,heroSeed:updated.heroSeed}})
 })
 
