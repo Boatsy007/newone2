@@ -4,8 +4,9 @@ import { ArrowRight, Building2, LogOut, Search, ShieldCheck, UserPlus } from 'lu
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
 import { TeamLogo } from '../components/rankings/bits'
+import { ensureFreshPortalSession, requestPortalPasswordReset, signInPortal, signUpPortal, type PortalAuthSession } from '../lib/portalAuth'
 
-type AuthSession = { access_token: string; refresh_token: string; expires_at?: number; user?: { id: string; email?: string | null } }
+type AuthSession = PortalAuthSession
 type ClubResult = { clubId: string; clubName: string; leagueName: string; state: string }
 type Membership = {
   id: string; clubId: string; role: string; status: string; reviewNotes?: string | null
@@ -14,27 +15,12 @@ type Membership = {
 type MePayload = { data?: { user: { email: string | null }; memberships: Membership[] }; error?: string }
 
 const SESSION_KEY = 'playfooty.clubPortal.session.v1'
-function authConfig() {
-  const url = String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '')
-  const key = String(import.meta.env.VITE_SUPABASE_ANON_KEY ?? '')
-  return { url, key, ready: Boolean(url && key) }
-}
 function readSession(): AuthSession | null {
   try { const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) as AuthSession : null } catch { return null }
 }
 function saveSession(session: AuthSession | null) {
   if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session))
   else localStorage.removeItem(SESSION_KEY)
-}
-async function authRequest(path: string, body: Record<string, unknown>) {
-  const auth = authConfig()
-  if (!auth.ready) throw new Error('Club login is not configured yet')
-  const response = await fetch(`${auth.url}/auth/v1/${path}`, {
-    method: 'POST', headers: { apikey: auth.key, 'content-type': 'application/json' }, body: JSON.stringify(body),
-  })
-  const payload = await response.json() as AuthSession & { error_description?: string; msg?: string }
-  if (!response.ok) throw new Error(payload.error_description || payload.msg || 'Authentication failed')
-  return payload
 }
 
 export default function ClubPortal() {
@@ -56,13 +42,24 @@ export default function ClubPortal() {
   const active = useMemo(() => memberships.filter(item => item.status === 'ACTIVE'), [memberships])
   const pending = useMemo(() => memberships.filter(item => item.status !== 'ACTIVE' && item.status !== 'REVOKED'), [memberships])
 
+  async function freshSession(current: AuthSession | null) {
+    const fresh = await ensureFreshPortalSession(current)
+    if (fresh && fresh.access_token !== current?.access_token) { saveSession(fresh); setSession(fresh) }
+    return fresh
+  }
+
   async function portalRequest(path: string, options: RequestInit = {}, current = session) {
-    if (!current) throw new Error('Sign in is required')
+    const fresh = await freshSession(current)
+    if (!fresh) throw new Error('Sign in is required')
     const response = await fetch(path, {
       ...options,
-      headers: { ...(options.headers ?? {}), authorization: `Bearer ${current.access_token}` },
+      headers: { ...(options.headers ?? {}), authorization: `Bearer ${fresh.access_token}` },
     })
     const payload = await response.json().catch(() => ({})) as { error?: string; message?: string; data?: unknown }
+    if (response.status === 401) {
+      saveSession(null); setSession(null); setMemberships([])
+      throw new Error('Your session has expired. Please sign in again.')
+    }
     if (!response.ok) throw new Error(payload.error || 'Request failed')
     return payload
   }
@@ -90,8 +87,8 @@ export default function ClubPortal() {
     if (!session) { setLoading(false); return }
     let live = true
     setLoading(true)
-    void loadMemberships(session)
-      .then(() => acceptInvite(session))
+    void freshSession(session)
+      .then(current => { if (!current) throw new Error('Sign in is required'); return loadMemberships(current).then(() => acceptInvite(current)) })
       .catch(reason => { if (live) setError(reason instanceof Error ? reason.message : 'Unable to load club access') })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
@@ -112,9 +109,7 @@ export default function ClubPortal() {
   async function submitAuth(event: React.FormEvent) {
     event.preventDefault(); setLoading(true); setError(''); setMessage('')
     try {
-      const result = mode === 'signup'
-        ? await authRequest('signup', { email: email.trim(), password })
-        : await authRequest('token?grant_type=password', { email: email.trim(), password })
+      const result = mode === 'signup' ? await signUpPortal(email, password) : await signInPortal(email, password)
       if (!result.access_token) {
         setMessage('Account created. Confirm your email, then sign in.')
         setMode('signin')
@@ -122,6 +117,17 @@ export default function ClubPortal() {
       }
       setSession(result); saveSession(result); await loadMemberships(result); await acceptInvite(result); setPassword('')
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to sign in') }
+    finally { setLoading(false) }
+  }
+
+  async function forgotPassword() {
+    setError(''); setMessage('')
+    if (!email.trim()) { setError('Enter your email address first.'); return }
+    setLoading(true)
+    try {
+      await requestPortalPasswordReset(email, '/club-portal')
+      setMessage('Password reset email sent. Check your inbox and junk folder.')
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to send password reset email') }
     finally { setLoading(false) }
   }
 
@@ -166,6 +172,7 @@ export default function ClubPortal() {
                 {message && <div className="notice">{message}</div>}
                 <button disabled={loading}>{loading ? 'Please wait…' : mode === 'signin' ? 'Sign in securely' : 'Create account'} <ArrowRight size={16} /></button>
               </form>
+              {mode === 'signin' && <button className="text-button" type="button" onClick={forgotPassword}>Forgot your password?</button>}
               <button className="text-button" onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}>
                 <UserPlus size={16} /> {mode === 'signin' ? 'Create a club account' : 'Already have an account? Sign in'}
               </button>
