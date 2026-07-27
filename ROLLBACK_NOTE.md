@@ -1,0 +1,1 @@
+This branch snapshot preserves the pre-rollback production state for investigation.
