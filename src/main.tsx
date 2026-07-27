@@ -46,6 +46,7 @@ import AdminClubPlans from './pages/AdminClubPlans.tsx'
 import Highlights from './pages/Highlights.tsx'
 import HighlightDetail from './pages/HighlightDetail.tsx'
 import ClubPortal from './pages/ClubPortal.tsx'
+import LeaguePortal from './pages/LeaguePortal.tsx'
 import ClubPortalDashboard from './pages/ClubPortalDashboard.tsx'
 import ClubPortalTeamSelection from './pages/ClubPortalTeamSelection.tsx'
 import ClubPortalNews from './pages/ClubPortalNews.tsx'
@@ -120,6 +121,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/highlights/:highlightId" element={<HighlightDetail/>}/>
     <Route path="/team/:clubId" element={<TeamProfile/>}/>
     <Route path="/club-portal" element={<ClubPortal/>}/>
+    <Route path="/league-portal" element={<LeaguePortal/>}/>
     <Route path="/club-portal/:clubId/team-selection" element={<ClubPortalTeamSelection/>}/>
     <Route path="/club-portal/:clubId/news" element={<ClubPortalNews/>}/>
     <Route path="/club-portal/:clubId/profile" element={<ClubPortalProfile/>}/>
