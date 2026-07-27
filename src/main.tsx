@@ -47,6 +47,7 @@ import Highlights from './pages/Highlights.tsx'
 import HighlightDetail from './pages/HighlightDetail.tsx'
 import ClubPortal from './pages/ClubPortal.tsx'
 import LeaguePortal from './pages/LeaguePortal.tsx'
+import LeaguePortalDashboard from './pages/LeaguePortalDashboard.tsx'
 import ClubPortalDashboard from './pages/ClubPortalDashboard.tsx'
 import ClubPortalTeamSelection from './pages/ClubPortalTeamSelection.tsx'
 import ClubPortalNews from './pages/ClubPortalNews.tsx'
@@ -123,6 +124,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/team/:clubId" element={<TeamProfile/>}/>
     <Route path="/club-portal" element={<ClubPortal/>}/>
     <Route path="/league-portal" element={<LeaguePortal/>}/>
+    <Route path="/league-portal/:leagueId" element={<LeaguePortalDashboard/>}/>
     <Route path="/club-portal/:clubId/team-selection" element={<ClubPortalTeamSelection/>}/>
     <Route path="/club-portal/:clubId/news" element={<ClubPortalNews/>}/>
     <Route path="/club-portal/:clubId/profile" element={<ClubPortalProfile/>}/>
@@ -161,6 +163,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/admin/club-plans" element={<AdminClubPlans/>}/>
     <Route path="/admin/claims" element={<ClubClaimsAdmin/>}/>
     <Route path="/admin/league-claims" element={<AdminLeagueClaims/>}/>
+    <Route path="/admin/league-access" element={<AdminLeagueClaims/>}/>
     <Route path="/championship" element={<Championship/>}/>
     <Route path="/club-packages" element={<Navigate to="/" replace/>}/>
     <Route path="*" element={<NotFound/>}/>
