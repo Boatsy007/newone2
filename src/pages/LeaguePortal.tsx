@@ -1,31 +1,127 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowRight, Building2, LogOut, Search, ShieldCheck, UserPlus } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ArrowRight, Building2, LogOut, ShieldCheck, UserPlus } from 'lucide-react'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
-import { ensureFreshPortalSession, requestPortalPasswordReset, signInPortal, signUpPortal, type PortalAuthSession } from '../lib/portalAuth'
+import { requestPortalPasswordReset, signInLeaguePortal, signUpPortal, type PortalAuthSession, type PortalLeagueAccount } from '../lib/portalAuth'
 
-type AuthSession=PortalAuthSession
-type LeagueResult={id:string;name:string;state:string;strengthScore?:number}
-type Membership={id:string;leagueId:string;role:string;status:string;reviewNotes?:string|null;leagueName:string;logoUrl?:string|null;state:string}
-const SESSION_KEY='playfooty.leaguePortal.session.v1'
-function readSession():AuthSession|null{try{const raw=localStorage.getItem(SESSION_KEY);return raw?JSON.parse(raw) as AuthSession:null}catch{return null}}
-function saveSession(value:AuthSession|null){if(value)localStorage.setItem(SESSION_KEY,JSON.stringify(value));else localStorage.removeItem(SESSION_KEY)}
+const SESSION_KEY = 'playfooty.leaguePortal.session.v1'
 
-export default function LeaguePortal(){
- const[params,setParams]=useSearchParams();const[session,setSession]=useState<AuthSession|null>(()=>readSession());const[memberships,setMemberships]=useState<Membership[]>([]);const[mode,setMode]=useState<'signin'|'signup'>('signin');const[email,setEmail]=useState('');const[password,setPassword]=useState('');const[loading,setLoading]=useState(Boolean(session));const[message,setMessage]=useState('');const[error,setError]=useState('');const[query,setQuery]=useState('');const[results,setResults]=useState<LeagueResult[]>([]);const[selected,setSelected]=useState<LeagueResult|null>(null);const[claim,setClaim]=useState({applicantName:'',leaguePosition:'',phone:'',reason:''})
- const active=useMemo(()=>memberships.filter(item=>item.status==='ACTIVE'),[memberships]);const pending=useMemo(()=>memberships.filter(item=>item.status!=='ACTIVE'),[memberships])
- async function freshSession(current:AuthSession|null){const fresh=await ensureFreshPortalSession(current);if(fresh&&fresh.access_token!==current?.access_token){saveSession(fresh);setSession(fresh)}return fresh}
- async function portalRequest(path:string,options:RequestInit={},current=session){const fresh=await freshSession(current);if(!fresh)throw new Error('Sign in is required');const response=await fetch(path,{...options,headers:{...(options.headers??{}),authorization:`Bearer ${fresh.access_token}`}});const payload=await response.json().catch(()=>({})) as {data?:any;message?:string;error?:string};if(response.status===401){saveSession(null);setSession(null);setMemberships([]);throw new Error('Your session has expired. Please sign in again.')}if(!response.ok)throw new Error(payload.error||'Request failed');return payload}
- async function loadMemberships(current:AuthSession){const payload=await portalRequest('/api/league-portal/me',{},current);setMemberships(payload.data?.memberships??[])}
- async function acceptInvite(current:AuthSession){const token=params.get('invite');if(!token)return;const payload=await portalRequest('/api/league-portal/invitations/accept',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token})},current);setMessage(payload.message||'League invitation accepted');const next=new URLSearchParams(params);next.delete('invite');setParams(next,{replace:true});await loadMemberships(current)}
- useEffect(()=>{if(!session){setLoading(false);return}let live=true;setLoading(true);void freshSession(session).then(current=>{if(!current)throw new Error('Sign in is required');return loadMemberships(current).then(()=>acceptInvite(current))}).catch(reason=>{if(live)setError(reason instanceof Error?reason.message:'Unable to load league access')}).finally(()=>{if(live)setLoading(false)});return()=>{live=false}},[])
- useEffect(()=>{if(query.trim().length<2){setResults([]);return}const timer=window.setTimeout(()=>{void fetch(`/api/leagues/search/global?q=${encodeURIComponent(query.trim())}`).then(r=>r.json()).then((payload:{data?:{leagues?:LeagueResult[]}})=>setResults(payload.data?.leagues??[])).catch(()=>setResults([]))},250);return()=>window.clearTimeout(timer)},[query])
- async function submitAuth(event:React.FormEvent){event.preventDefault();setLoading(true);setError('');setMessage('');try{const result=mode==='signup'?await signUpPortal(email,password):await signInPortal(email,password);if(!result.access_token){setMessage('Account created. Confirm your email, then sign in.');setMode('signin');return}saveSession(result);setSession(result);await loadMemberships(result);await acceptInvite(result);setPassword('')}catch(reason){setError(reason instanceof Error?reason.message:'Unable to sign in')}finally{setLoading(false)}}
- async function forgotPassword(){setError('');setMessage('');if(!email.trim()){setError('Enter your email address first.');return}setLoading(true);try{await requestPortalPasswordReset(email,'/league-portal');setMessage('Password reset email sent. Check your inbox and junk folder.')}catch(reason){setError(reason instanceof Error?reason.message:'Unable to send password reset email')}finally{setLoading(false)}}
- async function submitClaim(event:React.FormEvent){event.preventDefault();if(!selected||!session)return;setLoading(true);setError('');setMessage('');try{const payload=await portalRequest(`/api/league-portal/leagues/${encodeURIComponent(selected.id)}/request-access`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(claim)});setMessage(payload.message||'League claim submitted');setSelected(null);setQuery('');setClaim({applicantName:'',leaguePosition:'',phone:'',reason:''});await loadMemberships(session)}catch(reason){setError(reason instanceof Error?reason.message:'Unable to submit league claim')}finally{setLoading(false)}}
- function signOut(){saveSession(null);setSession(null);setMemberships([]);setMessage('You have signed out.')}
- return <><Nav/><main className="league-login"><section className="league-intro"><span>PlayFooty League Portal</span><h1>Manage your league</h1><p>Secure access for approved league representatives. Profile content can be managed in future stages, while official statistics, rankings, ladders and results remain controlled by PlayFooty Admin.</p><b><ShieldCheck size={18}/> Every league account is verified before access is granted</b></section><section className="league-panel">{!session?<><h2>{mode==='signin'?'League sign in':'Create league account'}</h2>{params.get('invite')&&<p className="notice">Sign in using the email address that received the league invitation.</p>}<form onSubmit={submitAuth}><label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={8} required/></label>{error&&<div className="error">{error}</div>}{message&&<div className="notice">{message}</div>}<button disabled={loading}>{loading?'Please wait…':mode==='signin'?'Sign in securely':'Create account'} <ArrowRight size={16}/></button></form>{mode==='signin'&&<button className="switch" type="button" onClick={forgotPassword}>Forgot your password?</button>}<button className="switch" onClick={()=>setMode(mode==='signin'?'signup':'signin')}><UserPlus size={16}/>{mode==='signin'?'Create a league account':'Already have an account? Sign in'}</button></>:<><div className="account"><div><span>Signed in as</span><strong>{session.user?.email||email}</strong></div><button onClick={signOut}><LogOut size={16}/> Sign out</button></div>{error&&<div className="error">{error}</div>}{message&&<div className="notice">{message}</div>}{loading?<div className="loading">Checking your league access…</div>:<>{active.length>0&&<MembershipList title="Your leagues" items={active}/>} {pending.length>0&&<MembershipList title="Other access" items={pending}/>}<div className="claim"><Building2 size={30}/><h2>Claim a league</h2><p>Search for your league and provide details PlayFooty can use to verify your role.</p><label className="search"><Search size={17}/><input value={query} onChange={e=>{setQuery(e.target.value);setSelected(null)}} placeholder="Search league name"/></label>{results.length>0&&!selected&&<div className="results">{results.slice(0,8).map(item=><button key={item.id} onClick={()=>{setSelected(item);setQuery(item.name)}}><strong>{item.name}</strong><small>{item.state}</small></button>)}</div>}{selected&&<form onSubmit={submitClaim}><div className="selected"><strong>{selected.name}</strong><small>{selected.state}</small></div><label>Your full name<input value={claim.applicantName} onChange={e=>setClaim({...claim,applicantName:e.target.value})} required/></label><label>Your role at the league<input value={claim.leaguePosition} onChange={e=>setClaim({...claim,leaguePosition:e.target.value})} placeholder="President, administrator, media manager…" required/></label><label>Phone number<input value={claim.phone} onChange={e=>setClaim({...claim,phone:e.target.value})}/></label><label>How can we verify you?<textarea value={claim.reason} onChange={e=>setClaim({...claim,reason:e.target.value})} minLength={20} required/></label><button disabled={loading}>Submit league claim</button></form>}</div></>}</>}</section></main><Footer/><style>{styles}</style></>
+function readSession(): PortalAuthSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    return raw ? JSON.parse(raw) as PortalAuthSession : null
+  } catch {
+    return null
+  }
 }
-function MembershipList({title,items}:{title:string;items:Membership[]}){return <section className="memberships"><h2>{title}</h2>{items.map(item=><article key={item.id}><div className="league-mark">{item.logoUrl?<img src={item.logoUrl} alt=""/>:<Building2 size={25}/>}</div><div><span>{item.status==='ACTIVE'?item.role.replaceAll('_',' '):item.status}</span><strong>{item.leagueName}</strong><small>{item.state}</small>{item.reviewNotes&&<small>{item.reviewNotes}</small>}</div>{item.status==='ACTIVE'?<Link to={`/league-portal/${item.leagueId}`}>Open dashboard <ArrowRight size={15}/></Link>:<b>{item.status}</b>}</article>)}</section>}
-const styles=`.league-login{min-height:72vh;background:#eef3f7;padding:50px 20px;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,540px);gap:60px;align-items:start}.league-intro>span{color:#0783c9;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}.league-intro h1{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(4rem,9vw,8rem);line-height:.82;text-transform:uppercase;margin:12px 0}.league-intro p{color:#526070;font-size:17px;max-width:720px;line-height:1.6}.league-intro b{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:10px 14px;border-radius:999px;background:#fff;border:1px solid #d8e0e7}.league-panel{background:#fff;border:1px solid #dce3e9;border-radius:18px;box-shadow:0 18px 50px rgba(17,24,39,.1);padding:28px}.league-panel h2,.claim h2,.memberships h2{font-family:'Bebas Neue',Impact,sans-serif;font-size:40px;text-transform:uppercase;margin:8px 0}.league-panel form{display:grid;gap:13px}.league-panel label{display:grid;gap:6px;font-size:12px;font-weight:900;text-transform:uppercase}.league-panel input,.league-panel textarea{width:100%;box-sizing:border-box;border:1px solid #ccd5de;border-radius:10px;padding:13px;font:inherit}.league-panel textarea{min-height:100px}.league-panel form>button{min-height:48px;border:0;border-radius:10px;background:#111318;color:#fff;font-weight:900;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:8px}.switch{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:12px;border:0;background:none;font-weight:900;padding:10px}.error,.notice{padding:11px;border-radius:9px;margin:10px 0}.error{background:#fee2e2;color:#991b1b}.notice{background:#e0f2fe;color:#075985}.account{display:flex;justify-content:space-between;align-items:center;gap:12px}.account span,.account strong{display:block}.account span{font-size:10px;text-transform:uppercase;color:#687385;font-weight:900}.account button{display:flex;align-items:center;gap:6px;border:0;background:#eef3f7;border-radius:999px;padding:9px 12px;font-weight:900}.loading{padding:30px;text-align:center;color:#687385}.claim{border-top:1px solid #e1e7ec;margin-top:24px;padding-top:24px}.claim>p{color:#687385;line-height:1.5}.search{display:flex!important;grid-template-columns:auto 1fr!important;align-items:center;border:1px solid #ccd5de;border-radius:10px;padding:0 12px}.search input{border:0!important;outline:0}.results{display:grid;margin:8px 0;border:1px solid #dce3e9;border-radius:10px;overflow:hidden}.results button{display:flex;justify-content:space-between;text-align:left;border:0;border-bottom:1px solid #e7ebef;background:#fff;padding:12px}.results button:last-child{border-bottom:0}.results strong,.results small{display:block}.selected{padding:12px;border-radius:10px;background:#eef7fd}.selected strong,.selected small{display:block}.selected small{color:#687385;margin-top:3px}.memberships{margin-top:22px}.memberships article{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;border:1px solid #e0e6eb;border-radius:12px;padding:12px;margin-top:8px}.league-mark{width:50px;height:50px;border-radius:12px;background:#eef3f7;display:grid;place-items:center;overflow:hidden}.league-mark img{width:100%;height:100%;object-fit:contain}.memberships span,.memberships strong,.memberships small{display:block}.memberships span{font-size:9px;color:#0783c9;font-weight:900;text-transform:uppercase}.memberships small{color:#687385;margin-top:2px}.memberships a{display:flex;align-items:center;gap:5px;color:#111;text-decoration:none;font-weight:900;font-size:12px}.memberships>article>b{font-size:10px;text-transform:uppercase;color:#8a5300}@media(max-width:850px){.league-login{grid-template-columns:1fr;gap:24px;padding:28px 14px}.league-intro h1{font-size:4.4rem}}@media(max-width:520px){.league-panel{padding:20px}.account{align-items:flex-start;flex-direction:column}.memberships article{grid-template-columns:auto 1fr}.memberships article>a,.memberships article>b{grid-column:1/-1}}`
+
+function saveSession(session: PortalAuthSession | null) {
+  if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+  else localStorage.removeItem(SESSION_KEY)
+}
+
+function openLeague(leagueId: string) {
+  window.location.assign(`/league-portal/${encodeURIComponent(leagueId)}`)
+}
+
+export default function LeaguePortal() {
+  const initial = useMemo(() => readSession(), [])
+  const [session, setSession] = useState<PortalAuthSession | null>(initial)
+  const [accounts, setAccounts] = useState<PortalLeagueAccount[]>(initial?.league_accounts ?? [])
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const hasInvite = Boolean(new URLSearchParams(window.location.search).get('invite'))
+
+  async function submitAuth(event: React.FormEvent) {
+    event.preventDefault()
+    setLoading(true)
+    setError('')
+    setMessage('')
+    try {
+      const result = mode === 'signup'
+        ? await signUpPortal(email, password)
+        : await signInLeaguePortal(email, password)
+
+      if (!result.access_token) {
+        setMessage('Account created. Confirm your email, then sign in to open your league.')
+        setMode('signin')
+        return
+      }
+
+      saveSession(result)
+      setSession(result)
+      setAccounts(result.league_accounts ?? [])
+      setPassword('')
+
+      if ((result.league_accounts ?? []).length === 1) {
+        openLeague(result.league_accounts![0].leagueId)
+      } else if (!(result.league_accounts ?? []).length) {
+        setError('This PlayFooty login is not linked to an active league. Contact PlayFooty for an invitation.')
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to sign in')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function forgotPassword() {
+    if (!email.trim()) {
+      setError('Enter your email address first.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      await requestPortalPasswordReset(email, '/league-portal')
+      setMessage('Password reset email sent. Check your inbox and junk folder.')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to send the reset email')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function signOut() {
+    saveSession(null)
+    setSession(null)
+    setAccounts([])
+    setMessage('You have signed out.')
+  }
+
+  return <><Nav/><main className="league-login">
+    <section className="league-intro">
+      <span>PlayFooty League Portal</span>
+      <h1>Manage your league</h1>
+      <p>Sign in with the PlayFooty login supplied to your league. Your linked league opens automatically.</p>
+      <b><ShieldCheck size={18}/> League accounts are supplied by PlayFooty invitation</b>
+    </section>
+
+    <section className="league-panel">
+      {!session ? <>
+        <h2>{mode === 'signin' ? 'League sign in' : 'Create PlayFooty login'}</h2>
+        {hasInvite && <p className="notice">Use the email address that received this league invitation.</p>}
+        <form onSubmit={submitAuth}>
+          <label>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} required/></label>
+          <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} minLength={8} required/></label>
+          {error && <div className="error">{error}</div>}
+          {message && <div className="notice">{message}</div>}
+          <button disabled={loading}>{loading ? 'Please wait…' : mode === 'signin' ? 'Sign in and open league' : 'Create account'} <ArrowRight size={16}/></button>
+        </form>
+        {mode === 'signin' && <button className="switch" type="button" onClick={forgotPassword}>Forgot your password?</button>}
+        <button className="switch" type="button" onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}><UserPlus size={16}/>{mode === 'signin' ? 'Create a PlayFooty login' : 'Already have an account? Sign in'}</button>
+      </> : <>
+        <div className="account"><div><span>Signed in as</span><strong>{session.user?.email || 'PlayFooty account'}</strong></div><button onClick={signOut}><LogOut size={16}/> Sign out</button></div>
+        {error && <div className="error">{error}</div>}
+        {message && <div className="notice">{message}</div>}
+        {accounts.length > 0 ? <section className="memberships"><h2>{accounts.length === 1 ? 'Your league' : 'Choose a league'}</h2>{accounts.map(account => <button key={account.leagueId} type="button" onClick={() => openLeague(account.leagueId)}><span className="league-mark">{account.logoUrl ? <img src={account.logoUrl} alt=""/> : <Building2 size={25}/>}</span><span><small>{account.role.replaceAll('_', ' ')}</small><strong>{account.leagueName}</strong></span><ArrowRight size={18}/></button>)}</section> : <div className="empty"><Building2 size={30}/><h2>No linked league</h2><p>Contact PlayFooty to have this login connected to your league.</p></div>}
+      </>}
+    </section>
+  </main><Footer/><style>{styles}</style></>
+}
+
+const styles = `.league-login{min-height:72vh;background:#eef3f7;padding:50px 20px;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,540px);gap:60px;align-items:start}.league-intro>span{color:#0783c9;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}.league-intro h1{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(4rem,9vw,8rem);line-height:.82;text-transform:uppercase;margin:12px 0}.league-intro p{color:#526070;font-size:17px;max-width:720px;line-height:1.6}.league-intro b{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:12px 16px;border-radius:999px;background:#fff;border:1px solid #d8e0e7}.league-panel{background:#fff;border:1px solid #dce3e9;border-radius:18px;box-shadow:0 18px 50px rgba(17,24,39,.1);padding:28px}.league-panel h2,.memberships h2,.empty h2{font-family:'Bebas Neue',Impact,sans-serif;font-size:40px;text-transform:uppercase;margin:8px 0}.league-panel form{display:grid;gap:13px}.league-panel label{display:grid;gap:6px;font-size:12px;font-weight:900;text-transform:uppercase}.league-panel input{width:100%;box-sizing:border-box;border:1px solid #ccd5de;border-radius:10px;padding:13px;font:inherit}.league-panel form>button{min-height:48px;border:0;border-radius:10px;background:#111318;color:#fff;font-weight:900;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:8px}.switch{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:12px;border:0;background:none;font-weight:900;padding:10px;color:#087bbf}.error,.notice{padding:12px;border-radius:10px;margin:10px 0}.error{background:#fff0f0;color:#a31414}.notice{background:#eaf7ff;color:#066aa1}.account{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #e1e7ec;padding-bottom:16px}.account span,.account strong{display:block}.account span{font-size:10px;text-transform:uppercase;color:#687385;font-weight:900}.account button{display:flex;align-items:center;gap:6px;border:0;background:#eef3f7;border-radius:999px;padding:9px 12px;font-weight:900}.memberships{display:grid;gap:10px;margin-top:20px}.memberships>button{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;text-align:left;border:1px solid #e0e6eb;border-radius:12px;padding:13px;background:#fff;color:#111}.league-mark{width:52px;height:52px;border-radius:12px;background:#eef3f7;display:grid;place-items:center;overflow:hidden}.league-mark img{width:100%;height:100%;object-fit:contain}.memberships small,.memberships strong{display:block}.memberships small{font-size:9px;color:#0783c9;font-weight:900;text-transform:uppercase}.memberships strong{font-size:16px;margin-top:3px}.empty{text-align:center;padding:35px 10px;color:#687385}.empty h2{color:#111}@media(max-width:850px){.league-login{grid-template-columns:1fr;gap:24px;padding:28px 14px}.league-intro h1{font-size:4.4rem}}@media(max-width:520px){.league-panel{padding:20px}.account{align-items:flex-start;flex-direction:column}}`
