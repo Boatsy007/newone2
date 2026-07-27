@@ -8,18 +8,13 @@ export type PortalAuthSession = {
 
 type AuthErrorPayload = { error_description?: string; msg?: string; error?: string }
 
-function config() {
-  const url = String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '')
-  const key = String(import.meta.env.VITE_SUPABASE_ANON_KEY ?? '')
-  if (!url || !key) throw new Error('Portal authentication is not configured yet')
-  return { url, key }
-}
-
-async function request(path: string, body: Record<string, unknown>) {
-  const { url, key } = config()
-  const response = await fetch(`${url}/auth/v1/${path}`, {
+async function request(path: string, body: Record<string, unknown>, accessToken?: string) {
+  const response = await fetch(`/api/portal-auth/${path}`, {
     method: 'POST',
-    headers: { apikey: key, 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+    },
     body: JSON.stringify(body),
   })
   const payload = await response.json().catch(() => ({})) as PortalAuthSession & AuthErrorPayload
@@ -28,7 +23,7 @@ async function request(path: string, body: Record<string, unknown>) {
 }
 
 export function signInPortal(email: string, password: string) {
-  return request('token?grant_type=password', { email: email.trim(), password })
+  return request('signin', { email: email.trim(), password })
 }
 
 export function signUpPortal(email: string, password: string) {
@@ -36,7 +31,7 @@ export function signUpPortal(email: string, password: string) {
 }
 
 export function refreshPortalSession(refreshToken: string) {
-  return request('token?grant_type=refresh_token', { refresh_token: refreshToken })
+  return request('refresh', { refresh_token: refreshToken })
 }
 
 export function requestPortalPasswordReset(email: string, redirectPath: string) {
@@ -52,20 +47,8 @@ export function recoveryTokenFromLocation() {
   return type === 'recovery' && accessToken ? accessToken : null
 }
 
-export async function updatePortalPassword(accessToken: string, password: string) {
-  const { url, key } = config()
-  const response = await fetch(`${url}/auth/v1/user`, {
-    method: 'PUT',
-    headers: {
-      apikey: key,
-      authorization: `Bearer ${accessToken}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ password }),
-  })
-  const payload = await response.json().catch(() => ({})) as AuthErrorPayload
-  if (!response.ok) throw new Error(payload.error_description || payload.msg || payload.error || 'Unable to update password')
-  return payload
+export function updatePortalPassword(accessToken: string, password: string) {
+  return request('update-password', { password }, accessToken)
 }
 
 export function sessionNeedsRefresh(session: PortalAuthSession | null, bufferSeconds = 120) {
