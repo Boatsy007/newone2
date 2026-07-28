@@ -15,14 +15,14 @@ const requireText = (source, text, message) => { if (!source.includes(text)) fai
 
 requireText(files.sponsorAdmin, "'/api/commercial/sponsorships'", 'canonical sponsorship creation API is missing')
 requireText(files.sponsorAdmin, "'/api/sponsors'", 'canonical sponsor management API is missing')
-requireText(files.sponsorAdmin, "bannerPosition", 'sponsorship placement support is missing')
-requireText(files.sponsorAdmin, "displayPriority", 'sponsorship priority support is missing')
-requireText(files.sponsorAdmin, "startDate", 'sponsorship start-date support is missing')
-requireText(files.sponsorAdmin, "endDate", 'sponsorship end-date support is missing')
+requireText(files.sponsorAdmin, 'bannerPosition', 'sponsorship placement support is missing')
+requireText(files.sponsorAdmin, 'displayPriority', 'sponsorship priority support is missing')
+requireText(files.sponsorAdmin, 'startDate', 'sponsorship start-date support is missing')
+requireText(files.sponsorAdmin, 'endDate', 'sponsorship end-date support is missing')
 
-requireText(files.adminManager, "scope: target.kind.toUpperCase()", 'club and league sponsorship assignment is missing')
+requireText(files.adminManager, 'scope: target.kind.toUpperCase()', 'club and league sponsorship assignment is missing')
 requireText(files.adminManager, "target.kind === 'club'", 'club sponsorship management is missing')
-requireText(files.adminManager, "leagueId: target.id", 'league sponsorship management is missing')
+requireText(files.adminManager, 'leagueId: target.id', 'league sponsorship management is missing')
 requireText(files.clubSponsors, 'SponsorShowcase', 'club sponsor public display is missing')
 requireText(files.leagueSponsors, 'scope="league"', 'league sponsor public display is missing')
 
@@ -34,7 +34,7 @@ requireText(files.routes, '/admin/player-sponsors/:playerId', 'player sponsor ad
 requireText(files.homeSponsors, "pathname !== '/'", 'homepage sponsorship display is not limited to the homepage')
 requireText(files.homeSponsors, "'.pf-goal-row'", 'goal-kicker sponsorship placement is missing')
 requireText(files.homeSponsors, "'.pf-club-card:not(.loading)'", 'homepage club sponsorship placement is missing')
-requireText(files.homeSponsors, "'/api/${kind === 'club' ? 'clubs' : 'players'}/${encodeURIComponent(id)}/sponsors'", 'homepage sponsor API connection is missing')
+requireText(files.homeSponsors, '/api/${kind === \'club\' ? \'clubs\' : \'players\'}/${encodeURIComponent(id)}/sponsors', 'homepage sponsor API connection is missing')
 requireText(files.homeSponsors, 'ACTIVE_STATUSES', 'active sponsorship filtering is missing')
 
 if (failures.length) {
