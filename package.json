@@ -9,7 +9,8 @@
     "verify:home-records": "node scripts/verify-home-record-portals.mjs",
     "verify:public-data": "node scripts/verify-live-public-data.mjs",
     "verify:public-profiles": "node scripts/verify-public-profile-contract.mjs",
-    "build": "npm run test:goal-kickers && npm run verify:home-records && npm run verify:public-profiles && tsc -b && vite build",
+    "verify:admin-mvp": "node scripts/verify-admin-mvp.mjs",
+    "build": "npm run test:goal-kickers && npm run verify:home-records && npm run verify:public-profiles && npm run verify:admin-mvp && tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
