@@ -33,13 +33,23 @@ router.get('/', publicRateLimit, cachePublic(600), async (req, res) => {
 })
 
 const QUALIFY_CUTOFF = 32
+function parseList(value: string | null | undefined) {
+  try {
+    const parsed = value ? JSON.parse(value) : []
+    return Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string' && item.trim()) : []
+  } catch {
+    return []
+  }
+}
 
-router.get('/:id', publicRateLimit, cachePublic(600), async (req, res) => {
+router.get('/:id', publicRateLimit, cachePublic(30), async (req, res) => {
   try {
     const clubId = req.params.id
     const club = await prisma.club.findFirst({ where: { id: clubId, sport: 'FOOTBALL', archivedAt: null, isActive: true }, select: { id: true, name: true, region: true, logoUrl: true, primaryColour: true, secondaryColour: true, websiteUrl: true, facebookUrl: true, instagramUrl: true, description: true, townName: true, state: { select: { code: true, name: true } } } })
     const cls = await prisma.clubLeagueSeason.findFirst({ where: { clubId, isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } }, orderBy: { season: 'desc' }, select: { leagueId: true, season: true, played: true, wins: true, losses: true, draws: true, goalsFor: true, goalsAgainst: true, percentage: true, points: true, league: { select: { id: true, name: true, strengthScore: true, strengthTier: true } } } })
     if (!club && !cls) return res.status(404).json({ error: 'Club not found' })
+
+    const profile = await prisma.clubProfile.findUnique({ where: { clubId }, select: { gallery: true, uniformPhotos: true, ground: true, address: true, email: true, phone: true, president: true, secretary: true, coach: true, assistantCoach: true, history: true, clubColours: true, foundedYear: true, trainingNights: true, homeCourt: true, googleMapsUrl: true, tiktokUrl: true, youtubeUrl: true, membershipLink: true, volunteerLink: true } }).catch(() => null)
 
     let currentEntry: any = null
     try {
@@ -77,7 +87,9 @@ router.get('/:id', publicRateLimit, cachePublic(600), async (req, res) => {
       leagueStrengthScore: league?.strengthScore ?? null, leagueStrengthTier: league?.strengthTier ?? null,
       recentForm, componentScores, weekLabel: currentEntry?.rankingRun.weekLabel ?? null, season,
       history: [], town: club?.townName ?? null, region: club?.region ?? null, stateName: club?.state?.name ?? null, logoUrl: club?.logoUrl ?? null,
-      primaryColour: club?.primaryColour ?? null, secondaryColour: club?.secondaryColour ?? null, websiteUrl: club?.websiteUrl ?? null, facebookUrl: club?.facebookUrl ?? null, instagramUrl: club?.instagramUrl ?? null, bio: club?.description ?? null,
+      primaryColour: club?.primaryColour ?? null, secondaryColour: club?.secondaryColour ?? null, websiteUrl: club?.websiteUrl ?? null, facebookUrl: club?.facebookUrl ?? null, instagramUrl: club?.instagramUrl ?? null, bio: profile?.history ?? club?.description ?? null,
+      gallery: parseList(profile?.gallery), uniformPhotos: parseList(profile?.uniformPhotos),
+      ground: profile?.ground ?? null, address: profile?.address ?? null, email: profile?.email ?? null, phone: profile?.phone ?? null, president: profile?.president ?? null, secretary: profile?.secretary ?? null, coach: profile?.coach ?? null, assistantCoach: profile?.assistantCoach ?? null, clubColours: profile?.clubColours ?? null, foundedYear: profile?.foundedYear ?? null, trainingNights: profile?.trainingNights ?? null, homeCourt: profile?.homeCourt ?? null, googleMapsUrl: profile?.googleMapsUrl ?? null, tiktokUrl: profile?.tiktokUrl ?? null, youtubeUrl: profile?.youtubeUrl ?? null, membershipLink: profile?.membershipLink ?? null, volunteerLink: profile?.volunteerLink ?? null,
       ranking: rank == null ? null : { rank, powerRating: currentEntry?.powerRating ?? null, movement: currentEntry?.rankMovement ?? null },
       leadingGoalKicker, fixtures: [], results: [], teams: [],
       ladder: ladderRows.map((r, index) => ({ clubId: r.clubId, clubName: r.club.name, logoUrl: r.club.logoUrl, position: index + 1, played: r.played, wins: r.wins, losses: r.losses, draws: r.draws, percentage: r.percentage, points: r.points, isThisClub: r.clubId === clubId })),
