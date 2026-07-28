@@ -12,6 +12,10 @@ function dataArray(payload: unknown): unknown[] {
   return Array.isArray(data) ? data : []
 }
 
+function hasArrayPayload(payload: unknown): boolean {
+  return Boolean(payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data))
+}
+
 function hasRecordData(payload: unknown): boolean {
   if (!payload || typeof payload !== 'object') return false
   const data = (payload as { data?: unknown }).data
@@ -40,8 +44,8 @@ const checks: Check[] = [
   { name: 'season records', path: `/api/records?period=season&season=${season}&limit=20`, validate: hasRecordData },
   { name: 'goal-kicker records', path: '/api/goal-kickers/records?limit=20', validate: hasGoalRecordData },
   { name: 'news', path: '/api/news', validate: payload => dataArray(payload).length > 0 },
-  { name: 'featured games', path: '/api/featured-games', validate: payload => dataArray(payload).length > 0 },
-  { name: 'highlights', path: '/api/highlights', validate: payload => dataArray(payload).length > 0 },
+  { name: 'featured games', path: '/api/featured-games', validate: hasArrayPayload },
+  { name: 'highlights', path: '/api/highlights', validate: hasArrayPayload },
 ]
 
 const server = app.listen(0, '127.0.0.1')
