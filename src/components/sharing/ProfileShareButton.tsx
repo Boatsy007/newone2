@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import ShareButton from './ShareButton'
 import PlayerProfileCompleteness from '../players/PlayerProfileCompleteness'
+import ProfileFollowDock from '../supporter/ProfileFollowDock'
 
 function targetSelector(pathname: string) {
   // Club profiles keep their React tree fully native. Injecting a portal into the
@@ -40,6 +41,7 @@ export default function ProfileShareButton() {
 
   return <>
     <PlayerProfileCompleteness />
+    <ProfileFollowDock />
     {target && selector ? createPortal(
       <span className="pf-profile-share-mount">{button}</span>,
       target,
