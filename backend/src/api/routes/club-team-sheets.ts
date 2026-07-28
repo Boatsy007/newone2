@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { prisma } from '../../db/client.js'
 import { authenticateClubUser, requireActiveClubMembership, roleCan } from '../../auth/club-auth.js'
 import { upsertCanonicalGoalKicker } from '../../services/canonical-goal-kicker-upsert.js'
+import { ensureAvailabilityTables } from './player-availability.js'
 
 const POSITIONS = ['BP_LEFT','FB','BP_RIGHT','HBF_LEFT','CHB','HBF_RIGHT','WING_LEFT','CENTRE','WING_RIGHT','HFF_LEFT','CHF','HFF_RIGHT','FP_LEFT','FF','FP_RIGHT','RUCK','RUCK_ROVER','ROVER','INTERCHANGE_1','INTERCHANGE_2','INTERCHANGE_3','INTERCHANGE_4','EMERGENCY_1','EMERGENCY_2','EMERGENCY_3'] as const
 const router = Router()
@@ -101,10 +102,11 @@ router.post('/clubs/:clubId/sheets', async (req,res) => {
 
 router.put('/clubs/:clubId/sheets/:sheetId/positions', async (req,res) => {
   try {
-    await ensureTables(); const sheet=await sheetForClub(req.params.sheetId,req.params.clubId); if(!sheet)return res.status(404).json({error:'Team sheet not found for this club'})
+    await ensureTables(); await ensureAvailabilityTables(); const sheet=await sheetForClub(req.params.sheetId,req.params.clubId); if(!sheet)return res.status(404).json({error:'Team sheet not found for this club'})
     const incoming=Array.isArray(req.body?.positions)?req.body.positions:[]
     const clean=incoming.map((row:any)=>({positionCode:String(row.positionCode??''),clubPlayerId:String(row.clubPlayerId??'')})).filter((row:any)=>POSITIONS.includes(row.positionCode as any)&&row.clubPlayerId)
     if(new Set(clean.map((r:any)=>r.positionCode)).size!==clean.length||new Set(clean.map((r:any)=>r.clubPlayerId)).size!==clean.length)return res.status(400).json({error:'Each player and position can only be used once'})
+    if(clean.length){const unavailable=await prisma.$queryRawUnsafe<Array<{playerName:string;reason:string|null}>>(`SELECT cp.player_name AS "playerName",a.reason FROM football_player_availability a JOIN football_club_players cp ON cp.id=a.club_player_id WHERE a.team_sheet_id=$1::uuid AND a.club_player_id=ANY($2::uuid[]) AND a.status='UNAVAILABLE'`,req.params.sheetId,clean.map((r:any)=>r.clubPlayerId));if(unavailable.length)return res.status(409).json({error:`Unavailable player${unavailable.length===1?'':'s'} cannot be selected: ${unavailable.map(p=>`${p.playerName}${p.reason?` (${p.reason.toLowerCase()})`:''}`).join(', ')}. Use Player availability to record a coach override first.`})}
     const players=clean.length?await prisma.$queryRawUnsafe<ClubPlayer[]>(`SELECT id::text AS id,player_id AS "playerId",player_name AS "playerName",jumper_number AS "jumperNumber",preferred_position AS "preferredPosition",active FROM football_club_players WHERE club_id=$1 AND id=ANY($2::uuid[])`,req.params.clubId,clean.map((r:any)=>r.clubPlayerId)):[]
     for(const player of players)await ensurePlayerProfile(player,sheet)
     await prisma.$transaction(async tx=>{await tx.$executeRawUnsafe(`DELETE FROM football_team_sheet_players WHERE team_sheet_id::text=$1`,req.params.sheetId);for(const row of clean)await tx.$executeRawUnsafe(`INSERT INTO football_team_sheet_players (team_sheet_id,club_player_id,position_code) VALUES ($1::uuid,$2::uuid,$3)`,req.params.sheetId,row.clubPlayerId,row.positionCode)})
