@@ -12,6 +12,7 @@ import FullRankings from './pages/FullRankings.tsx'
 import GoalKickers from './pages/GoalKickers.tsx'
 import MvpLeaderboard from './pages/MvpLeaderboard.tsx'
 import PlayerProfile from './pages/PlayerProfile.tsx'
+import PlayerAvailability from './pages/PlayerAvailability.tsx'
 import MatchCentre from './pages/MatchCentre.tsx'
 import MatchDetail from './pages/MatchDetail.tsx'
 import Notifications from './pages/Notifications.tsx'
@@ -58,6 +59,7 @@ import LeaguePortalContacts from './pages/LeaguePortalContacts.tsx'
 import ResetPassword from './pages/ResetPassword.tsx'
 import ClubPortalDashboard from './pages/ClubPortalDashboard.tsx'
 import ClubPortalTeamSelection from './pages/ClubPortalTeamSelection.tsx'
+import ClubPortalAvailability from './pages/ClubPortalAvailability.tsx'
 import ClubPortalNews from './pages/ClubPortalNews.tsx'
 import ClubPortalProfile from './pages/ClubPortalProfile.tsx'
 import ClubPortalSponsors from './pages/ClubPortalSponsors.tsx'
@@ -123,6 +125,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/goal-kickers" element={<GoalKickers/>}/>
     <Route path="/mvp" element={<MvpLeaderboard/>}/>
     <Route path="/player/:playerId" element={<PlayerProfile/>}/>
+    <Route path="/player-availability/:token" element={<PlayerAvailability/>}/>
     <Route path="/matches" element={<MatchCentre/>}/>
     <Route path="/match/:kind/:matchId" element={<MatchDetail/>}/>
     <Route path="/feed" element={<SupporterFeed/>}/>
@@ -143,6 +146,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/league-portal/:leagueId/contacts" element={<LeaguePortalContacts/>}/>
     <Route path="/league-portal/:leagueId" element={<LeaguePortalDashboard/>}/>
     <Route path="/club-portal/:clubId/team-selection" element={<ClubPortalTeamSelection/>}/>
+    <Route path="/club-portal/:clubId/availability" element={<ClubPortalAvailability/>}/>
     <Route path="/club-portal/:clubId/news" element={<ClubPortalNews/>}/>
     <Route path="/club-portal/:clubId/profile" element={<ClubPortalProfile/>}/>
     <Route path="/club-portal/:clubId/sponsors" element={<ClubPortalSponsors/>}/>
