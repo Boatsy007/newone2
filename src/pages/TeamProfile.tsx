@@ -10,17 +10,18 @@ import Footer from '../components/layout/Footer'
 import ClubLiveHub from '../components/club/ClubLiveHub'
 import ClubTeamSheet from '../components/club/ClubTeamSheetPortal'
 import ClubSponsorsLive from '../components/club/ClubSponsorsLive'
+import PublicClubGallery from '../components/club/PublicClubGallery'
 import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickersPanel'
 import { useSeo } from '../lib/seo'
 import { fetchClub, fetchClubExplain, useAsync, strengthLabel, strengthStars, type ClubProfile, type ClubExplanation } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
-import { ClubHero, ClubSnapshot, ClubLadder, ClubClaim, ClubInfo, ClubGallery, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
+import { ClubHero, ClubSnapshot, ClubLadder, ClubClaim, ClubInfo, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
 
 const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubWhy })))
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
 const ClubNews = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubNews })))
 
-type ClubTab = 'overview' | 'team-selection' | 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
+type ClubTab = 'overview' | 'team-selection'' | 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
 
 const CLUB_TABS: { id: ClubTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -95,7 +96,7 @@ export default function TeamProfile() {
                   </div>
                   {activeTab === 'news' && <div className="club-feed-card"><Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}><ClubNews club={data} /></Suspense></div>}
                   {activeTab === 'information' && <ClubInformationPanel club={data} />}
-                  {activeTab === 'photos' && <div className="club-feed-card"><ClubGallery club={data} /></div>}
+                  {activeTab === 'photos' && <div className="club-feed-card"><PublicClubGallery club={data} /></div>}
                   {activeTab === 'sponsors' && <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>}
                   {activeTab === 'stats' && (
                     <div className="club-stats-stack">
