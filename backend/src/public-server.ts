@@ -2,9 +2,8 @@
  * Public PlayFooty API server.
  *
  * Keep this entry point limited to the proven public and existing Admin API
- * surface. Club/League Portal expansion routes are deployed through the
- * separate portal serverless function so they cannot prevent public data from
- * loading.
+ * surface. Club/League Portal routes are deployed through the separate portal
+ * serverless function so portal changes cannot prevent public data loading.
  */
 import express from 'express'
 import cors from 'cors'
@@ -26,7 +25,6 @@ import { newsRouter } from './api/routes/news.js'
 import { highlightsRouter } from './api/routes/highlights.js'
 import { searchRouter } from './api/routes/search.js'
 import { seoRouter } from './api/routes/seo.js'
-import { clubPortalAccessRouter } from './api/routes/club-portal-access.js'
 import { followsRouter } from './api/routes/follows.js'
 import { shareCardsRouter } from './api/routes/share-cards.js'
 import { shareLinksRouter } from './api/routes/share-links.js'
@@ -120,7 +118,6 @@ app.use('/api/team-sheets', teamSheetsRouter)
 app.use('/api/featured-games', featuredGamesRouter)
 app.use('/api/news', newsRouter)
 app.use('/api/highlights', highlightsRouter)
-app.use('/api/club-portal', clubPortalAccessRouter)
 app.use('/api/follows', followsRouter)
 app.use('/api/share-card', shareCardsRouter)
 app.use('/api/share-link', shareLinksRouter)
