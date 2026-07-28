@@ -1,0 +1,4 @@
+Recovery checkpoint for API verification.
+Base commit: 40f50820cd6fb66e98e468e0e79cfa2c293cf594
+Includes direct club and league login reliability changes.
+Do not merge directly to production.
