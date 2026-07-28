@@ -11,9 +11,29 @@
     {
       "src": "backend/api/index.ts",
       "use": "@vercel/node"
+    },
+    {
+      "src": "backend/api/portal.ts",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
+    {
+      "src": "/api/portal-auth(?:/.*)?",
+      "dest": "/backend/api/portal.ts"
+    },
+    {
+      "src": "/api/league-portal(?:/.*)?",
+      "dest": "/backend/api/portal.ts"
+    },
+    {
+      "src": "/admin/portal-rollout(?:/.*)?",
+      "dest": "/backend/api/portal.ts"
+    },
+    {
+      "src": "/portal-health",
+      "dest": "/backend/api/portal.ts"
+    },
     {
       "src": "/api/(.*)",
       "dest": "/backend/api/index.ts"
