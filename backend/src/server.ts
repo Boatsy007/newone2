@@ -1,7 +1,7 @@
 /**
  * CNCA Rankings API Server
  */
-import express from 'express'
+import express, { type RequestHandler } from 'express'
 import cors from 'cors'
 import { rankingsRouter } from './api/routes/rankings.js'
 import { clubsRouter } from './api/routes/clubs.js'
@@ -22,9 +22,6 @@ import { highlightsRouter } from './api/routes/highlights.js'
 import { searchRouter } from './api/routes/search.js'
 import { seoRouter } from './api/routes/seo.js'
 import { clubPortalAccessRouter } from './api/routes/club-portal-access.js'
-import { leaguePortalRouter } from './api/routes/league-portal.js'
-import { leaguePortalContactsRouter } from './api/routes/league-portal-contacts.js'
-import { portalAuthRouter } from './api/routes/portal-auth.js'
 import { followsRouter } from './api/routes/follows.js'
 import { shareCardsRouter } from './api/routes/share-cards.js'
 import { shareLinksRouter } from './api/routes/share-links.js'
@@ -49,7 +46,6 @@ import { adminHistoryRouter } from './admin/history.js'
 import { adminChampionshipsRouter } from './admin/championships.js'
 import { adminCommercialRouter } from './admin/commercial.js'
 import { adminNotificationsRouter } from './admin/notifications.js'
-import { adminPortalRolloutRouter } from './admin/portal-rollout.js'
 import { adminAnalyticsRouter } from './admin/analytics.js'
 import { adminLadderRouter } from './admin/ladder.js'
 import { adminSeasonRouter } from './admin/season.js'
@@ -65,6 +61,39 @@ import { claimsRouter } from './api/routes/claims.js'
 import { portalRouter } from './api/routes/portal.js'
 import { getFootballRecords, type RecordPeriod } from './results/records.service.js'
 import { logger } from './utils/logger.js'
+
+type RouterModule = Record<string, RequestHandler>
+
+function lazyRouter(name: string, load: () => Promise<RouterModule>, exportName: string): RequestHandler {
+  let handler: RequestHandler | null = null
+  let pending: Promise<RequestHandler> | null = null
+  return async (req, res, next) => {
+    try {
+      if (!handler) {
+        pending ??= load().then(module => {
+          const candidate = module[exportName]
+          if (typeof candidate !== 'function') throw new Error(`${exportName} was not exported`)
+          handler = candidate
+          return candidate
+        }).catch(error => {
+          pending = null
+          throw error
+        })
+        handler = await pending
+      }
+      return handler(req, res, next)
+    } catch (error) {
+      logger.error(`Lazy route ${name} failed to initialise`, { detail: String(error) })
+      if (res.headersSent) return next(error)
+      return res.status(503).json({ error: `${name} is temporarily unavailable` })
+    }
+  }
+}
+
+const portalAuthRouter = lazyRouter('Portal authentication', () => import('./api/routes/portal-auth.js'), 'portalAuthRouter')
+const leaguePortalRouter = lazyRouter('League Portal', () => import('./api/routes/league-portal.js'), 'leaguePortalRouter')
+const leaguePortalContactsRouter = lazyRouter('League Portal contacts', () => import('./api/routes/league-portal-contacts.js'), 'leaguePortalContactsRouter')
+const adminPortalRolloutRouter = lazyRouter('Admin portal rollout', () => import('./admin/portal-rollout.js'), 'adminPortalRolloutRouter')
 
 const app = express()
 const PORT = parseInt(process.env.PORT ?? '3001', 10)
