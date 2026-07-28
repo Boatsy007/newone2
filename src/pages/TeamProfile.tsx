@@ -21,7 +21,7 @@ const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ de
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
 const ClubNews = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubNews })))
 
-type ClubTab = 'overview' | 'team-selection'' | 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
+type ClubTab = 'overview' | 'team-selection' | 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
 
 const CLUB_TABS: { id: ClubTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
