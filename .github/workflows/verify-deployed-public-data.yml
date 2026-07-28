@@ -1,0 +1,50 @@
+name: Verify deployed public data
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Exact Vercel preview or production URL to verify
+        required: true
+        type: string
+      confirmation:
+        description: Type VERIFY_PLAYFOOTY_DATA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-public-data-${{ inputs.base_url }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: ${{ inputs.confirmation == 'VERIFY_PLAYFOOTY_DATA' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out selected recovery branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify every public website data source
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          API_CHECK_RETRIES: '4'
+          API_CHECK_TIMEOUT_MS: '25000'
+        run: node scripts/verify-deployed-public-data.mjs
+
+      - name: Write release summary
+        if: always()
+        run: |
+          echo '## PlayFooty public data contract' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Deployment: `${{ inputs.base_url }}`' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Checked the same APIs used by homepage rankings, MVP, goal kicking, records, news, featured games and highlights.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- A failed endpoint blocks promotion.' >> "$GITHUB_STEP_SUMMARY"
