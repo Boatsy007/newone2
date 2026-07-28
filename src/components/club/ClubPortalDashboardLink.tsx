@@ -23,6 +23,16 @@ export default function ClubPortalDashboardLink() {
           if (label !== 'team selection') return
           link.setAttribute('href', `/club-portal/${clubId}/team-selection`)
           link.setAttribute('aria-label', 'Open club team selection editor')
+          if (document.querySelector('[data-player-availability-link]')) return
+          const availability = link.cloneNode(true) as HTMLAnchorElement
+          availability.dataset.playerAvailabilityLink = 'true'
+          availability.setAttribute('href', `/club-portal/${clubId}/availability`)
+          availability.setAttribute('aria-label', 'Open player availability dashboard')
+          const strong = availability.querySelector('strong')
+          const detail = availability.querySelector('span')
+          if (strong) strong.textContent = 'Player availability'
+          if (detail) detail.textContent = 'Invite players and track weekly responses'
+          link.insertAdjacentElement('afterend', availability)
         })
       }
     }
