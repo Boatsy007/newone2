@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { getKey } from '../../lib/admin'
 
 const accessLinks = [
-  { key: 'club-access', label: 'Club Claims & Users', path: '/admin/claims', icon: '♟' },
-  { key: 'league-access', label: 'League Claims & Users', path: '/admin/league-access', icon: '♙' },
+  { key: 'club-access', label: 'Club Access & Invites', path: '/admin/claims', icon: '♟' },
+  { key: 'league-access', label: 'League Access & Invites', path: '/admin/league-access', icon: '♙' },
 ]
 
 const importLinks = [
@@ -17,6 +17,7 @@ const importLinks = [
 ]
 
 const operationLinks = [
+  ...accessLinks,
   { key: 'launch-readiness', label: 'Launch Readiness', path: '/admin/launch-readiness', icon: '✓' },
   { key: 'system-health', label: 'System Health', path: '/admin/health', icon: '⌁' },
   { key: 'maintenance', label: 'Repair Queue', path: '/admin/maintenance-queue', icon: '◫' },
