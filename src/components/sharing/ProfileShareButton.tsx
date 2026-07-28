@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import ShareButton from './ShareButton'
+import PlayerProfileCompleteness from '../players/PlayerProfileCompleteness'
 
 function targetSelector(pathname: string) {
   // Club profiles keep their React tree fully native. Injecting a portal into the
@@ -35,15 +36,14 @@ export default function ProfileShareButton() {
     return () => observer.disconnect()
   }, [pathname, selector])
 
-  if (!target || !selector) return null
-
   const button = <ShareButton className="pf-profile-inline-share" label="Share" />
 
   return <>
-    {createPortal(
+    <PlayerProfileCompleteness />
+    {target && selector ? createPortal(
       <span className="pf-profile-share-mount">{button}</span>,
       target,
-    )}
+    ) : null}
     <style>{`
       .pf-profile-share-mount{display:inline-flex;align-items:center}
       .pf-profile-inline-share{display:inline-flex!important;align-items:center;justify-content:center;gap:8px!important;min-height:46px!important;padding:0 18px!important;border:1px solid #2daaf5!important;border-radius:999px!important;background:#2daaf5!important;color:#050505!important;box-shadow:none!important;font-family:'Barlow Condensed',Arial,sans-serif!important;font-size:12px!important;font-weight:950!important;letter-spacing:.1em!important;text-transform:uppercase!important;cursor:pointer!important}
