@@ -34,7 +34,7 @@ router.get('/clubs/:clubId',async(req,res)=>{
    instagramUrl:profile.instagramUrl??club.instagramUrl??null,
    email:profile.email??club.contactEmail??null,
    history:profile.history??club.description??null,
-   clubColours:profile.clubColours??publicColours||null,
+   clubColours:profile.clubColours??(publicColours||null),
    gallery:parseList(profile.gallery),
    uniformPhotos:parseList(profile.uniformPhotos),
   }
