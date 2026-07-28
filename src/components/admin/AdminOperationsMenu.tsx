@@ -3,11 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { getKey } from '../../lib/admin'
 
 const accessLinks = [
-  { key: 'club-access', label: 'Club Access', path: '/admin/claims', icon: '♟' },
-  { key: 'league-access', label: 'League Access', path: '/admin/league-access', icon: '♙' },
+  { key: 'club-access', label: 'Club Access & Invites', path: '/admin/claims', icon: '♟' },
+  { key: 'league-access', label: 'League Access & Invites', path: '/admin/league-access', icon: '♙' },
 ]
 
 const operationLinks = [
+  ...accessLinks,
   { key: 'highlights', label: 'Featured Highlights', path: '/admin/highlights', icon: '▶' },
   { key: 'featured-games', label: 'Featured Games', path: '/admin/featured-games', icon: '⚔' },
   { key: 'club-plans', label: 'Club Plans', path: '/admin/club-plans', icon: '♛' },
