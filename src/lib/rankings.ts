@@ -26,7 +26,13 @@ export interface ClubProfile {
   history: { weekLabel: string; rank: number; powerRating: number; date: string }[]
   town?: string | null; region?: string | null; stateName?: string | null; logoUrl?: string | null
   primaryColour?: string | null; secondaryColour?: string | null; websiteUrl?: string | null
-  facebookUrl?: string | null; instagramUrl?: string | null
+  facebookUrl?: string | null; instagramUrl?: string | null; bio?: string | null
+  gallery?: string[]; uniformPhotos?: string[]
+  ground?: string | null; address?: string | null; email?: string | null; phone?: string | null
+  president?: string | null; secretary?: string | null; coach?: string | null; assistantCoach?: string | null
+  clubColours?: string | null; foundedYear?: string | null; trainingNights?: string | null; homeCourt?: string | null
+  googleMapsUrl?: string | null; tiktokUrl?: string | null; youtubeUrl?: string | null
+  membershipLink?: string | null; volunteerLink?: string | null
   ladder?: { clubId: string; clubName: string; position: number | null; played: number; wins: number; losses: number; draws: number; percentage: number; points: number; isThisClub: boolean }[]
 }
 
