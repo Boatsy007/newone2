@@ -41,6 +41,18 @@ function ensureLeagueProfileFields() {
   return profileSchemaReady
 }
 
+router.get('/leagues/:leagueId/public-profile', async (req, res) => {
+  try {
+    await ensureLeagueProfileFields()
+    const rows = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(`SELECT l.id,l.name,l.description,l."websiteUrl",l."facebookUrl",l."instagramUrl",l."contactEmail",l."contactPhone",s.name AS state FROM leagues l JOIN states s ON s.id=l."stateId" WHERE l.id=$1 AND l."archivedAt" IS NULL AND l.hidden=false AND l.enabled=true LIMIT 1`, req.params.leagueId)
+    if (!rows[0]) return res.status(404).json({ error: 'League not found' })
+    res.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=30')
+    res.json({ data: rows[0] })
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to load public league information', detail: error instanceof Error ? error.message : String(error) })
+  }
+})
+
 router.get('/me', authenticateLeagueUser, async (req, res) => {
   const memberships = await membershipsForLeagueUser(req.clubUser!.id)
   const leagueIds = memberships.map(item => item.leagueId)
@@ -92,31 +104,39 @@ router.get('/leagues/:leagueId', authenticateLeagueUser, requireActiveLeagueMemb
 })
 
 router.get('/leagues/:leagueId/profile', authenticateLeagueUser, requireActiveLeagueMembership, async (req, res) => {
-  await ensureLeagueProfileFields()
-  const rows = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(`SELECT l.id,l.name,l."shortName",l."logoUrl",l.description,l."websiteUrl",l."facebookUrl",l."instagramUrl",l."contactEmail",l."contactPhone",s.code AS state FROM leagues l JOIN states s ON s.id=l."stateId" WHERE l.id=$1 AND l."archivedAt" IS NULL LIMIT 1`, req.params.leagueId)
-  const league = rows[0]
-  if (!league) return res.status(404).json({ error: 'League not found' })
-  res.json({ data: { league, membership: res.locals.leagueMembership } })
+  try {
+    await ensureLeagueProfileFields()
+    const rows = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(`SELECT l.id,l.name,l."shortName",l."logoUrl",l.description,l."websiteUrl",l."facebookUrl",l."instagramUrl",l."contactEmail",l."contactPhone",s.code AS state FROM leagues l JOIN states s ON s.id=l."stateId" WHERE l.id=$1 AND l."archivedAt" IS NULL LIMIT 1`, req.params.leagueId)
+    const league = rows[0]
+    if (!league) return res.status(404).json({ error: 'League not found' })
+    res.json({ data: { league, membership: res.locals.leagueMembership } })
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to load league profile', detail: error instanceof Error ? error.message : String(error) })
+  }
 })
 
 router.patch('/leagues/:leagueId/profile', authenticateLeagueUser, requireActiveLeagueMembership, async (req, res) => {
-  await ensureLeagueProfileFields()
-  const membership = res.locals.leagueMembership as { id: string; role: LeagueRole }
-  if (!roleCanManageLeagueAction(membership.role, 'profile')) return res.status(403).json({ error: 'Your league role cannot manage the league profile' })
-  const clean = (value: unknown, max: number) => String(value ?? '').trim().slice(0, max) || null
-  const description = clean(req.body?.description, 5000)
-  const websiteUrl = clean(req.body?.websiteUrl, 500)
-  const facebookUrl = clean(req.body?.facebookUrl, 500)
-  const instagramUrl = clean(req.body?.instagramUrl, 500)
-  const contactEmail = clean(req.body?.contactEmail, 320)
-  const contactPhone = clean(req.body?.contactPhone, 80)
-  const logoUrl = clean(req.body?.logoUrl, 1000)
-  if (contactEmail && !contactEmail.includes('@')) return res.status(400).json({ error: 'Enter a valid contact email address' })
-  const before = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(`SELECT description,"websiteUrl","facebookUrl","instagramUrl","contactEmail","contactPhone","logoUrl" FROM leagues WHERE id=$1 LIMIT 1`, req.params.leagueId)
-  if (!before[0]) return res.status(404).json({ error: 'League not found' })
-  await prisma.$executeRawUnsafe(`UPDATE leagues SET description=$1,"websiteUrl"=$2,"facebookUrl"=$3,"instagramUrl"=$4,"contactEmail"=$5,"contactPhone"=$6,"logoUrl"=$7,"updatedAt"=NOW() WHERE id=$8`, description, websiteUrl, facebookUrl, instagramUrl, contactEmail, contactPhone, logoUrl, req.params.leagueId)
-  await auditLeagueMembership(membership.id, req.params.leagueId, req.clubUser!.id, 'PROFILE_UPDATED', req.clubUser!.id, { before: before[0], after: { description, websiteUrl, facebookUrl, instagramUrl, contactEmail, contactPhone, logoUrl } })
-  res.json({ message: 'League profile saved', data: { description, websiteUrl, facebookUrl, instagramUrl, contactEmail, contactPhone, logoUrl } })
+  try {
+    await ensureLeagueProfileFields()
+    const membership = res.locals.leagueMembership as { id: string; role: LeagueRole }
+    if (!roleCanManageLeagueAction(membership.role, 'profile')) return res.status(403).json({ error: 'Your league role cannot manage the league profile' })
+    const clean = (value: unknown, max: number) => String(value ?? '').trim().slice(0, max) || null
+    const description = clean(req.body?.description, 5000)
+    const websiteUrl = clean(req.body?.websiteUrl, 500)
+    const facebookUrl = clean(req.body?.facebookUrl, 500)
+    const instagramUrl = clean(req.body?.instagramUrl, 500)
+    const contactEmail = clean(req.body?.contactEmail, 320)
+    const contactPhone = clean(req.body?.contactPhone, 80)
+    const logoUrl = clean(req.body?.logoUrl, 1000)
+    if (contactEmail && !contactEmail.includes('@')) return res.status(400).json({ error: 'Enter a valid contact email address' })
+    const before = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(`SELECT description,"websiteUrl","facebookUrl","instagramUrl","contactEmail","contactPhone","logoUrl" FROM leagues WHERE id=$1 LIMIT 1`, req.params.leagueId)
+    if (!before[0]) return res.status(404).json({ error: 'League not found' })
+    await prisma.$executeRawUnsafe(`UPDATE leagues SET description=$1,"websiteUrl"=$2,"facebookUrl"=$3,"instagramUrl"=$4,"contactEmail"=$5,"contactPhone"=$6,"logoUrl"=$7,"updatedAt"=NOW() WHERE id=$8`, description, websiteUrl, facebookUrl, instagramUrl, contactEmail, contactPhone, logoUrl, req.params.leagueId)
+    await auditLeagueMembership(membership.id, req.params.leagueId, req.clubUser!.id, 'PROFILE_UPDATED', req.clubUser!.id, { before: before[0], after: { description, websiteUrl, facebookUrl, instagramUrl, contactEmail, contactPhone, logoUrl } })
+    res.json({ message: 'League profile saved and public profile updated', data: { description, websiteUrl, facebookUrl, instagramUrl, contactEmail, contactPhone, logoUrl } })
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to save league profile', detail: error instanceof Error ? error.message : String(error) })
+  }
 })
 
 const admin = Router()
