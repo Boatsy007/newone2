@@ -11,7 +11,8 @@
     "verify:public-profiles": "node scripts/verify-public-profile-contract.mjs",
     "verify:portal-mvp": "node scripts/verify-portal-mvp-contract.mjs",
     "verify:admin-mvp": "node scripts/verify-admin-mvp.mjs",
-    "build": "npm run test:goal-kickers && npm run verify:home-records && npm run verify:public-profiles && npm run verify:portal-mvp && npm run verify:admin-mvp && tsc -b && vite build",
+    "verify:supporter-mvp": "node scripts/verify-supporter-mvp.mjs",
+    "build": "npm run test:goal-kickers && npm run verify:home-records && npm run verify:public-profiles && npm run verify:portal-mvp && npm run verify:admin-mvp && npm run verify:supporter-mvp && tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
