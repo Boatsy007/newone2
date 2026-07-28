@@ -26,7 +26,19 @@ router.get('/clubs/:clubId',async(req,res)=>{
   if(!club)return res.status(404).json({error:'Club not found'})
   const profile=await prisma.clubProfile.upsert({where:{clubId:club.id},create:{clubId:club.id},update:{}})
   const season=club.leagueSeasons[0]??null
-  res.json({data:{club:{...club,season:season?.season??null,grade:season?.grade??null,leagueId:season?.leagueId??null,leagueName:season?.league.name??null},profile:{...profile,gallery:parseList(profile.gallery),uniformPhotos:parseList(profile.uniformPhotos)}}})
+  const publicColours=[club.primaryColour,club.secondaryColour].filter(Boolean).join(' / ')
+  const mergedProfile={
+   ...profile,
+   websiteUrl:profile.websiteUrl??club.websiteUrl??null,
+   facebookUrl:profile.facebookUrl??club.facebookUrl??null,
+   instagramUrl:profile.instagramUrl??club.instagramUrl??null,
+   email:profile.email??club.contactEmail??null,
+   history:profile.history??club.description??null,
+   clubColours:profile.clubColours??publicColours||null,
+   gallery:parseList(profile.gallery),
+   uniformPhotos:parseList(profile.uniformPhotos),
+  }
+  res.json({data:{club:{...club,season:season?.season??null,grade:season?.grade??null,leagueId:season?.leagueId??null,leagueName:season?.league.name??null},profile:mergedProfile}})
  }catch(error){
   res.status(500).json({error:'Unable to load club profile',detail:error instanceof Error?error.message:String(error)})
  }
