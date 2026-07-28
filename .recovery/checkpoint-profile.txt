@@ -1,0 +1,4 @@
+Recovery checkpoint for API verification.
+Base commit: 999799b241f905e92dabbdb110395d510f3c60e7
+Includes authentication and club profile management changes.
+Do not merge directly to production.
