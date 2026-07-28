@@ -10,8 +10,6 @@ on:
         type: string
   deployment_status:
 
-authorization: {}
-
 permissions:
   contents: read
   deployments: read
