@@ -4,8 +4,8 @@ const menu = fs.readFileSync('src/components/admin/AdminOperationsMenu.tsx', 'ut
 const routes = fs.readFileSync('src/main.tsx', 'utf8')
 
 const requiredMenuLabels = [
-  'Club Claims & Users',
-  'League Claims & Users',
+  'Club Access & Invites',
+  'League Access & Invites',
   'Universal Import',
   'Ladder Images',
   'Results & Fixtures',
