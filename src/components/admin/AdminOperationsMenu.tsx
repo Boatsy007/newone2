@@ -3,17 +3,26 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { getKey } from '../../lib/admin'
 
 const accessLinks = [
-  { key: 'club-access', label: 'Club Access', path: '/admin/claims', icon: '♟' },
-  { key: 'league-access', label: 'League Access', path: '/admin/league-access', icon: '♙' },
+  { key: 'club-access', label: 'Club Claims & Users', path: '/admin/claims', icon: '♟' },
+  { key: 'league-access', label: 'League Claims & Users', path: '/admin/league-access', icon: '♙' },
+]
+
+const importLinks = [
+  { key: 'universal-imports', label: 'Universal Import', path: '/admin/universal-imports', icon: '⇧' },
+  { key: 'ladder-images', label: 'Ladder Images', path: '/admin/ladder-images', icon: '▤' },
+  { key: 'match-images', label: 'Results & Fixtures', path: '/admin/match-images', icon: '⚑' },
+  { key: 'goal-kicker-images', label: 'Goal Kickers', path: '/admin/goal-kicker-images', icon: '◎' },
+  { key: 'mvp-images', label: 'MVP', path: '/admin/mvp-images', icon: '★' },
+  { key: 'profile-images', label: 'Profile Images', path: '/admin/profile-images', icon: '▣' },
 ]
 
 const operationLinks = [
-  { key: 'highlights', label: 'Featured Highlights', path: '/admin/highlights', icon: '▶' },
-  { key: 'featured-games', label: 'Featured Games', path: '/admin/featured-games', icon: '⚔' },
-  { key: 'club-plans', label: 'Club Plans', path: '/admin/club-plans', icon: '♛' },
-  { key: 'ocr-planner', label: 'OCR Planner', path: '/admin/maintenance-queue', icon: '◫' },
-  { key: 'league-rollout', label: 'League Rollout', path: '/admin/league-coverage', icon: '▱' },
+  { key: 'launch-readiness', label: 'Launch Readiness', path: '/admin/launch-readiness', icon: '✓' },
   { key: 'system-health', label: 'System Health', path: '/admin/health', icon: '⌁' },
+  { key: 'maintenance', label: 'Repair Queue', path: '/admin/maintenance-queue', icon: '◫' },
+  { key: 'league-coverage', label: 'League Coverage', path: '/admin/league-coverage', icon: '▱' },
+  { key: 'highlights', label: 'Highlights', path: '/admin/highlights', icon: '▶' },
+  { key: 'featured-games', label: 'Featured Games', path: '/admin/featured-games', icon: '⚔' },
 ]
 
 export default function AdminOperationsMenu() {
@@ -22,7 +31,7 @@ export default function AdminOperationsMenu() {
 
   useEffect(() => {
     if (pathname !== '/admin') {
-      document.querySelectorAll('[data-pf-operations-menu],[data-pf-access-menu],[data-pf-access-actions]').forEach(node => node.remove())
+      document.querySelectorAll('[data-pf-operations-menu],[data-pf-access-menu],[data-pf-import-menu],[data-pf-access-actions]').forEach(node => node.remove())
       return
     }
 
@@ -39,31 +48,37 @@ export default function AdminOperationsMenu() {
       return link
     }
 
+    const makeGroup = (label: string, marker: string, links: typeof operationLinks) => {
+      const group = document.createElement('div')
+      group.className = 'grp'
+      group.setAttribute(marker, 'true')
+      group.innerHTML = `<label>${label}</label><nav class="nav"></nav>`
+      const nav = group.querySelector<HTMLElement>('.nav')!
+      links.forEach(item => nav.append(makeLink(item)))
+      return group
+    }
+
     const attach = () => {
       const side = document.querySelector<HTMLElement>('.side')
       if (!side) return false
+      const foot = side.querySelector<HTMLElement>('.foot')
 
       if (!side.querySelector('[data-pf-access-menu]')) {
-        const access = document.createElement('div')
-        access.className = 'grp'
-        access.dataset.pfAccessMenu = 'true'
-        access.innerHTML = `<label>ACCESS</label><nav class="nav"></nav>`
-        const nav = access.querySelector<HTMLElement>('.nav')!
-        accessLinks.forEach(item => nav.append(makeLink(item)))
-
+        const access = makeGroup('ACCESS', 'data-pf-access-menu', accessLinks)
         const importsGroup = Array.from(side.querySelectorAll<HTMLElement>('.grp')).find(group => group.textContent?.includes('IMPORTS'))
-        side.insertBefore(access, importsGroup ?? side.querySelector('.foot'))
+        side.insertBefore(access, importsGroup ?? foot)
+      }
+
+      const oldImports = Array.from(side.querySelectorAll<HTMLElement>('.grp')).find(group => group.textContent?.includes('IMPORTS') && !group.hasAttribute('data-pf-import-menu'))
+      if (oldImports) oldImports.style.display = 'none'
+      if (!side.querySelector('[data-pf-import-menu]')) {
+        const imports = makeGroup('IMPORTS', 'data-pf-import-menu', importLinks)
+        side.insertBefore(imports, foot)
       }
 
       if (!side.querySelector('[data-pf-operations-menu]')) {
-        const foot = side.querySelector<HTMLElement>('.foot')
-        const group = document.createElement('div')
-        group.className = 'grp'
-        group.dataset.pfOperationsMenu = 'true'
-        group.innerHTML = `<label>OPERATIONS</label><nav class="nav"></nav>`
+        const group = makeGroup('OPERATIONS', 'data-pf-operations-menu', operationLinks)
         const nav = group.querySelector<HTMLElement>('.nav')!
-        operationLinks.forEach(item => nav.append(makeLink(item)))
-
         const recalc = document.createElement('button')
         recalc.type = 'button'
         recalc.innerHTML = '<span aria-hidden="true" style="font-size:18px;width:18px;text-align:center">↻</span>Recalculate Rankings'
@@ -89,7 +104,7 @@ export default function AdminOperationsMenu() {
           }
         })
         nav.append(recalc)
-        side.insertBefore(group, foot ?? null)
+        side.insertBefore(group, foot)
       }
 
       const actions = document.querySelector<HTMLElement>('.acts')
@@ -117,7 +132,7 @@ export default function AdminOperationsMenu() {
     }
     return () => {
       observer?.disconnect()
-      document.querySelectorAll('[data-pf-operations-menu],[data-pf-access-menu],[data-pf-access-actions]').forEach(node => node.remove())
+      document.querySelectorAll('[data-pf-operations-menu],[data-pf-access-menu],[data-pf-import-menu],[data-pf-access-actions]').forEach(node => node.remove())
     }
   }, [navigate, pathname])
 
