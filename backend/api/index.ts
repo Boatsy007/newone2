@@ -1,8 +1,6 @@
 /**
- * Vercel serverless entry point.
- * Vercel looks for an exported default handler in /api/*.
+ * Vercel public API serverless entry point.
  */
-
-import app from '../src/server.js'
+import app from '../src/public-server.js'
 
 export default app
