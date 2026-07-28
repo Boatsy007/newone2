@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "test:goal-kickers": "npm --prefix backend test",
+    "test:public-data": "npm --prefix backend run test:public-data",
     "verify:home-records": "node scripts/verify-home-record-portals.mjs",
-    "build": "npm run test:goal-kickers && npm run verify:home-records && tsc -b && vite build",
+    "build": "npm run test:goal-kickers && npm run test:public-data && npm run verify:home-records && tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
