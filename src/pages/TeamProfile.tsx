@@ -124,8 +124,8 @@ export default function TeamProfile() {
               .club-tab-team-selection #pf-club-mvp-slot,.club-tab-information #pf-club-mvp-slot,.club-tab-photos #pf-club-mvp-slot,.club-tab-sponsors #pf-club-mvp-slot,.club-tab-related #pf-club-mvp-slot{display:none!important}
               .club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-left:0!important;padding-right:0!important}.club-profile-main>section>div,.club-feed-card>section>div,.club-stats-stack>section>div{max-width:none!important}
               .club-feed-card,.club-info-panel{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}.club-stats-stack,.club-info-stack{display:grid;gap:18px}.club-stats-stack>section{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
-              .club-info-panel{padding:24px}.club-info-kicker{display:block;color:#42b8ff;font-size:11px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.club-info-title{margin:6px 0 12px;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:36px;line-height:1;text-transform:uppercase;color:#111318}.club-info-bio{margin:0;color:#46515f;font-size:15px;line-height:1.65}
-              .club-contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.club-contact-item{min-width:0;padding:15px;border:1px solid #e3e7ec;border-radius:9px;background:#f8fafb}.club-contact-item span{display:block;color:#687385;font-size:10px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.club-contact-item strong,.club-contact-item a{display:block;margin-top:5px;color:#111318;font-size:14px;font-weight:800;line-height:1.35;text-decoration:none;overflow-wrap:anywhere}.club-contact-item a:hover{color:#209fe9}.club-contact-empty{color:#8a94a3!important;font-weight:600!important}.club-profile-sidebar{position:sticky;top:78px}
+              .club-info-panel{padding:24px}.club-info-kicker{display:block;color:#42b8ff;font-size:11px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.club-info-title{margin:6px 0 12px;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:36px;line-height:1;text-transform:uppercase;color:#111318}.club-info-bio{margin:0;color:#46515f;font-size:15px;line-height:1.65;white-space:pre-wrap}
+              .club-contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.club-contact-item{min-width:0;padding:15px;border:1px solid #e3e7ec;border-radius:9px;background:#f8fafb}.club-contact-item span{display:block;color:#687385;font-size:10px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.club-contact-item strong,.club-contact-item a{display:block;margin-top:5px;color:#111318;font-size:14px;font-weight:800;line-height:1.35;text-decoration:none;overflow-wrap:anywhere;white-space:pre-wrap}.club-contact-item a:hover{color:#209fe9}.club-profile-sidebar{position:sticky;top:78px}
               @media(max-width:980px){.club-profile-tabs>div{padding:0 10px}.club-profile-tabs button{min-height:54px;padding:0 14px;font-size:19px}.club-profile-tabs button:after{left:10px;right:10px}.club-profile-area{display:block;padding:18px 14px 36px}.club-profile-sidebar{position:static;margin-top:18px}.club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-top:20px!important;padding-bottom:20px!important}.club-info-panel{padding:19px}.club-info-title{font-size:31px}.club-contact-grid{grid-template-columns:1fr}}
             `}</style>
           </>
@@ -140,26 +140,22 @@ function ClubInformationPanel({ club }: { club: ClubProfile }) {
   const extra = club as ClubProfile & Record<string, unknown>
   const read = (...keys: string[]) => keys.map(key => extra[key]).find(value => typeof value === 'string' && value.trim()) as string | undefined
   const location = club.stateName ?? club.state
-  const website = club.websiteUrl ?? undefined
-  const facebook = club.facebookUrl ?? undefined
-  const instagram = club.instagramUrl ?? undefined
   const bio = read('bio', 'description', 'about', 'clubBio', 'history') ?? `${club.clubName} is a community football club${club.town ? ` based in ${club.town}` : ''}${club.leagueName ? ` competing in ${club.leagueName}` : ''}${location ? ` in ${location}` : ''}. This profile brings together the club's latest news, information and current football performance.`
-  const president = read('president', 'presidentName', 'clubPresident')
-  const secretary = read('secretary', 'secretaryName', 'clubSecretary')
-  const email = read('email', 'clubEmail', 'contactEmail')
-  const phone = read('phone', 'phoneNumber', 'clubPhone', 'contactPhone')
-  const ground = read('groundName', 'homeGround', 'venueName', 'ground')
-  const address = read('address', 'groundAddress', 'venueAddress')
-
-  const item = (label: string, value?: string, href?: string) => (
-    <div className="club-contact-item"><span>{label}</span>{value ? (href ? <a href={href} target="_blank" rel="noreferrer">{value}</a> : <strong>{value}</strong>) : <strong className="club-contact-empty">Not yet provided</strong>}</div>
-  )
+  const details = [
+    ['Founded', read('foundedYear')], ['Club colours', read('clubColours')], ['Home ground', read('groundName', 'homeGround', 'venueName', 'ground')], ['Address', read('address', 'groundAddress', 'venueAddress')],
+    ['Training nights', read('trainingNights')], ['Home facilities', read('homeCourt')], ['President', read('president', 'presidentName', 'clubPresident')], ['Secretary', read('secretary', 'secretaryName', 'clubSecretary')],
+    ['Senior coach', read('coach')], ['Assistant coach', read('assistantCoach')], ['Committee', read('committee')], ['Email', read('email', 'clubEmail', 'contactEmail'), read('email', 'clubEmail', 'contactEmail') ? `mailto:${read('email', 'clubEmail', 'contactEmail')}` : undefined],
+    ['Phone', read('phone', 'phoneNumber', 'clubPhone', 'contactPhone'), read('phone', 'phoneNumber', 'clubPhone', 'contactPhone') ? `tel:${read('phone', 'phoneNumber', 'clubPhone', 'contactPhone')?.replace(/\s/g, '')}` : undefined],
+    ['Google Maps', read('googleMapsUrl') ? 'Open ground location' : undefined, read('googleMapsUrl')], ['Website', club.websiteUrl ?? undefined, club.websiteUrl ?? undefined], ['Facebook', club.facebookUrl ? 'Club Facebook' : undefined, club.facebookUrl ?? undefined],
+    ['Instagram', club.instagramUrl ? 'Club Instagram' : undefined, club.instagramUrl ?? undefined], ['TikTok', read('tiktokUrl') ? 'Club TikTok' : undefined, read('tiktokUrl')], ['YouTube', read('youtubeUrl') ? 'Club YouTube' : undefined, read('youtubeUrl')],
+    ['Membership', read('membershipLink') ? 'Join the club' : undefined, read('membershipLink')], ['Volunteer', read('volunteerLink') ? 'Volunteer with the club' : undefined, read('volunteerLink')],
+  ].filter((row): row is [string, string, string?] => Boolean(row[1]))
 
   return <div className="club-info-stack">
     <section className="club-info-panel"><span className="club-info-kicker">About the club</span><h2 className="club-info-title">{club.clubName}</h2><p className="club-info-bio">{bio}</p></section>
-    <section className="club-info-panel"><span className="club-info-kicker">Club contacts</span><h2 className="club-info-title">Contact details</h2><div className="club-contact-grid">
-      {item('President', president)}{item('Secretary', secretary)}{item('Email', email, email ? `mailto:${email}` : undefined)}{item('Phone', phone, phone ? `tel:${phone.replace(/\s/g, '')}` : undefined)}{item('Home ground', ground)}{item('Address', address)}{item('Website', website, website)}{item('Facebook', facebook, facebook)}{item('Instagram', instagram, instagram)}
-    </div></section>
+    {details.length > 0 && <section className="club-info-panel"><span className="club-info-kicker">Club profile</span><h2 className="club-info-title">Information and contacts</h2><div className="club-contact-grid">
+      {details.map(([label, value, href]) => <div key={label} className="club-contact-item"><span>{label}</span>{href ? <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel={href.startsWith('http') ? 'noreferrer' : undefined}>{value}</a> : <strong>{value}</strong>}</div>)}
+    </div></section>}
     <div className="club-feed-card"><ClubInfo club={club} /></div>
   </div>
 }
