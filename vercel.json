@@ -23,6 +23,10 @@
       "dest": "/backend/api/portal.ts"
     },
     {
+      "src": "/api/club-portal(?:/.*)?",
+      "dest": "/backend/api/portal.ts"
+    },
+    {
       "src": "/api/league-portal(?:/.*)?",
       "dest": "/backend/api/portal.ts"
     },
