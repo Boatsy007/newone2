@@ -9,6 +9,7 @@ import Footer from '../components/layout/Footer'
 import LeagueLiveData from '../components/league/LeagueLiveData'
 import LeagueHubExtras from '../components/league/LeagueHubExtras'
 import LeagueLadderPolish from '../components/league/LeagueLadderPolish'
+import LeaguePublicInformation from '../components/league/LeaguePublicInformation'
 import { LeagueMvpPanel } from '../components/mvp/MvpPanels'
 import { useSeo } from '../lib/seo'
 import { fetchLeague, useAsync, strengthStars, strengthLabel, type LeagueDetail } from '../lib/rankings'
@@ -54,6 +55,7 @@ export default function LeagueProfile() {
         <LeagueLiveData league={data} />
         <div className="league-profile-shell">
           <div className="league-profile-main">
+            <LeaguePublicInformation leagueId={leagueId} />
             <LeagueMvpPanel leagueId={leagueId} leagueName={data.name} />
             <LeagueHubExtras league={data} />
             <LeagueLadder league={data} query={query} onQuery={setQuery} />
