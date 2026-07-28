@@ -1,4 +1,4 @@
-name: Verify PlayFooty Public Data
+name: Verify PlayFooty Public Foundation
 
 on:
   workflow_dispatch:
@@ -8,22 +8,60 @@ on:
         required: true
         default: https://playfooty.com.au
         type: string
+  deployment_status:
+
+authorization: {}
 
 permissions:
   contents: read
+  deployments: read
 
 jobs:
   verify:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
-      - name: Check out selected branch
+      - name: Check out deployed revision
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || github.sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Verify public data contract
-        run: node scripts/verify-live-public-data.mjs "${{ inputs.base_url }}"
+      - name: Resolve deployment URL
+        shell: bash
+        env:
+          MANUAL_URL: ${{ inputs.base_url }}
+          ENVIRONMENT_URL: ${{ github.event.deployment_status.environment_url }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            URL="$MANUAL_URL"
+          else
+            URL="$ENVIRONMENT_URL"
+          fi
+          if [ -z "$URL" ]; then
+            echo "No deployment environment URL was supplied by Vercel."
+            exit 1
+          fi
+          echo "PLAYFOOTY_BASE_URL=${URL%/}" >> "$GITHUB_ENV"
+
+      - name: Wait for deployment to become reachable
+        shell: bash
+        run: |
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error --max-time 15 "$PLAYFOOTY_BASE_URL/health" >/dev/null; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Deployment did not become reachable: $PLAYFOOTY_BASE_URL"
+          exit 1
+
+      - name: Verify rendered site and public data contract
+        run: node scripts/verify-live-public-data.mjs "$PLAYFOOTY_BASE_URL"
