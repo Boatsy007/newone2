@@ -23,7 +23,11 @@ requireText(files.sponsorAdmin, 'endDate', 'sponsorship end-date support is miss
 requireText(files.adminManager, 'scope: target.kind.toUpperCase()', 'club and league sponsorship assignment is missing')
 requireText(files.adminManager, "target.kind === 'club'", 'club sponsorship management is missing')
 requireText(files.adminManager, 'leagueId: target.id', 'league sponsorship management is missing')
-requireText(files.clubSponsors, 'SponsorShowcase', 'club sponsor public display is missing')
+
+requireText(files.clubSponsors, '/api/clubs/${encodeURIComponent(club.clubId)}/sponsors', 'club sponsor public API connection is missing')
+requireText(files.clubSponsors, 'ACTIVE_STATUSES', 'club sponsor active-status filtering is missing')
+requireText(files.clubSponsors, 'start <= now', 'club sponsor start-date filtering is missing')
+requireText(files.clubSponsors, 'end >= now', 'club sponsor end-date filtering is missing')
 requireText(files.leagueSponsors, 'scope="league"', 'league sponsor public display is missing')
 
 requireText(files.playerAdmin, "scope: 'PLAYER'", 'player sponsorship scope is missing')
@@ -35,7 +39,7 @@ requireText(files.homeSponsors, "pathname !== '/'", 'homepage sponsorship displa
 requireText(files.homeSponsors, "'.pf-goal-row'", 'goal-kicker sponsorship placement is missing')
 requireText(files.homeSponsors, "'.pf-club-card:not(.loading)'", 'homepage club sponsorship placement is missing')
 requireText(files.homeSponsors, '/api/${kind === \'club\' ? \'clubs\' : \'players\'}/${encodeURIComponent(id)}/sponsors', 'homepage sponsor API connection is missing')
-requireText(files.homeSponsors, 'ACTIVE_STATUSES', 'active sponsorship filtering is missing')
+requireText(files.homeSponsors, 'ACTIVE_STATUSES', 'homepage active sponsorship filtering is missing')
 
 if (failures.length) {
   console.error('Commercial MVP contract failed:')
