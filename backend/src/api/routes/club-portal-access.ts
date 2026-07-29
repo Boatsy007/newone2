@@ -6,6 +6,7 @@ import { logChanges } from '../../services/change-log.service.js'
 import { clubMembershipsRouter } from './club-memberships.js'
 import { clubTeamSheetsRouter } from './club-team-sheets.js'
 import { clubPlayerAvailabilityRouter } from './player-availability.js'
+import { clubCoachWhiteboardRouter } from './club-coach-whiteboard.js'
 import { clubPortalNewsRouter } from './club-portal-news.js'
 import { clubProfileManagementRouter } from './club-profile-management.js'
 import { clubPortalSponsorsRouter } from './club-portal-sponsors.js'
@@ -30,6 +31,7 @@ router.patch('/profile',async(req,res)=>{const token=typeof req.body?.token==='s
 router.post('/revoke',async(req,res)=>{const token=typeof req.body?.token==='string'?req.body.token:'';if(!token)return res.status(400).json({error:'access token required'});await ensureClubPortalAccessTable();await prisma.$executeRawUnsafe(`UPDATE club_portal_access SET revoked_at=NOW() WHERE token_hash=$1`,hashToken(token));res.json({data:{revoked:true}})})
 router.use('/availability',clubPlayerAvailabilityRouter)
 router.use('/team-sheets',clubTeamSheetsRouter)
+router.use('/whiteboard',clubCoachWhiteboardRouter)
 router.use('/profile-management',clubProfileManagementRouter)
 router.use('/',clubPortalPlansRouter)
 router.use('/',clubPortalActivityRouter)
