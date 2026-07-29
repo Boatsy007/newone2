@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { prisma } from '../db/client.js'
 import { requireAdminKey } from '../api/middleware/auth.js'
 import { loadMatchDetail, saveMatchDetail } from '../results/match-detail.service.js'
+import { parseMatchDetailImage } from '../ocr/parse-match-detail-image.js'
 
 const router = Router()
 router.use(requireAdminKey)
@@ -25,6 +26,17 @@ router.get('/results', async (req, res) => {
     })) })
   } catch (error) {
     res.status(500).json({ error: 'Unable to list detailed results', detail: String(error) })
+  }
+})
+
+router.post('/ocr', async (req, res) => {
+  try {
+    const image = typeof req.body?.image === 'string' ? req.body.image : ''
+    if (!image) return res.status(400).json({ error: 'image required' })
+    const data = await parseMatchDetailImage(image)
+    res.json({ data })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Match detail OCR failed' })
   }
 })
 
