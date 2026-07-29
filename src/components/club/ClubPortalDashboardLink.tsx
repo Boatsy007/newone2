@@ -23,16 +23,32 @@ export default function ClubPortalDashboardLink() {
           if (label !== 'team selection') return
           link.setAttribute('href', `/club-portal/${clubId}/team-selection`)
           link.setAttribute('aria-label', 'Open club team selection editor')
-          if (document.querySelector('[data-player-availability-link]')) return
-          const availability = link.cloneNode(true) as HTMLAnchorElement
-          availability.dataset.playerAvailabilityLink = 'true'
-          availability.setAttribute('href', `/club-portal/${clubId}/availability`)
-          availability.setAttribute('aria-label', 'Open player availability dashboard')
-          const strong = availability.querySelector('strong')
-          const detail = availability.querySelector('span')
-          if (strong) strong.textContent = 'Player availability'
-          if (detail) detail.textContent = 'Invite players and track weekly responses'
-          link.insertAdjacentElement('afterend', availability)
+          let anchor: HTMLAnchorElement = link
+          if (!document.querySelector('[data-player-availability-link]')) {
+            const availability = link.cloneNode(true) as HTMLAnchorElement
+            availability.dataset.playerAvailabilityLink = 'true'
+            availability.setAttribute('href', `/club-portal/${clubId}/availability`)
+            availability.setAttribute('aria-label', 'Open player availability dashboard')
+            const strong = availability.querySelector('strong')
+            const detail = availability.querySelector('span')
+            if (strong) strong.textContent = 'Player availability'
+            if (detail) detail.textContent = 'Invite players and track weekly responses'
+            link.insertAdjacentElement('afterend', availability)
+            anchor = availability
+          } else {
+            anchor = document.querySelector<HTMLAnchorElement>('[data-player-availability-link]') ?? link
+          }
+          if (!document.querySelector('[data-coach-whiteboard-link]')) {
+            const whiteboard = link.cloneNode(true) as HTMLAnchorElement
+            whiteboard.dataset.coachWhiteboardLink = 'true'
+            whiteboard.setAttribute('href', `/club-portal/${clubId}/whiteboard`)
+            whiteboard.setAttribute('aria-label', 'Open coach tactical whiteboard')
+            const strong = whiteboard.querySelector('strong')
+            const detail = whiteboard.querySelector('span')
+            if (strong) strong.textContent = 'Coach whiteboard'
+            if (detail) detail.textContent = 'Position players, draw movement and save plays'
+            anchor.insertAdjacentElement('afterend', whiteboard)
+          }
         })
       }
     }
