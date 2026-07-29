@@ -34,15 +34,30 @@ body.pf-mobile-whiteboard .oval{align-self:center!important;justify-self:center!
 body.pf-mobile-whiteboard .marker{transform:translate(-50%,-50%) scale(.72)!important;transform-origin:center!important}
 body.pf-mobile-whiteboard .legend{min-height:24px!important;padding:3px!important;font-size:8px!important;gap:8px!important;overflow:hidden!important;white-space:nowrap!important}
 body.pf-mobile-whiteboard .legend em{margin-left:auto!important;overflow:hidden!important;text-overflow:ellipsis!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen{padding:3px!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen>header{position:absolute!important;top:7px!important;right:7px!important;z-index:40!important;width:auto!important;height:auto!important;min-height:0!important;padding:0!important;background:transparent!important;box-shadow:none!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen>header>a,body.pf-mobile-whiteboard .wb.is-fullscreen>header>div{display:none!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen>header>button{margin:0!important;padding:8px 11px!important;background:rgba(9,16,24,.88)!important;color:#fff!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:9px!important;font-size:10px!important;box-shadow:0 4px 14px rgba(0,0,0,.25)!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen>.meta,body.pf-mobile-whiteboard .wb.is-fullscreen>.ok,body.pf-mobile-whiteboard .wb.is-fullscreen>.err{display:none!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen>.workspace{width:100%!important;height:100%!important;display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:0!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen>.workspace>aside{display:none!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen .board-shell{width:100%!important;height:100%!important;padding:4px!important;border-radius:0!important;grid-template-rows:auto minmax(0,1fr) auto!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen .tools{padding-right:102px!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen .oval{height:min(calc(100dvh - 62px),calc((100vw - 10px) / 1.62))!important;width:auto!important;max-width:calc(100vw - 10px)!important;max-height:calc(100dvh - 62px)!important}
+body.pf-mobile-whiteboard .wb.is-fullscreen .legend{min-height:20px!important}
 @media (max-width:900px) and (orientation:portrait){
  body.pf-mobile-whiteboard .wb{inset:auto!important;top:50%!important;left:50%!important;width:100dvh!important;height:100vw!important;transform:translate(-50%,-50%) rotate(90deg)!important;transform-origin:center!important}
  body.pf-mobile-whiteboard .wb>.workspace{height:calc(100vw - 113px)!important}
  body.pf-mobile-whiteboard .oval{height:min(calc(100vw - 176px),calc((100dvh - 170px) / 1.62))!important}
+ body.pf-mobile-whiteboard .wb.is-fullscreen>.workspace{height:100%!important}
+ body.pf-mobile-whiteboard .wb.is-fullscreen .oval{height:min(calc(100vw - 62px),calc((100dvh - 10px) / 1.62))!important;max-width:calc(100dvh - 10px)!important;max-height:calc(100vw - 62px)!important}
 }
 @media (max-height:500px) and (orientation:landscape){
  body.pf-mobile-whiteboard .wb>.meta{height:44px!important}
  body.pf-mobile-whiteboard .wb>.workspace{height:calc(100dvh - 105px)!important}
  body.pf-mobile-whiteboard .oval{height:min(calc(100dvh - 153px),calc((100vw - 170px) / 1.62))!important}
+ body.pf-mobile-whiteboard .wb.is-fullscreen>.workspace{height:100%!important}
+ body.pf-mobile-whiteboard .wb.is-fullscreen .oval{height:min(calc(100dvh - 62px),calc((100vw - 10px) / 1.62))!important}
 }
 `
 
