@@ -9,6 +9,7 @@ const accessLinks = [
 
 const operationLinks = [
   ...accessLinks,
+  { key: 'detailed-results', label: 'Detailed Results', path: '/admin/detailed-results', icon: '▦' },
   { key: 'highlights', label: 'Featured Highlights', path: '/admin/highlights', icon: '▶' },
   { key: 'featured-games', label: 'Featured Games', path: '/admin/featured-games', icon: '⚔' },
   { key: 'club-plans', label: 'Club Plans', path: '/admin/club-plans', icon: '♛' },
