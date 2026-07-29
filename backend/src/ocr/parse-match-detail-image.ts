@@ -1,0 +1,98 @@
+/** Individual Australian football match-detail screenshot parser. Preview only. */
+const API = 'https://api.anthropic.com/v1/messages'
+
+export type MatchDetailKicker = { playerName: string; goals: number }
+export type ParsedMatchDetail = {
+  homeTeam: string | null
+  awayTeam: string | null
+  league: string | null
+  grade: string | null
+  round: string | null
+  matchDate: string | null
+  matchTime: string | null
+  venue: string | null
+  homeQuarterScores: Array<string | null>
+  awayQuarterScores: Array<string | null>
+  homeBestPlayers: string[]
+  awayBestPlayers: string[]
+  homeGoalKickers: MatchDetailKicker[]
+  awayGoalKickers: MatchDetailKicker[]
+  notes: string | null
+  confidence: number | null
+}
+
+function imageSource(image: string): { media_type: string; data: string } {
+  const match = image.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/)
+  return match
+    ? { media_type: match[1], data: match[2] }
+    : { media_type: 'image/png', data: image.replace(/^base64,/, '') }
+}
+
+const cleanNames = (value: unknown) => Array.isArray(value)
+  ? value.map(item => String(item ?? '').trim()).filter(Boolean)
+  : []
+
+const cleanScores = (value: unknown) => {
+  const scores = Array.isArray(value) ? value.slice(0, 4) : []
+  while (scores.length < 4) scores.push(null)
+  return scores.map(item => item == null || String(item).trim() === '' ? null : String(item).trim())
+}
+
+const cleanKickers = (value: unknown): MatchDetailKicker[] => Array.isArray(value)
+  ? value.flatMap(item => {
+      if (!item || typeof item !== 'object') return []
+      const row = item as { playerName?: unknown; goals?: unknown }
+      const playerName = String(row.playerName ?? '').trim()
+      const goals = Number(row.goals)
+      return playerName && Number.isFinite(goals) && goals >= 0 ? [{ playerName, goals: Math.floor(goals) }] : []
+    })
+  : []
+
+export async function parseMatchDetailImage(image: string): Promise<ParsedMatchDetail> {
+  const key = process.env.ANTHROPIC_API_KEY
+  if (!key) throw new Error('ANTHROPIC_API_KEY not configured')
+  const model = process.env.ANTHROPIC_MODEL ?? 'claude-opus-4-8'
+  const src = imageSource(image)
+  const prompt = `Read this single Australian football match-detail screenshot exactly as displayed. Return ONLY minified JSON with this exact structure:
+{"homeTeam":string|null,"awayTeam":string|null,"league":string|null,"grade":string|null,"round":string|null,"matchDate":"YYYY-MM-DD"|null,"matchTime":string|null,"venue":string|null,"homeQuarterScores":[string|null,string|null,string|null,string|null],"awayQuarterScores":[string|null,string|null,string|null,string|null],"homeBestPlayers":[string],"awayBestPlayers":[string],"homeGoalKickers":[{"playerName":string,"goals":number}],"awayGoalKickers":[{"playerName":string,"goals":number}],"notes":string|null,"confidence":number|null}
+Rules:
+- This is one match, not a round list.
+- Quarter scores must be cumulative scores as printed, such as "5.7", not calculated totals.
+- Preserve the displayed home/first team and away/second team order.
+- Best players and goal kickers must be assigned to the correct team.
+- Extract only visible information. Never invent names, goals, scores, dates or venue details.
+- Use null or an empty array for anything not visible.
+- confidence must be between 0 and 1 and reflect the overall extraction quality.`
+  const response = await fetch(API, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model, max_tokens: 3500, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: src.media_type, data: src.data } }, { type: 'text', text: prompt }] }] }),
+    signal: AbortSignal.timeout(60_000),
+  })
+  if (!response.ok) throw new Error(`Anthropic API ${response.status}: ${(await response.text()).slice(0, 300)}`)
+  const body = await response.json() as { content?: Array<{ type: string; text?: string }> }
+  const text = (body.content ?? []).filter(item => item.type === 'text').map(item => item.text ?? '').join('').trim()
+  const json = text.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
+  let parsed: Record<string, unknown>
+  try { parsed = JSON.parse(json) as Record<string, unknown> }
+  catch { throw new Error(`Vision returned non-JSON: ${text.slice(0, 200)}`) }
+  const confidenceValue = Number(parsed.confidence)
+  return {
+    homeTeam: parsed.homeTeam == null ? null : String(parsed.homeTeam).trim() || null,
+    awayTeam: parsed.awayTeam == null ? null : String(parsed.awayTeam).trim() || null,
+    league: parsed.league == null ? null : String(parsed.league).trim() || null,
+    grade: parsed.grade == null ? null : String(parsed.grade).trim() || null,
+    round: parsed.round == null ? null : String(parsed.round).trim() || null,
+    matchDate: parsed.matchDate == null ? null : String(parsed.matchDate).trim() || null,
+    matchTime: parsed.matchTime == null ? null : String(parsed.matchTime).trim() || null,
+    venue: parsed.venue == null ? null : String(parsed.venue).trim() || null,
+    homeQuarterScores: cleanScores(parsed.homeQuarterScores),
+    awayQuarterScores: cleanScores(parsed.awayQuarterScores),
+    homeBestPlayers: cleanNames(parsed.homeBestPlayers),
+    awayBestPlayers: cleanNames(parsed.awayBestPlayers),
+    homeGoalKickers: cleanKickers(parsed.homeGoalKickers),
+    awayGoalKickers: cleanKickers(parsed.awayGoalKickers),
+    notes: parsed.notes == null ? null : String(parsed.notes).trim() || null,
+    confidence: Number.isFinite(confidenceValue) ? Math.max(0, Math.min(1, confidenceValue)) : null,
+  }
+}
