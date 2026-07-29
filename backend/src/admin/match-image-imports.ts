@@ -9,6 +9,7 @@ import { importFixtures } from '../results/fixtures.service.js'
 import { publishApprovedMatchImport, type ApprovedMatchRow } from '../results/post-import.service.js'
 import { processApprovedResultEffects } from '../results/result-effects.service.js'
 import { emitApprovedResultEvents, emitLadderEvents } from '../feeds/events.service.js'
+import { saveMatchDetail, type MatchGoalKickerInput } from '../results/match-detail.service.js'
 import type { ResultInput, FixtureInput } from '../results/validation.js'
 
 const router = Router()
@@ -34,6 +35,13 @@ type ReviewedMatchRow = {
   awayGoals?: number
   awayBehinds?: number
   awayScore?: number
+  homeQuarterScores?: Array<string | null>
+  awayQuarterScores?: Array<string | null>
+  homeBestPlayers?: string[]
+  awayBestPlayers?: string[]
+  homeGoalKickers?: MatchGoalKickerInput[]
+  awayGoalKickers?: MatchGoalKickerInput[]
+  detailNotes?: string | null
   status?: string | null
 }
 
@@ -194,7 +202,7 @@ router.post('/commit', async (req, res) => {
       return { approved, createdClubs }
     }, { maxWait: 15_000, timeout: 60_000 })
 
-    const approvedRows = resolved.approved
+    const approvedRows = resolved.approved as Array<ApprovedMatchRow & ReviewedMatchRow>
     if (kind === 'results') {
       const ladderBefore = await prisma.footballLadderEntry.findMany({
         where: { leagueId, season: resolvedSeason, grade: resolvedGrade, published: true },
@@ -217,6 +225,34 @@ router.post('/commit', async (req, res) => {
       }))
       const imported = await importResults(input, 'OCR', { raiseReview: true })
       if (imported.invalid > 0) return res.status(422).json({ error: 'Some approved results failed validation', data: imported })
+
+      const detailedResultIds: string[] = []
+      for (const row of approvedRows) {
+        const result = await prisma.footballResult.findFirst({
+          where: {
+            leagueId,
+            season: resolvedSeason,
+            grade: row.grade ?? resolvedGrade,
+            homeClubId: row.homeClubId,
+            awayClubId: row.awayClubId,
+            ...(row.round == null ? {} : { round: String(row.round) }),
+          },
+          orderBy: { updatedAt: 'desc' },
+          select: { id: true },
+        })
+        if (!result) continue
+        await saveMatchDetail(result.id, {
+          homeQuarterScores: row.homeQuarterScores,
+          awayQuarterScores: row.awayQuarterScores,
+          homeBestPlayers: row.homeBestPlayers,
+          awayBestPlayers: row.awayBestPlayers,
+          homeGoalKickers: row.homeGoalKickers,
+          awayGoalKickers: row.awayGoalKickers,
+          notes: row.detailNotes,
+        })
+        detailedResultIds.push(result.id)
+      }
+
       const downstream = await publishApprovedMatchImport({ kind, leagueId, leagueName: league.name, season: resolvedSeason, grade: resolvedGrade, rows: approvedRows, actor: 'admin' })
       const ladderAfter = await prisma.footballLadderEntry.findMany({
         where: { leagueId, season: resolvedSeason, grade: resolvedGrade, published: true },
@@ -227,7 +263,7 @@ router.post('/commit', async (req, res) => {
         emitApprovedResultEvents({ leagueId, leagueName: league.name, season: resolvedSeason, grade: resolvedGrade, rows: approvedRows }),
         emitLadderEvents({ leagueId, leagueName: league.name, season: resolvedSeason, grade: resolvedGrade, before: ladderBefore, after: ladderAfter }),
       ])
-      return res.json({ data: { kind, league: league.name, submitted: rows.length, createdClubs: resolved.createdClubs, import: imported, downstream: { ...downstream, feedEventsCreated: resultEvents + ladderEvents, resultEvents, ladderEvents }, rankingEffects } })
+      return res.json({ data: { kind, league: league.name, submitted: rows.length, createdClubs: resolved.createdClubs, detailedResultIds, import: imported, downstream: { ...downstream, feedEventsCreated: resultEvents + ladderEvents, resultEvents, ladderEvents }, rankingEffects } })
     }
 
     const input: FixtureInput[] = approvedRows.map(row => ({
