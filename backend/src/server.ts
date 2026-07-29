@@ -57,6 +57,7 @@ import { adminLadderRouter } from './admin/ladder.js'
 import { adminSeasonRouter } from './admin/season.js'
 import { adminPlayhqRouter } from './admin/playhq.js'
 import { adminHighlightsRouter } from './admin/highlights.js'
+import { adminLeagueStrengthsRouter } from './admin/league-strengths.js'
 import { resultsRouter, fixturesRouter, clubMatchRouter, leagueMatchRouter } from './api/routes/results.js'
 import { historyRouter } from './api/routes/history.js'
 import { championshipsRouter } from './api/routes/championships.js'
@@ -179,6 +180,7 @@ app.use('/admin/playhq', adminPlayhqRouter)
 app.use('/admin/highlights', adminHighlightsRouter)
 app.use('/admin/featured-games', adminFeaturedGamesRouter)
 app.use('/admin/team-sheets', adminTeamSheetsRouter)
+app.use('/admin/league-strengths', adminLeagueStrengthsRouter)
 app.use('/admin/goal-kicker-achievements', goalKickerAlertControlsRouter)
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', version: process.env.npm_package_version ?? '1.0.0' }))
