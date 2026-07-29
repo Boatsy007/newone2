@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { prisma } from '../db/client.js'
 import { requireAdminKey } from '../api/middleware/auth.js'
 import { loadMatchDetail, saveMatchDetail } from '../results/match-detail.service.js'
-import { parseMatchDetailImage } from '../ocr/parse-match-detail-image.js'
+import { parseMatchDetailImage, parseTeamGoalKickerImage } from '../ocr/parse-match-detail-image.js'
 
 const router = Router()
 router.use(requireAdminKey)
@@ -37,6 +37,17 @@ router.post('/ocr', async (req, res) => {
     res.json({ data })
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Match detail OCR failed' })
+  }
+})
+
+router.post('/ocr/goal-kickers', async (req, res) => {
+  try {
+    const image = typeof req.body?.image === 'string' ? req.body.image : ''
+    if (!image) return res.status(400).json({ error: 'image required' })
+    const data = await parseTeamGoalKickerImage(image)
+    res.json({ data })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Goal kicker OCR failed' })
   }
 })
 
