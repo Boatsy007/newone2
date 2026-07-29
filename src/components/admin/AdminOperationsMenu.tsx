@@ -9,6 +9,7 @@ const accessLinks = [
 
 const operationLinks = [
   ...accessLinks,
+  { key: 'match-details-ocr', label: 'Match Details OCR', path: '/admin/match-details-ocr', icon: '▤' },
   { key: 'detailed-results', label: 'Detailed Results', path: '/admin/detailed-results', icon: '▦' },
   { key: 'highlights', label: 'Featured Highlights', path: '/admin/highlights', icon: '▶' },
   { key: 'featured-games', label: 'Featured Games', path: '/admin/featured-games', icon: '⚔' },
