@@ -36,6 +36,7 @@ import { adminManageRouter } from './admin/manage.js'
 import { adminPlayersRouter } from './admin/players.js'
 import { adminOcrRouter } from './admin/ocr.js'
 import { adminMatchImageImportsRouter } from './admin/match-image-imports.js'
+import { adminMatchDetailsRouter } from './admin/match-details.js'
 import { adminGoalKickerImagesRouter } from './admin/goal-kicker-images.js'
 import { adminMvpImagesRouter } from './admin/mvp-images.js'
 import { adminGoalKickerUrlImportsRouter } from './admin/goal-kicker-url-imports.js'
@@ -154,6 +155,7 @@ app.use('/admin/manage', adminManageRouter)
 app.use('/admin/players', adminPlayersRouter)
 app.use('/admin/ocr', adminOcrRouter)
 app.use('/admin/match-images', adminMatchImageImportsRouter)
+app.use('/admin/match-details', adminMatchDetailsRouter)
 app.use('/admin/goal-kicker-images', adminGoalKickerImagesRouter)
 app.use('/admin/mvp-images', adminMvpImagesRouter)
 app.use('/admin/profile-images', adminProfileImageImportsRouter)
