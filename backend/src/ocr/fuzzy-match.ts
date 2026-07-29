@@ -13,7 +13,8 @@
 
 const STOP = new Set([
   'fnc', 'fc', 'nc', 'fncl', 'fnl', 'afc', 'netball', 'football', 'club', 'clubs',
-  'association', 'assoc', 'inc', 'and', 'district', 'districts', 'the', 'senior',
+  'association', 'assoc', 'inc', 'and', 'district', 'districts', 'the',
+  'senior', 'seniors', 'reserve', 'reserves', 'res', 'seconds', 'thirds',
   'women', 'womens', 'ladies', 'a', 'grade', 'nfc', 'fnetballc',
 ])
 
