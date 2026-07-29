@@ -35,10 +35,20 @@ const fail = (message: string, fallbackRequired = true): never => {
   throw error
 }
 
-async function resolveOrCreateResult(parsed: ParsedMatchDetail, fallbackResultId?: string | null) {
+type ConfirmedMatch = {
+  leagueId?: string | null
+  homeClubId?: string | null
+  awayClubId?: string | null
+  round?: number | string | null
+  season?: string | null
+  grade?: string | null
+  matchDate?: string | null
+}
+
+async function resolveOrCreateResult(parsed: ParsedMatchDetail, fallbackResultId?: string | null, confirmed: ConfirmedMatch = {}) {
   if (fallbackResultId) {
     const selected = await prisma.footballResult.findUnique({ where: { id: fallbackResultId }, include: { league: { select: { name: true } } } })
-    if (!selected || !selected.published) fail('The fallback result no longer exists.')
+    if (!selected || !selected.published) fail('The selected result no longer exists.')
     return { action: 'matched' as const, result: selected, confidence: 1 }
   }
 
@@ -48,34 +58,44 @@ async function resolveOrCreateResult(parsed: ParsedMatchDetail, fallbackResultId
     where: { isActive: true, archivedAt: null },
     include: { association: { select: { name: true } } },
   })
-  let league = null as typeof leagues[number] | null
-  let leagueScore = 0
-  for (const candidate of leagues) {
-    const score = Math.max(
-      similarity(parsed.league ?? '', candidate.name),
-      similarity(parsed.league ?? '', candidate.association?.name ?? ''),
-    )
-    if (score > leagueScore) { league = candidate; leagueScore = score }
+
+  let league = confirmed.leagueId ? leagues.find(item => item.id === confirmed.leagueId) ?? null : null
+  let leagueScore = league ? 1 : 0
+  if (!league) {
+    for (const candidate of leagues) {
+      const score = Math.max(
+        similarity(parsed.league ?? '', candidate.name),
+        similarity(parsed.league ?? '', candidate.association?.name ?? ''),
+      )
+      if (score > leagueScore) { league = candidate; leagueScore = score }
+    }
   }
-  if (!league || leagueScore < 0.6) fail('League could not be identified confidently.')
+  if (!league || leagueScore < 0.6) fail('Choose the league before publishing.')
 
   const clubs = await prisma.club.findMany({
     where: { archivedAt: null, isActive: true, leagueSeasons: { some: { leagueId: league.id, isActive: true } } },
     select: { id: true, name: true },
   })
-  const home = fuzzyMatchClub(parsed.homeTeam, clubs)
-  const away = fuzzyMatchClub(parsed.awayTeam, clubs)
-  if (!home.confident || !away.confident || !home.clubId || !away.clubId || home.clubId === away.clubId) {
-    fail('Teams could not be matched confidently.')
-  }
 
-  const round = roundNumber(parsed.round)
+  const confirmedHome = confirmed.homeClubId ? clubs.find(item => item.id === confirmed.homeClubId) ?? null : null
+  const confirmedAway = confirmed.awayClubId ? clubs.find(item => item.id === confirmed.awayClubId) ?? null : null
+  const homeMatch = confirmedHome ? { clubId: confirmedHome.id, matchedName: confirmedHome.name, score: 1, confident: true } : fuzzyMatchClub(parsed.homeTeam, clubs)
+  const awayMatch = confirmedAway ? { clubId: confirmedAway.id, matchedName: confirmedAway.name, score: 1, confident: true } : fuzzyMatchClub(parsed.awayTeam, clubs)
+
+  if (!homeMatch.confident || !awayMatch.confident || !homeMatch.clubId || !awayMatch.clubId) {
+    fail('Choose both teams before publishing.')
+  }
+  if (homeMatch.clubId === awayMatch.clubId) fail('Home and away teams must be different.')
+
+  const round = roundNumber(confirmed.round ?? parsed.round)
+  const selectedDate = String(confirmed.matchDate ?? parsed.matchDate ?? '').trim() || null
   const currentSeason = (await prisma.setting.findUnique({ where: { key: 'currentSeason' } }).catch(() => null))?.value
-  const season = parsed.season?.trim()
-    || (parsed.matchDate && !Number.isNaN(new Date(parsed.matchDate).getTime()) ? String(new Date(parsed.matchDate).getFullYear()) : '')
+  const season = String(confirmed.season ?? '').trim()
+    || parsed.season?.trim()
+    || (selectedDate && !Number.isNaN(new Date(selectedDate).getTime()) ? String(new Date(selectedDate).getFullYear()) : '')
     || currentSeason
     || String(new Date().getFullYear())
-  const grade = parsed.grade?.trim() || 'Senior Football'
+  const grade = String(confirmed.grade ?? '').trim() || parsed.grade?.trim() || 'Senior Football'
 
   const pairResults = await prisma.footballResult.findMany({
     where: {
@@ -83,8 +103,8 @@ async function resolveOrCreateResult(parsed: ParsedMatchDetail, fallbackResultId
       season,
       published: true,
       OR: [
-        { homeClubId: home.clubId, awayClubId: away.clubId },
-        { homeClubId: away.clubId, awayClubId: home.clubId },
+        { homeClubId: homeMatch.clubId, awayClubId: awayMatch.clubId },
+        { homeClubId: awayMatch.clubId, awayClubId: homeMatch.clubId },
       ],
     },
     include: { league: { select: { name: true } } },
@@ -92,10 +112,10 @@ async function resolveOrCreateResult(parsed: ParsedMatchDetail, fallbackResultId
     take: 20,
   })
   const existing = pairResults.find(row =>
-    (round == null || row.round === `Round ${round}`) && (!parsed.matchDate || sameDay(row.matchDate, parsed.matchDate)),
+    (round == null || row.round === `Round ${round}`) && (!selectedDate || sameDay(row.matchDate, selectedDate)),
   ) ?? pairResults.find(row => round != null && row.round === `Round ${round}`)
 
-  if (existing) return { action: 'matched' as const, result: existing, confidence: Math.min(home.score, away.score, leagueScore) }
+  if (existing) return { action: 'matched' as const, result: existing, confidence: Math.min(homeMatch.score, awayMatch.score, leagueScore) }
 
   if (![parsed.homeScore, parsed.awayScore].every(value => typeof value === 'number' && Number.isFinite(value))) {
     fail('Final scores are required to create a new result from this detailed screenshot.')
@@ -104,13 +124,13 @@ async function resolveOrCreateResult(parsed: ParsedMatchDetail, fallbackResultId
   const approved: ApprovedMatchRow = {
     round: round ?? undefined,
     grade,
-    matchDate: parsed.matchDate,
+    matchDate: selectedDate,
     matchTime: parsed.matchTime,
     venue: parsed.venue,
-    homeTeam: home.matchedName ?? parsed.homeTeam,
-    awayTeam: away.matchedName ?? parsed.awayTeam,
-    homeClubId: home.clubId,
-    awayClubId: away.clubId,
+    homeTeam: homeMatch.matchedName ?? parsed.homeTeam,
+    awayTeam: awayMatch.matchedName ?? parsed.awayTeam,
+    homeClubId: homeMatch.clubId,
+    awayClubId: awayMatch.clubId,
     homeGoals: parsed.homeGoals ?? undefined,
     homeBehinds: parsed.homeBehinds ?? undefined,
     homeScore: parsed.homeScore!,
@@ -126,10 +146,10 @@ async function resolveOrCreateResult(parsed: ParsedMatchDetail, fallbackResultId
     season,
     grade,
     round: round ?? undefined,
-    matchDate: parsed.matchDate ?? undefined,
-    homeClubId: home.clubId,
+    matchDate: selectedDate ?? undefined,
+    homeClubId: homeMatch.clubId,
     homeClubName: approved.homeTeam,
-    awayClubId: away.clubId,
+    awayClubId: awayMatch.clubId,
     awayClubName: approved.awayTeam,
     homeScore: parsed.homeScore!,
     awayScore: parsed.awayScore!,
@@ -149,16 +169,41 @@ async function resolveOrCreateResult(parsed: ParsedMatchDetail, fallbackResultId
       published: true,
       ...(round == null ? {} : { round: `Round ${round}` }),
       OR: [
-        { homeClubId: home.clubId, awayClubId: away.clubId },
-        { homeClubId: away.clubId, awayClubId: home.clubId },
+        { homeClubId: homeMatch.clubId, awayClubId: awayMatch.clubId },
+        { homeClubId: awayMatch.clubId, awayClubId: homeMatch.clubId },
       ],
     },
     include: { league: { select: { name: true } } },
     orderBy: { updatedAt: 'desc' },
   })
   if (!created) fail('The result was created but could not be reloaded.', false)
-  return { action: 'created' as const, result: created, confidence: Math.min(home.score, away.score, leagueScore) }
+  return { action: 'created' as const, result: created, confidence: Math.min(homeMatch.score, awayMatch.score, leagueScore) }
 }
+
+router.get('/options', async (_req, res) => {
+  try {
+    const leagues = await prisma.league.findMany({
+      where: { isActive: true, archivedAt: null },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true, name: true, currentSeason: true,
+        clubSeasons: {
+          where: { isActive: true },
+          select: { season: true, grade: true, club: { select: { id: true, name: true } } },
+          orderBy: { club: { name: 'asc' } },
+        },
+      },
+    })
+    res.json({ data: leagues.map(league => ({
+      id: league.id,
+      name: league.name,
+      currentSeason: league.currentSeason,
+      clubs: [...new Map(league.clubSeasons.map(row => [row.club.id, row.club])).values()],
+      seasons: [...new Set(league.clubSeasons.map(row => row.season).filter(Boolean))],
+      grades: [...new Set(league.clubSeasons.map(row => row.grade).filter(Boolean))],
+    })) })
+  } catch (error) { res.status(500).json({ error: 'Unable to load league and club options', detail: String(error) }) }
+})
 
 router.get('/results', async (req, res) => {
   try {
@@ -191,7 +236,7 @@ router.post('/ocr/goal-kickers', async (req, res) => {
 
 router.post('/resolve', async (req, res) => {
   try {
-    const resolved = await resolveOrCreateResult((req.body?.match ?? req.body) as ParsedMatchDetail)
+    const resolved = await resolveOrCreateResult((req.body?.match ?? req.body) as ParsedMatchDetail, null, req.body?.confirmed ?? {})
     res.json({ data: { ...resolved, result: resultPayload(resolved.result) } })
   } catch (error) {
     const failure = error as ResolveFailure
@@ -204,7 +249,7 @@ router.post('/publish', async (req, res) => {
     const parsed = req.body?.match as ParsedMatchDetail
     const detail = req.body?.detail ?? {}
     const fallbackResultId = typeof req.body?.fallbackResultId === 'string' ? req.body.fallbackResultId : null
-    const resolved = await resolveOrCreateResult(parsed, fallbackResultId)
+    const resolved = await resolveOrCreateResult(parsed, fallbackResultId, req.body?.confirmed ?? {})
     const savedDetail = await saveMatchDetail(resolved.result.id, detail)
     res.json({
       data: { action: resolved.action, result: resultPayload(resolved.result), detail: savedDetail },
