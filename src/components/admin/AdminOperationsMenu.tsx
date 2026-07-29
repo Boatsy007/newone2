@@ -9,6 +9,7 @@ const accessLinks = [
 
 const operationLinks = [
   ...accessLinks,
+  { key: 'league-strengths', label: 'Bulk League Strengths', path: '/admin/league-strengths', icon: '⑤' },
   { key: 'match-details-ocr', label: 'Match Details OCR', path: '/admin/match-details-ocr', icon: '▤' },
   { key: 'detailed-results', label: 'Detailed Results', path: '/admin/detailed-results', icon: '▦' },
   { key: 'highlights', label: 'Featured Highlights', path: '/admin/highlights', icon: '▶' },
