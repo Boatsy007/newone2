@@ -3,11 +3,16 @@ import { getKey } from './admin'
 export type MatchImageKind = 'fixtures' | 'results'
 export type MatchDecision = 'import' | 'skip'
 export interface ClubMatch { clubId: string | null; matchedName: string | null; score: number; confident: boolean }
+export interface MatchGoalKickerRow { playerName: string; goals: number }
 export interface MatchImageRow {
   round?: number; grade?: string | null; matchDate?: string | null; matchTime?: string | null; venue?: string | null
   homeTeam: string; awayTeam: string
   homeGoals?: number; homeBehinds?: number; homeScore?: number
   awayGoals?: number; awayBehinds?: number; awayScore?: number
+  homeQuarterScores?: Array<string | null>; awayQuarterScores?: Array<string | null>
+  homeBestPlayers?: string[]; awayBestPlayers?: string[]
+  homeGoalKickers?: MatchGoalKickerRow[]; awayGoalKickers?: MatchGoalKickerRow[]
+  detailNotes?: string | null
   status?: string | null
   homeMatch: ClubMatch; awayMatch: ClubMatch
 }
