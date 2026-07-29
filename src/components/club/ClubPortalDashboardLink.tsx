@@ -36,10 +36,13 @@ body.pf-mobile-whiteboard .legend{min-height:24px!important;padding:3px!importan
 body.pf-mobile-whiteboard .legend em{margin-left:auto!important;overflow:hidden!important;text-overflow:ellipsis!important}
 .pf-whiteboard-rotate{display:none}
 @media (max-width:900px) and (orientation:portrait){
- body.pf-mobile-whiteboard .pf-whiteboard-rotate{position:fixed;inset:0;z-index:100001;display:grid;place-content:center;text-align:center;padding:30px;background:#071019;color:#fff}
- body.pf-mobile-whiteboard .pf-whiteboard-rotate strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:46px;line-height:.9;text-transform:uppercase}
- body.pf-mobile-whiteboard .pf-whiteboard-rotate span{max-width:290px;margin:12px auto 0;color:#b9c7d4;font-weight:700;line-height:1.45}
+ body.pf-mobile-whiteboard:not(.pf-whiteboard-portrait-bypass) .pf-whiteboard-rotate{position:fixed;inset:0;z-index:100001;display:grid;place-content:center;text-align:center;padding:30px;background:#071019;color:#fff}
+ body.pf-mobile-whiteboard .pf-whiteboard-rotate strong{display:block;font-family:'Bebas Neue',Impact,sans-serif;font-size:46px;line-height:.9;text-transform:uppercase}
+ body.pf-mobile-whiteboard .pf-whiteboard-rotate span{display:block;max-width:300px;margin:12px auto 0;color:#b9c7d4;font-weight:700;line-height:1.45}
  body.pf-mobile-whiteboard .pf-whiteboard-rotate i{display:block;width:58px;height:92px;margin:0 auto 24px;border:4px solid #42b8ff;border-radius:12px;transform:rotate(90deg);box-shadow:0 0 30px rgba(66,184,255,.3)}
+ body.pf-mobile-whiteboard .pf-whiteboard-rotate button{margin-top:22px;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:12px 18px;background:#42b8ff;color:#06121b;font:inherit;font-weight:950;text-transform:uppercase}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>.workspace{grid-template-columns:100px minmax(0,1fr)!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .oval{width:min(calc(100vw - 120px),calc((100dvh - 176px) * 1.62))!important;height:auto!important;max-height:calc(100dvh - 176px)!important}
 }
 @media (max-height:500px) and (orientation:landscape){
  body.pf-mobile-whiteboard .wb>.meta{height:44px!important}
@@ -69,6 +72,13 @@ export default function ClubPortalDashboardLink() {
       } catch { /* rotation remains controlled by the user when unsupported */ }
     }
 
+    const syncViewport = () => {
+      const viewport = window.visualViewport
+      const width = viewport?.width ?? window.innerWidth
+      const height = viewport?.height ?? window.innerHeight
+      if (width > height * 1.05) document.body.classList.remove('pf-whiteboard-portrait-bypass')
+    }
+
     if (whiteboardMatch && window.matchMedia('(max-width: 900px)').matches) {
       document.body.classList.add('pf-mobile-whiteboard')
       mobileStyle = document.createElement('style')
@@ -78,9 +88,17 @@ export default function ClubPortalDashboardLink() {
 
       rotatePrompt = document.createElement('div')
       rotatePrompt.className = 'pf-whiteboard-rotate'
-      rotatePrompt.innerHTML = '<div><i aria-hidden="true"></i><strong>Rotate your phone</strong><span>The coach whiteboard is designed for landscape. Turn your phone sideways to use the full oval.</span></div>'
+      rotatePrompt.innerHTML = '<div><i aria-hidden="true"></i><strong>Rotate your phone</strong><span>The coach whiteboard works best in landscape. Turn your phone sideways, or continue in portrait if Safari will not rotate.</span><button type="button">Continue anyway</button></div>'
+      rotatePrompt.querySelector('button')?.addEventListener('click', () => {
+        document.body.classList.add('pf-whiteboard-portrait-bypass')
+        void requestLandscape()
+      })
       document.body.appendChild(rotatePrompt)
       document.addEventListener('pointerdown', requestLandscape, { once: true })
+      window.addEventListener('resize', syncViewport)
+      window.addEventListener('orientationchange', syncViewport)
+      window.visualViewport?.addEventListener('resize', syncViewport)
+      syncViewport()
     }
 
     const connect = () => {
@@ -136,10 +154,13 @@ export default function ClubPortalDashboardLink() {
     observer.observe(document.body, { childList: true, subtree: true })
     return () => {
       observer.disconnect()
-      document.body.classList.remove('pf-mobile-whiteboard')
+      document.body.classList.remove('pf-mobile-whiteboard', 'pf-whiteboard-portrait-bypass')
       mobileStyle?.remove()
       rotatePrompt?.remove()
       document.removeEventListener('pointerdown', requestLandscape)
+      window.removeEventListener('resize', syncViewport)
+      window.removeEventListener('orientationchange', syncViewport)
+      window.visualViewport?.removeEventListener('resize', syncViewport)
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
       try {
         const orientation = screen.orientation as ScreenOrientation & { unlock?: () => void }
