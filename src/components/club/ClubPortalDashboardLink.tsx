@@ -41,8 +41,26 @@ body.pf-mobile-whiteboard .legend em{margin-left:auto!important;overflow:hidden!
  body.pf-mobile-whiteboard .pf-whiteboard-rotate span{display:block;max-width:300px;margin:12px auto 0;color:#b9c7d4;font-weight:700;line-height:1.45}
  body.pf-mobile-whiteboard .pf-whiteboard-rotate i{display:block;width:58px;height:92px;margin:0 auto 24px;border:4px solid #42b8ff;border-radius:12px;transform:rotate(90deg);box-shadow:0 0 30px rgba(66,184,255,.3)}
  body.pf-mobile-whiteboard .pf-whiteboard-rotate button{margin-top:22px;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:12px 18px;background:#42b8ff;color:#06121b;font:inherit;font-weight:950;text-transform:uppercase}
- body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>.workspace{grid-template-columns:100px minmax(0,1fr)!important}
- body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .oval{width:min(calc(100vw - 120px),calc((100dvh - 176px) * 1.62))!important;height:auto!important;max-height:calc(100dvh - 176px)!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb{overflow-y:auto!important;padding:5px!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>header{position:sticky!important;top:0!important;z-index:20!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>.meta{height:45px!important;margin:4px 0!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>.meta label{flex-basis:125px!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>.meta label:nth-of-type(n+3){display:none!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>.meta button{height:31px!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>.workspace{height:auto!important;min-height:calc(100dvh - 103px)!important;display:flex!important;flex-direction:column!important;gap:5px!important;overflow:visible!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>.workspace>aside{order:1!important;width:100%!important;height:auto!important;display:grid!important;grid-template-columns:minmax(0,1fr) 132px!important;gap:5px!important;overflow:visible!important;padding:0!important;background:transparent!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>.workspace>aside section{min-width:0!important;padding:5px!important;border-radius:8px!important;background:#fff!important;overflow:hidden!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .wb>.workspace>aside h2{font-size:15px!important;margin:1px 0 4px!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .player-bank{display:flex!important;gap:4px!important;overflow-x:auto!important;overflow-y:hidden!important;padding-bottom:2px!important;scrollbar-width:none!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .player-bank::-webkit-scrollbar{display:none!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .player-bank button{flex:0 0 112px!important;min-height:43px!important;display:grid!important;grid-template-columns:31px 1fr auto!important;padding:4px!important;font-size:9px!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .player-bank button b{width:30px!important;height:30px!important;font-size:10px!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .add-opp{width:100%!important;min-height:43px!important;padding:5px!important;font-size:8px!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .board-shell{order:2!important;width:100%!important;height:auto!important;min-height:0!important;display:grid!important;grid-template-rows:auto auto auto!important;padding:5px!important;overflow:visible!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .tools{order:1!important;padding-bottom:5px!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .oval{order:2!important;width:calc(100vw - 20px)!important;height:auto!important;max-width:none!important;max-height:none!important;aspect-ratio:1.62 / 1!important;margin:0 auto!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .legend{order:3!important;width:100%!important;box-sizing:border-box!important}
+ body.pf-mobile-whiteboard.pf-whiteboard-portrait-bypass .marker{transform:translate(-50%,-50%) scale(.68)!important}
 }
 @media (max-height:500px) and (orientation:landscape){
  body.pf-mobile-whiteboard .wb>.meta{height:44px!important}
