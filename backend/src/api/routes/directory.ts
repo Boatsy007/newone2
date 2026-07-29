@@ -35,13 +35,15 @@ router.get('/', publicRateLimit, cachePublic(600), async (_req, res) => {
     const leagueIds = [...new Set(footballLeagues.map(s => s.id))]
     if (leagueIds.length === 0) { res.json({ season, states: [], meta: { totalClubs: 0, totalLeagues: 0 } }); return }
 
-    // All active football club-season rows. Do not apply one global latest-season
-    // filter here: different imported leagues can have different season labels,
-    // and the league ladder already proves these memberships are public.
+    // A club may have more than one active ClubLeagueSeason row because imports
+    // can use different grade labels or retain an older season. Those are data
+    // memberships, not separate clubs. The public directory must show one card
+    // per canonical club in each league.
     const rows = await prisma.clubLeagueSeason.findMany({
       where:   { isActive: true, leagueId: { in: leagueIds } },
       select: {
-        clubId: true, leagueId: true, played: true, wins: true, losses: true, draws: true, percentage: true, points: true,
+        clubId: true, leagueId: true, season: true, grade: true, updatedAt: true,
+        played: true, wins: true, losses: true, draws: true, percentage: true, points: true,
         club: {
           select: {
             name: true,
@@ -51,6 +53,26 @@ router.get('/', publicRateLimit, cachePublic(600), async (_req, res) => {
         league: { select: { name: true, shortName: true, strengthTier: true, strengthScore: true } },
       },
     })
+
+    const preferredRows = new Map<string, (typeof rows)[number]>()
+    const seasonValue = (value: string) => {
+      const year = Number(String(value).match(/\d{4}/)?.[0] ?? 0)
+      return Number.isFinite(year) ? year : 0
+    }
+    const isBetter = (candidate: (typeof rows)[number], current: (typeof rows)[number]) => {
+      const seasonDifference = seasonValue(candidate.season) - seasonValue(current.season)
+      if (seasonDifference !== 0) return seasonDifference > 0
+      if (candidate.played !== current.played) return candidate.played > current.played
+      if (candidate.points !== current.points) return candidate.points > current.points
+      if (candidate.wins !== current.wins) return candidate.wins > current.wins
+      return candidate.updatedAt.getTime() > current.updatedAt.getTime()
+    }
+    for (const row of rows) {
+      const key = `${row.leagueId}:${row.clubId}`
+      const current = preferredRows.get(key)
+      if (!current || isBetter(row, current)) preferredRows.set(key, row)
+    }
+    const directoryRows = [...preferredRows.values()]
 
     // Latest ranking entries → clubId → { rank, powerRating }
     const run = await prisma.rankingRun.findFirst({
@@ -97,7 +119,7 @@ router.get('/', publicRateLimit, cachePublic(600), async (_req, res) => {
 
     const states = new Map<string, StateGroup>()
 
-    for (const r of rows) {
+    for (const r of directoryRows) {
       const stateCode = r.club.state?.code ?? 'VIC'
       const stateName = r.club.state?.name ?? stateCode
       let sg = states.get(stateCode)
