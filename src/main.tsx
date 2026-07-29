@@ -36,6 +36,7 @@ import AdminMaintenanceQueue from './pages/AdminMaintenanceQueue.tsx'
 import AdminMatchImageImports from './pages/AdminMatchImageImports.tsx'
 import AdminDetailedResults from './pages/AdminDetailedResults.tsx'
 import AdminMatchDetailsOcr from './pages/AdminMatchDetailsOcr.tsx'
+import AdminLeagueStrengths from './pages/AdminLeagueStrengths.tsx'
 import AdminGoalKickerImages from './pages/AdminGoalKickerImages.tsx'
 import AdminMvpImages from './pages/AdminMvpImages.tsx'
 import AdminProfileImageImports from './pages/AdminProfileImageImports.tsx'
@@ -172,6 +173,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/admin/launch-readiness" element={<AdminLaunchReadiness/>}/>
     <Route path="/admin/notification-delivery" element={<AdminNotificationDelivery/>}/>
     <Route path="/admin/league-coverage" element={<AdminLeagueCoverage/>}/>
+    <Route path="/admin/league-strengths" element={<AdminLeagueStrengths/>}/>
     <Route path="/admin/maintenance-queue" element={<AdminMaintenanceQueue/>}/>
     <Route path="/admin/universal-imports" element={<AdminUniversalImports/>}/>
     <Route path="/admin/ladder-images" element={<AdminLadderImageImports/>}/>
