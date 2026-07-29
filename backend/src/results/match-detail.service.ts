@@ -5,8 +5,8 @@ export type MatchGoalKickerInput = MatchPlayerInput & { goals: number }
 export type MatchDetailInput = {
   homeQuarterScores?: Array<string | null>
   awayQuarterScores?: Array<string | null>
-  homeBestPlayers?: Array<string | MatchPlayerInput>
-  awayBestPlayers?: Array<string | MatchPlayerInput>
+  homeBestPlayers?: string[]
+  awayBestPlayers?: string[]
   homeGoalKickers?: MatchGoalKickerInput[]
   awayGoalKickers?: MatchGoalKickerInput[]
   notes?: string | null
@@ -36,17 +36,8 @@ export function ensureMatchDetailTable() {
 }
 
 const normalise = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '')
-function cleanPlayerRows(values: unknown): MatchPlayerInput[] {
-  if (!Array.isArray(values)) return []
-  return values.flatMap(value => {
-    if (typeof value === 'string') {
-      const playerName = value.trim()
-      return playerName ? [{ playerName, playerId: null }] : []
-    }
-    const row = value as Record<string, unknown>
-    const playerName = String(row?.playerName ?? '').trim()
-    return playerName ? [{ playerName, playerId: row?.playerId ? String(row.playerId) : null }] : []
-  }).slice(0, 30)
+function cleanStrings(values: unknown): string[] {
+  return Array.isArray(values) ? values.map(value => String(value ?? '').trim()).filter(Boolean).slice(0, 30) : []
 }
 function cleanQuarters(values: unknown): Array<string | null> {
   const rows = Array.isArray(values) ? values.slice(0, 4) : []
@@ -96,8 +87,8 @@ export async function saveMatchDetail(resultId: string, input: MatchDetailInput)
 
   const homeQuarterScores = cleanQuarters(input.homeQuarterScores)
   const awayQuarterScores = cleanQuarters(input.awayQuarterScores)
-  const homeBestPlayers = linkPlayers(cleanPlayerRows(input.homeBestPlayers), homeCandidates)
-  const awayBestPlayers = linkPlayers(cleanPlayerRows(input.awayBestPlayers), awayCandidates)
+  const homeBestPlayers = cleanStrings(input.homeBestPlayers)
+  const awayBestPlayers = cleanStrings(input.awayBestPlayers)
   const homeGoalKickers = linkPlayers(cleanKickers(input.homeGoalKickers), homeCandidates)
   const awayGoalKickers = linkPlayers(cleanKickers(input.awayGoalKickers), awayCandidates)
   const notes = String(input.notes ?? '').trim().slice(0, 5000) || null
