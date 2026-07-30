@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-const CLUB_DETAIL = /^\/admin\/platform\/clubs\/([^/?#]+)$/
+const CLUB_DETAIL = /^\/admin\/(?:platform\/clubs|manage\/clubs)\/([^/?#]+)$/
 const CLUB_LIST = '/admin/manage/clubs'
 const PORTAL_SESSION_KEY = 'playfooty.clubPortal.session.v1'
 const ADMIN_KEY = 'cnca_admin_key'
@@ -39,8 +39,8 @@ function makePanel(kind: 'portal' | 'admin', clubId: string) {
   panel.style.cssText = 'background:#fff;border:1px solid #dce4ea;border-radius:14px;padding:19px;margin:14px 0;box-shadow:0 8px 24px rgba(15,23,42,.045);font-family:Barlow,Inter,Arial,sans-serif'
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
-      <div><span style="display:block;color:#0783c9;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase">Club identity</span><h2 style="font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase;font-size:32px;line-height:.95;margin:5px 0 7px">Cover photo</h2><p style="margin:0;color:#687385;line-height:1.5">Optional. Without a cover photo, the public club profile keeps its current PlayFooty hero design.</p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:7px;background:#101318;color:#fff;border-radius:9px;padding:11px 13px;font-weight:900;cursor:pointer">Upload cover<input data-cover-file type="file" accept="image/png,image/jpeg,image/webp" style="display:none"></label><button data-cover-remove type="button" style="display:none;border:0;border-radius:9px;padding:11px 13px;background:#ffe6e6;color:#9b2222;font-weight:900;cursor:pointer">Remove</button></div>
+      <div><span style="display:block;color:#0783c9;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase">Profile branding</span><h2 style="font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase;font-size:32px;line-height:.95;margin:5px 0 7px">Cover photo</h2><p style="margin:0;color:#687385;line-height:1.5">Optional. If no cover is uploaded, the current PlayFooty club header stays unchanged.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><label style="display:inline-flex;align-items:center;gap:7px;background:#2daaf5;color:#071018;border-radius:999px;padding:11px 15px;font-weight:900;cursor:pointer;text-transform:uppercase">Upload cover<input data-cover-file type="file" accept="image/png,image/jpeg,image/webp" style="display:none"></label><button data-cover-remove type="button" style="display:none;border:1px solid #d71920;border-radius:999px;padding:10px 14px;background:#fff;color:#b11920;font-weight:900;cursor:pointer;text-transform:uppercase">Remove cover</button></div>
     </div>
     <div data-cover-status style="margin-top:12px;color:#687385;font-size:13px"></div>
     <div data-cover-preview style="display:none;margin-top:14px;border-radius:12px;overflow:hidden;background:#101318"><img alt="Club cover preview" style="display:block;width:100%;aspect-ratio:16/5;object-fit:cover"></div>`
@@ -63,6 +63,7 @@ function makePanel(kind: 'portal' | 'admin', clubId: string) {
     if (!response.ok) throw new Error('Unable to load current cover')
     const payload = await response.json() as { data?: { coverPhotoUrl?: string | null } }
     show(payload.data?.coverPhotoUrl ?? null)
+    status.textContent = payload.data?.coverPhotoUrl ? 'Current public cover photo.' : 'No cover photo is currently connected.'
   }).catch(() => { status.textContent = 'No cover photo is currently connected.' })
 
   input.addEventListener('change', async () => {
@@ -94,6 +95,20 @@ function makePanel(kind: 'portal' | 'admin', clubId: string) {
   return panel
 }
 
+function editorClubId(activeId: string) {
+  if (activeId) return activeId
+  const publicLink = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/team/"]')).find(link => link.closest('.pf-admin-content'))
+  const match = publicLink?.getAttribute('href')?.match(/^\/team\/([^/?#]+)/)
+  return match ? decodeURIComponent(match[1]) : ''
+}
+
+function logoCard() {
+  const headings = Array.from(document.querySelectorAll<HTMLElement>('.pf-admin-content h1,.pf-admin-content h2,.pf-admin-content h3'))
+  const heading = headings.find(item => item.textContent?.trim().toLowerCase() === 'club logo')
+  if (!heading) return null
+  return heading.closest<HTMLElement>('section') || heading.parentElement?.parentElement || heading.parentElement
+}
+
 export default function AdminClubProfileFallback() {
   useEffect(() => {
     const originalFetch = window.fetch.bind(window)
@@ -106,6 +121,8 @@ export default function AdminClubProfileFallback() {
 
       const clubId = decodeURIComponent(match[1])
       activeAdminClubId = clubId
+      if (pathnameOf(input).startsWith('/admin/manage/clubs/')) return originalFetch(input, init)
+
       let detailResponse: Response | null = null
       try {
         detailResponse = await Promise.race([
@@ -156,16 +173,19 @@ export default function AdminClubProfileFallback() {
         if (target) target.insertAdjacentElement('afterend', makePanel('portal', decodeURIComponent(portalMatch[1])))
       }
 
-      if (window.location.pathname === '/admin' && activeAdminClubId && !document.querySelector(`[data-club-cover-manager="admin:${CSS.escape(activeAdminClubId)}"]`)) {
-        const target = document.querySelector('.pf-admin-content .pf-page') || document.querySelector('.pf-admin-content')
-        if (target && /club/i.test(target.textContent ?? '')) target.appendChild(makePanel('admin', activeAdminClubId))
+      if (window.location.pathname === '/admin') {
+        const clubId = editorClubId(activeAdminClubId)
+        const logo = logoCard()
+        if (clubId && logo && !document.querySelector(`[data-club-cover-manager="admin:${CSS.escape(clubId)}"]`)) {
+          logo.insertAdjacentElement('afterend', makePanel('admin', clubId))
+        }
       }
     }
 
     connect()
     const observer = new MutationObserver(connect)
     observer.observe(document.body, { childList: true, subtree: true })
-    const timer = window.setInterval(connect, 700)
+    const timer = window.setInterval(connect, 500)
     return () => {
       observer.disconnect()
       window.clearInterval(timer)
