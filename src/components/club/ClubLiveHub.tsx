@@ -18,6 +18,8 @@ const supporterId = () => {
 type MatchRow = {
   id: string
   sourceId?: string
+  leagueId?: string | null
+  leagueName?: string | null
   round?: string | number | null
   grade?: string | null
   matchDate?: string | null
@@ -38,6 +40,20 @@ type MatchRow = {
   awayScore?: number
 }
 
+type RankingRow = {
+  rank: number
+  clubId: string
+  clubName: string
+  logoUrl?: string | null
+  leagueId: string
+  leagueName?: string
+  points: number
+  goalsFor: number
+  goalsAgainst: number
+  percentage: number
+  record: { wins: number; losses: number; draws: number; played: number }
+}
+
 type Highlight = {
   id: string
   playerName: string
@@ -55,12 +71,27 @@ type FeedItem = { id: string; type: string; title: string; body: string; href: s
 type LoadState = {
   fixtures: MatchRow[]
   results: MatchRow[]
+  rankings: RankingRow[]
   highlights: Highlight[]
   activity: FeedItem[]
 }
 
+type TeamMetric = {
+  clubId: string
+  clubName: string
+  logoUrl: string | null
+  nationalRank: number | null
+  ladderPosition: number | null
+  attackRating: number
+  defensiveRating: number
+  wins: number
+  losses: number
+  draws: number
+  percentage: number
+}
+
 export default function ClubLiveHub({ club }: { club: ClubProfile }) {
-  const [data, setData] = useState<LoadState>({ fixtures: [], results: [], highlights: [], activity: [] })
+  const [data, setData] = useState<LoadState>({ fixtures: [], results: [], rankings: [], highlights: [], activity: [] })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -69,6 +100,7 @@ export default function ClubLiveHub({ club }: { club: ClubProfile }) {
     const calls = [
       fetch(`/api/clubs/${encodeURIComponent(club.clubId)}/fixtures?upcoming=true${season}`).then(r => r.ok ? r.json() : Promise.reject()),
       fetch(`/api/clubs/${encodeURIComponent(club.clubId)}/results?${season.slice(1)}`).then(r => r.ok ? r.json() : Promise.reject()),
+      fetch('/api/rankings').then(r => r.ok ? r.json() : Promise.reject()),
       fetch('/api/highlights').then(r => r.ok ? r.json() : Promise.reject()),
       fetch(`/api/follows/feed?supporterId=${encodeURIComponent(supporterId())}`).then(r => r.ok ? r.json() : Promise.reject()),
     ]
@@ -79,8 +111,9 @@ export default function ClubLiveHub({ club }: { club: ClubProfile }) {
       setData({
         fixtures: payload<MatchRow>(0).slice(0, 20),
         results: payload<MatchRow>(1).slice(0, 5),
-        highlights: payload<Highlight>(2).filter(row => row.clubId === club.clubId || row.clubName.toLowerCase() === club.clubName.toLowerCase()).slice(0, 4),
-        activity: payload<FeedItem>(3).filter(row => row.entityType === 'CLUB' && row.entityId === club.clubId).slice(0, 6),
+        rankings: payload<RankingRow>(2),
+        highlights: payload<Highlight>(3).filter(row => row.clubId === club.clubId || row.clubName.toLowerCase() === club.clubName.toLowerCase()).slice(0, 4),
+        activity: payload<FeedItem>(4).filter(row => row.entityType === 'CLUB' && row.entityId === club.clubId).slice(0, 6),
       })
     }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -88,6 +121,7 @@ export default function ClubLiveHub({ club }: { club: ClubProfile }) {
 
   const records = useMemo(() => deriveRecords(data.results, club.clubId, club.clubName), [data.results, club.clubId, club.clubName])
   const nextFixture = useMemo(() => selectMondayFixture(data.fixtures), [data.fixtures])
+  const nextMatch = useMemo(() => buildNextMatch(nextFixture, data.rankings, club), [nextFixture, data.rankings, club])
 
   return <div className="club-live-hub">
     <section className="club-live-summary">
@@ -100,10 +134,12 @@ export default function ClubLiveHub({ club }: { club: ClubProfile }) {
       </div>
     </section>
 
-    <div className="club-live-columns club-next-row">
-      <NextUpCard row={nextFixture} clubId={club.clubId} loading={loading} />
-      <MatchCard title="Recent results" icon={<Trophy size={17}/>} rows={data.results} type="result" clubId={club.clubId} loading={loading} />
-    </div>
+    <NextMatchCard match={nextMatch} clubId={club.clubId} loading={loading} />
+
+    <section className="club-live-card">
+      <header><div><span>Match centre</span><h2>Recent results</h2></div><Trophy size={17}/></header>
+      <MatchList rows={data.results} type="result" clubId={club.clubId} loading={loading} />
+    </section>
 
     <PublicGoalKickersPanel clubId={club.clubId} eyebrow={`${club.season ?? new Date().getFullYear()} club leaders`} title={`${club.clubName} goal kickers`} />
 
@@ -131,40 +167,53 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
   return <article><span>{label}</span><strong>{value}</strong><small>{detail}</small></article>
 }
 
-function NextUpCard({ row, clubId, loading }: { row: MatchRow | null; clubId: string; loading: boolean }) {
-  if (loading) return <section className="club-live-card club-next-card"><header><div><span>Match centre</span><h2>Next up</h2></div><Link to={`/matches?clubId=${encodeURIComponent(clubId)}`}>See all matches</Link></header><Empty text="Loading next match…" /></section>
-  if (!row) return <section className="club-live-card club-next-card"><header><div><span>Match centre</span><h2>Next up</h2></div><Link to={`/matches?clubId=${encodeURIComponent(clubId)}`}>See all matches</Link></header><Empty text="No further fixtures are published for this season." /></section>
+function NextMatchCard({ match, clubId, loading }: { match: ReturnType<typeof buildNextMatch>; clubId: string; loading: boolean }) {
+  if (loading) return <section className="club-live-card club-feature-match"><header><div><span>Match centre</span><h2>Next match</h2></div><Link to={`/matches?clubId=${encodeURIComponent(clubId)}`}>See all matches</Link></header><Empty text="Loading next match…" /></section>
+  if (!match) return <section className="club-live-card club-feature-match"><header><div><span>Match centre</span><h2>Next match</h2></div><Link to={`/matches?clubId=${encodeURIComponent(clubId)}`}>See all matches</Link></header><Empty text="No further fixtures are published for this season." /></section>
 
-  const home = row.homeClubName ?? row.homeName ?? 'Home'
-  const away = row.awayClubName ?? row.awayName ?? 'Away'
-  const isHome = row.homeClubId === clubId
-  const opponent = isHome ? away : home
-  const opponentLogo = isHome ? (row.awayClubLogoUrl ?? row.awayLogoUrl) : (row.homeClubLogoUrl ?? row.homeLogoUrl)
-  const opponentId = isHome ? row.awayClubId : row.homeClubId
-  const id = row.sourceId ?? row.id.replace(/^football:/, '')
-  const round = normaliseRound(row.round)
-  const details = fixtureDetails(row.matchDate)
+  const [homeWins, awayWins] = relativeHigher(match.home.wins, match.away.wins)
+  const [homeLosses, awayLosses] = relativeLower(match.home.losses, match.away.losses)
+  const [homePercentage, awayPercentage] = relativeHigher(match.home.percentage, match.away.percentage)
+  const [homeAttack, awayAttack] = relativeHigher(match.home.attackRating, match.away.attackRating)
+  const [homeDefence, awayDefence] = relativeHigher(match.home.defensiveRating, match.away.defensiveRating)
 
-  return <section className="club-live-card club-next-card">
-    <header><div><span>Match centre</span><h2>Next up</h2></div><Link to={`/matches?clubId=${encodeURIComponent(clubId)}`}>See all matches</Link></header>
-    <Link className="club-next-match" to={`/match/fixture/${id}?source=football`}>
-      <span className="club-next-round">{round}</span>
-      <div className="club-next-opponent">
-        <strong>VS</strong>
-        {opponentId ? <Link className="club-next-logo" to={`/team/${opponentId}`} onClick={event => event.stopPropagation()}><TeamLogo name={opponent} src={opponentLogo ?? undefined} size={112}/></Link> : <span className="club-next-logo"><TeamLogo name={opponent} src={opponentLogo ?? undefined} size={112}/></span>}
-        <b>{opponent}</b>
+  return <section className="club-live-card club-feature-match">
+    <header><div><span>Match centre</span><h2>Next match</h2></div><Link to={`/matches?clubId=${encodeURIComponent(clubId)}`}>See all matches</Link></header>
+    <article className="club-feature-game-card">
+      <div className="club-feature-game-top">
+        <small>{match.leagueName}</small>
+        <div className="club-feature-game-context"><span>{match.round}</span>{match.date && <span>{match.date}</span>}{match.venue && <span>{match.venue}</span>}</div>
+        <div className="club-feature-game-teams">
+          <FeatureTeam team={match.home}/><b>VS</b><FeatureTeam team={match.away}/>
+        </div>
       </div>
-      <div className="club-next-details">
-        {details.time && <span><small>Time</small><strong>{details.time}</strong></span>}
-        {details.date && <span><small>Date</small><strong>{details.date}</strong></span>}
-        {row.venue && <span><small>Venue</small><strong>{row.venue}</strong></span>}
+      <div className="club-feature-game-metrics">
+        <GameMetric label="National ranking" home={rank(match.home.nationalRank)} away={rank(match.away.nationalRank)} homeWidth={relativeRank(match.home.nationalRank, match.away.nationalRank)[0]} awayWidth={relativeRank(match.home.nationalRank, match.away.nationalRank)[1]}/>
+        <GameMetric label="League ladder" home={rank(match.home.ladderPosition)} away={rank(match.away.ladderPosition)} homeWidth={relativeRank(match.home.ladderPosition, match.away.ladderPosition)[0]} awayWidth={relativeRank(match.home.ladderPosition, match.away.ladderPosition)[1]}/>
+        <GameMetric label="Attack rating" home={match.home.attackRating.toFixed(1)} away={match.away.attackRating.toFixed(1)} homeWidth={homeAttack} awayWidth={awayAttack}/>
+        <GameMetric label="Defensive rating" home={match.home.defensiveRating.toFixed(1)} away={match.away.defensiveRating.toFixed(1)} homeWidth={homeDefence} awayWidth={awayDefence}/>
+        <GameMetric label="Wins" home={String(match.home.wins)} away={String(match.away.wins)} homeWidth={homeWins} awayWidth={awayWins}/>
+        <GameMetric label="Losses" home={String(match.home.losses)} away={String(match.away.losses)} homeWidth={homeLosses} awayWidth={awayLosses}/>
+        <GameMetric label="Percentage" home={`${match.home.percentage.toFixed(1)}%`} away={`${match.away.percentage.toFixed(1)}%`} homeWidth={homePercentage} awayWidth={awayPercentage}/>
       </div>
-    </Link>
+      <p className="club-rating-note">Attack and defence ratings are league-normalised · 100 = league average</p>
+      <footer><Link to={`/team/${match.home.clubId}`}>See {shortName(match.home.clubName)} team <ArrowRight size={16}/></Link><Link to={`/team/${match.away.clubId}`}>See {shortName(match.away.clubName)} team <ArrowRight size={16}/></Link></footer>
+    </article>
   </section>
 }
 
-function MatchCard({ title, icon, rows, type, clubId, loading }: { title: string; icon: React.ReactNode; rows: MatchRow[]; type: 'fixture' | 'result'; clubId: string; loading: boolean }) {
-  return <section className="club-live-card"><header><div><span>Match centre</span><h2>{title}</h2></div>{icon}</header>{loading ? <Empty text="Loading match data…"/> : rows.length ? <div className="club-match-list">{rows.map(row => {
+function FeatureTeam({ team }: { team: TeamMetric }) {
+  return <Link className="club-feature-team" to={`/team/${team.clubId}`}><span className="club-feature-game-logo"><TeamLogo name={team.clubName} src={team.logoUrl ?? undefined} size={112}/></span><strong>{team.clubName}</strong></Link>
+}
+
+function GameMetric({ label, home, away, homeWidth, awayWidth }: { label: string; home: string; away: string; homeWidth: number; awayWidth: number }) {
+  return <div className="club-game-metric"><div><strong>{home}</strong><span>{label}</span><strong>{away}</strong></div><div className="club-game-bars"><i><b style={{ width: `${clampWidth(homeWidth)}%` }}/></i><i><b style={{ width: `${clampWidth(awayWidth)}%` }}/></i></div></div>
+}
+
+function MatchList({ rows, type, clubId, loading }: { rows: MatchRow[]; type: 'fixture' | 'result'; clubId: string; loading: boolean }) {
+  if (loading) return <Empty text="Loading match data…" />
+  if (!rows.length) return <Empty text={type === 'fixture' ? 'No upcoming fixtures published.' : 'No recent results published.'}/>
+  return <div className="club-match-list">{rows.map(row => {
     const home = row.homeClubName ?? row.homeName ?? 'Home'
     const away = row.awayClubName ?? row.awayName ?? 'Away'
     const isHome = row.homeClubId === clubId
@@ -172,7 +221,48 @@ function MatchCard({ title, icon, rows, type, clubId, loading }: { title: string
     const homeScore = row.homePoints ?? row.homeScore
     const awayScore = row.awayPoints ?? row.awayScore
     return <Link key={row.id} to={`/match/${type}/${id}?source=football`}><span className={isHome ? 'this-club' : ''}>{home}</span>{type === 'result' && <b>{homeScore ?? 0}</b>}<span className={!isHome ? 'this-club' : ''}>{away}</span>{type === 'result' && <b>{awayScore ?? 0}</b>}<small>{[row.round, row.matchDate ? formatDate(row.matchDate) : null, row.venue].filter(Boolean).join(' · ')}</small></Link>
-  })}</div> : <Empty text={type === 'fixture' ? 'No upcoming fixtures published.' : 'No recent results published.'}/>}</section>
+  })}</div>
+}
+
+function buildNextMatch(row: MatchRow | null, rankings: RankingRow[], club: ClubProfile) {
+  if (!row) return null
+  const leagueId = row.leagueId ?? club.leagueId ?? rankings.find(item => item.clubId === club.clubId)?.leagueId ?? ''
+  const leagueRows = rankings.filter(item => item.leagueId === leagueId).sort((a, b) => b.points - a.points || b.percentage - a.percentage || b.record.wins - a.record.wins || a.clubName.localeCompare(b.clubName))
+  const homeName = row.homeClubName ?? row.homeName ?? 'Home'
+  const awayName = row.awayClubName ?? row.awayName ?? 'Away'
+  const home = buildTeam(row.homeClubId ?? '', homeName, row.homeClubLogoUrl ?? row.homeLogoUrl ?? null, rankings, leagueRows)
+  const away = buildTeam(row.awayClubId ?? '', awayName, row.awayClubLogoUrl ?? row.awayLogoUrl ?? null, rankings, leagueRows)
+  return {
+    home,
+    away,
+    leagueName: row.leagueName ?? leagueRows[0]?.leagueName ?? club.leagueName ?? 'Senior football',
+    round: normaliseRound(row.round),
+    date: fixtureDate(row.matchDate),
+    venue: row.venue ?? '',
+  }
+}
+
+function buildTeam(clubId: string, fallbackName: string, fallbackLogo: string | null, rankings: RankingRow[], leagueRows: RankingRow[]): TeamMetric {
+  const row = rankings.find(item => item.clubId === clubId)
+  const played = row?.record.played ?? 0
+  const scored = row && played > 0 ? row.goalsFor / played : 0
+  const conceded = row && played > 0 ? row.goalsAgainst / played : 0
+  const rates = leagueRows.filter(item => item.record.played > 0).map(item => ({ scored: item.goalsFor / item.record.played, conceded: item.goalsAgainst / item.record.played }))
+  const avgScored = rates.length ? rates.reduce((sum, item) => sum + item.scored, 0) / rates.length : 0
+  const avgConceded = rates.length ? rates.reduce((sum, item) => sum + item.conceded, 0) / rates.length : 0
+  return {
+    clubId,
+    clubName: row?.clubName ?? fallbackName,
+    logoUrl: row?.logoUrl ?? fallbackLogo,
+    nationalRank: row?.rank ?? null,
+    ladderPosition: row ? leagueRows.findIndex(item => item.clubId === clubId) + 1 || null : null,
+    attackRating: avgScored > 0 && scored > 0 ? Math.min(200, Math.round((scored / avgScored) * 1000) / 10) : 0,
+    defensiveRating: avgConceded > 0 ? Math.min(200, conceded === 0 ? 200 : Math.round((avgConceded / conceded) * 1000) / 10) : 0,
+    wins: row?.record.wins ?? 0,
+    losses: row?.record.losses ?? 0,
+    draws: row?.record.draws ?? 0,
+    percentage: row?.percentage ?? 0,
+  }
 }
 
 function selectMondayFixture(rows: MatchRow[]) {
@@ -182,9 +272,7 @@ function selectMondayFixture(rows: MatchRow[]) {
   const day = monday.getDay()
   monday.setDate(monday.getDate() - (day === 0 ? 6 : day - 1))
   monday.setHours(0, 0, 0, 0)
-  return [...rows]
-    .filter(row => !row.matchDate || new Date(row.matchDate).getTime() >= monday.getTime())
-    .sort((a, b) => dateValue(a.matchDate) - dateValue(b.matchDate))[0] ?? null
+  return [...rows].filter(row => !row.matchDate || new Date(row.matchDate).getTime() >= monday.getTime()).sort((a, b) => dateValue(a.matchDate) - dateValue(b.matchDate))[0] ?? null
 }
 
 function dateValue(value?: string | null) {
@@ -199,14 +287,11 @@ function normaliseRound(value?: string | number | null) {
   return /^round\b/i.test(text) ? text : `Round ${text}`
 }
 
-function fixtureDetails(value?: string | null) {
-  if (!value) return { date: '', time: '' }
+function fixtureDate(value?: string | null) {
+  if (!value) return ''
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return { date: String(value), time: '' }
-  return {
-    date: new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }).format(date),
-    time: new Intl.DateTimeFormat('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }).format(date).toLowerCase(),
-  }
+  if (Number.isNaN(date.getTime())) return String(value)
+  return new Intl.DateTimeFormat('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }).format(date)
 }
 
 function deriveRecords(rows: MatchRow[], clubId: string, clubName: string) {
@@ -232,7 +317,19 @@ function deriveRecords(rows: MatchRow[], clubId: string, clubName: string) {
   ]
 }
 
+const rank = (value: number | null) => value ? `#${value}` : '—'
+const clampWidth = (value: number) => Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0))
+const relativeHigher = (home: number, away: number): [number, number] => { const max = Math.max(home, away, 1); return [(home / max) * 100, (away / max) * 100] }
+const relativeLower = (home: number, away: number): [number, number] => { const max = Math.max(home, away, 1); return [home === 0 ? 100 : ((max - home + 1) / max) * 100, away === 0 ? 100 : ((max - away + 1) / max) * 100] }
+const relativeRank = (home: number | null, away: number | null): [number, number] => { if (!home && !away) return [0, 0]; const max = Math.max(home ?? 0, away ?? 0, 1); return [home ? ((max - home + 1) / max) * 100 : 0, away ? ((max - away + 1) / max) * 100 : 0] }
+const shortName = (name: string) => name.replace(/\s+(football|netball|football netball)\s+club$/i, '').trim()
 function Empty({ text }: { text: string }) { return <p className="club-live-empty">{text}</p> }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short' }).format(date) }
 
-const styles = `.club-live-hub{display:grid;gap:18px}.club-live-summary,.club-live-card{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055);padding:22px}.club-live-summary>header,.club-live-card>header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:15px}.club-live-summary header span,.club-live-card header span{display:block;color:#209fe9;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.club-live-summary h2,.club-live-card h2{margin:5px 0 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:36px;line-height:.9;text-transform:uppercase}.club-live-summary header a,.club-live-card header a{display:inline-flex;align-items:center;gap:5px;color:#1687c5;font-size:10px;font-weight:950;text-decoration:none;text-transform:uppercase}.club-live-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.club-live-metrics article{padding:15px;border:1px solid #e6ebef;border-radius:10px;background:#f8fafb}.club-live-metrics span,.club-live-metrics small{display:block}.club-live-metrics span{color:#687385;font-size:9px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.club-live-metrics strong{display:block;margin:5px 0 3px;font-family:'Bebas Neue',Impact,sans-serif;font-size:31px}.club-live-metrics small{color:#687385;font-size:11px}.club-live-columns{display:grid;grid-template-columns:1fr 1fr;gap:18px}.club-match-list,.club-activity-list,.club-record-list{display:grid}.club-match-list>a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:11px 0;border-top:1px solid #edf1f4;color:#111318;text-decoration:none}.club-match-list>a>span{font-size:13px;font-weight:800}.club-match-list>a>span.this-club{font-weight:950}.club-match-list>a>b{font-family:'Bebas Neue',Impact,sans-serif;font-size:20px;color:#168fd2}.club-match-list>a>small{grid-column:1/3;color:#687385;font-size:10px}.club-next-card>header{align-items:flex-start}.club-next-card>header>a{padding-top:3px}.club-next-match{display:block;border:1px solid #e5eaee;border-radius:12px;background:#f8fafb;color:#111318;text-decoration:none;overflow:hidden}.club-next-round{display:block;padding:12px 16px;background:var(--club-primary,#2daaf5);color:#fff!important;font-size:11px!important;font-weight:950;letter-spacing:.15em;text-align:center;text-transform:uppercase}.club-next-opponent{display:grid;justify-items:center;gap:10px;padding:22px 18px 18px}.club-next-opponent>strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:48px;line-height:.8;color:var(--club-secondary,#d61b8c)}.club-next-opponent>b{font-size:18px;text-align:center}.club-next-logo{display:grid;place-items:center;width:126px;height:126px;border-radius:22px;background:#fff;border:1px solid #e2e7eb;text-decoration:none}.club-next-logo img,.club-next-logo span{max-width:112px;max-height:112px}.club-next-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #e2e7eb;background:#fff}.club-next-details>span{min-width:0;padding:13px;text-align:center}.club-next-details>span+span{border-left:1px solid #e2e7eb}.club-next-details small,.club-next-details strong{display:block}.club-next-details small{color:#687385;font-size:8px;font-weight:950;letter-spacing:.12em;text-transform:uppercase}.club-next-details strong{margin-top:4px;font-size:11px;line-height:1.35}.club-record-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.club-record-list article{padding:13px;border:1px solid #e7ebef;border-radius:9px}.club-record-list span,.club-record-list small{display:block}.club-record-list span{color:#687385;font-size:9px;font-weight:950;text-transform:uppercase}.club-record-list strong{display:block;margin:5px 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:29px}.club-record-list small{color:#687385;font-size:10px}.club-activity-list a{padding:12px 0;border-top:1px solid #edf1f4;color:#111318;text-decoration:none}.club-activity-list strong,.club-activity-list span,.club-activity-list small{display:block}.club-activity-list span{margin-top:3px;color:#687385;font-size:12px}.club-activity-list small{margin-top:5px;color:#168fd2;font-size:9px;font-weight:900;text-transform:uppercase}.club-highlight-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.club-highlight-grid>a{overflow:hidden;border:1px solid #e3e8ed;border-radius:10px;color:#111318;text-decoration:none}.club-highlight-grid>a>div{height:115px;display:grid;place-items:center;background:#eef5f9;color:#168fd2}.club-highlight-grid img{width:100%;height:100%;object-fit:cover}.club-highlight-grid>a>span,.club-highlight-grid>a>strong,.club-highlight-grid>a>small{display:block;margin-left:12px;margin-right:12px}.club-highlight-grid>a>span{margin-top:10px;color:#168fd2;font-size:9px;font-weight:950;text-transform:uppercase}.club-highlight-grid>a>strong{margin-top:3px}.club-highlight-grid>a>small{margin-top:4px;margin-bottom:12px;color:#687385;font-size:11px}.club-live-empty{margin:0;padding:22px 0;color:#687385;font-size:13px}@media(max-width:760px){.club-live-summary,.club-live-card{padding:17px}.club-live-metrics{grid-template-columns:1fr 1fr}.club-live-columns{grid-template-columns:1fr}.club-record-list{grid-template-columns:1fr}.club-highlight-grid{grid-template-columns:1fr 1fr}.club-live-summary h2,.club-live-card h2{font-size:31px}.club-next-details{grid-template-columns:1fr}.club-next-details>span+span{border-left:0;border-top:1px solid #e2e7eb}}@media(max-width:440px){.club-highlight-grid{grid-template-columns:1fr}}`
+const styles = `
+.club-live-hub{display:grid;gap:18px}.club-live-summary,.club-live-card{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055);padding:22px}.club-live-summary>header,.club-live-card>header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:15px}.club-live-summary header span,.club-live-card header span{display:block;color:#209fe9;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.club-live-summary h2,.club-live-card h2{margin:5px 0 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:36px;line-height:.9;text-transform:uppercase}.club-live-summary header a,.club-live-card header a{display:inline-flex;align-items:center;gap:5px;color:#1687c5;font-size:10px;font-weight:950;text-decoration:none;text-transform:uppercase}.club-live-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.club-live-metrics article{padding:15px;border:1px solid #e6ebef;border-radius:10px;background:#f8fafb}.club-live-metrics span,.club-live-metrics small{display:block}.club-live-metrics span{color:#687385;font-size:9px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.club-live-metrics strong{display:block;margin:5px 0 3px;font-family:'Bebas Neue',Impact,sans-serif;font-size:31px}.club-live-metrics small{color:#687385;font-size:11px}.club-live-columns{display:grid;grid-template-columns:1fr 1fr;gap:18px}.club-match-list,.club-activity-list,.club-record-list{display:grid}.club-match-list>a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:11px 0;border-top:1px solid #edf1f4;color:#111318;text-decoration:none}.club-match-list>a>span{font-size:13px;font-weight:800}.club-match-list>a>span.this-club{font-weight:950}.club-match-list>a>b{font-family:'Bebas Neue',Impact,sans-serif;font-size:20px;color:#168fd2}.club-match-list>a>small{grid-column:1/3;color:#687385;font-size:10px}
+.club-feature-match>header{align-items:flex-start}.club-feature-game-card{overflow:hidden;border:1px solid #dce3eb;border-radius:18px;background:#fff;color:#111318;box-shadow:0 12px 30px rgba(17,24,39,.10)}.club-feature-game-top{padding:18px 24px 12px;background:linear-gradient(135deg,#34104f,#0b1430 52%,#0a4970);color:#fff;border-bottom:5px solid var(--club-primary,#42b8ff)}.club-feature-game-top>small{display:block;text-align:center;color:#d8e4ef;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.08em}.club-feature-game-context{display:flex;justify-content:center;flex-wrap:wrap;gap:5px 12px;margin-top:7px;color:#fff;font-size:12px;font-weight:800}.club-feature-game-context span+span:before{content:'·';margin-right:12px;color:var(--club-primary,#42b8ff)}.club-feature-game-teams{display:grid;grid-template-columns:minmax(0,1fr) 60px minmax(0,1fr);align-items:center;gap:12px;margin-top:18px}.club-feature-team{display:grid;justify-items:center;text-align:center;gap:8px;color:#fff;text-decoration:none}.club-feature-game-logo{display:grid;place-items:center;width:124px;height:124px;padding:4px;box-sizing:border-box;overflow:hidden;border:1px solid rgba(255,255,255,.5);border-radius:22px;background:#fff}.club-feature-game-logo>span{width:100%!important;height:100%!important}.club-feature-game-logo img{display:block!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain!important}.club-feature-team strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(1.65rem,3vw,2.5rem);line-height:.95;text-transform:uppercase}.club-feature-game-teams>b{display:grid;place-items:center;width:58px;height:58px;border-radius:50%;background:rgba(255,255,255,.1);font-family:'Bebas Neue',Impact,sans-serif;font-size:31px;color:var(--club-primary,#42b8ff)}.club-feature-game-metrics{padding:8px 22px;background:#fff}.club-game-metric{padding:13px 0;border-bottom:1px solid #e3e7ec}.club-game-metric:last-child{border-bottom:0}.club-game-metric>div:first-child{display:grid;grid-template-columns:1fr minmax(130px,1.3fr) 1fr;align-items:center;gap:10px}.club-game-metric strong{font-size:19px}.club-game-metric strong:last-child{text-align:right}.club-game-metric span{text-align:center;font-size:15px;font-weight:850}.club-game-bars{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}.club-game-bars i{height:8px;border-radius:999px;background:#eef1f4;overflow:hidden}.club-game-bars i:first-child{display:flex;justify-content:flex-end}.club-game-bars b{display:block;height:100%;border-radius:999px;background:#1d4ed8}.club-game-bars i:last-child b{background:#16a34a}.club-rating-note{margin:0;padding:0 22px 14px;color:#667085;font-size:11px;font-weight:750;text-align:center;background:#fff}.club-feature-game-card footer{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #dce3eb;background:#fff}.club-feature-game-card footer a{display:flex;align-items:center;justify-content:center;gap:8px;padding:17px 12px;color:#075ca8;text-decoration:none;font-weight:900;text-align:center}.club-feature-game-card footer a+a{border-left:1px solid #dce3eb}
+.club-record-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.club-record-list article{padding:13px;border:1px solid #e7ebef;border-radius:9px}.club-record-list span,.club-record-list small{display:block}.club-record-list span{color:#687385;font-size:9px;font-weight:950;text-transform:uppercase}.club-record-list strong{display:block;margin:5px 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:29px}.club-record-list small{color:#687385;font-size:10px}.club-activity-list a{padding:12px 0;border-top:1px solid #edf1f4;color:#111318;text-decoration:none}.club-activity-list strong,.club-activity-list span,.club-activity-list small{display:block}.club-activity-list span{margin-top:3px;color:#687385;font-size:12px}.club-activity-list small{margin-top:5px;color:#168fd2;font-size:9px;font-weight:900;text-transform:uppercase}.club-highlight-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.club-highlight-grid>a{overflow:hidden;border:1px solid #e3e8ed;border-radius:10px;color:#111318;text-decoration:none}.club-highlight-grid>a>div{height:115px;display:grid;place-items:center;background:#eef5f9;color:#168fd2}.club-highlight-grid img{width:100%;height:100%;object-fit:cover}.club-highlight-grid>a>span,.club-highlight-grid>a>strong,.club-highlight-grid>a>small{display:block;margin-left:12px;margin-right:12px}.club-highlight-grid>a>span{margin-top:10px;color:#168fd2;font-size:9px;font-weight:950;text-transform:uppercase}.club-highlight-grid>a>strong{margin-top:3px}.club-highlight-grid>a>small{margin-top:4px;margin-bottom:12px;color:#687385;font-size:11px}.club-live-empty{margin:0;padding:22px 0;color:#687385;font-size:13px}
+@media(max-width:760px){.club-live-summary,.club-live-card{padding:17px}.club-live-metrics{grid-template-columns:1fr 1fr}.club-live-columns{grid-template-columns:1fr}.club-record-list{grid-template-columns:1fr}.club-highlight-grid{grid-template-columns:1fr 1fr}.club-live-summary h2,.club-live-card h2{font-size:31px}.club-feature-game-top{padding:16px 14px 10px}.club-feature-game-teams{grid-template-columns:minmax(0,1fr) 48px minmax(0,1fr);gap:7px}.club-feature-game-logo{width:100px;height:100px}.club-feature-game-teams>b{width:46px;height:46px;font-size:26px}.club-feature-team strong{font-size:1.6rem}.club-feature-game-metrics{padding:6px 16px}.club-game-metric>div:first-child{grid-template-columns:1fr minmax(112px,1.2fr) 1fr}.club-game-metric strong{font-size:17px}.club-game-metric span{font-size:13px}.club-feature-game-card footer a{padding:15px 8px;font-size:13px}}
+@media(max-width:440px){.club-highlight-grid{grid-template-columns:1fr}.club-feature-game-logo{width:88px;height:88px}.club-feature-team strong{font-size:1.35rem}.club-feature-game-context{font-size:10px}.club-game-metric>div:first-child{grid-template-columns:1fr 108px 1fr}}
+`
