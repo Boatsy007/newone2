@@ -30,6 +30,7 @@ import { portalAuthRouter } from './api/routes/portal-auth.js'
 import { followsRouter } from './api/routes/follows.js'
 import { shareCardsRouter } from './api/routes/share-cards.js'
 import { shareLinksRouter } from './api/routes/share-links.js'
+import { clubCoversRouter, clubPortalCoversRouter, adminClubCoversRouter } from './api/routes/club-covers.js'
 import { adminDashboardRouter } from './admin/dashboard.js'
 import { adminSettingsRouter } from './admin/settings.js'
 import { adminManageRouter } from './admin/manage.js'
@@ -78,6 +79,8 @@ app.use('/admin/match-details', express.json({ limit: '20mb' }))
 app.use('/admin/goal-kicker-images', express.json({ limit: '20mb' }))
 app.use('/admin/mvp-images', express.json({ limit: '20mb' }))
 app.use('/admin/profile-images', express.json({ limit: '20mb' }))
+app.use('/admin/club-covers', express.json({ limit: '12mb' }))
+app.use('/api/club-portal/club-covers', express.json({ limit: '12mb' }))
 app.use('/admin/universal-imports', express.json({ limit: '20mb' }))
 app.use('/admin/platform/csv', express.json({ limit: '20mb' }))
 app.use('/admin/platform/leagues', express.json({ limit: '8mb' }))
@@ -109,6 +112,7 @@ app.get('/api/records', async (req, res) => {
 app.use('/api/search', searchRouter)
 app.use('/api/rankings', rankingsRouter)
 app.use('/api/clubs', clubsRouter)
+app.use('/api/club-covers', clubCoversRouter)
 app.use('/api/leagues', leaguesRouter)
 app.use('/api/directory', directoryRouter)
 app.use('/api/goal-kicker-controls', goalKickerAlertControlsRouter)
@@ -126,6 +130,7 @@ app.use('/api/featured-games', featuredGamesRouter)
 app.use('/api/news', newsRouter)
 app.use('/api/highlights', highlightsRouter)
 app.use('/api/portal-auth', portalAuthRouter)
+app.use('/api/club-portal/club-covers', clubPortalCoversRouter)
 app.use('/api/club-portal', clubPortalAccessRouter)
 app.use('/api/league-portal', leaguePortalRouter)
 app.use('/api/league-portal', leaguePortalContactsRouter)
@@ -154,6 +159,7 @@ app.use('/api/history', (req, res, next) => { req.url = `/history${req.url}`; cl
 app.use('/admin', adminDashboardRouter)
 app.use('/admin/settings', adminSettingsRouter)
 app.use('/admin/manage', adminManageRouter)
+app.use('/admin/club-covers', adminClubCoversRouter)
 app.use('/admin/players', adminPlayersRouter)
 app.use('/admin/ocr', adminOcrRouter)
 app.use('/admin/match-images', adminMatchImageImportsRouter)
