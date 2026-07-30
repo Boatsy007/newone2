@@ -51,8 +51,11 @@ export default function ClubSponsorsLive({ club }: { club: ClubProfile }) {
     }).sort((a, b) => (b.displayPriority ?? 0) - (a.displayPriority ?? 0) || (a.sponsor?.name ?? '').localeCompare(b.sponsor?.name ?? ''))
   }, [rows])
 
-  const majorSponsors = sponsors.filter(row => String(row.tier ?? '').toUpperCase() === 'MAJOR')
-  const otherSponsors = sponsors.filter(row => String(row.tier ?? '').toUpperCase() !== 'MAJOR')
+  const explicitMajor = sponsors.filter(row => String(row.tier ?? '').toUpperCase() === 'MAJOR')
+  const hasTierData = sponsors.some(row => Boolean(String(row.tier ?? '').trim()))
+  const majorSponsors = explicitMajor.length > 0 ? explicitMajor : (!hasTierData ? sponsors.slice(0, Math.min(2, sponsors.length)) : [])
+  const majorIds = new Set(majorSponsors.map(row => row.id))
+  const otherSponsors = sponsors.filter(row => !majorIds.has(row.id))
 
   return (
     <section className="club-sponsors-live">
@@ -67,7 +70,7 @@ export default function ClubSponsorsLive({ club }: { club: ClubProfile }) {
       ) : sponsors.length ? (
         <div className="club-sponsor-groups">
           {majorSponsors.length > 0 && <SponsorCarousel title="Major sponsors" rows={majorSponsors} major />}
-          {otherSponsors.length > 0 && <SponsorCarousel title={majorSponsors.length ? 'Club sponsors' : 'Sponsors'} rows={otherSponsors} />}
+          {otherSponsors.length > 0 && <SponsorCarousel title="Club sponsors" rows={otherSponsors} />}
         </div>
       ) : (
         <div className="club-sponsor-empty">
@@ -79,7 +82,7 @@ export default function ClubSponsorsLive({ club }: { club: ClubProfile }) {
 
       <style>{`
         .club-sponsors-live{--sponsor-pad:clamp(28px,5vw,48px);padding:var(--sponsor-pad);font-family:Barlow,Inter,Arial,sans-serif;overflow:hidden}
-        .club-sponsors-head,.club-sponsor-group-head{padding-inline:8px}
+        .club-sponsors-head,.club-sponsor-group-head{padding-inline:12px}
         .club-sponsors-head>span,.club-sponsor-group-head span{display:block;color:#2daaf5;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}
         .club-sponsors-head h2{margin:7px 0 9px;font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(2.4rem,5vw,4rem);line-height:.9;text-transform:uppercase;color:#111318}
         .club-sponsors-head h2 em{color:#2daaf5;font-style:normal}.club-sponsors-head p{margin:0 0 26px;color:#687385;font-size:15px;line-height:1.55}
@@ -88,7 +91,7 @@ export default function ClubSponsorsLive({ club }: { club: ClubProfile }) {
         .club-sponsor-group-head h3{margin:0;font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(1.7rem,3vw,2.5rem);line-height:.95;text-transform:uppercase;color:#111318}
         .club-sponsor-group-head span{font-size:9px;white-space:nowrap}
         .club-sponsor-viewport{position:relative}
-        .club-sponsor-carousel{display:flex;gap:14px;overflow-x:auto;overflow-y:hidden;padding:4px 8px 16px;scroll-snap-type:x mandatory;scroll-padding-inline:8px;scroll-behavior:smooth;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;touch-action:pan-x}
+        .club-sponsor-carousel{display:flex;gap:14px;overflow-x:auto;overflow-y:hidden;padding:4px 12px 16px;scroll-snap-type:x mandatory;scroll-padding-inline:12px;scroll-behavior:smooth;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;touch-action:pan-x}
         .club-sponsor-carousel::-webkit-scrollbar{display:none}
         .club-sponsor-card{flex:0 0 clamp(210px,31vw,310px);min-width:0;min-height:160px;padding:28px;border:1px solid #dfe4e9;border-radius:14px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;color:#111318;text-align:center;text-decoration:none;box-sizing:border-box;box-shadow:0 7px 20px rgba(17,24,39,.065);scroll-snap-align:center;scroll-snap-stop:always;transition:border-color .18s ease,transform .18s ease}
         .club-sponsor-carousel.major .club-sponsor-card{flex-basis:clamp(300px,48vw,470px);min-height:225px;padding:36px}
@@ -102,12 +105,12 @@ export default function ClubSponsorsLive({ club }: { club: ClubProfile }) {
         .club-sponsor-loading{height:225px;border-radius:14px;background:linear-gradient(90deg,#eef2f5 25%,#f8fafb 50%,#eef2f5 75%);background-size:200% 100%;animation:club-sponsor-shimmer 1.2s linear infinite}@keyframes club-sponsor-shimmer{to{background-position:-200% 0}}
         @media(max-width:620px){
           .club-sponsors-live{--sponsor-pad:24px;padding:30px var(--sponsor-pad) 36px}
-          .club-sponsors-head,.club-sponsor-group-head{padding-inline:8px}.club-sponsors-head p{margin-bottom:24px}.club-sponsor-groups{gap:29px}.club-sponsor-group-head{margin-bottom:10px}
+          .club-sponsors-head,.club-sponsor-group-head{padding-inline:12px}.club-sponsors-head p{margin-bottom:24px}.club-sponsor-groups{gap:29px}.club-sponsor-group-head{margin-bottom:10px}
           .club-sponsor-viewport{margin-inline:calc(var(--sponsor-pad) * -1)}
-          .club-sponsor-carousel{gap:12px;padding:4px var(--sponsor-pad) 15px;scroll-padding-inline:var(--sponsor-pad)}
-          .club-sponsor-card{flex-basis:calc((100vw - 48px - 24px) / 2.5);min-height:145px;padding:19px 14px;border-radius:12px;gap:8px}
-          .club-sponsor-carousel.major .club-sponsor-card{flex-basis:calc((100vw - 48px - 12px) / 1.5);min-height:205px;padding:30px 22px}
-          .club-sponsor-card img{max-width:88%;max-height:76px}.club-sponsor-carousel.major .club-sponsor-card img{max-width:88%;max-height:116px}.club-sponsor-card strong{font-size:14px}.club-sponsor-carousel.major .club-sponsor-card strong{font-size:19px}.club-sponsor-card small{font-size:8px}.club-sponsor-label{font-size:8px}
+          .club-sponsor-carousel{gap:12px;padding:4px 24px 15px;scroll-padding-inline:24px}
+          .club-sponsor-card{flex:0 0 38vw;min-height:145px;padding:19px 14px;border-radius:12px;gap:8px}
+          .club-sponsor-carousel.major .club-sponsor-card{flex:0 0 66vw;min-height:215px;padding:30px 22px}
+          .club-sponsor-card img{max-width:88%;max-height:76px}.club-sponsor-carousel.major .club-sponsor-card img{max-width:88%;max-height:122px}.club-sponsor-card strong{font-size:14px}.club-sponsor-carousel.major .club-sponsor-card strong{font-size:19px}.club-sponsor-card small{font-size:8px}.club-sponsor-label{font-size:8px}
           .club-sponsor-arrow{display:none}.club-sponsor-group-head span{font-size:8px}
         }
       `}</style>
