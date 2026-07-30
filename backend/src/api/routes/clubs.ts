@@ -59,7 +59,20 @@ router.get('/:id', publicRateLimit, cachePublic(30), async (req, res) => {
     const leagueId = currentEntry?.leagueId ?? cls?.leagueId ?? null
     const season = currentEntry?.rankingRun.season ?? cls?.season ?? null
     const clubName = currentEntry?.clubName ?? club?.name ?? 'Unknown Club'
-    const ladderRows = leagueId && season ? await prisma.clubLeagueSeason.findMany({ where: { leagueId, season, isActive: true }, orderBy: [{ points: 'desc' }, { percentage: 'desc' }, { club: { name: 'asc' } }], select: { clubId: true, played: true, wins: true, losses: true, draws: true, percentage: true, points: true, club: { select: { name: true, logoUrl: true } } } }) : []
+    const uploadedLadderRows = leagueId && season ? await prisma.footballLadderEntry.findMany({
+      where: { leagueId, season, published: true },
+      orderBy: { position: 'asc' },
+      select: { clubId: true, clubName: true, position: true, played: true, wins: true, losses: true, draws: true, percentage: true, premiershipPoints: true },
+    }) : []
+    const uploadedClubIds = [...new Set(uploadedLadderRows.flatMap(row => row.clubId ? [row.clubId] : []))]
+    const uploadedClubs = uploadedClubIds.length ? await prisma.club.findMany({ where: { id: { in: uploadedClubIds } }, select: { id: true, logoUrl: true } }) : []
+    const logoByClubId = new Map(uploadedClubs.map(item => [item.id, item.logoUrl]))
+    const seenClubIds = new Set<string>()
+    const ladderRows = uploadedLadderRows.filter(row => {
+      if (!row.clubId || seenClubIds.has(row.clubId)) return false
+      seenClubIds.add(row.clubId)
+      return true
+    })
 
     let recentForm: unknown[] = []
     let componentScores: Record<string, unknown> = {}
@@ -76,14 +89,14 @@ router.get('/:id', publicRateLimit, cachePublic(30), async (req, res) => {
 
     const rank = currentEntry?.rank ?? null
     const league = cls?.league ?? null
-    const ladderIndex = ladderRows.findIndex(r => r.clubId === clubId)
+    const ladderIndex = ladderRows.findIndex(row => row.clubId === clubId)
 
     res.json({ data: {
       clubId, clubName, leagueId, leagueName: currentEntry?.leagueName ?? league?.name ?? null, state: currentEntry?.state ?? club?.state?.code ?? null,
       rank, previousRank: currentEntry?.previousRank ?? null, rankMovement: currentEntry?.rankMovement ?? 0, powerRating: currentEntry?.powerRating ?? null,
       ranked: !!currentEntry, qualified: rank != null && rank <= QUALIFY_CUTOFF, qualifyCutoff: QUALIFY_CUTOFF,
       record: { wins: cls?.wins ?? 0, losses: cls?.losses ?? 0, draws: cls?.draws ?? 0, played: cls?.played ?? 0 }, goalsFor: cls?.goalsFor ?? 0,
-      goalsAgainst: cls?.goalsAgainst ?? 0, percentage: cls?.percentage ?? 0, ladderPosition: ladderIndex >= 0 ? ladderIndex + 1 : null,
+      goalsAgainst: cls?.goalsAgainst ?? 0, percentage: cls?.percentage ?? 0, ladderPosition: ladderIndex >= 0 ? (ladderRows[ladderIndex].position ?? ladderIndex + 1) : null,
       leagueStrengthScore: league?.strengthScore ?? null, leagueStrengthTier: league?.strengthTier ?? null,
       recentForm, componentScores, weekLabel: currentEntry?.rankingRun.weekLabel ?? null, season,
       history: [], town: club?.townName ?? null, region: club?.region ?? null, stateName: club?.state?.name ?? null, logoUrl: club?.logoUrl ?? null,
@@ -96,7 +109,7 @@ router.get('/:id', publicRateLimit, cachePublic(30), async (req, res) => {
       googleMapsUrl: profile?.googleMapsUrl ?? null, tiktokUrl: profile?.tiktokUrl ?? null, youtubeUrl: profile?.youtubeUrl ?? null, membershipLink: profile?.membershipLink ?? null, volunteerLink: profile?.volunteerLink ?? null,
       ranking: rank == null ? null : { rank, powerRating: currentEntry?.powerRating ?? null, movement: currentEntry?.rankMovement ?? null },
       leadingGoalKicker, fixtures: [], results: [], teams: [],
-      ladder: ladderRows.map((r, index) => ({ clubId: r.clubId, clubName: r.club.name, logoUrl: r.club.logoUrl, position: index + 1, played: r.played, wins: r.wins, losses: r.losses, draws: r.draws, percentage: r.percentage, points: r.points, isThisClub: r.clubId === clubId })),
+      ladder: ladderRows.map((row, index) => ({ clubId: row.clubId!, clubName: row.clubName, logoUrl: logoByClubId.get(row.clubId!) ?? null, position: row.position ?? index + 1, played: row.played, wins: row.wins, losses: row.losses, draws: row.draws, percentage: row.percentage, points: row.premiershipPoints, isThisClub: row.clubId === clubId })),
     } })
   } catch (err) { res.status(500).json({ error: 'Internal server error', detail: String(err) }) }
 })
