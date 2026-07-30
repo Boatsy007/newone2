@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { portalSessionFromLocation, type PortalAuthSession } from '../../lib/portalAuth'
+import ClubProfileTheme from './ClubProfileTheme'
 
 /**
  * Club onboarding is invitation-first. Public club profiles do not advertise
@@ -109,6 +110,7 @@ export default function PublicClaimRemoval() {
   ) : null
 
   return <>
+    <ClubProfileTheme />
     {accepting && <div className="pf-invite-overlay"><div><b>Opening your PlayFooty portal…</b><span>Your invitation is being applied automatically.</span></div></div>}
     {invitationPanel}
     <style>{`
