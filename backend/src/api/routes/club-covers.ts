@@ -8,18 +8,31 @@ const maxBytes = 10 * 1024 * 1024
 
 type CoverRow = { coverPhotoUrl: string | null }
 
+async function ensureCoverTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "club_cover_photos" (
+      "clubId" TEXT PRIMARY KEY,
+      "coverPhotoUrl" TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `)
+}
+
 async function readCover(clubId: string) {
+  await ensureCoverTable()
   const rows = await prisma.$queryRawUnsafe<CoverRow[]>(
-    'SELECT "coverPhotoUrl" FROM "club_profiles" WHERE "clubId" = $1 LIMIT 1',
+    'SELECT "coverPhotoUrl" FROM "club_cover_photos" WHERE "clubId" = $1 LIMIT 1',
     clubId,
   )
   return rows[0]?.coverPhotoUrl ?? null
 }
 
 async function writeCover(clubId: string, value: string | null) {
+  await ensureCoverTable()
   await prisma.$executeRawUnsafe(
-    `INSERT INTO "club_profiles" ("id", "clubId", "coverPhotoUrl", "createdAt", "updatedAt")
-     VALUES (gen_random_uuid()::text, $1, $2, now(), now())
+    `INSERT INTO "club_cover_photos" ("clubId", "coverPhotoUrl", "createdAt", "updatedAt")
+     VALUES ($1, $2, now(), now())
      ON CONFLICT ("clubId") DO UPDATE SET "coverPhotoUrl" = EXCLUDED."coverPhotoUrl", "updatedAt" = now()`,
     clubId,
     value,
@@ -105,11 +118,18 @@ const adminRouter = Router()
 adminRouter.use(requireAdminKey)
 adminRouter.get('/', async (_req, res) => {
   try {
+    await ensureCoverTable()
     const clubs = await prisma.club.findMany({ where: { sport: 'FOOTBALL', archivedAt: null, isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, logoUrl: true, state: { select: { code: true } } } })
-    const covers = await prisma.$queryRawUnsafe<Array<{ clubId: string; coverPhotoUrl: string | null }>>('SELECT "clubId", "coverPhotoUrl" FROM "club_profiles" WHERE "coverPhotoUrl" IS NOT NULL')
+    const covers = await prisma.$queryRawUnsafe<Array<{ clubId: string; coverPhotoUrl: string | null }>>('SELECT "clubId", "coverPhotoUrl" FROM "club_cover_photos" WHERE "coverPhotoUrl" IS NOT NULL')
     const byClub = new Map(covers.map(row => [row.clubId, row.coverPhotoUrl]))
     res.json({ data: clubs.map(club => ({ ...club, state: club.state.code, coverPhotoUrl: byClub.get(club.id) ?? null })) })
   } catch (error) { res.status(500).json({ error: 'Unable to load club covers', detail: String(error) }) }
+})
+adminRouter.get('/:clubId', async (req, res) => {
+  try {
+    if (!await clubExists(req.params.clubId)) return res.status(404).json({ error: 'Club not found' })
+    res.json({ data: { coverPhotoUrl: await readCover(req.params.clubId) } })
+  } catch (error) { res.status(500).json({ error: 'Unable to load club cover photo', detail: String(error) }) }
 })
 adminRouter.post('/:clubId', async (req, res) => {
   try {
