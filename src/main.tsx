@@ -61,6 +61,7 @@ import LeaguePortalMedia from './pages/LeaguePortalMedia.tsx'
 import LeaguePortalContacts from './pages/LeaguePortalContacts.tsx'
 import ResetPassword from './pages/ResetPassword.tsx'
 import ClubPortalDashboard from './pages/ClubPortalDashboard.tsx'
+import ClubPortalCoaching from './pages/ClubPortalCoaching.tsx'
 import ClubPortalTeamSelection from './pages/ClubPortalTeamSelection.tsx'
 import ClubPortalAvailability from './pages/ClubPortalAvailability.tsx'
 import ClubPortalWhiteboard from './pages/ClubPortalWhiteboard.tsx'
@@ -150,6 +151,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/league-portal/:leagueId/media" element={<LeaguePortalMedia/>}/>
     <Route path="/league-portal/:leagueId/contacts" element={<LeaguePortalContacts/>}/>
     <Route path="/league-portal/:leagueId" element={<LeaguePortalDashboard/>}/>
+    <Route path="/club-portal/:clubId/coaching" element={<ClubPortalCoaching/>}/>
     <Route path="/club-portal/:clubId/team-selection" element={<ClubPortalTeamSelection/>}/>
     <Route path="/club-portal/:clubId/availability" element={<ClubPortalAvailability/>}/>
     <Route path="/club-portal/:clubId/whiteboard" element={<ClubPortalWhiteboard/>}/>
