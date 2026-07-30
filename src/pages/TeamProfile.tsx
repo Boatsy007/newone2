@@ -56,6 +56,8 @@ export default function TeamProfile() {
     jsonLd: data ? buildJsonLd(data, clubId) : undefined,
   })
 
+  const showSharedLive = activeTab === 'overview' || activeTab === 'match-centre' || activeTab === 'highlights'
+
   return (
     <div className={`club-profile-page club-tab-${activeTab}`} style={{ background: '#ffffff', minHeight: '100vh' }}>
       <Nav />
@@ -86,15 +88,25 @@ export default function TeamProfile() {
             <div className="club-section-bg">
               <div className="club-profile-area" role="tabpanel">
                 <div className="club-profile-main">
-                  {activeTab === 'overview' && (
-                    <div className="club-overview-stack">
+                  <div
+                    className={`club-shared-live club-live-mode-${activeTab}`}
+                    style={{ display: showSharedLive ? 'grid' : 'none' }}
+                    aria-hidden={!showSharedLive}
+                  >
+                    <div style={{ display: activeTab === 'overview' ? 'block' : 'none' }}>
                       <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>
-                      <div className="club-live-overview-only"><ClubLiveHub club={data} /></div>
-                      <ClubInformationPanel club={data} />
                     </div>
-                  )}
-
-                  {activeTab === 'match-centre' && <div className="club-match-centre-stack club-live-matches-only"><ClubLiveHub club={data} /></div>}
+                    <div style={{ display: activeTab === 'overview' ? 'block' : 'none' }}>
+                      <ClubAboutPanel club={data} />
+                    </div>
+                    <div style={{ display: activeTab === 'highlights' ? 'block' : 'none' }}>
+                      <div className="club-feed-card"><PublicClubGallery club={data} /></div>
+                    </div>
+                    <div className="club-live-shared-instance"><ClubLiveHub club={data} /></div>
+                    <div style={{ display: activeTab === 'overview' ? 'block' : 'none' }}>
+                      <ClubContactsPanel club={data} />
+                    </div>
+                  </div>
 
                   <div className="club-team-selection-stack" style={{ display: activeTab === 'team-selection' ? 'grid' : 'none' }} aria-hidden={activeTab !== 'team-selection'}>
                     {teamSelectionOpened && <ClubTeamSheet clubId={clubId} />}
@@ -112,13 +124,6 @@ export default function TeamProfile() {
                     </div>
                   )}
 
-                  {activeTab === 'highlights' && (
-                    <div className="club-highlights-stack">
-                      <div className="club-feed-card"><PublicClubGallery club={data} /></div>
-                      <div className="club-live-highlights-only"><ClubLiveHub club={data} /></div>
-                    </div>
-                  )}
-
                   {activeTab === 'sponsors' && <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>}
                   {activeTab === 'related' && <div className="club-feed-card"><RelatedClubs club={data} /></div>}
                 </div>
@@ -132,13 +137,13 @@ export default function TeamProfile() {
               .club-profile-tabs button{position:relative;flex:0 0 auto;min-height:58px;padding:0 18px;border:0;background:transparent;color:#687385;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:21px;letter-spacing:.035em;text-transform:uppercase;white-space:nowrap;cursor:pointer}
               .club-profile-tabs button:after{content:'';position:absolute;left:14px;right:14px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:transparent}.club-profile-tabs button.active{color:#050505}.club-profile-tabs button.active:after{background:#42b8ff}
               .club-section-bg{background:#f3f5f7;min-height:420px}.club-profile-area{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:28px 20px 48px}
-              .club-overview-stack,.club-match-centre-stack,.club-team-selection-stack,.club-highlights-stack{display:grid;gap:18px}
+              .club-shared-live,.club-team-selection-stack{gap:18px}.club-live-shared-instance{min-width:0}
               .club-tab-overview #pf-club-mvp-slot,.club-tab-match-centre #pf-club-mvp-slot,.club-tab-news #pf-club-mvp-slot,.club-tab-highlights #pf-club-mvp-slot,.club-tab-sponsors #pf-club-mvp-slot,.club-tab-related #pf-club-mvp-slot,.club-tab-team-selection #pf-club-mvp-slot{display:none!important}
 
-              .club-live-overview-only .club-live-hub>.club-feature-match,.club-live-overview-only .club-live-hub>.club-last-match,.club-live-overview-only .club-live-hub>.public-gk-panel,.club-live-overview-only .club-live-hub>.club-live-card:last-of-type{display:none!important}
-              .club-live-overview-only .club-live-columns{grid-template-columns:1fr!important}.club-live-overview-only .club-live-columns>section:nth-child(2){display:none!important}
-              .club-live-matches-only .club-live-summary,.club-live-matches-only .public-gk-panel,.club-live-matches-only .club-live-columns,.club-live-matches-only .club-live-hub>.club-live-card:last-of-type{display:none!important}
-              .club-live-highlights-only .club-live-summary,.club-live-highlights-only .club-feature-match,.club-live-highlights-only .club-last-match,.club-live-highlights-only .public-gk-panel,.club-live-highlights-only .club-live-columns{display:none!important}
+              .club-live-mode-overview .club-live-hub>.club-feature-match,.club-live-mode-overview .club-live-hub>.club-last-match,.club-live-mode-overview .club-live-hub>.public-gk-panel,.club-live-mode-overview .club-live-hub>.club-live-card:last-of-type{display:none!important}
+              .club-live-mode-overview .club-live-columns{grid-template-columns:1fr!important}.club-live-mode-overview .club-live-columns>section:nth-child(2){display:none!important}
+              .club-live-mode-match-centre .club-live-summary,.club-live-mode-match-centre .public-gk-panel,.club-live-mode-match-centre .club-live-columns,.club-live-mode-match-centre .club-live-hub>.club-live-card:last-of-type{display:none!important}
+              .club-live-mode-highlights .club-live-summary,.club-live-mode-highlights .club-feature-match,.club-live-mode-highlights .club-last-match,.club-live-mode-highlights .public-gk-panel,.club-live-mode-highlights .club-live-columns{display:none!important}
 
               .club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-left:0!important;padding-right:0!important}.club-profile-main>section>div,.club-feed-card>section>div,.club-stats-stack>section>div{max-width:none!important}
               .club-feed-card,.club-info-panel{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}.club-stats-stack,.club-info-stack{display:grid;gap:18px}.club-stats-stack>section{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
@@ -154,11 +159,19 @@ export default function TeamProfile() {
   )
 }
 
-function ClubInformationPanel({ club }: { club: ClubProfile }) {
+function readClubValue(club: ClubProfile, ...keys: string[]) {
   const extra = club as ClubProfile & Record<string, unknown>
-  const read = (...keys: string[]) => keys.map(key => extra[key]).find(value => typeof value === 'string' && value.trim()) as string | undefined
+  return keys.map(key => extra[key]).find(value => typeof value === 'string' && value.trim()) as string | undefined
+}
+
+function ClubAboutPanel({ club }: { club: ClubProfile }) {
   const location = club.stateName ?? club.state
-  const bio = read('bio', 'description', 'about', 'clubBio', 'history') ?? `${club.clubName} is a community football club${club.town ? ` based in ${club.town}` : ''}${club.leagueName ? ` competing in ${club.leagueName}` : ''}${location ? ` in ${location}` : ''}. This profile brings together the club's latest news, information and current football performance.`
+  const bio = readClubValue(club, 'bio', 'description', 'about', 'clubBio', 'history') ?? `${club.clubName} is a community football club${club.town ? ` based in ${club.town}` : ''}${club.leagueName ? ` competing in ${club.leagueName}` : ''}${location ? ` in ${location}` : ''}. This profile brings together the club's latest news, information and current football performance.`
+  return <section className="club-info-panel"><span className="club-info-kicker">About the club</span><h2 className="club-info-title">{club.clubName}</h2><p className="club-info-bio">{bio}</p></section>
+}
+
+function ClubContactsPanel({ club }: { club: ClubProfile }) {
+  const read = (...keys: string[]) => readClubValue(club, ...keys)
   const details = [
     ['Founded', read('foundedYear')], ['Club colours', read('clubColours')], ['Home ground', read('groundName', 'homeGround', 'venueName', 'ground')], ['Address', read('address', 'groundAddress', 'venueAddress')],
     ['Training nights', read('trainingNights')], ['Home facilities', read('homeCourt')], ['President', read('president', 'presidentName', 'clubPresident')], ['Secretary', read('secretary', 'secretaryName', 'clubSecretary')],
@@ -169,12 +182,10 @@ function ClubInformationPanel({ club }: { club: ClubProfile }) {
     ['Membership', read('membershipLink') ? 'Join the club' : undefined, read('membershipLink')], ['Volunteer', read('volunteerLink') ? 'Volunteer with the club' : undefined, read('volunteerLink')],
   ].filter((row): row is [string, string, string?] => Boolean(row[1]))
 
-  return <div className="club-info-stack">
-    <section className="club-info-panel"><span className="club-info-kicker">About the club</span><h2 className="club-info-title">{club.clubName}</h2><p className="club-info-bio">{bio}</p></section>
-    {details.length > 0 && <section className="club-info-panel"><span className="club-info-kicker">Club profile</span><h2 className="club-info-title">Information and contacts</h2><div className="club-contact-grid">
-      {details.map(([label, value, href]) => <div key={label} className="club-contact-item"><span>{label}</span>{href ? <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel={href.startsWith('http') ? 'noreferrer' : undefined}>{value}</a> : <strong>{value}</strong>}</div>)}
-    </div></section>}
-  </div>
+  if (!details.length) return null
+  return <section className="club-info-panel"><span className="club-info-kicker">Club profile</span><h2 className="club-info-title">Information and contacts</h2><div className="club-contact-grid">
+    {details.map(([label, value, href]) => <div key={label} className="club-contact-item"><span>{label}</span>{href ? <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel={href.startsWith('http') ? 'noreferrer' : undefined}>{value}</a> : <strong>{value}</strong>}</div>)}
+  </div></section>
 }
 
 function seoTitle(d: ClubProfile): string {
