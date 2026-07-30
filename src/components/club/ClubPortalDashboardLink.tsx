@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
+import CoachingPortalTabs from './CoachingPortalTabs'
 
 const MOBILE_WHITEBOARD_CSS = `
 body.pf-mobile-whiteboard{overflow:hidden!important;background:#091018!important;overscroll-behavior:none!important}
@@ -161,5 +162,5 @@ export default function ClubPortalDashboardLink() {
       mobileStyle?.remove()
     }
   }, [pathname])
-  return null
+  return <CoachingPortalTabs/>
 }
