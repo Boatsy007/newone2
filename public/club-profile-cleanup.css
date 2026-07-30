@@ -1,0 +1,7 @@
+.club-profile-page .club-profile-sidebar {
+  display: none !important;
+}
+
+.club-profile-page .club-profile-area {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
