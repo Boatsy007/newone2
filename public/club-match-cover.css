@@ -1,0 +1,48 @@
+.club-feature-game-top,
+.club-last-result-top {
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+}
+
+/* Keep the centre status readable between the two large scores. */
+.club-last-result-scoreboard {
+  grid-template-columns: minmax(0, 1fr) auto minmax(58px, auto) auto minmax(0, 1fr) !important;
+  column-gap: 10px !important;
+}
+
+.club-last-result-scoreboard > b {
+  position: relative;
+  z-index: 2;
+  min-width: 58px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+
+@media (max-width: 760px) {
+  .club-last-result-scoreboard {
+    grid-template-columns: minmax(0, 1fr) auto minmax(52px, auto) auto minmax(0, 1fr) !important;
+    column-gap: 7px !important;
+  }
+
+  .club-last-result-scoreboard > b {
+    min-width: 52px;
+    font-size: 9px !important;
+    letter-spacing: .1em !important;
+  }
+}
+
+@media (max-width: 440px) {
+  .club-last-result-scoreboard {
+    grid-template-columns: minmax(0, 1fr) auto minmax(48px, auto) auto minmax(0, 1fr) !important;
+    column-gap: 5px !important;
+  }
+
+  .club-last-result-scoreboard > b {
+    min-width: 48px;
+    font-size: 8px !important;
+    letter-spacing: .08em !important;
+  }
+}
