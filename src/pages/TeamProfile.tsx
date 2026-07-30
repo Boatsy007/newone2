@@ -2,8 +2,8 @@
  * Club page: each club's premium digital home. Section tabs expose the
  * existing live club content without changing its data sources or route.
  */
-import { lazy, Suspense, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { useLocation, useParams } from 'react-router-dom'
 import Nav from '../components/layout/Nav'
 import ProductSearch from '../components/rankings/ProductSearch'
 import Footer from '../components/layout/Footer'
@@ -15,32 +15,39 @@ import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickers
 import { useSeo } from '../lib/seo'
 import { fetchClub, fetchClubExplain, useAsync, strengthLabel, strengthStars, type ClubProfile, type ClubExplanation } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
-import { ClubHero, ClubSnapshot, ClubLadder, ClubClaim, ClubInfo, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
+import { ClubHero, ClubSnapshot, ClubLadder, ClubInfo, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
 
 const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubWhy })))
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
 const ClubNews = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubNews })))
 
-type ClubTab = 'overview' | 'team-selection' | 'news' | 'information' | 'photos' | 'sponsors' | 'stats' | 'related'
+type ClubTab = 'overview' | 'match-centre' | 'news' | 'stats' | 'highlights' | 'sponsors' | 'related' | 'team-selection'
 
-const CLUB_TABS: { id: ClubTab; label: string }[] = [
+const CLUB_TABS: { id: Exclude<ClubTab, 'team-selection'>; label: string }[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'team-selection', label: 'Team selection' },
+  { id: 'match-centre', label: 'Match Center' },
   { id: 'news', label: 'Club news' },
-  { id: 'information', label: 'Information' },
-  { id: 'photos', label: 'Photos' },
-  { id: 'sponsors', label: 'Sponsors' },
   { id: 'stats', label: 'Stats' },
+  { id: 'highlights', label: 'Highlights' },
+  { id: 'sponsors', label: 'Sponsors' },
   { id: 'related', label: 'Related clubs' },
 ]
 
 export default function TeamProfile() {
   const { clubId = '' } = useParams()
+  const location = useLocation()
   const [activeTab, setActiveTab] = useState<ClubTab>('overview')
   const [teamSelectionOpened, setTeamSelectionOpened] = useState(false)
   const club = useAsync<ClubProfile>(() => fetchClub(clubId), [clubId])
   const explain = useAsync<ClubExplanation | null>(() => fetchClubExplain(clubId).catch(() => null), [clubId])
   const data = club.data
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('tab') === 'team-selection') {
+      setTeamSelectionOpened(true)
+      setActiveTab('team-selection')
+    }
+  }, [location.search, clubId])
 
   useSeo({
     title: data ? seoTitle(data) : 'Club | PlayFooty',
@@ -68,10 +75,7 @@ export default function TeamProfile() {
                     role="tab"
                     aria-selected={activeTab === tab.id}
                     className={activeTab === tab.id ? 'active' : ''}
-                    onClick={() => {
-                      if (tab.id === 'team-selection') setTeamSelectionOpened(true)
-                      setActiveTab(tab.id)
-                    }}
+                    onClick={() => setActiveTab(tab.id)}
                   >
                     {tab.label}
                   </button>
@@ -82,22 +86,22 @@ export default function TeamProfile() {
             <div className="club-section-bg">
               <div className="club-profile-area" role="tabpanel">
                 <div className="club-profile-main">
-                  <div className="club-overview-stack" style={{ display: activeTab === 'overview' ? 'grid' : 'none' }} aria-hidden={activeTab !== 'overview'}>
-                    <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>
-                    <ClubLiveHub club={data} />
-                  </div>
+                  {activeTab === 'overview' && (
+                    <div className="club-overview-stack">
+                      <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>
+                      <div className="club-live-overview-only"><ClubLiveHub club={data} /></div>
+                      <ClubInformationPanel club={data} />
+                    </div>
+                  )}
+
+                  {activeTab === 'match-centre' && <div className="club-match-centre-stack club-live-matches-only"><ClubLiveHub club={data} /></div>}
+
                   <div className="club-team-selection-stack" style={{ display: activeTab === 'team-selection' ? 'grid' : 'none' }} aria-hidden={activeTab !== 'team-selection'}>
-                    {teamSelectionOpened && (
-                      <>
-                        <ClubTeamSheet clubId={clubId} />
-                        <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>
-                      </>
-                    )}
+                    {teamSelectionOpened && <ClubTeamSheet clubId={clubId} />}
                   </div>
+
                   {activeTab === 'news' && <div className="club-feed-card"><Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}><ClubNews club={data} /></Suspense></div>}
-                  {activeTab === 'information' && <ClubInformationPanel club={data} />}
-                  {activeTab === 'photos' && <div className="club-feed-card"><PublicClubGallery club={data} /></div>}
-                  {activeTab === 'sponsors' && <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>}
+
                   {activeTab === 'stats' && (
                     <div className="club-stats-stack">
                       <PublicGoalKickersPanel clubId={clubId} eyebrow={`${data.season?.match(/\d{4}/)?.[0] ?? new Date().getFullYear()} club leaders`} title="Leading goal kickers" />
@@ -105,9 +109,17 @@ export default function TeamProfile() {
                       <Suspense fallback={<div style={{ minHeight: 320 }} aria-hidden />}><ClubJourney club={data} /></Suspense>
                       <Suspense fallback={<div style={{ minHeight: 300 }} aria-hidden />}><ClubWhy club={data} reasoning={explain.data?.reasoning} /></Suspense>
                       <ClubLadder club={data} />
-                      <ClubClaim club={data} />
                     </div>
                   )}
+
+                  {activeTab === 'highlights' && (
+                    <div className="club-highlights-stack">
+                      <div className="club-feed-card"><PublicClubGallery club={data} /></div>
+                      <div className="club-live-highlights-only"><ClubLiveHub club={data} /></div>
+                    </div>
+                  )}
+
+                  {activeTab === 'sponsors' && <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>}
                   {activeTab === 'related' && <div className="club-feed-card"><RelatedClubs club={data} /></div>}
                 </div>
                 <aside className="club-profile-sidebar"><ClubSidebar club={data} /></aside>
@@ -120,8 +132,14 @@ export default function TeamProfile() {
               .club-profile-tabs button{position:relative;flex:0 0 auto;min-height:58px;padding:0 18px;border:0;background:transparent;color:#687385;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:21px;letter-spacing:.035em;text-transform:uppercase;white-space:nowrap;cursor:pointer}
               .club-profile-tabs button:after{content:'';position:absolute;left:14px;right:14px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:transparent}.club-profile-tabs button.active{color:#050505}.club-profile-tabs button.active:after{background:#42b8ff}
               .club-section-bg{background:#f3f5f7;min-height:420px}.club-profile-area{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:28px 20px 48px}
-              .club-overview-stack,.club-team-selection-stack{gap:18px}
-              .club-tab-team-selection #pf-club-mvp-slot,.club-tab-information #pf-club-mvp-slot,.club-tab-photos #pf-club-mvp-slot,.club-tab-sponsors #pf-club-mvp-slot,.club-tab-related #pf-club-mvp-slot{display:none!important}
+              .club-overview-stack,.club-match-centre-stack,.club-team-selection-stack,.club-highlights-stack{display:grid;gap:18px}
+              .club-tab-overview #pf-club-mvp-slot,.club-tab-match-centre #pf-club-mvp-slot,.club-tab-news #pf-club-mvp-slot,.club-tab-highlights #pf-club-mvp-slot,.club-tab-sponsors #pf-club-mvp-slot,.club-tab-related #pf-club-mvp-slot,.club-tab-team-selection #pf-club-mvp-slot{display:none!important}
+
+              .club-live-overview-only .club-live-hub>.club-feature-match,.club-live-overview-only .club-live-hub>.club-last-match,.club-live-overview-only .club-live-hub>.public-gk-panel,.club-live-overview-only .club-live-hub>.club-live-card:last-of-type{display:none!important}
+              .club-live-overview-only .club-live-columns{grid-template-columns:1fr!important}.club-live-overview-only .club-live-columns>section:nth-child(2){display:none!important}
+              .club-live-matches-only .club-live-summary,.club-live-matches-only .public-gk-panel,.club-live-matches-only .club-live-columns,.club-live-matches-only .club-live-hub>.club-live-card:last-of-type{display:none!important}
+              .club-live-highlights-only .club-live-summary,.club-live-highlights-only .club-feature-match,.club-live-highlights-only .club-last-match,.club-live-highlights-only .public-gk-panel,.club-live-highlights-only .club-live-columns{display:none!important}
+
               .club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-left:0!important;padding-right:0!important}.club-profile-main>section>div,.club-feed-card>section>div,.club-stats-stack>section>div{max-width:none!important}
               .club-feed-card,.club-info-panel{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}.club-stats-stack,.club-info-stack{display:grid;gap:18px}.club-stats-stack>section{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
               .club-info-panel{padding:24px}.club-info-kicker{display:block;color:#42b8ff;font-size:11px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.club-info-title{margin:6px 0 12px;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:36px;line-height:1;text-transform:uppercase;color:#111318}.club-info-bio{margin:0;color:#46515f;font-size:15px;line-height:1.65;white-space:pre-wrap}
@@ -178,7 +196,7 @@ function buildJsonLd(d: ClubProfile, clubId: string) {
   const base = 'https://playfooty.com.au', url = `${base}/team/${clubId}`
   const faqs: { q: string; a: string }[] = []
   if (d.rank != null) faqs.push({ q: `What is ${d.clubName}'s national football ranking?`, a: `${d.clubName} is ranked #${d.rank} nationally on PlayFooty with a power rating of ${d.powerRating?.toFixed(1) ?? '0.0'}.` })
-  if (d.record.played > 0) faqs.push({ q: `How is ${d.clubName} going this season?`, a: `${d.clubName} have a ${d.record.wins}-${d.record.losses}${d.record.draws ? `-${d.record.draws}` : ''} record${d.ladderPosition != null ? `, sitting ${ordinal(d.ladderPosition)} on the ladder` : ''}${d.percentage > 0 ? ` with a percentage of ${d.percentage.toFixed(0)}%` : ''}.` })
+  if (d.record.played > 0) faqs.push({ q: `How is ${d.clubName} going this season?`, a: `${d.clubName} have a ${d.record.wins}-${d.record.losses}${d.record.draws ? `-${d.record.draws}` : ''} record${d.ladderPosition != null ? `, sitting ${ordinal(d.ladderPosition)} on the ladder` : ''}.` })
   if (d.leagueName && d.leagueStrengthScore != null) faqs.push({ q: `What league does ${d.clubName} play in?`, a: `${d.clubName} plays Senior football in the ${d.leagueName.replace(/\s*-\s*a grade.*/i, '')}, a ${strengthLabel(strengthStars(d.leagueStrengthScore)).toLowerCase()} ${strengthStars(d.leagueStrengthScore)}-star community football competition.` })
   return [{ '@context': 'https://schema.org', '@type': 'SportsTeam', '@id': `${url}#club`, name: d.clubName, sport: 'Football', url, ...(d.logoUrl ? { logo: d.logoUrl } : {}), ...(d.leagueName ? { memberOf: { '@type': 'SportsOrganization', name: d.leagueName.replace(/\s*-\s*a grade.*/i, '') } } : {}), ...(d.town || d.stateName ? { location: { '@type': 'Place', name: [d.town, d.stateName ?? d.state].filter(Boolean).join(', ') } } : {}), ...(d.websiteUrl ? { sameAs: [d.websiteUrl, d.facebookUrl, d.instagramUrl].filter(Boolean) } : {}) }, { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: base }, ...(d.leagueId && d.leagueName ? [{ '@type': 'ListItem', position: 2, name: d.leagueName, item: `${base}/league/${d.leagueId}` }] : [{ '@type': 'ListItem', position: 2, name: 'Clubs', item: `${base}/directory` }]), { '@type': 'ListItem', position: 3, name: d.clubName, item: url }] }, ...(faqs.length ? [{ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) }] : [])]
 }
