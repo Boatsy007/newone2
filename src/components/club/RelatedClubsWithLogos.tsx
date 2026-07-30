@@ -16,27 +16,30 @@ export default function RelatedClubsWithLogos({ club }: { club: ClubProfile }) {
 
   return (
     <section className="related-clubs-logo-section">
-      <header>
-        <h2>Related <span>clubs</span></h2>
-        <p>{club.leagueName ? `Other clubs in ${club.leagueName}.` : 'Clubs nearby on the current ladder.'}</p>
-      </header>
+      <div className="related-clubs-logo-inner">
+        <header>
+          <h2>Related <span>clubs</span></h2>
+          <p>{club.leagueName ? `Other clubs in ${club.leagueName}.` : 'Clubs nearby on the current ladder.'}</p>
+        </header>
 
-      <div className="related-clubs-logo-grid">
-        {rows.map(row => (
-          <Link key={row.clubId} to={teamPath(row.clubId)} className="related-clubs-logo-card">
-            <TeamLogo name={row.clubName} src={row.logoUrl ?? undefined} size={54} />
-            <span className="related-clubs-logo-copy">
-              <strong>{row.clubName}</strong>
-              <small>{row.wins}-{row.losses}{row.draws ? `-${row.draws}` : ''} · {row.percentage ? `${row.percentage.toFixed(0)}%` : 'percentage pending'}</small>
-            </span>
-            <b>#{row.position ?? '·'}</b>
-          </Link>
-        ))}
+        <div className="related-clubs-logo-grid">
+          {rows.map(row => (
+            <Link key={row.clubId} to={teamPath(row.clubId)} className="related-clubs-logo-card">
+              <TeamLogo name={row.clubName} src={row.logoUrl ?? undefined} size={54} />
+              <span className="related-clubs-logo-copy">
+                <strong>{row.clubName}</strong>
+                <small>{row.wins}-{row.losses}{row.draws ? `-${row.draws}` : ''} · {row.percentage ? `${row.percentage.toFixed(0)}%` : 'percentage pending'}</small>
+              </span>
+              <b>#{row.position ?? '·'}</b>
+            </Link>
+          ))}
+        </div>
       </div>
 
       <style>{`
-        .related-clubs-logo-section{padding:clamp(28px,4vw,42px);background:#f8fafb;box-sizing:border-box}
-        .related-clubs-logo-section>header{margin-bottom:22px}
+        .related-clubs-logo-section{background:#f8fafb;box-sizing:border-box}
+        .related-clubs-logo-inner{padding:clamp(28px,4vw,42px) 22px;box-sizing:border-box}
+        .related-clubs-logo-inner>header{margin-bottom:22px}
         .related-clubs-logo-section h2{margin:0;font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(34px,4vw,46px);line-height:.95;text-transform:uppercase;color:#111318}
         .related-clubs-logo-section h2 span{color:var(--club-primary,#2daaf5)}
         .related-clubs-logo-section p{margin:12px 0 0;color:#7b838c;font-size:16px;line-height:1.5}
@@ -48,7 +51,7 @@ export default function RelatedClubsWithLogos({ club }: { club: ClubProfile }) {
         .related-clubs-logo-copy small{display:block;margin-top:5px;color:#8a9199;font-family:Barlow,Inter,Arial,sans-serif;font-size:12px}
         .related-clubs-logo-card>b{font-family:'Bebas Neue',Impact,sans-serif;font-size:24px;color:var(--club-primary,#2daaf5)}
         @media(max-width:720px){
-          .related-clubs-logo-section{padding:28px 24px 34px}
+          .related-clubs-logo-inner{padding:28px 16px 34px}
           .related-clubs-logo-grid{grid-template-columns:1fr;gap:12px}
           .related-clubs-logo-card{grid-template-columns:58px minmax(0,1fr) auto;min-height:100px;padding:16px}
           .related-clubs-logo-card .related-clubs-logo-copy strong{font-size:17px}
