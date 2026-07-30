@@ -1,45 +1,45 @@
 (() => {
-  const match = window.location.pathname.match(/^\/team\/([^/?#]+)/)
-  if (!match) return
+  if (!/^\/team\/[^/?#]+/.test(window.location.pathname)) return
 
-  const clubId = decodeURIComponent(match[1])
   const selector = '.club-feature-game-top, .club-last-result-top'
-  let coverUrl = ''
   let observer = null
-  let stopTimer = null
+  let timer = null
+
+  const renderedHeroCover = () => {
+    const hero = document.querySelector('#main-content > header')
+    if (!(hero instanceof HTMLElement)) return ''
+    const inline = hero.style.backgroundImage
+    if (inline && inline !== 'none') return inline
+    const computed = window.getComputedStyle(hero).backgroundImage
+    return computed && computed !== 'none' ? computed : ''
+  }
 
   const applyCover = () => {
-    if (!coverUrl) return false
+    const backgroundImage = renderedHeroCover()
+    if (!backgroundImage || !backgroundImage.includes('url(')) return false
+
     const targets = Array.from(document.querySelectorAll(selector))
     targets.forEach((element) => {
       if (!(element instanceof HTMLElement)) return
-      element.style.backgroundImage = `linear-gradient(135deg, rgba(20, 8, 38, .82), rgba(5, 14, 35, .78) 52%, rgba(4, 48, 73, .80)), url("${coverUrl.replace(/"/g, '%22')}")`
-      element.style.backgroundSize = 'cover'
-      element.style.backgroundPosition = 'center center'
-      element.style.backgroundRepeat = 'no-repeat'
+      element.style.setProperty('background-image', backgroundImage, 'important')
+      element.style.setProperty('background-size', 'cover', 'important')
+      element.style.setProperty('background-position', 'center center', 'important')
+      element.style.setProperty('background-repeat', 'no-repeat', 'important')
     })
-    return targets.length >= 2
+    return targets.length > 0
   }
 
-  fetch(`/api/club-covers/${encodeURIComponent(clubId)}`)
-    .then((response) => response.ok ? response.json() : null)
-    .then((payload) => {
-      coverUrl = typeof payload?.data?.coverPhotoUrl === 'string' ? payload.data.coverPhotoUrl.trim() : ''
-      if (!coverUrl) return
+  const start = () => {
+    applyCover()
+    observer = new MutationObserver(applyCover)
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] })
+    timer = window.setInterval(applyCover, 500)
+    window.setTimeout(() => {
+      if (timer) window.clearInterval(timer)
+      timer = null
+    }, 20000)
+  }
 
-      if (applyCover()) return
-
-      observer = new MutationObserver(() => {
-        if (applyCover()) {
-          observer?.disconnect()
-          observer = null
-          if (stopTimer) window.clearTimeout(stopTimer)
-        }
-      })
-      observer.observe(document.body, { childList: true, subtree: true })
-      stopTimer = window.setTimeout(() => observer?.disconnect(), 15000)
-    })
-    .catch(() => {
-      // Keep the existing gradient when no cover can be loaded.
-    })
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true })
+  else start()
 })()
