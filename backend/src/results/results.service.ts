@@ -198,10 +198,18 @@ export async function bridgeFromMatches(opts: { season?: string; limit?: number 
 const publicResultWhere = { status: { notIn: ['CANCELLED', 'VOID'] } }
 
 export async function getClubResults(clubId: string, opts: { season?: string; limit?: number } = {}) {
-  return prisma.matchResult.findMany({
+  const rows = await prisma.matchResult.findMany({
     where: { ...publicResultWhere, OR: [{ homeClubId: clubId }, { awayClubId: clubId }], ...(opts.season ? { season: opts.season } : {}) },
     orderBy: [{ matchDate: 'desc' }, { round: 'desc' }], take: opts.limit ?? 200,
   })
+  const clubIds = [...new Set(rows.flatMap(row => [row.homeClubId, row.awayClubId]).filter(Boolean))]
+  const clubs = clubIds.length ? await prisma.club.findMany({ where: { id: { in: clubIds } }, select: { id: true, logoUrl: true } }) : []
+  const logoByClubId = new Map(clubs.map(club => [club.id, club.logoUrl]))
+  return rows.map(row => ({
+    ...row,
+    homeClubLogoUrl: logoByClubId.get(row.homeClubId) ?? null,
+    awayClubLogoUrl: logoByClubId.get(row.awayClubId) ?? null,
+  }))
 }
 
 export async function getLeagueResults(leagueId: string, opts: { season?: string; round?: number; limit?: number } = {}) {
