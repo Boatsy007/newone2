@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, Trophy, Video, Activity, ArrowRight } from 'lucide-react'
+import { Trophy, Video, Activity, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { ClubProfile } from '../../lib/rankings'
+import { TeamLogo } from '../rankings/bits'
 import PublicGoalKickersPanel from '../goal-kickers/PublicGoalKickersPanel'
 
 const supporterId = () => {
@@ -27,6 +28,10 @@ type MatchRow = {
   awayClubName?: string
   homeName?: string
   awayName?: string
+  homeClubLogoUrl?: string | null
+  awayClubLogoUrl?: string | null
+  homeLogoUrl?: string | null
+  awayLogoUrl?: string | null
   homePoints?: number
   awayPoints?: number
   homeScore?: number
@@ -72,7 +77,7 @@ export default function ClubLiveHub({ club }: { club: ClubProfile }) {
       if (!active) return
       const payload = <T,>(index: number): T[] => results[index]?.status === 'fulfilled' && Array.isArray((results[index] as PromiseFulfilledResult<{ data?: T[] }>).value?.data) ? (results[index] as PromiseFulfilledResult<{ data: T[] }>).value.data : []
       setData({
-        fixtures: payload<MatchRow>(0).slice(0, 5),
+        fixtures: payload<MatchRow>(0).slice(0, 20),
         results: payload<MatchRow>(1).slice(0, 5),
         highlights: payload<Highlight>(2).filter(row => row.clubId === club.clubId || row.clubName.toLowerCase() === club.clubName.toLowerCase()).slice(0, 4),
         activity: payload<FeedItem>(3).filter(row => row.entityType === 'CLUB' && row.entityId === club.clubId).slice(0, 6),
@@ -82,6 +87,7 @@ export default function ClubLiveHub({ club }: { club: ClubProfile }) {
   }, [club.clubId, club.clubName, club.season])
 
   const records = useMemo(() => deriveRecords(data.results, club.clubId, club.clubName), [data.results, club.clubId, club.clubName])
+  const nextFixture = useMemo(() => selectMondayFixture(data.fixtures), [data.fixtures])
 
   return <div className="club-live-hub">
     <section className="club-live-summary">
@@ -94,8 +100,8 @@ export default function ClubLiveHub({ club }: { club: ClubProfile }) {
       </div>
     </section>
 
-    <div className="club-live-columns">
-      <MatchCard title="Upcoming fixtures" icon={<CalendarDays size={17}/>} rows={data.fixtures} type="fixture" clubId={club.clubId} loading={loading} />
+    <div className="club-live-columns club-next-row">
+      <NextUpCard row={nextFixture} clubId={club.clubId} loading={loading} />
       <MatchCard title="Recent results" icon={<Trophy size={17}/>} rows={data.results} type="result" clubId={club.clubId} loading={loading} />
     </div>
 
@@ -125,6 +131,38 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
   return <article><span>{label}</span><strong>{value}</strong><small>{detail}</small></article>
 }
 
+function NextUpCard({ row, clubId, loading }: { row: MatchRow | null; clubId: string; loading: boolean }) {
+  if (loading) return <section className="club-live-card club-next-card"><header><div><span>Match centre</span><h2>Next up</h2></div><Link to={`/matches?clubId=${encodeURIComponent(clubId)}`}>See all matches</Link></header><Empty text="Loading next match…" /></section>
+  if (!row) return <section className="club-live-card club-next-card"><header><div><span>Match centre</span><h2>Next up</h2></div><Link to={`/matches?clubId=${encodeURIComponent(clubId)}`}>See all matches</Link></header><Empty text="No further fixtures are published for this season." /></section>
+
+  const home = row.homeClubName ?? row.homeName ?? 'Home'
+  const away = row.awayClubName ?? row.awayName ?? 'Away'
+  const isHome = row.homeClubId === clubId
+  const opponent = isHome ? away : home
+  const opponentLogo = isHome ? (row.awayClubLogoUrl ?? row.awayLogoUrl) : (row.homeClubLogoUrl ?? row.homeLogoUrl)
+  const opponentId = isHome ? row.awayClubId : row.homeClubId
+  const id = row.sourceId ?? row.id.replace(/^football:/, '')
+  const round = normaliseRound(row.round)
+  const details = fixtureDetails(row.matchDate)
+
+  return <section className="club-live-card club-next-card">
+    <header><div><span>Match centre</span><h2>Next up</h2></div><Link to={`/matches?clubId=${encodeURIComponent(clubId)}`}>See all matches</Link></header>
+    <Link className="club-next-match" to={`/match/fixture/${id}?source=football`}>
+      <span className="club-next-round">{round}</span>
+      <div className="club-next-opponent">
+        <strong>VS</strong>
+        {opponentId ? <Link className="club-next-logo" to={`/team/${opponentId}`} onClick={event => event.stopPropagation()}><TeamLogo name={opponent} src={opponentLogo ?? undefined} size={112}/></Link> : <span className="club-next-logo"><TeamLogo name={opponent} src={opponentLogo ?? undefined} size={112}/></span>}
+        <b>{opponent}</b>
+      </div>
+      <div className="club-next-details">
+        {details.time && <span><small>Time</small><strong>{details.time}</strong></span>}
+        {details.date && <span><small>Date</small><strong>{details.date}</strong></span>}
+        {row.venue && <span><small>Venue</small><strong>{row.venue}</strong></span>}
+      </div>
+    </Link>
+  </section>
+}
+
 function MatchCard({ title, icon, rows, type, clubId, loading }: { title: string; icon: React.ReactNode; rows: MatchRow[]; type: 'fixture' | 'result'; clubId: string; loading: boolean }) {
   return <section className="club-live-card"><header><div><span>Match centre</span><h2>{title}</h2></div>{icon}</header>{loading ? <Empty text="Loading match data…"/> : rows.length ? <div className="club-match-list">{rows.map(row => {
     const home = row.homeClubName ?? row.homeName ?? 'Home'
@@ -135,6 +173,40 @@ function MatchCard({ title, icon, rows, type, clubId, loading }: { title: string
     const awayScore = row.awayPoints ?? row.awayScore
     return <Link key={row.id} to={`/match/${type}/${id}?source=football`}><span className={isHome ? 'this-club' : ''}>{home}</span>{type === 'result' && <b>{homeScore ?? 0}</b>}<span className={!isHome ? 'this-club' : ''}>{away}</span>{type === 'result' && <b>{awayScore ?? 0}</b>}<small>{[row.round, row.matchDate ? formatDate(row.matchDate) : null, row.venue].filter(Boolean).join(' · ')}</small></Link>
   })}</div> : <Empty text={type === 'fixture' ? 'No upcoming fixtures published.' : 'No recent results published.'}/>}</section>
+}
+
+function selectMondayFixture(rows: MatchRow[]) {
+  if (!rows.length) return null
+  const now = new Date()
+  const monday = new Date(now)
+  const day = monday.getDay()
+  monday.setDate(monday.getDate() - (day === 0 ? 6 : day - 1))
+  monday.setHours(0, 0, 0, 0)
+  return [...rows]
+    .filter(row => !row.matchDate || new Date(row.matchDate).getTime() >= monday.getTime())
+    .sort((a, b) => dateValue(a.matchDate) - dateValue(b.matchDate))[0] ?? null
+}
+
+function dateValue(value?: string | null) {
+  if (!value) return Number.MAX_SAFE_INTEGER
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? Number.MAX_SAFE_INTEGER : date.getTime()
+}
+
+function normaliseRound(value?: string | number | null) {
+  if (value == null || String(value).trim() === '') return 'Next match'
+  const text = String(value).trim()
+  return /^round\b/i.test(text) ? text : `Round ${text}`
+}
+
+function fixtureDetails(value?: string | null) {
+  if (!value) return { date: '', time: '' }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return { date: String(value), time: '' }
+  return {
+    date: new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }).format(date),
+    time: new Intl.DateTimeFormat('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }).format(date).toLowerCase(),
+  }
 }
 
 function deriveRecords(rows: MatchRow[], clubId: string, clubName: string) {
@@ -163,4 +235,4 @@ function deriveRecords(rows: MatchRow[], clubId: string, clubName: string) {
 function Empty({ text }: { text: string }) { return <p className="club-live-empty">{text}</p> }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short' }).format(date) }
 
-const styles = `.club-live-hub{display:grid;gap:18px}.club-live-summary,.club-live-card{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055);padding:22px}.club-live-summary>header,.club-live-card>header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:15px}.club-live-summary header span,.club-live-card header span{display:block;color:#209fe9;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.club-live-summary h2,.club-live-card h2{margin:5px 0 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:36px;line-height:.9;text-transform:uppercase}.club-live-summary header a,.club-live-card header a{display:inline-flex;align-items:center;gap:5px;color:#1687c5;font-size:10px;font-weight:950;text-decoration:none;text-transform:uppercase}.club-live-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.club-live-metrics article{padding:15px;border:1px solid #e6ebef;border-radius:10px;background:#f8fafb}.club-live-metrics span,.club-live-metrics small{display:block}.club-live-metrics span{color:#687385;font-size:9px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.club-live-metrics strong{display:block;margin:5px 0 3px;font-family:'Bebas Neue',Impact,sans-serif;font-size:31px}.club-live-metrics small{color:#687385;font-size:11px}.club-live-columns{display:grid;grid-template-columns:1fr 1fr;gap:18px}.club-match-list,.club-activity-list,.club-record-list{display:grid}.club-match-list>a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:11px 0;border-top:1px solid #edf1f4;color:#111318;text-decoration:none}.club-match-list>a>span{font-size:13px;font-weight:800}.club-match-list>a>span.this-club{font-weight:950}.club-match-list>a>b{font-family:'Bebas Neue',Impact,sans-serif;font-size:20px;color:#168fd2}.club-match-list>a>small{grid-column:1/3;color:#687385;font-size:10px}.club-record-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.club-record-list article{padding:13px;border:1px solid #e7ebef;border-radius:9px}.club-record-list span,.club-record-list small{display:block}.club-record-list span{color:#687385;font-size:9px;font-weight:950;text-transform:uppercase}.club-record-list strong{display:block;margin:5px 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:29px}.club-record-list small{color:#687385;font-size:10px}.club-activity-list a{padding:12px 0;border-top:1px solid #edf1f4;color:#111318;text-decoration:none}.club-activity-list strong,.club-activity-list span,.club-activity-list small{display:block}.club-activity-list span{margin-top:3px;color:#687385;font-size:12px}.club-activity-list small{margin-top:5px;color:#168fd2;font-size:9px;font-weight:900;text-transform:uppercase}.club-highlight-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.club-highlight-grid>a{overflow:hidden;border:1px solid #e3e8ed;border-radius:10px;color:#111318;text-decoration:none}.club-highlight-grid>a>div{height:115px;display:grid;place-items:center;background:#eef5f9;color:#168fd2}.club-highlight-grid img{width:100%;height:100%;object-fit:cover}.club-highlight-grid>a>span,.club-highlight-grid>a>strong,.club-highlight-grid>a>small{display:block;margin-left:12px;margin-right:12px}.club-highlight-grid>a>span{margin-top:10px;color:#168fd2;font-size:9px;font-weight:950;text-transform:uppercase}.club-highlight-grid>a>strong{margin-top:3px}.club-highlight-grid>a>small{margin-top:4px;margin-bottom:12px;color:#687385;font-size:11px}.club-live-empty{margin:0;padding:22px 0;color:#687385;font-size:13px}@media(max-width:760px){.club-live-summary,.club-live-card{padding:17px}.club-live-metrics{grid-template-columns:1fr 1fr}.club-live-columns{grid-template-columns:1fr}.club-record-list{grid-template-columns:1fr}.club-highlight-grid{grid-template-columns:1fr 1fr}.club-live-summary h2,.club-live-card h2{font-size:31px}}@media(max-width:440px){.club-highlight-grid{grid-template-columns:1fr}}`
+const styles = `.club-live-hub{display:grid;gap:18px}.club-live-summary,.club-live-card{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055);padding:22px}.club-live-summary>header,.club-live-card>header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:15px}.club-live-summary header span,.club-live-card header span{display:block;color:#209fe9;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.club-live-summary h2,.club-live-card h2{margin:5px 0 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:36px;line-height:.9;text-transform:uppercase}.club-live-summary header a,.club-live-card header a{display:inline-flex;align-items:center;gap:5px;color:#1687c5;font-size:10px;font-weight:950;text-decoration:none;text-transform:uppercase}.club-live-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.club-live-metrics article{padding:15px;border:1px solid #e6ebef;border-radius:10px;background:#f8fafb}.club-live-metrics span,.club-live-metrics small{display:block}.club-live-metrics span{color:#687385;font-size:9px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.club-live-metrics strong{display:block;margin:5px 0 3px;font-family:'Bebas Neue',Impact,sans-serif;font-size:31px}.club-live-metrics small{color:#687385;font-size:11px}.club-live-columns{display:grid;grid-template-columns:1fr 1fr;gap:18px}.club-match-list,.club-activity-list,.club-record-list{display:grid}.club-match-list>a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:11px 0;border-top:1px solid #edf1f4;color:#111318;text-decoration:none}.club-match-list>a>span{font-size:13px;font-weight:800}.club-match-list>a>span.this-club{font-weight:950}.club-match-list>a>b{font-family:'Bebas Neue',Impact,sans-serif;font-size:20px;color:#168fd2}.club-match-list>a>small{grid-column:1/3;color:#687385;font-size:10px}.club-next-card>header{align-items:flex-start}.club-next-card>header>a{padding-top:3px}.club-next-match{display:block;border:1px solid #e5eaee;border-radius:12px;background:#f8fafb;color:#111318;text-decoration:none;overflow:hidden}.club-next-round{display:block;padding:12px 16px;background:var(--club-primary,#2daaf5);color:#fff!important;font-size:11px!important;font-weight:950;letter-spacing:.15em;text-align:center;text-transform:uppercase}.club-next-opponent{display:grid;justify-items:center;gap:10px;padding:22px 18px 18px}.club-next-opponent>strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:48px;line-height:.8;color:var(--club-secondary,#d61b8c)}.club-next-opponent>b{font-size:18px;text-align:center}.club-next-logo{display:grid;place-items:center;width:126px;height:126px;border-radius:22px;background:#fff;border:1px solid #e2e7eb;text-decoration:none}.club-next-logo img,.club-next-logo span{max-width:112px;max-height:112px}.club-next-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #e2e7eb;background:#fff}.club-next-details>span{min-width:0;padding:13px;text-align:center}.club-next-details>span+span{border-left:1px solid #e2e7eb}.club-next-details small,.club-next-details strong{display:block}.club-next-details small{color:#687385;font-size:8px;font-weight:950;letter-spacing:.12em;text-transform:uppercase}.club-next-details strong{margin-top:4px;font-size:11px;line-height:1.35}.club-record-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.club-record-list article{padding:13px;border:1px solid #e7ebef;border-radius:9px}.club-record-list span,.club-record-list small{display:block}.club-record-list span{color:#687385;font-size:9px;font-weight:950;text-transform:uppercase}.club-record-list strong{display:block;margin:5px 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:29px}.club-record-list small{color:#687385;font-size:10px}.club-activity-list a{padding:12px 0;border-top:1px solid #edf1f4;color:#111318;text-decoration:none}.club-activity-list strong,.club-activity-list span,.club-activity-list small{display:block}.club-activity-list span{margin-top:3px;color:#687385;font-size:12px}.club-activity-list small{margin-top:5px;color:#168fd2;font-size:9px;font-weight:900;text-transform:uppercase}.club-highlight-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.club-highlight-grid>a{overflow:hidden;border:1px solid #e3e8ed;border-radius:10px;color:#111318;text-decoration:none}.club-highlight-grid>a>div{height:115px;display:grid;place-items:center;background:#eef5f9;color:#168fd2}.club-highlight-grid img{width:100%;height:100%;object-fit:cover}.club-highlight-grid>a>span,.club-highlight-grid>a>strong,.club-highlight-grid>a>small{display:block;margin-left:12px;margin-right:12px}.club-highlight-grid>a>span{margin-top:10px;color:#168fd2;font-size:9px;font-weight:950;text-transform:uppercase}.club-highlight-grid>a>strong{margin-top:3px}.club-highlight-grid>a>small{margin-top:4px;margin-bottom:12px;color:#687385;font-size:11px}.club-live-empty{margin:0;padding:22px 0;color:#687385;font-size:13px}@media(max-width:760px){.club-live-summary,.club-live-card{padding:17px}.club-live-metrics{grid-template-columns:1fr 1fr}.club-live-columns{grid-template-columns:1fr}.club-record-list{grid-template-columns:1fr}.club-highlight-grid{grid-template-columns:1fr 1fr}.club-live-summary h2,.club-live-card h2{font-size:31px}.club-next-details{grid-template-columns:1fr}.club-next-details>span+span{border-left:0;border-top:1px solid #e2e7eb}}@media(max-width:440px){.club-highlight-grid{grid-template-columns:1fr}}`
