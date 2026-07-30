@@ -10,15 +10,33 @@ export default function DesktopLayoutPolish() {
 
   return <style>{`
     @media (min-width: 1100px) {
-      :root { --pf-desktop-shell: min(1600px, calc(100vw - 72px)); }
+      :root {
+        --pf-desktop-wide: min(1440px, calc(100vw - 72px));
+        --pf-desktop-standard: min(1240px, calc(100vw - 72px));
+        --pf-desktop-reading: min(820px, calc(100vw - 72px));
+        --pf-desktop-gutter: 36px;
+        --pf-section-gap: 24px;
+        --pf-card-pad: 24px;
+      }
+
+      body {
+        text-rendering: optimizeLegibility;
+      }
 
       .pf-shell,
       .club-profile-shell,
       .league-profile-shell {
-        width: var(--pf-desktop-shell) !important;
-        max-width: 1600px !important;
+        width: var(--pf-desktop-wide) !important;
+        max-width: 1440px !important;
         margin-left: auto !important;
         margin-right: auto !important;
+      }
+
+      .club-profile-area {
+        max-width: 1240px !important;
+        padding-left: 32px !important;
+        padding-right: 32px !important;
+        gap: var(--pf-section-gap) !important;
       }
 
       .rankings-page,
@@ -38,9 +56,39 @@ export default function DesktopLayoutPolish() {
       .news-page > *,
       .article-page > *,
       .player-page > * {
-        max-width: 1600px;
+        max-width: 1440px;
         margin-left: auto;
         margin-right: auto;
+      }
+
+      .article-page article,
+      .article-page .article-body,
+      .news-article-body {
+        max-width: 820px !important;
+      }
+
+      #main-content p,
+      #main-content li,
+      #main-content td,
+      #main-content input,
+      #main-content select,
+      #main-content textarea {
+        font-size: max(15px, 1rem);
+      }
+
+      #main-content small,
+      #main-content .font-condensed {
+        letter-spacing: .025em;
+      }
+
+      #main-content .font-condensed {
+        font-weight: 650;
+      }
+
+      #main-content [style*="font-size: 10px"],
+      #main-content [style*="fontSize: 10"],
+      #main-content [style*="font-size: 11px"] {
+        letter-spacing: .08em !important;
       }
 
       .pf-hero-inner {
@@ -59,7 +107,7 @@ export default function DesktopLayoutPolish() {
       .pf-club-strip {
         display: grid !important;
         grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-        gap: clamp(14px, 1.2vw, 22px) !important;
+        gap: clamp(16px, 1.25vw, 22px) !important;
         overflow: visible !important;
       }
 
@@ -69,7 +117,7 @@ export default function DesktopLayoutPolish() {
 
       .pf-feature-grid,
       .pf-data-grid {
-        gap: clamp(18px, 1.6vw, 28px) !important;
+        gap: var(--pf-section-gap) !important;
       }
 
       .pf-feature-panel {
@@ -85,7 +133,7 @@ export default function DesktopLayoutPolish() {
       .clubs-layout,
       .leagues-layout {
         align-items: start;
-        gap: clamp(22px, 2vw, 34px) !important;
+        gap: clamp(24px, 2vw, 34px) !important;
       }
 
       .rankings-table,
@@ -103,7 +151,7 @@ export default function DesktopLayoutPolish() {
       .top10-grid,
       .featured-strip,
       .story-row {
-        gap: clamp(14px, 1.3vw, 22px) !important;
+        gap: clamp(16px, 1.3vw, 22px) !important;
       }
 
       .club-grid,
@@ -117,6 +165,20 @@ export default function DesktopLayoutPolish() {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
       }
 
+      .gn-card,
+      .club-feed-card,
+      .club-info-panel,
+      .club-stats-stack > section {
+        border-radius: 12px;
+      }
+
+      .club-stats-stack,
+      .club-info-stack,
+      .club-shared-live,
+      .club-team-selection-stack {
+        gap: var(--pf-section-gap) !important;
+      }
+
       .league-dashboard-shell,
       .league-profile-page > *,
       .league-newsroom > header,
@@ -127,8 +189,8 @@ export default function DesktopLayoutPolish() {
       .league-media > .layout,
       .league-activity > *,
       .league-users > * {
-        width: min(1320px, calc(100vw - 72px)) !important;
-        max-width: 1320px !important;
+        width: var(--pf-desktop-standard) !important;
+        max-width: 1240px !important;
         margin-left: auto !important;
         margin-right: auto !important;
       }
@@ -145,10 +207,19 @@ export default function DesktopLayoutPolish() {
     }
 
     @media (min-width: 1100px) and (max-width: 1320px) {
+      :root {
+        --pf-desktop-gutter: 24px;
+      }
+
       .pf-shell,
       .club-profile-shell,
       .league-profile-shell {
-        width: min(100% - 48px, 1600px) !important;
+        width: min(100% - 48px, 1440px) !important;
+      }
+
+      .club-profile-area {
+        padding-left: 24px !important;
+        padding-right: 24px !important;
       }
 
       .pf-club-strip {
