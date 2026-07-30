@@ -120,6 +120,20 @@ async function getJson<T>(url: string): Promise<T> {
   return sanitiseDisplayLabels(payload) as T
 }
 
+function withoutFinalsSuccess(scores: Record<string, number> | null | undefined) {
+  const { finalsSuccess: _finalsSuccess, ...currentSeasonScores } = scores ?? {}
+  return currentSeasonScores
+}
+
+function withoutFinalsReasoning(reasoning: string) {
+  return reasoning
+    .replace(/\s+and\s+finals success\s*\([^)]*\)/gi, '')
+    .replace(/(?:,\s*)?finals success\s*\([^)]*\)/gi, '')
+    .replace(/\s+([.,])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 function normaliseClubName(value: string | null | undefined) {
   return (value ?? '')
     .toLowerCase()
@@ -169,7 +183,7 @@ async function withPublishedRecentForm(club: ClubProfile): Promise<ClubProfile> 
 
 export const fetchRankings = () => getJson<RankingsResponse>('/api/rankings')
 export const fetchTop = (n: 10 | 25 | 100) => getJson<RankingsResponse>(`/api/top${n}`)
-export const fetchClub = (id: string) => getJson<{ data: ClubProfile }>(`/api/clubs/${encodeURIComponent(id)}`).then(response => withPublishedRecentForm(response.data))
+export const fetchClub = (id: string) => getJson<{ data: ClubProfile }>(`/api/clubs/${encodeURIComponent(id)}`).then(response => withPublishedRecentForm({ ...response.data, componentScores: withoutFinalsSuccess(response.data.componentScores) }))
 export const fetchLeague = (id: string) => getJson<{ data: LeagueDetail }>(`/api/leagues/${id}`).then(response => response.data)
 export const fetchSearch = (q: string) => getJson<{ data: SearchResults }>(`/api/leagues/search/global?q=${encodeURIComponent(q)}`).then(response => response.data)
 export const fetchUnifiedSearch = (q: string) => getJson<SearchResponse>(`/api/search?q=${encodeURIComponent(q)}`)
@@ -179,7 +193,7 @@ export interface ClubExplanation {
   reasoning: string; componentScores: Record<string, number>
   league: { name: string; strength: number; confidence: number; reasoning: string | null; calculatedAt: string | null } | null
 }
-export const fetchClubExplain = (id: string) => getJson<{ data: ClubExplanation }>(`/api/rankings/explain/${id}`).then(response => response.data)
+export const fetchClubExplain = (id: string) => getJson<{ data: ClubExplanation }>(`/api/rankings/explain/${id}`).then(response => ({ ...response.data, reasoning: withoutFinalsReasoning(response.data.reasoning), componentScores: withoutFinalsSuccess(response.data.componentScores) }))
 
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null)
