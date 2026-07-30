@@ -63,7 +63,6 @@ export default function ClubLiveHubDetailed({ club }: { club: ClubProfile }) {
 
   return <div className="club-live-hub-detailed">
     <ClubLiveHub club={club} />
-    {lastMatch && detail && hasDetails(detail) && <MatchDetailsExtension row={lastMatch} detail={detail} />}
     <style>{styles}</style>
   </div>
 }
