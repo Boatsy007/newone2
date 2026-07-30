@@ -46,7 +46,7 @@ router.get('/:id', publicRateLimit, cachePublic(30), async (req, res) => {
   try {
     const clubId = req.params.id
     const club = await prisma.club.findFirst({ where: { id: clubId, sport: 'FOOTBALL', archivedAt: null, isActive: true }, select: { id: true, name: true, region: true, logoUrl: true, primaryColour: true, secondaryColour: true, websiteUrl: true, facebookUrl: true, instagramUrl: true, description: true, contactEmail: true, townName: true, state: { select: { code: true, name: true } } } })
-    const cls = await prisma.clubLeagueSeason.findFirst({ where: { clubId, isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } }, orderBy: { season: 'desc' }, select: { leagueId: true, season: true, played: true, wins: true, losses: true, draws: true, goalsFor: true, goalsAgainst: true, percentage: true, points: true, league: { select: { id: true, name: true, currentSeason: true, strengthScore: true, strengthTier: true } } } })
+    const cls = await prisma.clubLeagueSeason.findFirst({ where: { clubId, isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } }, orderBy: { season: 'desc' }, select: { leagueId: true, season: true, position: true, played: true, wins: true, losses: true, draws: true, goalsFor: true, goalsAgainst: true, percentage: true, points: true, league: { select: { id: true, name: true, currentSeason: true, primarySource: true, primaryDataSource: true, strengthScore: true, strengthTier: true } } } })
     if (!club && !cls) return res.status(404).json({ error: 'Club not found' })
 
     const profile = await prisma.clubProfile.findUnique({ where: { clubId }, select: { gallery: true, uniformPhotos: true, ground: true, address: true, email: true, phone: true, president: true, secretary: true, coach: true, assistantCoach: true, committee: true, history: true, clubColours: true, foundedYear: true, trainingNights: true, homeCourt: true, googleMapsUrl: true, websiteUrl: true, facebookUrl: true, instagramUrl: true, tiktokUrl: true, youtubeUrl: true, membershipLink: true, volunteerLink: true } }).catch(() => null)
@@ -91,13 +91,14 @@ router.get('/:id', publicRateLimit, cachePublic(30), async (req, res) => {
     const rank = currentEntry?.rank ?? null
     const league = cls?.league ?? null
     const ladderIndex = ladderRows.findIndex(row => row.clubId === clubId)
+    const usesOcrLadder = league?.primaryDataSource === 'OCR_UPLOAD' || league?.primarySource === 'MANUAL_IMAGE'
 
     res.json({ data: {
       clubId, clubName, leagueId, leagueName: currentEntry?.leagueName ?? league?.name ?? null, state: currentEntry?.state ?? club?.state?.code ?? null,
       rank, previousRank: currentEntry?.previousRank ?? null, rankMovement: currentEntry?.rankMovement ?? 0, powerRating: currentEntry?.powerRating ?? null,
       ranked: !!currentEntry, qualified: rank != null && rank <= QUALIFY_CUTOFF, qualifyCutoff: QUALIFY_CUTOFF,
       record: { wins: cls?.wins ?? 0, losses: cls?.losses ?? 0, draws: cls?.draws ?? 0, played: cls?.played ?? 0 }, goalsFor: cls?.goalsFor ?? 0,
-      goalsAgainst: cls?.goalsAgainst ?? 0, percentage: cls?.percentage ?? 0, ladderPosition: ladderIndex >= 0 ? (ladderRows[ladderIndex].position ?? ladderIndex + 1) : null,
+      goalsAgainst: cls?.goalsAgainst ?? 0, percentage: cls?.percentage ?? 0, ladderPosition: usesOcrLadder ? (cls?.position ?? null) : (ladderIndex >= 0 ? (ladderRows[ladderIndex].position ?? ladderIndex + 1) : null),
       leagueStrengthScore: league?.strengthScore ?? null, leagueStrengthTier: league?.strengthTier ?? null,
       recentForm, componentScores, weekLabel: currentEntry?.rankingRun.weekLabel ?? null, season,
       history: [], town: club?.townName ?? null, region: club?.region ?? null, stateName: club?.state?.name ?? null, logoUrl: club?.logoUrl ?? null,
