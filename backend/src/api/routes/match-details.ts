@@ -10,7 +10,23 @@ const roundNumber = (value: unknown) => {
   return match ? Number(match[0]) : null
 }
 
-async function resolveFootballResult(resultId: string) {
+const normaliseName = (value: unknown) => String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+const dateKey = (value: Date | null | undefined) => value ? value.toISOString().slice(0, 10) : null
+
+type FootballResultRef = {
+  id: string
+  published: boolean
+  homeClubId: string | null
+  awayClubId: string | null
+  homeName: string
+  awayName: string
+  leagueId: string
+  season: string
+  round: string | null
+  matchDate: Date | null
+}
+
+async function resolveFootballResult(resultId: string): Promise<FootballResultRef | null> {
   const direct = await prisma.footballResult.findUnique({
     where: { id: resultId },
     select: { id: true, published: true, homeClubId: true, awayClubId: true, homeName: true, awayName: true, leagueId: true, season: true, round: true, matchDate: true },
@@ -43,20 +59,61 @@ async function resolveFootballResult(resultId: string) {
   })
 
   return candidates.find(row => expectedRound == null || row.round === expectedRound)
-    ?? candidates.find(row => {
-      if (!canonical.matchDate || !row.matchDate) return false
-      return canonical.matchDate.toISOString().slice(0, 10) === row.matchDate.toISOString().slice(0, 10)
-    })
+    ?? candidates.find(row => dateKey(canonical.matchDate) != null && dateKey(canonical.matchDate) === dateKey(row.matchDate))
     ?? (candidates.length === 1 ? candidates[0] : null)
+}
+
+function sameTeams(a: FootballResultRef, b: FootballResultRef) {
+  if (a.homeClubId && a.awayClubId && b.homeClubId && b.awayClubId) {
+    return (a.homeClubId === b.homeClubId && a.awayClubId === b.awayClubId)
+      || (a.homeClubId === b.awayClubId && a.awayClubId === b.homeClubId)
+  }
+  const aHome = normaliseName(a.homeName)
+  const aAway = normaliseName(a.awayName)
+  const bHome = normaliseName(b.homeName)
+  const bAway = normaliseName(b.awayName)
+  return (aHome === bHome && aAway === bAway) || (aHome === bAway && aAway === bHome)
+}
+
+async function resolveResultWithDetail(result: FootballResultRef) {
+  const directDetail = await loadMatchDetail(result.id)
+  if (directDetail) return { result, detail: directDetail }
+
+  // Result screenshots and match-detail OCR can resolve to separate canonical
+  // footballResult IDs. If the newest score row has no detail attached, continue
+  // through the same league, teams, round and date until the saved detail is found.
+  const candidates = await prisma.footballResult.findMany({
+    where: { leagueId: result.leagueId, season: result.season, published: true, id: { not: result.id } },
+    select: { id: true, published: true, homeClubId: true, awayClubId: true, homeName: true, awayName: true, leagueId: true, season: true, round: true, matchDate: true },
+    orderBy: { updatedAt: 'desc' },
+    take: 50,
+  })
+
+  const expectedRound = roundNumber(result.round)
+  const expectedDate = dateKey(result.matchDate)
+  const matching = candidates.filter(candidate => {
+    if (!sameTeams(result, candidate)) return false
+    const candidateRound = roundNumber(candidate.round)
+    if (expectedRound != null && candidateRound != null && expectedRound !== candidateRound) return false
+    const candidateDate = dateKey(candidate.matchDate)
+    if (expectedDate && candidateDate && expectedDate !== candidateDate) return false
+    return true
+  })
+
+  for (const candidate of matching) {
+    const detail = await loadMatchDetail(candidate.id)
+    if (detail) return { result: candidate, detail }
+  }
+  return { result, detail: null }
 }
 
 router.get('/football/:resultId', publicRateLimit, async (req, res) => {
   try {
     const requestedId = String(req.params.resultId)
-    const result = await resolveFootballResult(requestedId)
-    if (!result) return res.status(404).json({ error: 'result not found' })
+    const resolved = await resolveFootballResult(requestedId)
+    if (!resolved) return res.status(404).json({ error: 'result not found' })
 
-    const detail = await loadMatchDetail(result.id)
+    const { result, detail } = await resolveResultWithDetail(resolved)
     if (!detail) return res.json({ data: null })
 
     const bestNames = [
