@@ -12,11 +12,12 @@ import ClubTeamSheet from '../components/club/ClubTeamSheetPortal'
 import ClubSponsorsLive from '../components/club/ClubSponsorsLive'
 import PublicClubGallery from '../components/club/PublicClubGallery'
 import ClubUploadedLadder from '../components/club/ClubUploadedLadder'
+import RelatedClubsWithLogos from '../components/club/RelatedClubsWithLogos'
 import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickersPanel'
 import { useSeo } from '../lib/seo'
 import { fetchClub, fetchClubExplain, useAsync, strengthLabel, strengthStars, type ClubProfile, type ClubExplanation } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
-import { ClubHero, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
+import { ClubHero, ClubSidebar, ordinal } from '../components/club/sections'
 
 const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubWhy })))
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
@@ -125,7 +126,7 @@ export default function TeamProfile() {
                   )}
 
                   {activeTab === 'sponsors' && <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>}
-                  {activeTab === 'related' && <div className="club-feed-card"><RelatedClubs club={data} /></div>}
+                  {activeTab === 'related' && <div className="club-feed-card"><RelatedClubsWithLogos club={data} /></div>}
                 </div>
                 <aside className="club-profile-sidebar"><ClubSidebar club={data} /></aside>
               </div>
