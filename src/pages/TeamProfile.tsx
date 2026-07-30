@@ -11,11 +11,12 @@ import ClubLiveHub from '../components/club/ClubLiveHub'
 import ClubTeamSheet from '../components/club/ClubTeamSheetPortal'
 import ClubSponsorsLive from '../components/club/ClubSponsorsLive'
 import PublicClubGallery from '../components/club/PublicClubGallery'
+import ClubUploadedLadder from '../components/club/ClubUploadedLadder'
 import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickersPanel'
 import { useSeo } from '../lib/seo'
 import { fetchClub, fetchClubExplain, useAsync, strengthLabel, strengthStars, type ClubProfile, type ClubExplanation } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
-import { ClubHero, ClubLadder, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
+import { ClubHero, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
 
 const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubWhy })))
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
@@ -119,7 +120,7 @@ export default function TeamProfile() {
                       <PublicGoalKickersPanel clubId={clubId} eyebrow={`${data.season?.match(/\d{4}/)?.[0] ?? new Date().getFullYear()} club leaders`} title="Leading goal kickers" />
                       <Suspense fallback={<div style={{ minHeight: 320 }} aria-hidden />}><ClubJourney club={data} /></Suspense>
                       <Suspense fallback={<div style={{ minHeight: 300 }} aria-hidden />}><ClubWhy club={data} reasoning={explain.data?.reasoning} /></Suspense>
-                      <ClubLadder club={data} />
+                      <ClubUploadedLadder club={data} />
                     </div>
                   )}
 
