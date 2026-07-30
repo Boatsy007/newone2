@@ -29,7 +29,6 @@ export default function ClubPortalDashboard(){
   const accent=data?.club.primaryColour||'#2daaf5'
   const actions=useMemo(()=>data?[
     {label:'Coaching',detail:data.teamSelection?`${data.teamSelection.roundLabel}${data.teamSelection.opponentName?` · v ${data.teamSelection.opponentName}`:''}`:'Next opponent, availability and players to watch',icon:ClipboardList,allowed:data.membership.permissions.view,to:`/club-portal/${data.club.id}/coaching`},
-    {label:'Team selection',detail:data.teamSelection?`${data.teamSelection.roundLabel} · ${data.teamSelection.playerCount} selected`:'No team selected yet',icon:Trophy,allowed:data.membership.permissions.teamSelection,to:`/club-portal/${data.club.id}/team-selection`},
     {label:'Club news',detail:`${data.news.published} published · ${data.news.drafts+data.news.pending} in progress`,icon:Newspaper,allowed:data.membership.permissions.media,to:`/club-portal/${data.club.id}/news`},
     {label:'Photos and media',detail:`${data.profile.photoCount} club photos connected`,icon:Image,allowed:data.membership.permissions.profile,to:`/club-portal/${data.club.id}/profile`},
     {label:'Sponsors',detail:`${data.sponsors.active} active sponsor${data.sponsors.active===1?'':'s'}`,icon:Building2,allowed:data.membership.permissions.sponsors,to:`/club-portal/${data.club.id}/sponsors`},
