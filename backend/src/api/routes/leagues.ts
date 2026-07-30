@@ -105,19 +105,27 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
         })
       : []
 
-    const ladder = footballLadder.length
-      ? footballLadder.filter(row => row.clubId).map(row => ({
-          clubId: row.clubId!, clubName: row.clubName, logoUrl: publishedLogoByClubId.get(row.clubId!) ?? null,
-          position: row.position, played: row.played, wins: row.wins, losses: row.losses, draws: row.draws,
-          goalsFor: row.pointsFor, goalsAgainst: row.pointsAgainst,
-          percentage: row.percentage, points: row.premiershipPoints,
-        }))
-      : legacyLadder.map(row => ({
+    const usesOcrLadder = league.primaryDataSource === 'OCR_UPLOAD' || league.primarySource === 'MANUAL_IMAGE'
+    const ladder = usesOcrLadder && legacyLadder.length
+      ? legacyLadder.map(row => ({
           clubId: row.clubId, clubName: row.club.name, logoUrl: row.club.logoUrl,
           position: row.position, played: row.played, wins: row.wins, losses: row.losses,
           draws: row.draws, goalsFor: row.goalsFor, goalsAgainst: row.goalsAgainst,
           percentage: row.percentage, points: row.points,
         }))
+      : footballLadder.length
+        ? footballLadder.filter(row => row.clubId).map(row => ({
+            clubId: row.clubId!, clubName: row.clubName, logoUrl: publishedLogoByClubId.get(row.clubId!) ?? null,
+            position: row.position, played: row.played, wins: row.wins, losses: row.losses, draws: row.draws,
+            goalsFor: row.pointsFor, goalsAgainst: row.pointsAgainst,
+            percentage: row.percentage, points: row.premiershipPoints,
+          }))
+        : legacyLadder.map(row => ({
+            clubId: row.clubId, clubName: row.club.name, logoUrl: row.club.logoUrl,
+            position: row.position, played: row.played, wins: row.wins, losses: row.losses,
+            draws: row.draws, goalsFor: row.goalsFor, goalsAgainst: row.goalsAgainst,
+            percentage: row.percentage, points: row.points,
+          }))
 
     res.json({
       data: {
