@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Club page: each club's premium digital home. Section tabs expose the
  * existing live club content without changing its data sources or route.
  */
@@ -7,7 +7,7 @@ import { useLocation, useParams } from 'react-router-dom'
 import Nav from '../components/layout/Nav'
 import ProductSearch from '../components/rankings/ProductSearch'
 import Footer from '../components/layout/Footer'
-import ClubLiveHub from '../components/club/ClubLiveHub'
+import ClubLiveHub from '../components/club/ClubLiveHubDetailed'
 import ClubTeamSheet from '../components/club/ClubTeamSheetPortal'
 import ClubSponsorsLive from '../components/club/ClubSponsorsLive'
 import PublicClubGallery from '../components/club/PublicClubGallery'
@@ -176,9 +176,8 @@ function ClubContactsPanel({ club }: { club: ClubProfile }) {
   const details = [
     ['Founded', read('foundedYear')], ['Club colours', read('clubColours')], ['Home ground', read('groundName', 'homeGround', 'venueName', 'ground')], ['Address', read('address', 'groundAddress', 'venueAddress')],
     ['Training nights', read('trainingNights')], ['Home facilities', read('homeCourt')], ['President', read('president', 'presidentName', 'clubPresident')], ['Secretary', read('secretary', 'secretaryName', 'clubSecretary')],
-    ['Senior coach', read('coach')], ['Assistant coach', read('assistantCoach')], ['Committee', read('committee')], ['Email', read('email', 'clubEmail', 'contactEmail'), read('email', 'clubEmail', 'contactEmail') ? `mailto:${read('email', 'clubEmail', 'contactEmail')}` : undefined],
-    ['Phone', read('phone', 'phoneNumber', 'clubPhone', 'contactPhone'), read('phone', 'phoneNumber', 'clubPhone', 'contactPhone') ? `tel:${read('phone', 'phoneNumber', 'clubPhone', 'contactPhone')?.replace(/\s/g, '')}` : undefined],
-    ['Google Maps', read('googleMapsUrl') ? 'Open ground location' : undefined, read('googleMapsUrl')], ['Website', club.websiteUrl ?? undefined, club.websiteUrl ?? undefined], ['Facebook', club.facebookUrl ? 'Club Facebook' : undefined, club.facebookUrl ?? undefined],
+    ['Senior coach', read('coach')], ['Assistant coach', read('assistantCoach')], ['Committee', read('committee')], ['Email', club.email, club.email ? `mailto:${club.email}` : undefined], ['Phone', club.phone, club.phone ? `tel:${club.phone}` : undefined],
+    ['Website', club.websiteUrl ? 'Club website' : undefined, club.websiteUrl ?? undefined], ['Facebook', club.facebookUrl ? 'Club Facebook' : undefined, club.facebookUrl ?? undefined],
     ['Instagram', club.instagramUrl ? 'Club Instagram' : undefined, club.instagramUrl ?? undefined], ['TikTok', read('tiktokUrl') ? 'Club TikTok' : undefined, read('tiktokUrl')], ['YouTube', read('youtubeUrl') ? 'Club YouTube' : undefined, read('youtubeUrl')],
     ['Membership', read('membershipLink') ? 'Join the club' : undefined, read('membershipLink')], ['Volunteer', read('volunteerLink') ? 'Volunteer with the club' : undefined, read('volunteerLink')],
   ].filter((row): row is [string, string, string?] => Boolean(row[1]))
