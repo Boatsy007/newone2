@@ -41,7 +41,7 @@ export default function PublicClubGallery({ club }: { club: ClubProfile }) {
         .public-club-gallery-empty{padding:30px;border:1px dashed #d7dfe6;border-radius:10px;background:#fbfdff;text-align:center}
         .public-club-gallery-empty strong{display:block;font-family:'Bebas Neue',Impact,sans-serif;font-size:30px;text-transform:uppercase;color:#111318}
         .public-club-gallery-empty p{margin:8px 0 0;color:#687385}
-        @media(max-width:620px){.public-club-gallery{padding:20px 30px!important}.public-club-gallery-grid{grid-template-columns:1fr}}
+        @media(max-width:620px){.public-club-gallery{padding:30px 24px 36px!important}.public-club-gallery-head{padding-inline:12px}.public-club-gallery-grid{grid-template-columns:1fr}}
       `}</style>
     </section>
   )
