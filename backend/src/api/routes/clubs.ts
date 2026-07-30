@@ -46,7 +46,7 @@ router.get('/:id', publicRateLimit, cachePublic(30), async (req, res) => {
   try {
     const clubId = req.params.id
     const club = await prisma.club.findFirst({ where: { id: clubId, sport: 'FOOTBALL', archivedAt: null, isActive: true }, select: { id: true, name: true, region: true, logoUrl: true, primaryColour: true, secondaryColour: true, websiteUrl: true, facebookUrl: true, instagramUrl: true, description: true, contactEmail: true, townName: true, state: { select: { code: true, name: true } } } })
-    const cls = await prisma.clubLeagueSeason.findFirst({ where: { clubId, isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } }, orderBy: { season: 'desc' }, select: { leagueId: true, season: true, played: true, wins: true, losses: true, draws: true, goalsFor: true, goalsAgainst: true, percentage: true, points: true, league: { select: { id: true, name: true, strengthScore: true, strengthTier: true } } } })
+    const cls = await prisma.clubLeagueSeason.findFirst({ where: { clubId, isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } }, orderBy: { season: 'desc' }, select: { leagueId: true, season: true, played: true, wins: true, losses: true, draws: true, goalsFor: true, goalsAgainst: true, percentage: true, points: true, league: { select: { id: true, name: true, currentSeason: true, strengthScore: true, strengthTier: true } } } })
     if (!club && !cls) return res.status(404).json({ error: 'Club not found' })
 
     const profile = await prisma.clubProfile.findUnique({ where: { clubId }, select: { gallery: true, uniformPhotos: true, ground: true, address: true, email: true, phone: true, president: true, secretary: true, coach: true, assistantCoach: true, committee: true, history: true, clubColours: true, foundedYear: true, trainingNights: true, homeCourt: true, googleMapsUrl: true, websiteUrl: true, facebookUrl: true, instagramUrl: true, tiktokUrl: true, youtubeUrl: true, membershipLink: true, volunteerLink: true } }).catch(() => null)
@@ -58,9 +58,10 @@ router.get('/:id', publicRateLimit, cachePublic(30), async (req, res) => {
 
     const leagueId = currentEntry?.leagueId ?? cls?.leagueId ?? null
     const season = currentEntry?.rankingRun.season ?? cls?.season ?? null
+    const ladderSeason = cls?.league.currentSeason ?? cls?.season ?? season?.replace(/-w\d+$/i, '') ?? null
     const clubName = currentEntry?.clubName ?? club?.name ?? 'Unknown Club'
-    const uploadedLadderRows = leagueId && season ? await prisma.footballLadderEntry.findMany({
-      where: { leagueId, season, published: true },
+    const uploadedLadderRows = leagueId && ladderSeason ? await prisma.footballLadderEntry.findMany({
+      where: { leagueId, season: ladderSeason, published: true },
       orderBy: { position: 'asc' },
       select: { clubId: true, clubName: true, position: true, played: true, wins: true, losses: true, draws: true, percentage: true, premiershipPoints: true },
     }) : []
