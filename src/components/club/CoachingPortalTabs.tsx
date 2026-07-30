@@ -2,6 +2,7 @@ import { useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { CalendarCheck, LayoutDashboard, ShieldCheck, Trophy, Users, Workflow } from 'lucide-react'
+import TeamSelectionAvailabilityWarnings from './TeamSelectionAvailabilityWarnings'
 
 const COACHING_SECTIONS = new Set(['coaching', 'availability', 'team-selection', 'whiteboard', 'users'])
 
@@ -32,7 +33,8 @@ export default function CoachingPortalTabs() {
     }
   }, [pathname, visible])
 
-  if (!visible || !host) return null
+  const warningLayer = <TeamSelectionAvailabilityWarnings/>
+  if (!visible || !host) return warningLayer
 
   const links = [
     { label: 'Overview', section: 'coaching', href: `/club-portal/${clubId}/coaching`, icon: LayoutDashboard },
@@ -42,7 +44,7 @@ export default function CoachingPortalTabs() {
     { label: 'Access', section: 'users', href: `/club-portal/${clubId}/users`, icon: Users },
   ]
 
-  return createPortal(<>
+  return <>{warningLayer}{createPortal(<>
     <nav className="coach-portal-tabs" aria-label="Coaching portal sections">
       <div className="coach-portal-tabs-inner">
         <div className="coach-portal-tabs-scroll">
@@ -54,7 +56,7 @@ export default function CoachingPortalTabs() {
       </div>
     </nav>
     <style>{styles}</style>
-  </>, host)
+  </>, host)}</>
 }
 
 const styles = `
