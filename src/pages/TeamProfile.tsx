@@ -15,7 +15,7 @@ import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickers
 import { useSeo } from '../lib/seo'
 import { fetchClub, fetchClubExplain, useAsync, strengthLabel, strengthStars, type ClubProfile, type ClubExplanation } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
-import { ClubHero, ClubSnapshot, ClubLadder, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
+import { ClubHero, ClubLadder, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
 
 const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubWhy })))
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
@@ -117,7 +117,6 @@ export default function TeamProfile() {
                   {activeTab === 'stats' && (
                     <div className="club-stats-stack">
                       <PublicGoalKickersPanel clubId={clubId} eyebrow={`${data.season?.match(/\d{4}/)?.[0] ?? new Date().getFullYear()} club leaders`} title="Leading goal kickers" />
-                      <ClubSnapshot club={data} />
                       <Suspense fallback={<div style={{ minHeight: 320 }} aria-hidden />}><ClubJourney club={data} /></Suspense>
                       <Suspense fallback={<div style={{ minHeight: 300 }} aria-hidden />}><ClubWhy club={data} reasoning={explain.data?.reasoning} /></Suspense>
                       <ClubLadder club={data} />
