@@ -15,7 +15,7 @@ import PublicGoalKickersPanel from '../components/goal-kickers/PublicGoalKickers
 import { useSeo } from '../lib/seo'
 import { fetchClub, fetchClubExplain, useAsync, strengthLabel, strengthStars, type ClubProfile, type ClubExplanation } from '../lib/rankings'
 import { Skel, MUTE } from '../components/home/ui'
-import { ClubHero, ClubSnapshot, ClubLadder, ClubInfo, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
+import { ClubHero, ClubSnapshot, ClubLadder, RelatedClubs, ClubSidebar, ordinal } from '../components/club/sections'
 
 const ClubWhy = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubWhy })))
 const ClubJourney = lazy(() => import('../components/club/sections').then(m => ({ default: m.ClubJourney })))
@@ -174,7 +174,6 @@ function ClubInformationPanel({ club }: { club: ClubProfile }) {
     {details.length > 0 && <section className="club-info-panel"><span className="club-info-kicker">Club profile</span><h2 className="club-info-title">Information and contacts</h2><div className="club-contact-grid">
       {details.map(([label, value, href]) => <div key={label} className="club-contact-item"><span>{label}</span>{href ? <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel={href.startsWith('http') ? 'noreferrer' : undefined}>{value}</a> : <strong>{value}</strong>}</div>)}
     </div></section>}
-    <div className="club-feed-card"><ClubInfo club={club} /></div>
   </div>
 }
 
