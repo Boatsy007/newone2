@@ -8,6 +8,7 @@ const imageTypes=new Set(['image/png','image/jpeg','image/jpg','image/webp'])
 const maxBytes=8*1024*1024
 function clean(v:unknown,max=2000){return typeof v==='string'?v.trim().slice(0,max):''}
 function parseList(v:string|null|undefined){try{const p=v?JSON.parse(v):[];return Array.isArray(p)?p.filter(x=>typeof x==='string'):[]}catch{return[]}}
+function colour(v:unknown){const value=clean(v,7);return /^#[0-9a-f]{6}$/i.test(value)?value.toUpperCase():null}
 async function requireProfileRole(req:any,res:any,next:any){
  try{
   await ensureClubMembershipSchema()
@@ -43,7 +44,33 @@ router.get('/clubs/:clubId',async(req,res)=>{
   res.status(500).json({error:'Unable to load club profile',detail:error instanceof Error?error.message:String(error)})
  }
 })
-router.patch('/clubs/:clubId',async(req,res)=>{try{const body=(req.body??{}) as Record<string,unknown>;const updates:Record<string,unknown>={};for(const field of editable)if(field in body)updates[field]=body[field]===''?null:body[field];if(!Object.keys(updates).length)return res.status(400).json({error:'No editable profile fields supplied'});if(typeof updates.email==='string'&&!String(updates.email).includes('@'))return res.status(400).json({error:'Enter a valid contact email address'});const before=await prisma.clubProfile.upsert({where:{clubId:req.params.clubId},create:{clubId:req.params.clubId},update:{}});const profile=await prisma.clubProfile.update({where:{clubId:req.params.clubId},data:updates as never});const core:Record<string,unknown>={};if('history'in updates)core.description=updates.history;if('websiteUrl'in updates)core.websiteUrl=updates.websiteUrl;if('facebookUrl'in updates)core.facebookUrl=updates.facebookUrl;if('instagramUrl'in updates)core.instagramUrl=updates.instagramUrl;if('email'in updates)core.contactEmail=updates.email;if(Object.keys(core).length)await prisma.club.update({where:{id:req.params.clubId},data:core});const membership=res.locals.clubMembership;await auditMembership(membership.id,req.params.clubId,req.clubUser.id,'PROFILE_UPDATED',req.clubUser.id,{before:Object.fromEntries(editable.map(field=>[field,before[field]])),after:updates});res.json({data:{...profile,gallery:parseList(profile.gallery),uniformPhotos:parseList(profile.uniformPhotos)},message:'Club profile saved and public profile updated'})}catch(error){res.status(500).json({error:'Unable to save club profile',detail:error instanceof Error?error.message:String(error)})}})
+router.patch('/clubs/:clubId',async(req,res)=>{try{
+ const body=(req.body??{}) as Record<string,unknown>
+ const updates:Record<string,unknown>={}
+ for(const field of editable)if(field in body)updates[field]=body[field]===''?null:body[field]
+ const hasPrimary='primaryColour'in body,hasSecondary='secondaryColour'in body
+ const primary=hasPrimary?colour(body.primaryColour):undefined
+ const secondary=hasSecondary?colour(body.secondaryColour):undefined
+ if(hasPrimary&&body.primaryColour&&!primary)return res.status(400).json({error:'Primary colour must be selected with the colour picker'})
+ if(hasSecondary&&body.secondaryColour&&!secondary)return res.status(400).json({error:'Secondary colour must be selected with the colour picker'})
+ if(!Object.keys(updates).length&&!hasPrimary&&!hasSecondary)return res.status(400).json({error:'No editable profile fields supplied'})
+ if(typeof updates.email==='string'&&!String(updates.email).includes('@'))return res.status(400).json({error:'Enter a valid contact email address'})
+ const before=await prisma.clubProfile.upsert({where:{clubId:req.params.clubId},create:{clubId:req.params.clubId},update:{}})
+ const beforeClub=await prisma.club.findUnique({where:{id:req.params.clubId},select:{primaryColour:true,secondaryColour:true}})
+ const profile=Object.keys(updates).length?await prisma.clubProfile.update({where:{clubId:req.params.clubId},data:updates as never}):before
+ const core:Record<string,unknown>={}
+ if('history'in updates)core.description=updates.history
+ if('websiteUrl'in updates)core.websiteUrl=updates.websiteUrl
+ if('facebookUrl'in updates)core.facebookUrl=updates.facebookUrl
+ if('instagramUrl'in updates)core.instagramUrl=updates.instagramUrl
+ if('email'in updates)core.contactEmail=updates.email
+ if(hasPrimary)core.primaryColour=primary
+ if(hasSecondary)core.secondaryColour=secondary
+ if(Object.keys(core).length)await prisma.club.update({where:{id:req.params.clubId},data:core})
+ const membership=res.locals.clubMembership
+ await auditMembership(membership.id,req.params.clubId,req.clubUser.id,'PROFILE_UPDATED',req.clubUser.id,{before:{...Object.fromEntries(editable.map(field=>[field,before[field]])),primaryColour:beforeClub?.primaryColour,secondaryColour:beforeClub?.secondaryColour},after:{...updates,...(hasPrimary?{primaryColour:primary}:{}),...(hasSecondary?{secondaryColour:secondary}:{})}})
+ res.json({data:{...profile,primaryColour:hasPrimary?primary:beforeClub?.primaryColour??null,secondaryColour:hasSecondary?secondary:beforeClub?.secondaryColour??null,gallery:parseList(profile.gallery),uniformPhotos:parseList(profile.uniformPhotos)},message:'Club profile and colour scheme published'})
+}catch(error){res.status(500).json({error:'Unable to save club profile',detail:error instanceof Error?error.message:String(error)})}})
 router.post('/clubs/:clubId/photos',async(req,res)=>{try{const kind=String(req.body?.kind??'gallery')==='uniform'?'uniform':'gallery';const type=String(req.body?.contentType??'image/jpeg');if(!imageTypes.has(type))return res.status(400).json({error:'Use PNG, JPG or WEBP images'});const raw=String(req.body?.dataUrl??'');const base64=raw.includes(',')?raw.split(',').pop()!:raw;const buffer=Buffer.from(base64,'base64');if(!buffer.length||buffer.length>maxBytes)return res.status(400).json({error:'Image must be between 1 byte and 8 MB'});const url=process.env.SUPABASE_URL?.replace(/\/$/,'');const key=process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_KEY;const bucket=process.env.SUPABASE_NEWS_BUCKET||process.env.SUPABASE_LOGO_BUCKET||'playfooty-logos';if(!url||!key)return res.status(503).json({error:'Photo storage is not configured'});const ext=type.includes('png')?'png':type.includes('webp')?'webp':'jpg';const path=`club-photos/${req.params.clubId}/${kind}/${Date.now()}.${ext}`;const upload=await fetch(`${url}/storage/v1/object/${bucket}/${path}`,{method:'POST',headers:{authorization:`Bearer ${key}`,apikey:key,'content-type':type,'x-upsert':'true'},body:buffer});if(!upload.ok)return res.status(400).json({error:`Photo upload failed: HTTP ${upload.status}`});const publicUrl=`${url}/storage/v1/object/public/${bucket}/${path}`;const profile=await prisma.clubProfile.upsert({where:{clubId:req.params.clubId},create:{clubId:req.params.clubId},update:{}});const field=kind==='uniform'?'uniformPhotos':'gallery';const list=[...parseList(profile[field]),publicUrl].slice(-30);await prisma.clubProfile.update({where:{clubId:req.params.clubId},data:{[field]:JSON.stringify(list)}});const membership=res.locals.clubMembership;await auditMembership(membership.id,req.params.clubId,req.clubUser.id,'PROFILE_PHOTO_ADDED',req.clubUser.id,{kind,url:publicUrl});res.status(201).json({data:{url:publicUrl,kind,photos:list}})}catch(error){res.status(500).json({error:'Unable to upload club photo',detail:String(error)})}})
 router.delete('/clubs/:clubId/photos',async(req,res)=>{try{const url=clean(req.body?.url,2000),kind=String(req.body?.kind??'gallery')==='uniform'?'uniform':'gallery';if(!url)return res.status(400).json({error:'Photo URL is required'});const profile=await prisma.clubProfile.upsert({where:{clubId:req.params.clubId},create:{clubId:req.params.clubId},update:{}});const field=kind==='uniform'?'uniformPhotos':'gallery';const list=parseList(profile[field]).filter(item=>item!==url);await prisma.clubProfile.update({where:{clubId:req.params.clubId},data:{[field]:JSON.stringify(list)}});const membership=res.locals.clubMembership;await auditMembership(membership.id,req.params.clubId,req.clubUser.id,'PROFILE_PHOTO_REMOVED',req.clubUser.id,{kind,url});res.json({data:{photos:list}})}catch(error){res.status(500).json({error:'Unable to remove club photo',detail:error instanceof Error?error.message:String(error)})}})
 export {router as clubProfileManagementRouter}
