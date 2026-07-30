@@ -1,0 +1,19 @@
+.club-tab-overview .club-overview-stack > .club-feed-card {
+  order: 1;
+}
+
+.club-tab-overview .club-overview-stack > .club-info-stack {
+  display: contents;
+}
+
+.club-tab-overview .club-overview-stack > .club-info-stack > .club-info-panel:first-child {
+  order: 2;
+}
+
+.club-tab-overview .club-overview-stack > .club-live-overview-only {
+  order: 3;
+}
+
+.club-tab-overview .club-overview-stack > .club-info-stack > .club-info-panel:last-child {
+  order: 4;
+}
