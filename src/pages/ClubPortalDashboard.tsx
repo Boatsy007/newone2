@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowRight, Bell, Building2, FileText, Image, Newspaper, ShieldCheck, Trophy, Users } from 'lucide-react'
+import { ArrowRight, Bell, Building2, ClipboardList, FileText, Image, Newspaper, ShieldCheck, Trophy, Users } from 'lucide-react'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
 import { TeamLogo } from '../components/rankings/bits'
@@ -28,6 +28,7 @@ export default function ClubPortalDashboard(){
   useEffect(()=>{const current=session();if(!current){setError('Sign in through the Club Portal to continue.');setLoading(false);return}let live=true;void fetch(`/api/club-portal/clubs/${encodeURIComponent(clubId)}/dashboard`,{headers:{authorization:`Bearer ${current.access_token}`}}).then(async response=>{const payload=await response.json() as {data?:Dashboard;error?:string};if(!response.ok)throw new Error(payload.error||'Unable to load club dashboard');if(live)setData(payload.data??null)}).catch(reason=>{if(live)setError(reason instanceof Error?reason.message:'Unable to load club dashboard')}).finally(()=>{if(live)setLoading(false)});return()=>{live=false}},[clubId])
   const accent=data?.club.primaryColour||'#2daaf5'
   const actions=useMemo(()=>data?[
+    {label:'Coaching',detail:data.teamSelection?`${data.teamSelection.roundLabel}${data.teamSelection.opponentName?` · v ${data.teamSelection.opponentName}`:''}`:'Next opponent, availability and players to watch',icon:ClipboardList,allowed:data.membership.permissions.view,to:`/club-portal/${data.club.id}/coaching`},
     {label:'Team selection',detail:data.teamSelection?`${data.teamSelection.roundLabel} · ${data.teamSelection.playerCount} selected`:'No team selected yet',icon:Trophy,allowed:data.membership.permissions.teamSelection,to:`/club-portal/${data.club.id}/team-selection`},
     {label:'Club news',detail:`${data.news.published} published · ${data.news.drafts+data.news.pending} in progress`,icon:Newspaper,allowed:data.membership.permissions.media,to:`/club-portal/${data.club.id}/news`},
     {label:'Photos and media',detail:`${data.profile.photoCount} club photos connected`,icon:Image,allowed:data.membership.permissions.profile,to:`/club-portal/${data.club.id}/profile`},
