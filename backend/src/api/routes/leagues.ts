@@ -50,7 +50,7 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
         id: true, name: true, shortName: true, description: true, logoUrl: true,
         websiteUrl: true, facebookUrl: true, regionName: true, featuredLeague: true,
         strengthScore: true, strengthTier: true, strengthConfidence: true,
-        strengthReasoning: true, strengthCalculatedAt: true, currentSeason: true,
+        strengthReasoning: true, strengthCalculatedAt: true, currentSeason: true, gradeOverride: true,
         lastSyncedAt: true, lastSuccessfulSyncAt: true, primarySource: true,
         primaryDataSource: true, state: { select: { code: true, name: true } },
         association: { select: { id: true, name: true, shortName: true, logoUrl: true } },
@@ -61,19 +61,19 @@ router.get('/:id', publicRateLimit, cachePublic(60), async (req, res) => {
 
     const latestMembership = await prisma.clubLeagueSeason.findFirst({
       where: { leagueId: league.id, isActive: true },
-      orderBy: [{ season: 'desc' }, { updatedAt: 'desc' }],
+      orderBy: [{ updatedAt: 'desc' }, { season: 'desc' }],
       select: { season: true, grade: true },
     })
     const season = league.currentSeason ?? latestMembership?.season ?? String(new Date().getFullYear())
-    const grade = latestMembership?.grade ?? 'Senior Football'
+    const grade = league.gradeOverride ?? latestMembership?.grade ?? 'Senior Football'
 
     const [footballLadder, legacyLadder, latestRun, fixtures, results, goalKickers] = await Promise.all([
       prisma.footballLadderEntry.findMany({
-        where: { leagueId: league.id, season, published: true }, orderBy: { position: 'asc' },
+        where: { leagueId: league.id, season, grade, published: true }, orderBy: { position: 'asc' },
         select: { clubId: true, clubName: true, position: true, played: true, wins: true, losses: true, draws: true, pointsFor: true, pointsAgainst: true, percentage: true, premiershipPoints: true },
       }),
       prisma.clubLeagueSeason.findMany({
-        where: { leagueId: league.id, isActive: true, season },
+        where: { leagueId: league.id, isActive: true, season, grade },
         orderBy: [{ position: 'asc' }, { points: 'desc' }, { club: { name: 'asc' } }],
         select: { clubId: true, played: true, wins: true, losses: true, draws: true, goalsFor: true, goalsAgainst: true, percentage: true, points: true, position: true, club: { select: { name: true, logoUrl: true } } },
       }),
