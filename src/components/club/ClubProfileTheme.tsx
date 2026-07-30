@@ -57,6 +57,8 @@ export default function ClubProfileTheme() {
     style.dataset.clubProfileTheme = 'true'
     style.textContent = `
       .club-profile-page{--club-primary:#2DAAF5;--club-secondary:#D61B8C}
+
+      /* Existing safe profile accents */
       .club-profile-page .club-profile-tabs button.active:after{background:var(--club-primary)!important}
       .club-profile-page .club-info-kicker,
       .club-profile-page .club-sponsors-head>span,
@@ -67,9 +69,46 @@ export default function ClubProfileTheme() {
       .club-profile-page .club-contact-item a:hover{color:var(--club-primary)!important}
       .club-profile-page a.club-sponsor-card:hover{border-color:var(--club-primary)!important}
       .club-profile-page .club-sponsor-arrow:hover{background:var(--club-primary)!important}
+      .club-profile-page .club-section-bg a:not(.club-sponsor-card):hover{color:var(--club-primary)}
+
+      /* Live hub: headings, links and values only */
+      .club-profile-page .club-live-summary header span,
+      .club-profile-page .club-live-card header span,
+      .club-profile-page .club-live-summary header a,
+      .club-profile-page .club-live-card header a,
+      .club-profile-page .club-activity-list small,
+      .club-profile-page .club-highlight-grid>a>span{color:var(--club-primary)!important}
+      .club-profile-page .club-live-metrics strong,
+      .club-profile-page .club-match-list>a>b,
+      .club-profile-page .club-record-list strong{color:var(--club-secondary)!important}
+      .club-profile-page .club-highlight-grid>a>div{color:var(--club-primary)!important}
+
+      /* Goal kickers */
+      .club-profile-page .public-gk-panel>header span,
+      .club-profile-page .public-gk-panel>header>a,
+      .club-profile-page .public-gk-rank,
+      .club-profile-page .public-gk-numbers em,
+      .club-profile-page .public-gk-links a{color:var(--club-primary)!important}
+      .club-profile-page .public-gk-numbers b{color:var(--club-secondary)!important}
+      .club-profile-page .public-gk-links a{background:color-mix(in srgb,var(--club-primary) 10%,white)!important}
+
+      /* Club MVP */
+      .club-profile-page .scope-mvp header small,
+      .club-profile-page .scope-mvp header>a,
+      .club-profile-page .scope-mvp-leader span{color:var(--club-primary)!important}
+      .club-profile-page .scope-mvp-leader>b,
+      .club-profile-page .scope-mvp-list>article>em>b{color:var(--club-secondary)!important}
       .club-profile-page #pf-club-mvp-slot a,
       .club-profile-page #pf-club-mvp-slot button{border-color:var(--club-primary)!important}
-      .club-profile-page .club-section-bg a:not(.club-sponsor-card):hover{color:var(--club-primary)}
+
+      /* Explicit profile promotion/action cards only */
+      .club-profile-page .club-profile-sidebar a,
+      .club-profile-page .club-profile-sidebar button{--profile-action-colour:var(--club-primary)}
+      .club-profile-page .club-profile-sidebar a[style*="background"],
+      .club-profile-page .club-profile-sidebar button[style*="background"]{background:var(--club-primary)!important;border-color:var(--club-primary)!important}
+      .club-profile-page .club-profile-sidebar a[style*="background"] *,
+      .club-profile-page .club-profile-sidebar button[style*="background"] *{color:#fff!important}
+
       .club-profile-page [data-club-secondary-accent]{color:var(--club-secondary)!important}
     `
     document.head.appendChild(style)
