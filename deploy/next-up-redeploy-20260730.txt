@@ -1,0 +1,3 @@
+Deployment trigger for the club profile Next Up card.
+Commit: 26e82794ad3569480c7f37d216580f5d8fc156c2
+Created: 2026-07-30T12:02:00+10:00
