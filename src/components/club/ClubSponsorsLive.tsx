@@ -52,8 +52,7 @@ export default function ClubSponsorsLive({ club }: { club: ClubProfile }) {
   }, [rows])
 
   const explicitMajor = sponsors.filter(row => String(row.tier ?? '').toUpperCase() === 'MAJOR')
-  const hasTierData = sponsors.some(row => Boolean(String(row.tier ?? '').trim()))
-  const majorSponsors = explicitMajor.length > 0 ? explicitMajor : (!hasTierData ? sponsors.slice(0, Math.min(2, sponsors.length)) : [])
+  const majorSponsors = explicitMajor.length > 0 ? explicitMajor : sponsors.slice(0, Math.min(2, sponsors.length))
   const majorIds = new Set(majorSponsors.map(row => row.id))
   const otherSponsors = sponsors.filter(row => !majorIds.has(row.id))
 
