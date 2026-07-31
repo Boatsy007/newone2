@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { CalendarCheck, Clock3, LayoutDashboard, ShieldCheck, Trophy, Users, Workflow } from 'lucide-react'
 import TeamSelectionAvailabilityWarnings from './TeamSelectionAvailabilityWarnings'
 import ClubPortalMatchDay from '../../pages/ClubPortalMatchDay'
@@ -45,7 +45,13 @@ export default function CoachingPortalTabs() {
   }, [pathname, visible, matchDay])
 
   const globalLayers = <><TeamSelectionAvailabilityWarnings/><MatchDayLiveSync/><PublicLiveMatchPortal/></>
-  if (matchDay) return <>{globalLayers}{createPortal(<div className="coach-match-day-layer"><ClubPortalMatchDay/></div>, document.body)}<style>{matchDayStyles}</style></>
+
+  if (matchDay) return <>{globalLayers}{createPortal(<div className="coach-match-day-layer">
+    <Routes>
+      <Route path="/club-portal/:clubId/coaching" element={<ClubPortalMatchDay/>}/>
+    </Routes>
+  </div>, document.body)}<style>{matchDayStyles}</style></>
+
   if (!visible || !host) return globalLayers
 
   const links = [
