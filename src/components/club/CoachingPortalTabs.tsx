@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
-import { CalendarCheck, Clock3, Dumbbell, LayoutDashboard, ShieldCheck, Target, Trophy, Users, Workflow } from 'lucide-react'
+import { CalendarCheck, Clock3, Dumbbell, LayoutDashboard, ShieldCheck, Target, Trophy, UserRound, Users, Workflow } from 'lucide-react'
 import TeamSelectionAvailabilityWarnings from './TeamSelectionAvailabilityWarnings'
 import ClubPortalMatchDay from '../../pages/ClubPortalMatchDay'
 import ClubPortalTraining from '../../pages/ClubPortalTraining'
 import ClubPortalOpposition from '../../pages/ClubPortalOpposition'
+import ClubPortalPlayerDevelopment from '../../pages/ClubPortalPlayerDevelopment'
 import TrainingRecordsPanel from './TrainingRecordsPanel'
 import PostMatchReviewPanel from './PostMatchReviewPanel'
 import MatchDayGamePlanPanel from './MatchDayGamePlanPanel'
@@ -24,7 +25,8 @@ export default function CoachingPortalTabs() {
   const matchDay = view === 'match-day'
   const training = view === 'training'
   const opposition = view === 'opposition'
-  const overlay = matchDay || training || opposition
+  const playerDevelopment = view === 'player-development'
+  const overlay = matchDay || training || opposition || playerDevelopment
   const visible = Boolean(clubId && COACHING_SECTIONS.has(section))
 
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function CoachingPortalTabs() {
 
   if (overlay) return <>{globalLayers}{createPortal(<div className="coach-workspace-layer">
     <Routes>
-      <Route path="/club-portal/:clubId/coaching" element={matchDay ? <><ClubPortalMatchDay/><PostMatchReviewPanel clubId={clubId}/><MatchDayGamePlanPanel clubId={clubId}/></> : opposition ? <ClubPortalOpposition/> : <><ClubPortalTraining/><TrainingRecordsPanel clubId={clubId}/></>}/>
+      <Route path="/club-portal/:clubId/coaching" element={matchDay ? <><ClubPortalMatchDay/><PostMatchReviewPanel clubId={clubId}/><MatchDayGamePlanPanel clubId={clubId}/></> : opposition ? <ClubPortalOpposition/> : playerDevelopment ? <ClubPortalPlayerDevelopment/> : <><ClubPortalTraining/><TrainingRecordsPanel clubId={clubId}/></>}/>
     </Routes>
   </div>, document.body)}<style>{workspaceStyles}</style></>
 
@@ -68,6 +70,7 @@ export default function CoachingPortalTabs() {
     { label: 'Availability', section: 'availability', href: `/club-portal/${clubId}/availability`, icon: CalendarCheck },
     { label: 'Team selection', section: 'team-selection', href: `/club-portal/${clubId}/team-selection`, icon: Trophy },
     { label: 'Opposition', section: 'opposition', href: `/club-portal/${clubId}/coaching?view=opposition`, icon: Target },
+    { label: 'Players', section: 'player-development', href: `/club-portal/${clubId}/coaching?view=player-development`, icon: UserRound },
     { label: 'Training', section: 'training', href: `/club-portal/${clubId}/coaching?view=training`, icon: Dumbbell },
     { label: 'Match Day', section: 'match-day', href: `/club-portal/${clubId}/coaching?view=match-day`, icon: Clock3 },
     { label: 'Whiteboard', section: 'whiteboard', href: `/club-portal/${clubId}/whiteboard`, icon: Workflow },
