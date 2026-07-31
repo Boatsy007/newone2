@@ -73,7 +73,16 @@ export default function TeamProfile() {
             <nav className="club-profile-tabs" aria-label="Club profile sections">
               <div role="tablist" aria-label={`${data.clubName} profile sections`}>
                 {CLUB_TABS.map(tab => (
-                  <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    className={activeTab === tab.id ? 'active' : ''}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
                 ))}
               </div>
             </nav>
@@ -81,18 +90,41 @@ export default function TeamProfile() {
             <div className="club-section-bg">
               <div className="club-profile-area" role="tabpanel">
                 <div className="club-profile-main">
-                  <div id="playfooty-live-match-overview-slot" style={{ display: activeTab === 'overview' ? 'block' : 'none' }} />
-                  <div className={`club-shared-live club-live-mode-${activeTab}`} style={{ display: showSharedLive ? 'grid' : 'none' }} aria-hidden={!showSharedLive}>
-                    <div style={{ display: activeTab === 'overview' ? 'block' : 'none' }}><div className="club-feed-card"><ClubSponsorsLive club={data} /></div></div>
-                    <div style={{ display: activeTab === 'overview' ? 'block' : 'none' }}><ClubAboutPanel club={data} /></div>
-                    <div style={{ display: activeTab === 'highlights' ? 'block' : 'none' }}><div className="club-feed-card"><PublicClubGallery club={data} /></div></div>
+                  <div
+                    className={`club-shared-live club-live-mode-${activeTab}`}
+                    style={{ display: showSharedLive ? 'grid' : 'none' }}
+                    aria-hidden={!showSharedLive}
+                  >
+                    <div style={{ display: activeTab === 'overview' ? 'block' : 'none' }}>
+                      <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>
+                    </div>
+                    <div style={{ display: activeTab === 'overview' ? 'block' : 'none' }}>
+                      <ClubAboutPanel club={data} />
+                    </div>
+                    <div style={{ display: activeTab === 'highlights' ? 'block' : 'none' }}>
+                      <div className="club-feed-card"><PublicClubGallery club={data} /></div>
+                    </div>
                     <div className="club-live-shared-instance"><ClubLiveHub club={data} /></div>
-                    <div style={{ display: activeTab === 'overview' ? 'block' : 'none' }}><ClubContactsPanel club={data} /></div>
+                    <div style={{ display: activeTab === 'overview' ? 'block' : 'none' }}>
+                      <ClubContactsPanel club={data} />
+                    </div>
                   </div>
 
-                  <div className="club-team-selection-stack" style={{ display: activeTab === 'team-selection' ? 'grid' : 'none' }} aria-hidden={activeTab !== 'team-selection'}>{teamSelectionOpened && <ClubTeamSheet clubId={clubId} />}</div>
+                  <div className="club-team-selection-stack" style={{ display: activeTab === 'team-selection' ? 'grid' : 'none' }} aria-hidden={activeTab !== 'team-selection'}>
+                    {teamSelectionOpened && <ClubTeamSheet clubId={clubId} />}
+                  </div>
+
                   {activeTab === 'news' && <div className="club-feed-card"><Suspense fallback={<div style={{ minHeight: 360 }} aria-hidden />}><ClubNews club={data} /></Suspense></div>}
-                  {activeTab === 'stats' && <div className="club-stats-stack"><PublicGoalKickersPanel clubId={clubId} eyebrow={`${data.season?.match(/\d{4}/)?.[0] ?? new Date().getFullYear()} club leaders`} title="Leading goal kickers" /><Suspense fallback={<div style={{ minHeight: 320 }} aria-hidden />}><ClubJourney club={data} /></Suspense><Suspense fallback={<div style={{ minHeight: 300 }} aria-hidden />}><ClubWhy club={data} reasoning={explain.data?.reasoning} /></Suspense><ClubUploadedLadder club={data} /></div>}
+
+                  {activeTab === 'stats' && (
+                    <div className="club-stats-stack">
+                      <PublicGoalKickersPanel clubId={clubId} eyebrow={`${data.season?.match(/\d{4}/)?.[0] ?? new Date().getFullYear()} club leaders`} title="Leading goal kickers" />
+                      <Suspense fallback={<div style={{ minHeight: 320 }} aria-hidden />}><ClubJourney club={data} /></Suspense>
+                      <Suspense fallback={<div style={{ minHeight: 300 }} aria-hidden />}><ClubWhy club={data} reasoning={explain.data?.reasoning} /></Suspense>
+                      <ClubUploadedLadder club={data} />
+                    </div>
+                  )}
+
                   {activeTab === 'sponsors' && <div className="club-feed-card"><ClubSponsorsLive club={data} /></div>}
                   {activeTab === 'related' && <div className="club-feed-card"><RelatedClubsWithLogos club={data} /></div>}
                 </div>
@@ -107,12 +139,14 @@ export default function TeamProfile() {
               .club-profile-tabs button:after{content:'';position:absolute;left:14px;right:14px;bottom:0;height:4px;border-radius:4px 4px 0 0;background:transparent}.club-profile-tabs button.active{color:#050505}.club-profile-tabs button.active:after{background:#42b8ff}
               .club-tab-news .club-feed-card h2 span,.club-tab-news .club-feed-card .gn-card>.font-condensed{color:var(--club-primary,#b49a60)!important}
               .club-section-bg{background:#f3f5f7;min-height:420px}.club-profile-area{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;padding:28px 20px 48px}
-              #playfooty-live-match-overview-slot:not(:empty){margin-bottom:18px}.club-shared-live,.club-team-selection-stack{gap:18px}.club-live-shared-instance{min-width:0}
+              .club-shared-live,.club-team-selection-stack{gap:18px}.club-live-shared-instance{min-width:0}
               .club-tab-overview #pf-club-mvp-slot,.club-tab-match-centre #pf-club-mvp-slot,.club-tab-news #pf-club-mvp-slot,.club-tab-highlights #pf-club-mvp-slot,.club-tab-sponsors #pf-club-mvp-slot,.club-tab-related #pf-club-mvp-slot,.club-tab-team-selection #pf-club-mvp-slot{display:none!important}
+
               .club-live-mode-overview .club-live-hub>.club-feature-match,.club-live-mode-overview .club-live-hub>.club-last-match,.club-live-mode-overview .club-live-hub>.public-gk-panel,.club-live-mode-overview .club-live-hub>.club-live-card:last-of-type{display:none!important}
               .club-live-mode-overview .club-live-columns{grid-template-columns:1fr!important}.club-live-mode-overview .club-live-columns>section:nth-child(2){display:none!important}
               .club-live-mode-match-centre .club-live-summary,.club-live-mode-match-centre .public-gk-panel,.club-live-mode-match-centre .club-live-columns,.club-live-mode-match-centre .club-live-hub>.club-live-card:last-of-type{display:none!important}
               .club-live-mode-highlights .club-live-summary,.club-live-mode-highlights .club-feature-match,.club-live-mode-highlights .club-last-match,.club-live-mode-highlights .public-gk-panel,.club-live-mode-highlights .club-live-columns{display:none!important}
+
               .club-profile-main>section,.club-feed-card>section,.club-stats-stack>section{padding-left:0!important;padding-right:0!important}.club-profile-main>section>div,.club-feed-card>section>div,.club-stats-stack>section>div{max-width:none!important}
               .club-feed-card,.club-info-panel{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}.club-stats-stack,.club-info-stack{display:grid;gap:18px}.club-stats-stack>section{overflow:hidden;border:1px solid #e0e5ea;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(17,24,39,.055)}
               .club-info-panel{padding:24px}.club-info-kicker{display:block;color:#42b8ff;font-size:11px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.club-info-title{margin:6px 0 12px;font-family:'Bebas Neue',Impact,'Arial Narrow Bold',sans-serif;font-size:36px;line-height:1;text-transform:uppercase;color:#111318}.club-info-bio{margin:0;color:#46515f;font-size:15px;line-height:1.65;white-space:pre-wrap}
@@ -127,10 +161,53 @@ export default function TeamProfile() {
   )
 }
 
-function readClubValue(club: ClubProfile, ...keys: string[]) { const extra = club as ClubProfile & Record<string, unknown>; return keys.map(key => extra[key]).find(value => typeof value === 'string' && value.trim()) as string | undefined }
-function ClubAboutPanel({ club }: { club: ClubProfile }) { const location = club.stateName ?? club.state; const bio = readClubValue(club, 'bio', 'description', 'about', 'clubBio', 'history') ?? `${club.clubName} is a community football club${club.town ? ` based in ${club.town}` : ''}${club.leagueName ? ` competing in ${club.leagueName}` : ''}${location ? ` in ${location}` : ''}. This profile brings together the club's latest news, information and current football performance.`; return <section className="club-info-panel"><span className="club-info-kicker">About the club</span><h2 className="club-info-title">{club.clubName}</h2><p className="club-info-bio">{bio}</p></section> }
-function ClubContactsPanel({ club }: { club: ClubProfile }) { const read = (...keys: string[]) => readClubValue(club, ...keys); const details = [['Founded', read('foundedYear')], ['Club colours', read('clubColours')], ['Home ground', read('groundName', 'homeGround', 'venueName', 'ground')], ['Address', read('address', 'groundAddress', 'venueAddress')], ['Training nights', read('trainingNights')], ['Home facilities', read('homeCourt')], ['President', read('president', 'presidentName', 'clubPresident')], ['Secretary', read('secretary', 'secretaryName', 'clubSecretary')], ['Senior coach', read('coach')], ['Assistant coach', read('assistantCoach')], ['Committee', read('committee')], ['Email', club.email, club.email ? `mailto:${club.email}` : undefined], ['Phone', club.phone, club.phone ? `tel:${club.phone}` : undefined], ['Website', club.websiteUrl, club.websiteUrl || undefined]].filter((item): item is [string,string,string?] => Boolean(item[1])); if (!details.length) return null; return <section className="club-info-panel"><span className="club-info-kicker">Club details</span><h2 className="club-info-title">Contact and information</h2><div className="club-contact-grid">{details.map(([label,value,href]) => <div className="club-contact-item" key={label}><span>{label}</span>{href ? <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel={href.startsWith('http') ? 'noreferrer' : undefined}>{value}</a> : <strong>{value}</strong>}</div>)}</div></section> }
-function HeroSkeleton() { return <div style={{ minHeight: 520, background: '#0c0e13', padding: '80px 20px' }}><div style={{ maxWidth: 1120, margin: '0 auto' }}><Skel h={18} w="35%" /><div style={{ height: 40 }} /><Skel h={80} w="70%" /></div></div> }
-function seoTitle(c: ClubProfile) { return `${c.clubName} — Ranking, Results & Form | PlayFooty` }
-function seoDesc(c: ClubProfile) { const record = c.record.played ? ` ${c.record.wins}-${c.record.losses}${c.record.draws ? `-${c.record.draws}` : ''} record.` : ''; return `${c.clubName}${c.leagueName ? ` in ${c.leagueName}` : ''}.${record}${c.rank ? ` Ranked #${c.rank} nationally.` : ''}` }
-function buildJsonLd(c: ClubProfile, clubId: string) { return { '@context': 'https://schema.org', '@type': 'SportsTeam', name: c.clubName, sport: 'Australian rules football', url: `https://playfooty.com.au/team/${clubId}`, logo: c.logoUrl || undefined, memberOf: c.leagueName ? { '@type': 'SportsOrganization', name: c.leagueName } : undefined, location: c.town ? { '@type': 'Place', name: [c.town, c.stateName ?? c.state].filter(Boolean).join(', ') } : undefined } }
+function readClubValue(club: ClubProfile, ...keys: string[]) {
+  const extra = club as ClubProfile & Record<string, unknown>
+  return keys.map(key => extra[key]).find(value => typeof value === 'string' && value.trim()) as string | undefined
+}
+
+function ClubAboutPanel({ club }: { club: ClubProfile }) {
+  const location = club.stateName ?? club.state
+  const bio = readClubValue(club, 'bio', 'description', 'about', 'clubBio', 'history') ?? `${club.clubName} is a community football club${club.town ? ` based in ${club.town}` : ''}${club.leagueName ? ` competing in ${club.leagueName}` : ''}${location ? ` in ${location}` : ''}. This profile brings together the club's latest news, information and current football performance.`
+  return <section className="club-info-panel"><span className="club-info-kicker">About the club</span><h2 className="club-info-title">{club.clubName}</h2><p className="club-info-bio">{bio}</p></section>
+}
+
+function ClubContactsPanel({ club }: { club: ClubProfile }) {
+  const read = (...keys: string[]) => readClubValue(club, ...keys)
+  const details = [
+    ['Founded', read('foundedYear')], ['Club colours', read('clubColours')], ['Home ground', read('groundName', 'homeGround', 'venueName', 'ground')], ['Address', read('address', 'groundAddress', 'venueAddress')],
+    ['Training nights', read('trainingNights')], ['Home facilities', read('homeCourt')], ['President', read('president', 'presidentName', 'clubPresident')], ['Secretary', read('secretary', 'secretaryName', 'clubSecretary')],
+    ['Senior coach', read('coach')], ['Assistant coach', read('assistantCoach')], ['Committee', read('committee')], ['Email', club.email, club.email ? `mailto:${club.email}` : undefined], ['Phone', club.phone, club.phone ? `tel:${club.phone}` : undefined],
+    ['Website', club.websiteUrl ? 'Club website' : undefined, club.websiteUrl ?? undefined], ['Facebook', club.facebookUrl ? 'Club Facebook' : undefined, club.facebookUrl ?? undefined],
+    ['Instagram', club.instagramUrl ? 'Club Instagram' : undefined, club.instagramUrl ?? undefined], ['TikTok', read('tiktokUrl') ? 'Club TikTok' : undefined, read('tiktokUrl')], ['YouTube', read('youtubeUrl') ? 'Club YouTube' : undefined, read('youtubeUrl')],
+    ['Membership', read('membershipLink') ? 'Join the club' : undefined, read('membershipLink')], ['Volunteer', read('volunteerLink') ? 'Volunteer with the club' : undefined, read('volunteerLink')],
+  ].filter((row): row is [string, string, string?] => Boolean(row[1]))
+
+  if (!details.length) return null
+  return <section className="club-info-panel"><span className="club-info-kicker">Club profile</span><h2 className="club-info-title">Information and contacts</h2><div className="club-contact-grid">
+    {details.map(([label, value, href]) => <div key={label} className="club-contact-item"><span>{label}</span>{href ? <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel={href.startsWith('http') ? 'noreferrer' : undefined}>{value}</a> : <strong>{value}</strong>}</div>)}
+  </div></section>
+}
+
+function seoTitle(d: ClubProfile): string {
+  const yr = d.season?.match(/\d{4}/)?.[0] ?? String(new Date().getFullYear())
+  if (d.rank != null) return `${d.clubName} Football: #${d.rank} in Australia, Ladder & Form ${yr} | PlayFooty`
+  return `${d.clubName} Football: Profile, Ladder & Results ${yr} | PlayFooty`
+}
+function seoDesc(d: ClubProfile): string {
+  const where = [d.town, d.leagueName?.replace(/\s*-\s*a grade.*/i, ''), d.stateName ?? d.state].filter(Boolean).join(', ')
+  const bits = [`${d.clubName} community football on PlayFooty${where ? ` (${where})` : ''}.`]
+  if (d.rank != null) bits.push(`Ranked #${d.rank} nationally with a power rating of ${d.powerRating?.toFixed(1) ?? '0.0'}.`)
+  if (d.record.played > 0) bits.push(`${d.clubName} have a ${d.record.wins}-${d.record.losses}${d.record.draws ? `-${d.record.draws}` : ''} record${d.ladderPosition != null ? `, sitting ${ordinal(d.ladderPosition)} on the ladder` : ''}${d.percentage > 0 ? ` with a percentage of ${d.percentage.toFixed(0)}%` : ''}.`)
+  bits.push('Live ladder, fixtures, results, goal kickers, form and national ranking, updated every week.')
+  return bits.join(' ')
+}
+function HeroSkeleton() { return <div style={{ background: '#0c0e13', padding: '48px 20px 44px' }}><div style={{ maxWidth: 1120, margin: '0 auto' }}><Skel w={220} h={12} style={{ marginBottom: 28, background: 'rgba(255,255,255,0.08)' }} /><div style={{ display: 'flex', gap: 22, alignItems: 'center' }}><Skel w={92} h={92} r={20} style={{ background: 'rgba(255,255,255,0.1)' }} /><div style={{ flex: 1 }}><Skel w="55%" h={56} style={{ marginBottom: 12, background: 'rgba(255,255,255,0.1)' }} /><Skel w={260} h={14} style={{ background: 'rgba(255,255,255,0.08)' }} /></div></div><span className="font-condensed" style={{ display: 'block', marginTop: 22, color: MUTE, fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase' }}>Loading club</span></div></div> }
+function buildJsonLd(d: ClubProfile, clubId: string) {
+  const base = 'https://playfooty.com.au', url = `${base}/team/${clubId}`
+  const faqs: { q: string; a: string }[] = []
+  if (d.rank != null) faqs.push({ q: `What is ${d.clubName}'s national football ranking?`, a: `${d.clubName} is ranked #${d.rank} nationally on PlayFooty with a power rating of ${d.powerRating?.toFixed(1) ?? '0.0'}.` })
+  if (d.record.played > 0) faqs.push({ q: `How is ${d.clubName} going this season?`, a: `${d.clubName} have a ${d.record.wins}-${d.record.losses}${d.record.draws ? `-${d.record.draws}` : ''} record${d.ladderPosition != null ? `, sitting ${ordinal(d.ladderPosition)} on the ladder` : ''}.` })
+  if (d.leagueName && d.leagueStrengthScore != null) faqs.push({ q: `What league does ${d.clubName} play in?`, a: `${d.clubName} plays Senior football in the ${d.leagueName.replace(/\s*-\s*a grade.*/i, '')}, a ${strengthLabel(strengthStars(d.leagueStrengthScore)).toLowerCase()} ${strengthStars(d.leagueStrengthScore)}-star community football competition.` })
+  return [{ '@context': 'https://schema.org', '@type': 'SportsTeam', '@id': `${url}#club`, name: d.clubName, sport: 'Football', url, ...(d.logoUrl ? { logo: d.logoUrl } : {}), ...(d.leagueName ? { memberOf: { '@type': 'SportsOrganization', name: d.leagueName.replace(/\s*-\s*a grade.*/i, '') } } : {}), ...(d.town || d.stateName ? { location: { '@type': 'Place', name: [d.town, d.stateName ?? d.state].filter(Boolean).join(', ') } } : {}), ...(d.websiteUrl ? { sameAs: [d.websiteUrl, d.facebookUrl, d.instagramUrl].filter(Boolean) } : {}) }, { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: base }, ...(d.leagueId && d.leagueName ? [{ '@type': 'ListItem', position: 2, name: d.leagueName, item: `${base}/league/${d.leagueId}` }] : [{ '@type': 'ListItem', position: 2, name: 'Clubs', item: `${base}/directory` }]), { '@type': 'ListItem', position: 3, name: d.clubName, item: url }] }, ...(faqs.length ? [{ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqs.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) }] : [])]
+}
