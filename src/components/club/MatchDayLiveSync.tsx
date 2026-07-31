@@ -11,10 +11,10 @@ function session():Session|null{try{const raw=localStorage.getItem(SESSION_KEY);
 function storageKey(clubId:string,sheetId:string){return `playfooty.matchday.v1.${clubId}.${sheetId}`}
 
 export default function MatchDayLiveSync(){
- const{pathname}=useLocation();const lastPayload=useRef('')
+ const{pathname,search}=useLocation();const lastPayload=useRef('')
  useEffect(()=>{
-  const match=pathname.match(/^\/club-portal\/([^/]+)\/match-day$/)
-  if(!match)return
+  const match=pathname.match(/^\/club-portal\/([^/]+)\/coaching$/)
+  if(!match||new URLSearchParams(search).get('view')!=='match-day')return
   const clubId=match[1],current=session();if(!current)return
   let active=true,sheets:Sheet[]=[]
   void fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`,{headers:{authorization:`Bearer ${current.access_token}`}}).then(async response=>{const payload=await response.json();if(response.ok&&active)sheets=Array.isArray(payload.data)?payload.data:[]}).catch(()=>{})
@@ -36,6 +36,6 @@ export default function MatchDayLiveSync(){
   const timer=window.setInterval(()=>void publish(),1500)
   void publish()
   return()=>{active=false;window.clearInterval(timer)}
- },[pathname])
+ },[pathname,search])
  return null
 }
