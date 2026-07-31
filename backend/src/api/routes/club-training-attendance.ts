@@ -40,7 +40,7 @@ router.get('/clubs/:clubId', async (req, res) => {
     await ensureTables()
     const [players, sessions, attendance] = await Promise.all([
       prisma.$queryRawUnsafe<Array<{id:string;playerName:string;jumperNumber:number|null;active:boolean}>>(`SELECT id::text AS id,player_name AS "playerName",jumper_number AS "jumperNumber",active FROM football_club_players WHERE club_id=$1 AND active=true ORDER BY player_name`, req.params.clubId),
-      prisma.$queryRawUnsafe<Array<{id:string;title:string;sessionDate:string;startTime:string|null;notes:string|null;createdAt:string}>>(`SELECT id::text AS id,title,session_date AS "sessionDate",start_time AS "startTime",notes,created_at AS "createdAt" FROM football_training_sessions WHERE club_id=$1 ORDER BY session_date DESC,created_at DESC LIMIT 80`, req.params.clubId),
+      prisma.$queryRawUnsafe<Array<{id:string;title:string;sessionDate:string;startTime:string|null;notes:string|null;createdAt:string}>>(`SELECT id::text AS id,title,session_date::text AS "sessionDate",start_time AS "startTime",notes,created_at AS "createdAt" FROM football_training_sessions WHERE club_id=$1 ORDER BY session_date DESC,created_at DESC LIMIT 80`, req.params.clubId),
       prisma.$queryRawUnsafe<Array<{sessionId:string;clubPlayerId:string;status:Status;note:string|null}>>(`SELECT a.session_id::text AS "sessionId",a.club_player_id::text AS "clubPlayerId",a.status,a.note FROM football_training_attendance a JOIN football_training_sessions s ON s.id=a.session_id WHERE s.club_id=$1`, req.params.clubId),
     ])
     res.json({ data: { players, sessions, attendance }, statuses: STATUSES })
@@ -58,7 +58,7 @@ router.post('/clubs/:clubId/sessions', async (req, res) => {
     const createdBy = req.clubUser?.id ?? null
 
     const created = await prisma.$transaction(async tx => {
-      const rows = await tx.$queryRawUnsafe<Array<{id:string;title:string;sessionDate:string;startTime:string|null;notes:string|null}>>(`INSERT INTO football_training_sessions(club_id,title,session_date,start_time,notes,created_by) VALUES($1,$2,$3::date,$4,$5,$6) RETURNING id::text AS id,title,session_date AS "sessionDate",start_time AS "startTime",notes`, req.params.clubId,title,date,startTime,notes,createdBy)
+      const rows = await tx.$queryRawUnsafe<Array<{id:string;title:string;sessionDate:string;startTime:string|null;notes:string|null}>>(`INSERT INTO football_training_sessions(club_id,title,session_date,start_time,notes,created_by) VALUES($1,$2,$3::date,$4,$5,$6) RETURNING id::text AS id,title,session_date::text AS "sessionDate",start_time AS "startTime",notes`, req.params.clubId,title,date,startTime,notes,createdBy)
       const session = rows[0]
       await tx.$executeRawUnsafe(`INSERT INTO football_training_attendance(session_id,club_player_id,status,updated_by)
         SELECT $1::uuid,id,'ATTENDED',$3 FROM football_club_players WHERE club_id=$2 AND active=true
