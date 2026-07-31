@@ -1,0 +1,36 @@
+import { Router } from 'express'
+import { prisma } from '../../db/client.js'
+import { authenticateClubUser, requireActiveClubMembership, roleCan } from '../../auth/club-auth.js'
+
+const router = Router()
+type Membership={role:Parameters<typeof roleCan>[0]}
+let ready:Promise<void>|null=null
+
+function ensureTables(){
+ if(!ready)ready=(async()=>{
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS football_opposition_plans (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), club_id text NOT NULL, team_sheet_id uuid NOT NULL REFERENCES football_team_sheets(id) ON DELETE CASCADE,
+   overview text NULL, team_instructions text NULL, stoppage_plan text NULL, kick_in_plan text NULL, quarter_time_reminders text NULL,
+   created_by text NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(club_id,team_sheet_id))`)
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS football_opposition_players (
+   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), plan_id uuid NOT NULL REFERENCES football_opposition_plans(id) ON DELETE CASCADE,
+   player_name text NOT NULL, jumper_number integer NULL, position text NULL, strengths text NULL, preferred_side text NULL,
+   dangerous_areas text NULL, planned_matchup_player_id uuid NULL REFERENCES football_club_players(id) ON DELETE SET NULL,
+   matchup_role text NULL, instruction text NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`)
+ })().catch(e=>{ready=null;throw e});return ready
+}
+function allowCoach(_req:any,res:any,next:any){const m=res.locals.clubMembership as Membership|undefined;if(!m||!roleCan(m.role,'team_selection'))return res.status(403).json({error:'Your club role cannot manage opposition plans'});next()}
+async function sheetForClub(sheetId:string,clubId:string){const rows=await prisma.$queryRawUnsafe<Array<{id:string}>>(`SELECT id::text AS id FROM football_team_sheets WHERE id::text=$1 AND club_id=$2 LIMIT 1`,sheetId,clubId);return rows[0]??null}
+async function loadPlan(clubId:string,sheetId:string){
+ const plans=await prisma.$queryRawUnsafe<any[]>(`SELECT id::text AS id,club_id AS "clubId",team_sheet_id::text AS "teamSheetId",overview,team_instructions AS "teamInstructions",stoppage_plan AS "stoppagePlan",kick_in_plan AS "kickInPlan",quarter_time_reminders AS "quarterTimeReminders",updated_at AS "updatedAt" FROM football_opposition_plans WHERE club_id=$1 AND team_sheet_id::text=$2 LIMIT 1`,clubId,sheetId)
+ const plan=plans[0];if(!plan)return null
+ const threats=await prisma.$queryRawUnsafe<any[]>(`SELECT op.id::text AS id,op.player_name AS "playerName",op.jumper_number AS "jumperNumber",op.position,op.strengths,op.preferred_side AS "preferredSide",op.dangerous_areas AS "dangerousAreas",op.planned_matchup_player_id::text AS "plannedMatchupPlayerId",cp.player_name AS "plannedMatchupPlayerName",op.matchup_role AS "matchupRole",op.instruction FROM football_opposition_players op LEFT JOIN football_club_players cp ON cp.id=op.planned_matchup_player_id WHERE op.plan_id=$1::uuid ORDER BY op.jumper_number NULLS LAST,op.player_name`,plan.id)
+ return {...plan,threats}
+}
+router.use(authenticateClubUser)
+router.use('/clubs/:clubId',requireActiveClubMembership,allowCoach)
+router.get('/clubs/:clubId/sheets/:sheetId',async(req,res)=>{try{await ensureTables();if(!await sheetForClub(req.params.sheetId,req.params.clubId))return res.status(404).json({error:'Team sheet not found'});const [plan,players]=await Promise.all([loadPlan(req.params.clubId,req.params.sheetId),prisma.$queryRawUnsafe<any[]>(`SELECT id::text AS id,player_name AS "playerName",jumper_number AS "jumperNumber" FROM football_club_players WHERE club_id=$1 AND active=true ORDER BY player_name`,req.params.clubId)]);res.json({data:{plan,players}})}catch(e){res.status(500).json({error:'Unable to load opposition plan',detail:String(e)})}})
+router.put('/clubs/:clubId/sheets/:sheetId',async(req,res)=>{try{await ensureTables();if(!await sheetForClub(req.params.sheetId,req.params.clubId))return res.status(404).json({error:'Team sheet not found'});const text=(v:any,n=3000)=>String(v??'').trim().slice(0,n)||null;await prisma.$executeRawUnsafe(`INSERT INTO football_opposition_plans(club_id,team_sheet_id,overview,team_instructions,stoppage_plan,kick_in_plan,quarter_time_reminders,created_by) VALUES($1,$2::uuid,$3,$4,$5,$6,$7,$8) ON CONFLICT(club_id,team_sheet_id) DO UPDATE SET overview=EXCLUDED.overview,team_instructions=EXCLUDED.team_instructions,stoppage_plan=EXCLUDED.stoppage_plan,kick_in_plan=EXCLUDED.kick_in_plan,quarter_time_reminders=EXCLUDED.quarter_time_reminders,updated_at=now()`,req.params.clubId,req.params.sheetId,text(req.body?.overview),text(req.body?.teamInstructions),text(req.body?.stoppagePlan),text(req.body?.kickInPlan),text(req.body?.quarterTimeReminders),req.clubUser?.id??null);res.json({data:await loadPlan(req.params.clubId,req.params.sheetId),message:'Opposition plan saved'})}catch(e){res.status(500).json({error:'Unable to save opposition plan',detail:String(e)})}})
+router.post('/clubs/:clubId/sheets/:sheetId/threats',async(req,res)=>{try{await ensureTables();if(!await sheetForClub(req.params.sheetId,req.params.clubId))return res.status(404).json({error:'Team sheet not found'});await prisma.$executeRawUnsafe(`INSERT INTO football_opposition_plans(club_id,team_sheet_id,created_by) VALUES($1,$2::uuid,$3) ON CONFLICT(club_id,team_sheet_id) DO NOTHING`,req.params.clubId,req.params.sheetId,req.clubUser?.id??null);const name=String(req.body?.playerName??'').trim().slice(0,120);if(!name)return res.status(400).json({error:'Opposition player name is required'});const plan=await loadPlan(req.params.clubId,req.params.sheetId);await prisma.$executeRawUnsafe(`INSERT INTO football_opposition_players(plan_id,player_name,jumper_number,position,strengths,preferred_side,dangerous_areas,planned_matchup_player_id,matchup_role,instruction) VALUES($1::uuid,$2,$3,$4,$5,$6,$7,$8::uuid,$9,$10)`,plan.id,name,Number.isFinite(Number(req.body?.jumperNumber))?Number(req.body.jumperNumber):null,String(req.body?.position??'').trim()||null,String(req.body?.strengths??'').trim()||null,String(req.body?.preferredSide??'').trim()||null,String(req.body?.dangerousAreas??'').trim()||null,req.body?.plannedMatchupPlayerId?String(req.body.plannedMatchupPlayerId):null,String(req.body?.matchupRole??'').trim()||null,String(req.body?.instruction??'').trim()||null);res.status(201).json({data:await loadPlan(req.params.clubId,req.params.sheetId)})}catch(e){res.status(500).json({error:'Unable to add opposition player',detail:String(e)})}})
+router.delete('/clubs/:clubId/sheets/:sheetId/threats/:threatId',async(req,res)=>{try{await ensureTables();const plan=await loadPlan(req.params.clubId,req.params.sheetId);if(!plan)return res.status(404).json({error:'Opposition plan not found'});await prisma.$executeRawUnsafe(`DELETE FROM football_opposition_players WHERE id::text=$1 AND plan_id=$2::uuid`,req.params.threatId,plan.id);res.json({data:await loadPlan(req.params.clubId,req.params.sheetId)})}catch(e){res.status(500).json({error:'Unable to remove opposition player',detail:String(e)})}})
+export {router as clubOppositionPlansRouter}
