@@ -12,10 +12,10 @@ export default function PublicLiveMatchPortal(){
  const match=pathname.match(/^\/team\/([^/]+)$/),clubId=match?.[1]||''
  useLayoutEffect(()=>{
   setHost(null);setHeroHost(null);document.getElementById('playfooty-public-live-match')?.remove();document.getElementById('playfooty-live-match-hero-button')?.remove();if(!clubId)return
-  const tabs=document.querySelector<HTMLElement>('.club-profile-tabs'),main=document.querySelector<HTMLElement>('#main-content');const anchor=tabs||main
-  const hero=document.querySelector<HTMLElement>('#main-content > header')
+  const tabs=document.querySelector<HTMLElement>('.club-profile-tabs'),hero=document.querySelector<HTMLElement>('#main-content > header')
   let liveElement:HTMLDivElement|null=null,heroElement:HTMLDivElement|null=null
-  if(anchor?.parentElement){liveElement=document.createElement('div');liveElement.id='playfooty-public-live-match';anchor.insertAdjacentElement(tabs?'afterend':'afterbegin',liveElement);setHost(liveElement)}
+  if(tabs?.parentElement){liveElement=document.createElement('div');liveElement.id='playfooty-public-live-match';tabs.insertAdjacentElement('beforebegin',liveElement);setHost(liveElement)}
+  else if(hero?.parentElement){liveElement=document.createElement('div');liveElement.id='playfooty-public-live-match';hero.insertAdjacentElement('afterend',liveElement);setHost(liveElement)}
   if(hero){heroElement=document.createElement('div');heroElement.id='playfooty-live-match-hero-button';hero.appendChild(heroElement);setHeroHost(heroElement)}
   return()=>{liveElement?.remove();heroElement?.remove();setHost(null);setHeroHost(null)}
  },[clubId,pathname])
