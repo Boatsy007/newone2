@@ -4,6 +4,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { CalendarCheck, Clock3, LayoutDashboard, ShieldCheck, Trophy, Users, Workflow } from 'lucide-react'
 import TeamSelectionAvailabilityWarnings from './TeamSelectionAvailabilityWarnings'
 import ClubPortalMatchDay from '../../pages/ClubPortalMatchDay'
+import MatchDayLiveSync from './MatchDayLiveSync'
+import PublicLiveMatchPortal from './PublicLiveMatchPortal'
 
 const COACHING_SECTIONS = new Set(['coaching', 'availability', 'team-selection', 'whiteboard', 'users'])
 
@@ -42,9 +44,9 @@ export default function CoachingPortalTabs() {
     }
   }, [pathname, visible, matchDay])
 
-  const warningLayer = <TeamSelectionAvailabilityWarnings/>
-  if (matchDay) return <>{warningLayer}{createPortal(<div className="coach-match-day-layer"><ClubPortalMatchDay/></div>, document.body)}<style>{matchDayStyles}</style></>
-  if (!visible || !host) return warningLayer
+  const globalLayers = <><TeamSelectionAvailabilityWarnings/><MatchDayLiveSync/><PublicLiveMatchPortal/></>
+  if (matchDay) return <>{globalLayers}{createPortal(<div className="coach-match-day-layer"><ClubPortalMatchDay/></div>, document.body)}<style>{matchDayStyles}</style></>
+  if (!visible || !host) return globalLayers
 
   const links = [
     { label: 'Overview', section: 'coaching', href: `/club-portal/${clubId}/coaching`, icon: LayoutDashboard },
@@ -55,7 +57,7 @@ export default function CoachingPortalTabs() {
     { label: 'Access', section: 'users', href: `/club-portal/${clubId}/users`, icon: Users },
   ]
 
-  return <>{warningLayer}{createPortal(<>
+  return <>{globalLayers}{createPortal(<>
     <nav className="coach-portal-tabs" aria-label="Coaching portal sections">
       <div className="coach-portal-tabs-inner">
         <div className="coach-portal-tabs-scroll">
