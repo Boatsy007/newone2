@@ -8,6 +8,7 @@ import ClubPortalTraining from '../../pages/ClubPortalTraining'
 import ClubPortalOpposition from '../../pages/ClubPortalOpposition'
 import TrainingRecordsPanel from './TrainingRecordsPanel'
 import PostMatchReviewPanel from './PostMatchReviewPanel'
+import MatchDayGamePlanPanel from './MatchDayGamePlanPanel'
 import MatchDayLiveSync from './MatchDayLiveSync'
 import PublicLiveMatchPortal from './PublicLiveMatchPortal'
 
@@ -56,7 +57,7 @@ export default function CoachingPortalTabs() {
 
   if (overlay) return <>{globalLayers}{createPortal(<div className="coach-workspace-layer">
     <Routes>
-      <Route path="/club-portal/:clubId/coaching" element={matchDay ? <><ClubPortalMatchDay/><PostMatchReviewPanel clubId={clubId}/></> : opposition ? <ClubPortalOpposition/> : <><ClubPortalTraining/><TrainingRecordsPanel clubId={clubId}/></>}/>
+      <Route path="/club-portal/:clubId/coaching" element={matchDay ? <><ClubPortalMatchDay/><PostMatchReviewPanel clubId={clubId}/><MatchDayGamePlanPanel clubId={clubId}/></> : opposition ? <ClubPortalOpposition/> : <><ClubPortalTraining/><TrainingRecordsPanel clubId={clubId}/></>}/>
     </Routes>
   </div>, document.body)}<style>{workspaceStyles}</style></>
 
