@@ -1,23 +1,32 @@
-import { useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
-import { CalendarCheck, LayoutDashboard, ShieldCheck, Trophy, Users, Workflow } from 'lucide-react'
+import { CalendarCheck, Clock3, LayoutDashboard, ShieldCheck, Trophy, Users, Workflow } from 'lucide-react'
 import TeamSelectionAvailabilityWarnings from './TeamSelectionAvailabilityWarnings'
+import ClubPortalMatchDay from '../../pages/ClubPortalMatchDay'
 
 const COACHING_SECTIONS = new Set(['coaching', 'availability', 'team-selection', 'whiteboard', 'users'])
 
 export default function CoachingPortalTabs() {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const [host, setHost] = useState<HTMLElement | null>(null)
   const match = pathname.match(/^\/club-portal\/([^/]+)\/(coaching|availability|team-selection|whiteboard|users)(?:\/|$)/)
   const clubId = match?.[1] ?? ''
   const section = match?.[2] ?? ''
+  const matchDay = section === 'coaching' && new URLSearchParams(search).get('view') === 'match-day'
   const visible = Boolean(clubId && COACHING_SECTIONS.has(section))
+
+  useEffect(() => {
+    if (!matchDay) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previous }
+  }, [matchDay])
 
   useLayoutEffect(() => {
     setHost(null)
     document.getElementById('playfooty-coaching-tabs')?.remove()
-    if (!visible) return
+    if (!visible || matchDay) return
 
     const header = document.querySelector<HTMLElement>('.pf-nav')
     if (!header?.parentElement) return
@@ -31,15 +40,17 @@ export default function CoachingPortalTabs() {
       element.remove()
       setHost(null)
     }
-  }, [pathname, visible])
+  }, [pathname, visible, matchDay])
 
   const warningLayer = <TeamSelectionAvailabilityWarnings/>
+  if (matchDay) return <>{warningLayer}{createPortal(<div className="coach-match-day-layer"><ClubPortalMatchDay/></div>, document.body)}<style>{matchDayStyles}</style></>
   if (!visible || !host) return warningLayer
 
   const links = [
     { label: 'Overview', section: 'coaching', href: `/club-portal/${clubId}/coaching`, icon: LayoutDashboard },
     { label: 'Availability', section: 'availability', href: `/club-portal/${clubId}/availability`, icon: CalendarCheck },
     { label: 'Team selection', section: 'team-selection', href: `/club-portal/${clubId}/team-selection`, icon: Trophy },
+    { label: 'Match Day', section: 'match-day', href: `/club-portal/${clubId}/coaching?view=match-day`, icon: Clock3 },
     { label: 'Whiteboard', section: 'whiteboard', href: `/club-portal/${clubId}/whiteboard`, icon: Workflow },
     { label: 'Access', section: 'users', href: `/club-portal/${clubId}/users`, icon: Users },
   ]
@@ -59,6 +70,7 @@ export default function CoachingPortalTabs() {
   </>, host)}</>
 }
 
+const matchDayStyles = `.coach-match-day-layer{position:fixed;inset:0;z-index:100000;overflow:auto;background:#eef3f7}`
 const styles = `
 .coach-portal-tabs{position:sticky;top:78px;z-index:69;background:#fff;border-bottom:1px solid #d9e1e8;box-shadow:0 5px 16px rgba(15,23,42,.06)}
 .coach-portal-tabs-inner{width:min(1240px,calc(100% - 32px));min-height:62px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px}
