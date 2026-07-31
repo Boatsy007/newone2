@@ -55,8 +55,18 @@ router.post('/clubs/:clubId/sessions', async (req, res) => {
     const title = String(req.body?.title ?? 'Training').trim().slice(0,100) || 'Training'
     const startTime = String(req.body?.startTime ?? '').trim().slice(0,20) || null
     const notes = String(req.body?.notes ?? '').trim().slice(0,1000) || null
-    const rows = await prisma.$queryRawUnsafe<Array<{id:string;title:string;sessionDate:string;startTime:string|null;notes:string|null}>>(`INSERT INTO football_training_sessions(club_id,title,session_date,start_time,notes,created_by) VALUES($1,$2,$3::date,$4,$5,$6) RETURNING id::text AS id,title,session_date AS "sessionDate",start_time AS "startTime",notes`, req.params.clubId,title,date,startTime,notes,req.clubUser?.id ?? null)
-    res.status(201).json({ data: rows[0] })
+    const createdBy = req.clubUser?.id ?? null
+
+    const created = await prisma.$transaction(async tx => {
+      const rows = await tx.$queryRawUnsafe<Array<{id:string;title:string;sessionDate:string;startTime:string|null;notes:string|null}>>(`INSERT INTO football_training_sessions(club_id,title,session_date,start_time,notes,created_by) VALUES($1,$2,$3::date,$4,$5,$6) RETURNING id::text AS id,title,session_date AS "sessionDate",start_time AS "startTime",notes`, req.params.clubId,title,date,startTime,notes,createdBy)
+      const session = rows[0]
+      await tx.$executeRawUnsafe(`INSERT INTO football_training_attendance(session_id,club_player_id,status,updated_by)
+        SELECT $1::uuid,id,'ATTENDED',$3 FROM football_club_players WHERE club_id=$2 AND active=true
+        ON CONFLICT(session_id,club_player_id) DO NOTHING`, session.id, req.params.clubId, createdBy)
+      return session
+    })
+
+    res.status(201).json({ data: created, message: 'Training session created with all active players marked attended.' })
   } catch (error) { res.status(500).json({ error: 'Unable to create training session', detail: String(error) }) }
 })
 
