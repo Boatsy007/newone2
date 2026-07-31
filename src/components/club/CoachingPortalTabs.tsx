@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
-import { CalendarCheck, Clock3, LayoutDashboard, ShieldCheck, Trophy, Users, Workflow } from 'lucide-react'
+import { CalendarCheck, Clock3, Dumbbell, LayoutDashboard, ShieldCheck, Trophy, Users, Workflow } from 'lucide-react'
 import TeamSelectionAvailabilityWarnings from './TeamSelectionAvailabilityWarnings'
 import ClubPortalMatchDay from '../../pages/ClubPortalMatchDay'
+import ClubPortalTraining from '../../pages/ClubPortalTraining'
 import MatchDayLiveSync from './MatchDayLiveSync'
 import PublicLiveMatchPortal from './PublicLiveMatchPortal'
 
@@ -15,20 +16,23 @@ export default function CoachingPortalTabs() {
   const match = pathname.match(/^\/club-portal\/([^/]+)\/(coaching|availability|team-selection|whiteboard|users)(?:\/|$)/)
   const clubId = match?.[1] ?? ''
   const section = match?.[2] ?? ''
-  const matchDay = section === 'coaching' && new URLSearchParams(search).get('view') === 'match-day'
+  const view = section === 'coaching' ? new URLSearchParams(search).get('view') : null
+  const matchDay = view === 'match-day'
+  const training = view === 'training'
+  const overlay = matchDay || training
   const visible = Boolean(clubId && COACHING_SECTIONS.has(section))
 
   useEffect(() => {
-    if (!matchDay) return
+    if (!overlay) return
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = previous }
-  }, [matchDay])
+  }, [overlay])
 
   useLayoutEffect(() => {
     setHost(null)
     document.getElementById('playfooty-coaching-tabs')?.remove()
-    if (!visible || matchDay) return
+    if (!visible || overlay) return
 
     const header = document.querySelector<HTMLElement>('.pf-nav')
     if (!header?.parentElement) return
@@ -42,15 +46,15 @@ export default function CoachingPortalTabs() {
       element.remove()
       setHost(null)
     }
-  }, [pathname, visible, matchDay])
+  }, [pathname, visible, overlay])
 
   const globalLayers = <><TeamSelectionAvailabilityWarnings/><MatchDayLiveSync/><PublicLiveMatchPortal/></>
 
-  if (matchDay) return <>{globalLayers}{createPortal(<div className="coach-match-day-layer">
+  if (overlay) return <>{globalLayers}{createPortal(<div className="coach-workspace-layer">
     <Routes>
-      <Route path="/club-portal/:clubId/coaching" element={<ClubPortalMatchDay/>}/>
+      <Route path="/club-portal/:clubId/coaching" element={matchDay ? <ClubPortalMatchDay/> : <ClubPortalTraining/>}/>
     </Routes>
-  </div>, document.body)}<style>{matchDayStyles}</style></>
+  </div>, document.body)}<style>{workspaceStyles}</style></>
 
   if (!visible || !host) return globalLayers
 
@@ -58,6 +62,7 @@ export default function CoachingPortalTabs() {
     { label: 'Overview', section: 'coaching', href: `/club-portal/${clubId}/coaching`, icon: LayoutDashboard },
     { label: 'Availability', section: 'availability', href: `/club-portal/${clubId}/availability`, icon: CalendarCheck },
     { label: 'Team selection', section: 'team-selection', href: `/club-portal/${clubId}/team-selection`, icon: Trophy },
+    { label: 'Training', section: 'training', href: `/club-portal/${clubId}/coaching?view=training`, icon: Dumbbell },
     { label: 'Match Day', section: 'match-day', href: `/club-portal/${clubId}/coaching?view=match-day`, icon: Clock3 },
     { label: 'Whiteboard', section: 'whiteboard', href: `/club-portal/${clubId}/whiteboard`, icon: Workflow },
     { label: 'Access', section: 'users', href: `/club-portal/${clubId}/users`, icon: Users },
@@ -67,7 +72,7 @@ export default function CoachingPortalTabs() {
     <nav className="coach-portal-tabs" aria-label="Coaching portal sections">
       <div className="coach-portal-tabs-inner">
         <div className="coach-portal-tabs-scroll">
-          {links.map(item => <Link key={item.section} to={item.href} className={section === item.section ? 'active' : ''} aria-current={section === item.section ? 'page' : undefined}>
+          {links.map(item => <Link key={item.section} to={item.href} className={(section === item.section || view === item.section) ? 'active' : ''} aria-current={(section === item.section || view === item.section) ? 'page' : undefined}>
             <item.icon size={17}/><span>{item.label}</span>
           </Link>)}
         </div>
@@ -78,7 +83,7 @@ export default function CoachingPortalTabs() {
   </>, host)}</>
 }
 
-const matchDayStyles = `.coach-match-day-layer{position:fixed;inset:0;z-index:100000;overflow:auto;background:#eef3f7}`
+const workspaceStyles = `.coach-workspace-layer{position:fixed;inset:0;z-index:100000;overflow:auto;background:#eef3f7}`
 const styles = `
 .coach-portal-tabs{position:sticky;top:78px;z-index:69;background:#fff;border-bottom:1px solid #d9e1e8;box-shadow:0 5px 16px rgba(15,23,42,.06)}
 .coach-portal-tabs-inner{width:min(1240px,calc(100% - 32px));min-height:62px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px}
