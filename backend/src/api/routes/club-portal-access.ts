@@ -7,6 +7,7 @@ import { clubMembershipsRouter } from './club-memberships.js'
 import { clubTeamSheetsRouter } from './club-team-sheets.js'
 import { clubPlayerAvailabilityRouter } from './player-availability.js'
 import { clubCoachWhiteboardRouter } from './club-coach-whiteboard.js'
+import { clubTrainingAttendanceRouter } from './club-training-attendance.js'
 import { clubPortalNewsRouter } from './club-portal-news.js'
 import { clubProfileManagementRouter } from './club-profile-management.js'
 import { clubPortalSponsorsRouter } from './club-portal-sponsors.js'
@@ -32,6 +33,7 @@ router.post('/revoke',async(req,res)=>{const token=typeof req.body?.token==='str
 router.use('/availability',clubPlayerAvailabilityRouter)
 router.use('/team-sheets',clubTeamSheetsRouter)
 router.use('/whiteboard',clubCoachWhiteboardRouter)
+router.use('/training',clubTrainingAttendanceRouter)
 router.use('/profile-management',clubProfileManagementRouter)
 router.use('/',clubPortalPlansRouter)
 router.use('/',clubPortalActivityRouter)
