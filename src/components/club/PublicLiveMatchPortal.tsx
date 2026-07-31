@@ -12,18 +12,23 @@ export default function PublicLiveMatchPortal(){
  const match=pathname.match(/^\/team\/([^/]+)$/),clubId=match?.[1]||''
  useLayoutEffect(()=>{
   setHost(null);setHeroHost(null);document.getElementById('playfooty-public-live-match')?.remove();document.getElementById('playfooty-live-match-hero-button')?.remove();if(!clubId)return
-  const tabs=document.querySelector<HTMLElement>('.club-profile-tabs'),hero=document.querySelector<HTMLElement>('#main-content > header')
   let liveElement:HTMLDivElement|null=null,heroElement:HTMLDivElement|null=null
-  if(tabs?.parentElement){liveElement=document.createElement('div');liveElement.id='playfooty-public-live-match';tabs.insertAdjacentElement('beforebegin',liveElement);setHost(liveElement)}
-  else if(hero?.parentElement){liveElement=document.createElement('div');liveElement.id='playfooty-public-live-match';hero.insertAdjacentElement('afterend',liveElement);setHost(liveElement)}
-  if(hero){heroElement=document.createElement('div');heroElement.id='playfooty-live-match-hero-button';hero.appendChild(heroElement);setHeroHost(heroElement)}
-  return()=>{liveElement?.remove();heroElement?.remove();setHost(null);setHeroHost(null)}
+  const connect=()=>{
+   const tabs=document.querySelector<HTMLElement>('.club-profile-tabs')
+   const hero=document.querySelector<HTMLElement>('#main-content > header')
+   if(!liveElement&&tabs?.parentElement){liveElement=document.createElement('div');liveElement.id='playfooty-public-live-match';tabs.insertAdjacentElement('afterend',liveElement);setHost(liveElement)}
+   if(!heroElement&&hero){heroElement=document.createElement('div');heroElement.id='playfooty-live-match-hero-button';hero.appendChild(heroElement);setHeroHost(heroElement)}
+  }
+  connect()
+  const observer=new MutationObserver(connect)
+  observer.observe(document.body,{childList:true,subtree:true})
+  return()=>{observer.disconnect();liveElement?.remove();heroElement?.remove();setHost(null);setHeroHost(null)}
  },[clubId,pathname])
  useEffect(()=>{
   if(!clubId){setData(null);return}
   let active=true
-  const load=()=>void fetch(`/api/live-match/clubs/${encodeURIComponent(clubId)}`,{cache:'no-store'}).then(async response=>{const payload=await response.json().catch(()=>({}));if(active)setData(response.ok?payload.data??null:null)}).catch(()=>{if(active)setData(null)})
-  load();const timer=window.setInterval(load,8000);return()=>{active=false;window.clearInterval(timer)}
+  const load=()=>void fetch(`/api/live-match/clubs/${encodeURIComponent(clubId)}?t=${Date.now()}`,{cache:'no-store'}).then(async response=>{const payload=await response.json().catch(()=>({}));if(active)setData(response.ok?payload.data??null:null)}).catch(()=>{if(active)setData(null)})
+  load();const timer=window.setInterval(load,1000);const onFocus=()=>load();window.addEventListener('focus',onFocus);document.addEventListener('visibilitychange',onFocus);return()=>{active=false;window.clearInterval(timer);window.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onFocus)}
  },[clubId])
  if(!data)return null
  const homeTotal=points(data.homeGoals,data.homeBehinds),awayTotal=points(data.awayGoals,data.awayBehinds)
