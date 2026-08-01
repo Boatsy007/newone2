@@ -1,0 +1,37 @@
+name: Mount Match Day finish enhancer
+on:
+  push:
+    paths:
+      - '.github/workflows/mount-match-day-finish-enhancer.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mount enhancer
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/main.tsx')
+          s=p.read_text()
+          marker="import ClubPortalAppNav from './components/club/ClubPortalAppNav.tsx'\n"
+          imp="import MatchDayFinishEnhancer from './components/club/MatchDayFinishEnhancer.tsx'\n"
+          if imp not in s:
+            if marker not in s: raise SystemExit('import marker missing')
+            s=s.replace(marker,marker+imp,1)
+          mount='<StrictMode><BrowserRouter><ScrollToTop/><PublicAppNav/><ClubPortalAppNav/>'
+          replacement='<StrictMode><BrowserRouter><ScrollToTop/><PublicAppNav/><ClubPortalAppNav/><MatchDayFinishEnhancer/>'
+          if replacement not in s:
+            if mount not in s: raise SystemExit('mount marker missing')
+            s=s.replace(mount,replacement,1)
+          p.write_text(s)
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add src/main.tsx
+          git commit -m 'Mount Match Day finish and summary'
+          git push
