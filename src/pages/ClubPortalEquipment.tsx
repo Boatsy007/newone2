@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Boxes, ClipboardCheck, MapPin, PackagePlus, Pencil, Plus, Printer, ShieldPlus, Trash2, X } from 'lucide-react'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
+import { loadClubOperations, saveEquipmentOperations } from '../lib/clubOperations'
 
 type Condition='GOOD'|'WORN'|'DAMAGED'|'MISSING'
 type Category='Football'|'Training'|'Medical'|'Match day'|'Uniforms'|'Facilities'|'Other'
@@ -23,8 +24,9 @@ function read(clubId:string):Item[]{try{const raw=localStorage.getItem(key(clubI
 function today(){return new Date().toISOString().slice(0,10)}
 
 export default function ClubPortalEquipment(){
- const{clubId=''}=useParams();const[items,setItems]=useState<Item[]>(()=>read(clubId));const[category,setCategory]=useState<'All'|Category>('All');const[query,setQuery]=useState('');const[editing,setEditing]=useState<Item|null>(null);const[showForm,setShowForm]=useState(false)
- useEffect(()=>setItems(read(clubId)),[clubId]);useEffect(()=>localStorage.setItem(key(clubId),JSON.stringify(items)),[clubId,items])
+ const{clubId=''}=useParams();const[items,setItems]=useState<Item[]>([]);const[category,setCategory]=useState<'All'|Category>('All');const[query,setQuery]=useState('');const[editing,setEditing]=useState<Item|null>(null);const[showForm,setShowForm]=useState(false);const[ready,setReady]=useState(false);const[syncError,setSyncError]=useState('')
+ useEffect(()=>{let live=true;setReady(false);setSyncError('');loadClubOperations(clubId).then(async payload=>{if(!live)return;let next=payload.equipment as Item[];const raw=localStorage.getItem(key(clubId));if(!next.length&&raw){try{const local=JSON.parse(raw);if(Array.isArray(local)&&local.length){next=local;await saveEquipmentOperations(clubId,next);localStorage.removeItem(key(clubId))}}catch{}}if(live){setItems(next);setReady(true)}}).catch(error=>{if(live)setSyncError(error instanceof Error?error.message:'Unable to load shared equipment data')});return()=>{live=false}},[clubId])
+ useEffect(()=>{if(!ready)return;const timer=window.setTimeout(()=>{saveEquipmentOperations(clubId,items).then(()=>setSyncError('')).catch(error=>setSyncError(error instanceof Error?error.message:'Unable to save shared equipment data'))},350);return()=>window.clearTimeout(timer)},[clubId,items,ready])
  const active=useMemo(()=>items.filter(item=>!item.retired),[items]);const low=active.filter(item=>item.quantity<=item.minimum);const damaged=active.filter(item=>item.condition==='DAMAGED'||item.condition==='MISSING');const medical=active.filter(item=>item.category==='Medical')
  const filtered=useMemo(()=>active.filter(item=>(category==='All'||item.category===category)&&(!query.trim()||`${item.name} ${item.location} ${item.assignedTo}`.toLowerCase().includes(query.toLowerCase()))),[active,category,query])
  function save(item:Item){setItems(current=>current.some(row=>row.id===item.id)?current.map(row=>row.id===item.id?item:row):[...current,item]);setEditing(null);setShowForm(false)}
@@ -32,6 +34,7 @@ export default function ClubPortalEquipment(){
  function stocktake(){setItems(current=>current.map(item=>item.retired?item:{...item,lastChecked:today()}))}
  return <><Nav/><main className="cpe"><header><Link to={`/club-portal/${clubId}/volunteers`}><ArrowLeft size={16}/>Club operations</Link><span>Club Portal · Operations</span><h1>Equipment & stocktake</h1><p>Track footballs, cones, training gear, medical supplies and every item needed to run the club.</p></header>
   <nav className="cpe-ops"><Link to={`/club-portal/${clubId}/volunteers`}>Volunteers & rosters</Link><Link className="active" to={`/club-portal/${clubId}/equipment`}>Equipment & stocktake</Link></nav>
+  {syncError&&<section className="cpe-alerts"><div><AlertTriangle size={18}/><span>{syncError}</span></div></section>}
   <section className="cpe-summary"><Summary icon={<Boxes/>} label="Active items" value={active.length}/><Summary icon={<AlertTriangle/>} label="Low stock" value={low.length}/><Summary icon={<ShieldPlus/>} label="Medical lines" value={medical.length}/><Summary icon={<ClipboardCheck/>} label="Damaged or missing" value={damaged.length}/></section>
   {(low.length>0||damaged.length>0)&&<section className="cpe-alerts">{low.map(item=><div key={`low-${item.id}`}><AlertTriangle size={18}/><span><strong>{item.name}</strong> has {item.quantity} remaining; minimum is {item.minimum}.</span></div>)}{damaged.map(item=><div key={`condition-${item.id}`}><AlertTriangle size={18}/><span><strong>{item.name}</strong> is marked {item.condition.toLowerCase()}.</span></div>)}</section>}
   <section className="cpe-actions"><button onClick={()=>{setEditing(null);setShowForm(true)}}><PackagePlus size={17}/>Add item</button><button className="secondary" onClick={stocktake}><ClipboardCheck size={17}/>Mark stocktake complete</button><button className="secondary" onClick={()=>window.print()}><Printer size={17}/>Print stocktake</button></section>

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, Copy, Plus, Printer, RefreshCw, Trash2, UserPlus, Users, Utensils, X } from 'lucide-react'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
+import { loadClubOperations, saveVolunteerOperations } from '../lib/clubOperations'
 
 type Volunteer={id:string;name:string;phone:string;email:string;notes:string}
 type Shift={id:string;area:string;role:string;date:string;start:string;end:string;needed:number;volunteerIds:string[];notes:string;recurring:boolean}
@@ -15,9 +16,9 @@ function uid(prefix:string){return`${prefix}-${Date.now()}-${Math.random().toStr
 function dateLabel(value:string){if(!value)return'Date TBC';const d=new Date(`${value}T00:00:00`);return Number.isNaN(d.getTime())?value:d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}
 
 export default function ClubPortalVolunteers(){
- const{clubId=''}=useParams();const[data,setData]=useState<Store>(()=>read(clubId));const[view,setView]=useState<'roster'|'people'>('roster');const[showShift,setShowShift]=useState(false);const[showVolunteer,setShowVolunteer]=useState(false);const[editing,setEditing]=useState<Shift|null>(null);const[message,setMessage]=useState('')
- useEffect(()=>{setData(read(clubId))},[clubId])
- useEffect(()=>{localStorage.setItem(key(clubId),JSON.stringify(data))},[clubId,data])
+ const{clubId=''}=useParams();const[data,setData]=useState<Store>(EMPTY);const[view,setView]=useState<'roster'|'people'>('roster');const[showShift,setShowShift]=useState(false);const[showVolunteer,setShowVolunteer]=useState(false);const[editing,setEditing]=useState<Shift|null>(null);const[message,setMessage]=useState('');const[ready,setReady]=useState(false);const[syncError,setSyncError]=useState('')
+ useEffect(()=>{let live=true;setReady(false);setSyncError('');loadClubOperations(clubId).then(async payload=>{if(!live)return;let next:Store={volunteers:payload.volunteers as Volunteer[],shifts:payload.shifts as Shift[]};const local=read(clubId);if(!next.volunteers.length&&!next.shifts.length&&(local.volunteers.length||local.shifts.length)){next=local;await saveVolunteerOperations(clubId,next.volunteers,next.shifts);localStorage.removeItem(key(clubId))}if(live){setData(next);setReady(true)}}).catch(error=>{if(live)setSyncError(error instanceof Error?error.message:'Unable to load shared volunteer data')});return()=>{live=false}},[clubId])
+ useEffect(()=>{if(!ready)return;const timer=window.setTimeout(()=>{saveVolunteerOperations(clubId,data.volunteers,data.shifts).then(()=>setSyncError('')).catch(error=>setSyncError(error instanceof Error?error.message:'Unable to save shared volunteer data'))},350);return()=>window.clearTimeout(timer)},[clubId,data,ready])
  const sorted=useMemo(()=>[...data.shifts].sort((a,b)=>`${a.date} ${a.start}`.localeCompare(`${b.date} ${b.start}`)),[data.shifts])
  const open=useMemo(()=>data.shifts.reduce((sum,s)=>sum+Math.max(0,s.needed-s.volunteerIds.length),0),[data.shifts])
  const filled=useMemo(()=>data.shifts.filter(s=>s.volunteerIds.length>=s.needed).length,[data.shifts])
@@ -31,6 +32,7 @@ export default function ClubPortalVolunteers(){
   <nav className="cpv-ops"><Link className="active" to={`/club-portal/${clubId}/volunteers`}>Volunteers & rosters</Link><Link to={`/club-portal/${clubId}/equipment`}>Equipment & stocktake</Link></nav>
   <section className="cpv-summary"><Summary icon={<Utensils/>} label="Roster shifts" value={data.shifts.length}/><Summary icon={<CheckCircle2/>} label="Fully staffed" value={filled}/><Summary icon={<Clock3/>} label="Open positions" value={open}/><Summary icon={<Users/>} label="Volunteers" value={data.volunteers.length}/></section>
   <nav className="cpv-tabs"><button className={view==='roster'?'active':''} onClick={()=>setView('roster')}>Roster</button><button className={view==='people'?'active':''} onClick={()=>setView('people')}>Volunteers</button></nav>
+  {syncError&&<div className="cpv-message" style={{background:'#fff0f0',color:'#a51c1c'}}>{syncError}</div>}
   {message&&<div className="cpv-message">{message}<button onClick={()=>setMessage('')}><X size={15}/></button></div>}
   {view==='roster'?<>
    <section className="cpv-actions"><button onClick={()=>{setEditing(null);setShowShift(true)}}><Plus size={17}/>Add shift</button><button className="secondary" onClick={duplicateWeek}><Copy size={17}/>Copy next week</button><button className="secondary" onClick={()=>window.print()}><Printer size={17}/>Print roster</button></section>
