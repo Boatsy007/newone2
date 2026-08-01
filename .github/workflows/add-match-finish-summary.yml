@@ -1,0 +1,72 @@
+name: Add Match Day finish and summary
+on:
+  push:
+    paths:
+      - '.github/workflows/add-match-finish-summary.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add finish match and summary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/pages/ClubPortalMatchDay.tsx')
+          s=p.read_text()
+
+          s=s.replace("type MatchState={sheetId:string;quarter:number;elapsed:number;runningSince:number|null;homeGoals:number;homeBehinds:number;awayGoals:number;awayBehinds:number;slots:Slot[];events:Event[]}","type MatchState={sheetId:string;quarter:number;elapsed:number;runningSince:number|null;homeGoals:number;homeBehinds:number;awayGoals:number;awayBehinds:number;slots:Slot[];events:Event[];finishedAt?:string|null}")
+
+          old="const publicLive=Boolean(state.runningSince||state.elapsed>0||state.events.length||state.homeGoals||state.homeBehinds||state.awayGoals||state.awayBehinds);"
+          new="const publicLive=!state.finishedAt&&Boolean(state.runningSince||state.elapsed>0||state.events.length||state.homeGoals||state.homeBehinds||state.awayGoals||state.awayBehinds);"
+          if old not in s: raise SystemExit('publicLive marker missing')
+          s=s.replace(old,new,1)
+
+          marker=" function nextQuarter(){update(current=>{const elapsed=current.elapsed+(current.runningSince?Math.floor((Date.now()-current.runningSince)/1000):0);const quarter=Math.min(4,current.quarter+1);const event:Event={id:crypto.randomUUID(),quarter:current.quarter,seconds:elapsed,kind:'QUARTER',label:`Quarter ${current.quarter} ended`};return{...current,quarter,elapsed:0,runningSince:null,events:[event,...current.events]}})}"
+          addition=marker+"\n function finishMatch(){if(!state||!window.confirm('Finish this match and create the game summary? The public live match will close.'))return;update(current=>{const elapsed=current.elapsed+(current.runningSince?Math.floor((Date.now()-current.runningSince)/1000):0);const event:Event={id:crypto.randomUUID(),quarter:current.quarter,seconds:elapsed,kind:'QUARTER',label:'Match finished'};return{...current,elapsed,runningSince:null,finishedAt:new Date().toISOString(),events:[event,...current.events]}});setSelected('')}"
+          if 'function finishMatch()' not in s:
+            if marker not in s: raise SystemExit('nextQuarter marker missing')
+            s=s.replace(marker,addition,1)
+
+          old="<button disabled={state.quarter>=4} onClick={nextQuarter}><SkipForward size={18}/>Next quarter</button>"
+          new="{state.quarter>=4?<button className=\"md-finish\" onClick={finishMatch}><Trophy size={18}/>Finish match</button>:<button onClick={nextQuarter}><SkipForward size={18}/>Next quarter</button>}"
+          if old not in s: raise SystemExit('next quarter button marker missing')
+          s=s.replace(old,new,1)
+
+          start='{state&&<><section className="md-control">'
+          replacement='{state&&state.finishedAt?<MatchSummary state={state} opponent={sheet?.opponentName||\'Opposition\'} clubId={clubId}/>:<><section className="md-control">'
+          if start not in s: raise SystemExit('state render marker missing')
+          s=s.replace(start,replacement,1)
+
+          component="""
+function MatchSummary({state,opponent,clubId}:{state:MatchState;opponent:string;clubId:string}){
+ const home=score(state.homeGoals,state.homeBehinds),away=score(state.awayGoals,state.awayBehinds)
+ const result=home===away?'Draw':home>away?`Your team won by ${home-away}`:`${opponent} won by ${away-home}`
+ const swaps=state.events.filter(event=>event.kind==='SWAP')
+ const scores=state.events.filter(event=>event.kind==='SCORE')
+ const quarterSeconds=[1,2,3,4].map(quarter=>Math.max(0,...state.events.filter(event=>event.quarter===quarter).map(event=>event.seconds),quarter===state.quarter?state.elapsed:0))
+ const totalSeconds=quarterSeconds.reduce((sum,value)=>sum+value,0)
+ const leaders=[...state.slots].sort((a,b)=>b.plusMinus-a.plusMinus)
+ return <section className="md-summary"><header><span>Full time</span><h2>Game summary</h2><p>{result}</p></header><div className="md-summary-score"><div><strong>Your team</strong><b>{state.homeGoals}.{state.homeBehinds}</b><em>{home}</em></div><span>FINAL</span><div><strong>{opponent}</strong><b>{state.awayGoals}.{state.awayBehinds}</b><em>{away}</em></div></div><div className="md-summary-stats"><article><b>{formatTime(totalSeconds)}</b><span>Recorded match time</span></article><article><b>{scores.length}</b><span>Scoring events</span></article><article><b>{swaps.length}</b><span>Player swaps</span></article><article><b>{state.events.length}</b><span>Total actions</span></article></div><div className="md-summary-columns"><section><h3>Quarter activity</h3>{[1,2,3,4].map((quarter,index)=><div className="md-quarter-row" key={quarter}><strong>Quarter {quarter}</strong><span>{formatTime(quarterSeconds[index])}</span><small>{state.events.filter(event=>event.quarter===quarter).length} actions</small></div>)}</section><section><h3>Player plus/minus</h3>{leaders.map(slot=><div className="md-summary-player" key={slot.clubPlayerId}><span>{slot.jumperNumber?`${slot.jumperNumber}. `:''}{slot.playerName}</span><b className={slot.plusMinus>0?'positive':slot.plusMinus<0?'negative':''}>{slot.plusMinus>0?'+':''}{slot.plusMinus}</b></div>)}</section></div><div className="md-summary-actions"><Link to={`/club-portal/${clubId}/coaching`}>Return to coaching</Link><button onClick={()=>window.print()}>Print game summary</button></div></section>
+}
+"""
+          hook="function ScoreTeam({label,goals,behinds,onGoal,onBehind}"
+          if 'function MatchSummary(' not in s:
+            if hook not in s: raise SystemExit('component hook missing')
+            s=s.replace(hook,component+'\n'+hook,1)
+
+          css=""".md-finish{background:#e53935!important;color:#fff!important}.md-summary{max-width:1100px!important;margin-top:16px!important;padding:20px;border:1px solid #dce4ea;border-radius:18px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.06)}.md-summary>header{text-align:center}.md-summary>header span{color:#e53935;font-size:11px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.md-summary>header h2{margin:5px 0;font-size:48px}.md-summary>header p{margin:0;color:#596570;font-weight:850}.md-summary-score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px;margin:20px 0;padding:20px;border-radius:14px;background:#101820;color:#fff;text-align:center}.md-summary-score div{display:grid;gap:3px}.md-summary-score strong{font-size:14px}.md-summary-score b{font-family:'Bebas Neue',Impact,sans-serif;font-size:42px}.md-summary-score em{font-family:'Bebas Neue',Impact,sans-serif;font-size:64px;font-style:normal;line-height:.9}.md-summary-score>span{color:#78cdfc;font-size:12px;font-weight:950}.md-summary-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.md-summary-stats article{padding:14px;border-radius:11px;background:#eef3f7;text-align:center}.md-summary-stats b,.md-summary-stats span{display:block}.md-summary-stats b{font-size:25px}.md-summary-stats span{margin-top:3px;color:#697580;font-size:9px;font-weight:850;text-transform:uppercase}.md-summary-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.md-summary-columns>section{padding:15px;border:1px solid #e0e6eb;border-radius:13px}.md-summary-columns h3{margin:0 0 9px;font-family:'Bebas Neue',Impact,sans-serif;font-size:28px;text-transform:uppercase}.md-quarter-row,.md-summary-player{display:grid;grid-template-columns:1fr auto;gap:3px;padding:9px 0;border-top:1px solid #edf0f2}.md-quarter-row small{grid-column:1/-1;color:#78838d}.md-summary-player b{font-size:18px}.md-summary-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:16px}.md-summary-actions a,.md-summary-actions button{border:0;border-radius:9px;padding:12px 15px;background:#e7edf2;color:#111;text-decoration:none;font-weight:950;text-transform:uppercase}.md-summary-actions button{background:#21c879}@media(max-width:650px){.md-summary{padding:14px}.md-summary-score{grid-template-columns:1fr auto 1fr;gap:8px;padding:14px 8px}.md-summary-score em{font-size:47px}.md-summary-score b{font-size:29px}.md-summary-stats{grid-template-columns:1fr 1fr}.md-summary-columns{grid-template-columns:1fr}.md-summary-actions{flex-direction:column}.md-summary-actions a,.md-summary-actions button{text-align:center}}
+"""
+          s=s.replace("const styles=`", "const styles=`"+css,1)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add src/pages/ClubPortalMatchDay.tsx
+          git commit -m 'Add Match Day finish and game summary'
+          git push
