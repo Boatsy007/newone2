@@ -1,0 +1,101 @@
+name: Apply whiteboard shape model
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-whiteboard-shapes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch whiteboard drawing model
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/pages/ClubPortalWhiteboard.tsx')
+          text = path.read_text()
+
+          replacements = [
+            (
+              "type Drawing={id:string;type:'line'|'arrow'|'zone';side:Side;points:Point[];label:string|null}",
+              "type DrawingType='line'|'arrow'|'circle'|'rectangle'|'square'|'triangle'|'zone'\ntype Drawing={id:string;type:DrawingType;side:Side;points:Point[];label:string|null}"
+            ),
+            (
+              "const[data,setData]=useState<BoardData>(emptyBoard);const[tool,setTool]=useState<'select'|'line'|'arrow'|'zone'|'erase'>('select');",
+              "const[data,setData]=useState<BoardData>(emptyBoard);const[tool,setTool]=useState<'select'|DrawingType|'erase'>('select');"
+            ),
+            (
+              "const selectedHome=new Set(data.markers.filter(row=>row.side==='home').map(row=>row.playerId));const activeDraft=draft.length?{id:'draft',type:tool==='arrow'?'arrow':tool==='zone'?'zone':'line',side:drawSide,points:draft,label:null} as Drawing:null;",
+              "const selectedHome=new Set(data.markers.filter(row=>row.side==='home').map(row=>row.playerId));const activeDraft=draft.length&&tool!=='select'&&tool!=='erase'?{id:'draft',type:tool,side:drawSide,points:draft,label:null} as Drawing:null;"
+            ),
+            (
+              "<button className={tool==='arrow'?'active':''} disabled={playing||recording} onClick={()=>setTool('arrow')}><ArrowLeft className=\"arrow-icon\"/>Arrow</button><button className={tool==='zone'?'active':''} disabled={playing||recording} onClick={()=>setTool('zone')}><CircleDot/>Zone</button>",
+              "<button className={tool==='arrow'?'active':''} disabled={playing||recording} onClick={()=>setTool('arrow')}><ArrowLeft className=\"arrow-icon\"/>Arrow</button><button className={tool==='circle'?'active':''} disabled={playing||recording} onClick={()=>setTool('circle')}><CircleDot/>Circle</button><button className={tool==='rectangle'?'active':''} disabled={playing||recording} onClick={()=>setTool('rectangle')}><Square/>Rectangle</button><button className={tool==='square'?'active':''} disabled={playing||recording} onClick={()=>setTool('square')}><Square/>Square</button><button className={tool==='triangle'?'active':''} disabled={playing||recording} onClick={()=>setTool('triangle')}><ArrowLeft className=\"triangle-icon\"/>Triangle</button><button className={tool==='zone'?'active':''} disabled={playing||recording} onClick={()=>setTool('zone')}><CircleDot/>Zone</button>"
+            ),
+            (
+              "function DrawingPath({drawing}:{drawing:Drawing}){const points=drawing.points.map(p=>`${p.x},${p.y}`).join(' ');const cls=`drawing ${drawing.side} ${drawing.type}`;if(drawing.type==='zone'){const xs=drawing.points.map(p=>p.x),ys=drawing.points.map(p=>p.y);const x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y;return <rect className={cls} x={x} y={y} width={w} height={h} rx=\"3\"/>}return <polyline className={cls} points={points} markerEnd={drawing.type==='arrow'?`url(#arrow-${drawing.side==='home'?'home':'away'})`:undefined}/>} ",
+              "function DrawingPath({drawing}:{drawing:Drawing}){const points=drawing.points.map(p=>`${p.x},${p.y}`).join(' ');const cls=`drawing ${drawing.side} ${drawing.type}`;const first=drawing.points[0],last=drawing.points.at(-1);if(!first||!last)return null;const x=Math.min(first.x,last.x),y=Math.min(first.y,last.y),w=Math.max(.5,Math.abs(last.x-first.x)),h=Math.max(.5,Math.abs(last.y-first.y));if(drawing.type==='circle')return <ellipse className={cls} cx={x+w/2} cy={y+h/2} rx={w/2} ry={h/2}/>;if(drawing.type==='rectangle')return <rect className={cls} x={x} y={y} width={w} height={h}/>;if(drawing.type==='square'){const size=Math.max(w,h);return <rect className={cls} x={first.x<=last.x?first.x:first.x-size} y={first.y<=last.y?first.y:first.y-size} width={size} height={size}/>};if(drawing.type==='triangle'){const triangle=`${x+w/2},${y} ${x+w},${y+h} ${x},${y+h}`;return <polygon className={cls} points={triangle}/>};if(drawing.type==='zone')return <polygon className={cls} points={points}/>;return <polyline className={cls} points={points} markerEnd={drawing.type==='arrow'?`url(#arrow-${drawing.side==='home'?'home':'away'})`:undefined}/>} "
+            ),
+            (
+              ".oval.tool-line,.oval.tool-arrow,.oval.tool-zone{cursor:crosshair}",
+              ".oval.tool-line,.oval.tool-arrow,.oval.tool-circle,.oval.tool-rectangle,.oval.tool-square,.oval.tool-triangle,.oval.tool-zone{cursor:crosshair}"
+            ),
+            (
+              ".drawing.zone{fill:rgba(255,225,70,.18);stroke-dasharray:2 1}.drawing.zone.opposition{fill:rgba(255,86,86,.16)}",
+              ".drawing.circle,.drawing.rectangle,.drawing.square,.drawing.triangle{fill:rgba(255,255,255,.04)}.drawing.zone{fill:rgba(255,225,70,.18);stroke-dasharray:2 1}.drawing.zone.opposition{fill:rgba(255,86,86,.16)}"
+            ),
+          ]
+
+          for old, new in replacements:
+            if old not in text:
+              raise SystemExit(f'Missing expected source fragment: {old[:100]}')
+            text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+      - name: Update app shape picker
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/components/club/WhiteboardAppMode.tsx')
+          text = path.read_text()
+          text = text.replace(
+            "import { ArrowLeft, CircleDot, Eraser, Maximize2, MousePointer2, Pause, Pencil, Play, Radio, Redo2, RotateCcw, Save, Shapes, Square, Undo2, Users, X } from 'lucide-react'",
+            "import { ArrowLeft, Circle, CircleDot, Eraser, Maximize2, MousePointer2, Pause, Pencil, Play, Radio, RectangleHorizontal, Redo2, RotateCcw, Save, Shapes, Square, Triangle, Undo2, Users, X } from 'lucide-react'"
+          )
+          text = text.replace(
+            "type ActiveTool='move'|'line'|'arrow'|'zone'|'erase'",
+            "type ActiveTool='move'|'line'|'arrow'|'circle'|'rectangle'|'square'|'triangle'|'zone'|'erase'"
+          )
+          text = text.replace(
+            "const shapesActive=['line','arrow','zone'].includes(activeTool)",
+            "const shapesActive=['line','arrow','circle','rectangle','square','triangle','zone'].includes(activeTool)"
+          )
+          old = "<button className={activeTool==='line'?'active':''} onClick={()=>selectTool('line')}><Pencil/><span>Line</span></button>\n   <button className={activeTool==='arrow'?'active':''} onClick={()=>selectTool('arrow')}><ArrowLeft/><span>Arrow</span></button>\n   <button className={activeTool==='zone'?'active':''} onClick={()=>selectTool('zone')}><CircleDot/><span>Zone</span></button>"
+          new = "<button className={activeTool==='line'?'active':''} onClick={()=>selectTool('line')}><Pencil/><span>Line</span></button>\n   <button className={activeTool==='arrow'?'active':''} onClick={()=>selectTool('arrow')}><ArrowLeft/><span>Arrow</span></button>\n   <button className={activeTool==='circle'?'active':''} onClick={()=>selectTool('circle')}><Circle/><span>Circle</span></button>\n   <button className={activeTool==='rectangle'?'active':''} onClick={()=>selectTool('rectangle')}><RectangleHorizontal/><span>Rectangle</span></button>\n   <button className={activeTool==='square'?'active':''} onClick={()=>selectTool('square')}><Square/><span>Square</span></button>\n   <button className={activeTool==='triangle'?'active':''} onClick={()=>selectTool('triangle')}><Triangle/><span>Triangle</span></button>\n   <button className={activeTool==='zone'?'active':''} onClick={()=>selectTool('zone')}><CircleDot/><span>Zone</span></button>"
+          if old not in text:
+            raise SystemExit('Shape picker source fragment missing')
+          text = text.replace(old, new, 1)
+          text = text.replace(".wb-shape-tray{grid-template-columns:repeat(3,92px)}", ".wb-shape-tray{grid-template-columns:repeat(4,92px);max-width:390px}")
+          text = text.replace(".wb-shape-tray,.wb-media-tray{grid-template-columns:repeat(3,86px)}", ".wb-shape-tray{grid-template-columns:repeat(4,82px)}.wb-media-tray{grid-template-columns:repeat(3,86px)}")
+          path.write_text(text)
+          PY
+      - name: Commit patched whiteboard
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add src/pages/ClubPortalWhiteboard.tsx src/components/club/WhiteboardAppMode.tsx
+          git commit -m "Add core whiteboard shape types and restore controls"
+          git push origin HEAD:newone1
