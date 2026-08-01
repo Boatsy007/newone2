@@ -17,6 +17,7 @@ import { clubPortalUsersRouter } from './club-portal-users.js'
 import { clubPortalActivityRouter } from './club-portal-activity.js'
 import { clubPortalPlansRouter, adminClubPlansRouter } from './club-portal-plans.js'
 import { clubOperationsRouter } from './club-operations.js'
+import { clubMatchDayRouter } from './club-match-day.js'
 import { adminClubMembershipsRouter } from '../../admin/club-memberships.js'
 
 const router = Router()
@@ -34,6 +35,7 @@ router.get('/session',async(req,res)=>{const token=typeof req.query.token==='str
 router.patch('/profile',async(req,res)=>{const token=typeof req.body?.token==='string'?req.body.token:'';const access=token?await resolveAccess(token):null;if(!access)return res.status(401).json({error:'This club access link is invalid or has expired'});const body=(req.body?.profile??{}) as Record<string,unknown>;const updates:Record<string,unknown>={};for(const field of editableProfileFields)if(field in body)updates[field]=body[field]===''?null:body[field];if(!Object.keys(updates).length)return res.status(400).json({error:'No editable profile fields supplied'});const before=await prisma.clubProfile.upsert({where:{clubId:access.clubId},create:{clubId:access.clubId},update:{}});const profile=await prisma.clubProfile.update({where:{clubId:access.clubId},data:updates as never});const coreUpdates:Record<string,unknown>={};if('websiteUrl'in updates)coreUpdates.websiteUrl=updates.websiteUrl;if('facebookUrl'in updates)coreUpdates.facebookUrl=updates.facebookUrl;if('instagramUrl'in updates)coreUpdates.instagramUrl=updates.instagramUrl;if('history'in updates)coreUpdates.description=updates.history;if(Object.keys(coreUpdates).length)await prisma.club.update({where:{id:access.clubId},data:coreUpdates as never});await logChanges('Club',access.clubId,before,updates,{actorType:'USER',actorId:access.userId});res.json({data:profile,message:'Club profile saved'})})
 router.post('/revoke',async(req,res)=>{const token=typeof req.body?.token==='string'?req.body.token:'';if(!token)return res.status(400).json({error:'access token required'});await ensureClubPortalAccessTable();await prisma.$executeRawUnsafe(`UPDATE club_portal_access SET revoked_at=NOW() WHERE token_hash=$1`,hashToken(token));res.json({data:{revoked:true}})})
 router.use('/operations',clubOperationsRouter)
+router.use('/match-day',clubMatchDayRouter)
 router.use('/availability',clubPlayerAvailabilityRouter)
 router.use('/team-sheets',clubTeamSheetsRouter)
 router.use('/whiteboard',clubCoachWhiteboardRouter)
