@@ -1,0 +1,161 @@
+name: Migrate admin operations state
+on:
+  push:
+    paths:
+      - '.github/workflows/migrate-admin-operations-state.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch shared admin operations state
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Backend shared state API
+          p=Path('backend/src/admin/quality.ts')
+          s=p.read_text()
+          marker='// Full engine run.\n'
+          block="""let operationsStateReady: Promise<void> | null = null
+function ensureOperationsStateTable() {
+  if (!operationsStateReady) operationsStateReady = prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS admin_operations_state (
+      state_key text PRIMARY KEY,
+      state_value jsonb NOT NULL DEFAULT '{}'::jsonb,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `).then(() => undefined).catch(error => { operationsStateReady = null; throw error })
+  return operationsStateReady
+}
+
+router.get('/operations-state/:key', async (req, res) => {
+  try {
+    await ensureOperationsStateTable()
+    const rows = await prisma.$queryRawUnsafe<Array<{ value: unknown; updatedAt: string }>>(
+      `SELECT state_value AS value, updated_at AS \"updatedAt\" FROM admin_operations_state WHERE state_key=$1 LIMIT 1`,
+      req.params.key,
+    )
+    res.set('Cache-Control', 'no-store')
+    res.json({ data: rows[0] ?? { value: null, updatedAt: null } })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'unable to load admin operations state' })
+  }
+})
+
+router.put('/operations-state/:key', async (req, res) => {
+  try {
+    await ensureOperationsStateTable()
+    const value = req.body?.value ?? null
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO admin_operations_state(state_key,state_value,updated_at) VALUES($1,$2::jsonb,now())
+       ON CONFLICT(state_key) DO UPDATE SET state_value=EXCLUDED.state_value,updated_at=now()`,
+      req.params.key,
+      JSON.stringify(value),
+    )
+    res.json({ data: { value, updatedAt: new Date().toISOString() } })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'unable to save admin operations state' })
+  }
+})
+
+"""
+          if "operations-state/:key" not in s:
+            if marker not in s: raise SystemExit('quality marker missing')
+            s=s.replace(marker,block+marker,1)
+          p.write_text(s)
+
+          # Launch readiness
+          p=Path('src/pages/AdminLaunchReadiness.tsx')
+          s=p.read_text()
+          s=s.replace("  const [manual, setManual] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem(STORAGE) ?? '{}') as Record<string, boolean> } catch { return {} } })","  const [manual, setManual] = useState<Record<string, boolean>>({})\n  const [manualReady, setManualReady] = useState(false)\n  const [saveError, setSaveError] = useState('')",1)
+          auth="  const authed = Boolean(getKey())\n"
+          load="""  const authed = Boolean(getKey())
+
+  useEffect(() => {
+    if (!authed) return
+    let active = true
+    fetch('/admin/quality/operations-state/launch-readiness', { headers: { authorization: `Bearer ${getKey()}` }, cache: 'no-store' })
+      .then(async response => { const payload = await response.json(); if (!response.ok) throw new Error(payload.error || 'Unable to load launch checklist'); return payload.data?.value as Record<string, boolean> | null })
+      .then(async shared => {
+        if (!active) return
+        let next = shared && typeof shared === 'object' ? shared : null
+        if (!next) {
+          try { next = JSON.parse(localStorage.getItem(STORAGE) ?? '{}') as Record<string, boolean> } catch { next = {} }
+          if (Object.keys(next).length) {
+            const migrated = await fetch('/admin/quality/operations-state/launch-readiness', { method: 'PUT', headers: { authorization: `Bearer ${getKey()}`, 'content-type': 'application/json' }, body: JSON.stringify({ value: next }) })
+            if (!migrated.ok) throw new Error('Unable to migrate launch checklist')
+          }
+        }
+        if (active) { setManual(next || {}); setManualReady(true); localStorage.removeItem(STORAGE) }
+      })
+      .catch(error => { if (active) { setSaveError(error instanceof Error ? error.message : 'Unable to load launch checklist'); setManualReady(true) } })
+    return () => { active = false }
+  }, [authed])
+"""
+          if "operations-state/launch-readiness" not in s:
+            s=s.replace(auth,load,1)
+          old="""  const toggle = (id: string) => {
+    const next = { ...manual, [id]: !manual[id] }
+    setManual(next); localStorage.setItem(STORAGE, JSON.stringify(next))
+  }"""
+          new="""  const toggle = (id: string) => {
+    const next = { ...manual, [id]: !manual[id] }
+    setManual(next); setSaveError('')
+    void fetch('/admin/quality/operations-state/launch-readiness', { method: 'PUT', headers: { authorization: `Bearer ${getKey()}`, 'content-type': 'application/json' }, body: JSON.stringify({ value: next }) })
+      .then(async response => { if (!response.ok) { const payload = await response.json().catch(() => ({})); throw new Error(payload.error || 'Unable to save launch checklist') } })
+      .catch(error => setSaveError(error instanceof Error ? error.message : 'Unable to save launch checklist'))
+  }"""
+          if old not in s: raise SystemExit('launch toggle marker missing')
+          s=s.replace(old,new,1)
+          s=s.replace("    <section className=\"launch-list\">","    {saveError&&<div className=\"launch-save-error\">{saveError}</div>}\n    <section className=\"launch-list\">",1)
+          s=s.replace("'Manual owner confirmation · saved in this browser'","manualReady ? 'Manual owner confirmation · shared across administrators' : 'Loading shared confirmation…'",1)
+          s=s.replace(".launch-hero,.launch-summary,.launch-list{", ".launch-hero,.launch-summary,.launch-list,.launch-save-error{",1)
+          s=s.replace(".launch-list{display:grid;", ".launch-save-error{padding:12px 14px;border:1px solid #e7a8ab;border-radius:12px;background:#fff2f2;color:#b31219;font-weight:850}.launch-list{display:grid;",1)
+          p.write_text(s)
+
+          # League coverage queue
+          p=Path('src/pages/AdminLeagueCoverage.tsx')
+          s=p.read_text()
+          s=s.replace("  const [queue,setQueue]=useState<string[]>(()=>{try{return JSON.parse(localStorage.getItem(QUEUE_KEY)??'[]') as string[]}catch{return[]}})","  const [queue,setQueue]=useState<string[]>([])\n  const [queueError,setQueueError]=useState('')",1)
+          marker="  const authed=Boolean(getKey())\n"
+          addition="""  const authed=Boolean(getKey())
+  useEffect(()=>{if(!authed)return;let active=true;adminGet<{value:string[]|null}>('/admin/quality/operations-state/league-coverage-queue').then(async row=>{let next=Array.isArray(row?.value)?row.value:null;if(!next){try{next=JSON.parse(localStorage.getItem(QUEUE_KEY)??'[]') as string[]}catch{next=[]}if(next.length){const response=await fetch('/admin/quality/operations-state/league-coverage-queue',{method:'PUT',headers:{authorization:`Bearer ${getKey()}`,'content-type':'application/json'},body:JSON.stringify({value:next})});if(!response.ok)throw new Error('Unable to migrate league queue')}}if(active){setQueue(next||[]);localStorage.removeItem(QUEUE_KEY)}}).catch(error=>{if(active)setQueueError(error instanceof Error?error.message:'Unable to load shared league queue')});return()=>{active=false}},[authed])
+"""
+          if "league-coverage-queue" not in s:
+            s=s.replace(marker,addition,1)
+          old="  const toggleQueue=(id:string)=>{const next=queue.includes(id)?queue.filter(value=>value!==id):[...queue,id];setQueue(next);localStorage.setItem(QUEUE_KEY,JSON.stringify(next))}"
+          new="  const toggleQueue=(id:string)=>{const next=queue.includes(id)?queue.filter(value=>value!==id):[...queue,id];setQueue(next);setQueueError('');void fetch('/admin/quality/operations-state/league-coverage-queue',{method:'PUT',headers:{authorization:`Bearer ${getKey()}`,'content-type':'application/json'},body:JSON.stringify({value:next})}).then(async response=>{if(!response.ok){const payload=await response.json().catch(()=>({}));throw new Error(payload.error||'Unable to save shared league queue')}}).catch(error=>setQueueError(error instanceof Error?error.message:'Unable to save shared league queue'))}"
+          if old not in s: raise SystemExit('coverage toggle marker missing')
+          s=s.replace(old,new,1)
+          s=s.replace("    {error&&<div className=\"cov-error\">", "    {queueError&&<div className=\"cov-error\"><XCircle/><div><strong>Queue sync problem</strong><span>{queueError}</span></div></div>}\n    {error&&<div className=\"cov-error\">",1)
+          p.write_text(s)
+
+          # Maintenance snoozes
+          p=Path('src/pages/AdminMaintenanceQueue.tsx')
+          s=p.read_text()
+          s=s.replace("  const [snoozes,setSnoozes]=useState<Record<string,string>>(()=>{try{return JSON.parse(localStorage.getItem(SNOOZE_KEY)??'{}') as Record<string,string>}catch{return{}}})","  const [snoozes,setSnoozes]=useState<Record<string,string>>({})\n  const [snoozeError,setSnoozeError]=useState('')",1)
+          marker="  const authed=Boolean(getKey())\n"
+          addition="""  const authed=Boolean(getKey())
+  useEffect(()=>{if(!authed)return;let active=true;adminGet<{value:Record<string,string>|null}>('/admin/quality/operations-state/maintenance-snoozes').then(async row=>{let next=row?.value&&typeof row.value==='object'?row.value:null;if(!next){try{next=JSON.parse(localStorage.getItem(SNOOZE_KEY)??'{}') as Record<string,string>}catch{next={}}if(Object.keys(next).length){const response=await fetch('/admin/quality/operations-state/maintenance-snoozes',{method:'PUT',headers:{authorization:`Bearer ${getKey()}`,'content-type':'application/json'},body:JSON.stringify({value:next})});if(!response.ok)throw new Error('Unable to migrate maintenance snoozes')}}if(active){setSnoozes(next||{});localStorage.removeItem(SNOOZE_KEY)}}).catch(error=>{if(active)setSnoozeError(error instanceof Error?error.message:'Unable to load shared snoozes')});return()=>{active=false}},[authed])
+"""
+          if "maintenance-snoozes" not in s:
+            s=s.replace(marker,addition,1)
+          old1="  const snooze=(task:Task)=>{const until=new Date(Date.now()+24*60*60*1000).toISOString();const next={...snoozes,[task.id]:until};setSnoozes(next);localStorage.setItem(SNOOZE_KEY,JSON.stringify(next))}"
+          new1="  const saveSnoozes=(next:Record<string,string>)=>{setSnoozes(next);setSnoozeError('');void fetch('/admin/quality/operations-state/maintenance-snoozes',{method:'PUT',headers:{authorization:`Bearer ${getKey()}`,'content-type':'application/json'},body:JSON.stringify({value:next})}).then(async response=>{if(!response.ok){const payload=await response.json().catch(()=>({}));throw new Error(payload.error||'Unable to save shared snoozes')}}).catch(error=>setSnoozeError(error instanceof Error?error.message:'Unable to save shared snoozes'))}\n  const snooze=(task:Task)=>{const until=new Date(Date.now()+24*60*60*1000).toISOString();saveSnoozes({...snoozes,[task.id]:until})}"
+          old2="  const unsnooze=(task:Task)=>{const next={...snoozes};delete next[task.id];setSnoozes(next);localStorage.setItem(SNOOZE_KEY,JSON.stringify(next))}"
+          new2="  const unsnooze=(task:Task)=>{const next={...snoozes};delete next[task.id];saveSnoozes(next)}"
+          if old1 not in s or old2 not in s: raise SystemExit('maintenance snooze markers missing')
+          s=s.replace(old1,new1,1).replace(old2,new2,1)
+          s=s.replace("    {error&&<div className=\"mq-error\">", "    {snoozeError&&<div className=\"mq-error\"><XCircle/><div><strong>Snooze sync problem</strong><span>{snoozeError}</span></div></div>}\n    {error&&<div className=\"mq-error\">",1)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add backend/src/admin/quality.ts src/pages/AdminLaunchReadiness.tsx src/pages/AdminLeagueCoverage.tsx src/pages/AdminMaintenanceQueue.tsx
+          git commit -m 'Move admin operational decisions to shared database'
+          git push
