@@ -1,0 +1,45 @@
+name: Apply club equipment route
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-club-equipment-route.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Patch route and operations switcher
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          main=Path('src/main.tsx')
+          text=main.read_text()
+          anchor="import ClubPortalVolunteers from './pages/ClubPortalVolunteers.tsx'\n"
+          if "ClubPortalEquipment" not in text:
+              text=text.replace(anchor,anchor+"import ClubPortalEquipment from './pages/ClubPortalEquipment.tsx'\n")
+          route='    <Route path="/club-portal/:clubId/volunteers" element={<ClubPortalVolunteers/>}/>\n'
+          if '/club-portal/:clubId/equipment' not in text:
+              text=text.replace(route,route+'    <Route path="/club-portal/:clubId/equipment" element={<ClubPortalEquipment/>}/>\n')
+          main.write_text(text)
+
+          page=Path('src/pages/ClubPortalVolunteers.tsx')
+          text=page.read_text()
+          marker='  <section className="cpv-summary">'
+          switcher='  <nav className="cpv-ops"><Link className="active" to={`/club-portal/${clubId}/volunteers`}>Volunteers & rosters</Link><Link to={`/club-portal/${clubId}/equipment`}>Equipment & stocktake</Link></nav>\n'
+          if 'cpv-ops' not in text:
+              text=text.replace(marker,switcher+marker)
+              text=text.replace(".cpv-summary{display:grid;", ".cpv-ops{display:flex;gap:6px;margin-top:16px;padding:5px;border-radius:12px;background:#dfe7ed}.cpv-ops a{flex:1;padding:11px;border-radius:9px;color:#47515b;text-align:center;text-decoration:none;font-weight:900}.cpv-ops a.active{background:#fff;color:#111;box-shadow:0 3px 10px rgba(15,23,42,.08)}.cpv-summary{display:grid;")
+              text=text.replace("@media(max-width:760px){", "@media(max-width:760px){.cpv-ops a{font-size:12px}")
+          page.write_text(text)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "PlayFooty Build"
+          git config user.email "actions@github.com"
+          git add src/main.tsx src/pages/ClubPortalVolunteers.tsx
+          git diff --cached --quiet || git commit -m "Connect equipment stocktake to club operations"
+          git push origin HEAD:newone1
