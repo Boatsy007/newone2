@@ -1,0 +1,71 @@
+name: Apply public app shell
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-public-app-shell.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Connect public app navigation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          main = Path('src/main.tsx')
+          text = main.read_text()
+          import_line = "import ClubPortalAppNav from './components/club/ClubPortalAppNav.tsx'"
+          new_import = import_line + "\nimport PublicAppNav from './components/layout/PublicAppNav.tsx'"
+          if "PublicAppNav" not in text:
+            if import_line not in text:
+              raise SystemExit('ClubPortalAppNav import missing')
+            text = text.replace(import_line, new_import, 1)
+          mount = "<StrictMode><BrowserRouter><ScrollToTop/><ClubPortalAppNav/>"
+          replacement = "<StrictMode><BrowserRouter><ScrollToTop/><PublicAppNav/><ClubPortalAppNav/>"
+          if "<PublicAppNav/>" not in text:
+            if mount not in text:
+              raise SystemExit('Router mount point missing')
+            text = text.replace(mount, replacement, 1)
+          main.write_text(text)
+
+          search = Path('src/components/rankings/GlobalSearch.tsx')
+          text = search.read_text()
+          old = """  useEffect(() => {
+    if (!isOpen) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.setTimeout(() => inputRef.current?.focus(), 40)
+    return () => { document.body.style.overflow = previous }
+  }, [isOpen])"""
+          new = """  useEffect(() => {
+    document.body.classList.toggle('pf-search-open', isOpen)
+    if (!isOpen) return () => { document.body.classList.remove('pf-search-open') }
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.setTimeout(() => inputRef.current?.focus(), 40)
+    return () => { document.body.style.overflow = previous; document.body.classList.remove('pf-search-open') }
+  }, [isOpen])"""
+          if old not in text:
+            raise SystemExit('Global search effect missing')
+          text = text.replace(old, new, 1)
+          search.write_text(text)
+          PY
+      - name: Commit public app shell
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add src/main.tsx src/components/rankings/GlobalSearch.tsx
+          git commit -m "Connect public mobile and tablet app shell"
+          git push origin HEAD:newone1
