@@ -1,0 +1,91 @@
+name: Connect player development to shared match history
+on:
+  push:
+    paths:
+      - '.github/workflows/connect-player-development-match-history.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Patch shared Match Day history and Player Development
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          route=Path('backend/src/api/routes/club-match-day.ts')
+          text=route.read_text()
+          marker="router.get('/clubs/:clubId/sheets/:sheetId', async (req, res) => {"
+          insert="""router.get('/clubs/:clubId/history', async (req, res) => {
+  try {
+    await ensureTable()
+    const rows = await prisma.$queryRawUnsafe<Array<{sheetId: string; state: unknown; version: number; updatedAt: Date; updatedBy: string | null}>>(`
+      SELECT sheet_id AS \"sheetId\", state, version, updated_at AS \"updatedAt\", updated_by AS \"updatedBy\"
+      FROM club_match_day_state
+      WHERE club_id = $1
+      ORDER BY updated_at DESC
+    `, req.params.clubId)
+    res.json({ data: rows })
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to load Match Day history', detail: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+"""
+          if marker not in text:
+            raise SystemExit('match day route marker not found')
+          if "router.get('/clubs/:clubId/history'" not in text:
+            text=text.replace(marker,insert+marker)
+          route.write_text(text)
+
+          page=Path('src/pages/ClubPortalPlayerDevelopment.tsx')
+          text=page.read_text()
+          old="type TrainingSession={id:string;finishedAt:string|null}\ntype Attendance={sessionId:string;clubPlayerId:string;status:string;leftEarly:boolean;missedPercentage:number|null}"
+          new="type TrainingSession={id:string;finishedAt:string|null}\ntype Attendance={sessionId:string;clubPlayerId:string;status:string;leftEarly:boolean;missedPercentage:number|null}\ntype MatchDayRecord={sheetId:string;state:{sheetId:string;slots:Array<{clubPlayerId:string;plusMinus:number;positionCode:string}>};updatedAt:string}"
+          if old not in text:
+            raise SystemExit('type marker not found')
+          text=text.replace(old,new)
+
+          old="const{clubId=''}=useParams();const[current]=useState(()=>auth());const[players,setPlayers]=useState<Player[]>([]);const[profiles,setProfiles]=useState<Profile[]>([]);const[goals,setGoals]=useState<Goal[]>([]);const[updates,setUpdates]=useState<Update[]>([]);const[trainingSessions,setTrainingSessions]=useState<TrainingSession[]>([]);const[attendance,setAttendance]=useState<Attendance[]>([]);"
+          new="const{clubId=''}=useParams();const[current]=useState(()=>auth());const[players,setPlayers]=useState<Player[]>([]);const[profiles,setProfiles]=useState<Profile[]>([]);const[goals,setGoals]=useState<Goal[]>([]);const[updates,setUpdates]=useState<Update[]>([]);const[trainingSessions,setTrainingSessions]=useState<TrainingSession[]>([]);const[attendance,setAttendance]=useState<Attendance[]>([]);const[matchDayRecords,setMatchDayRecords]=useState<MatchDayRecord[]>([]);"
+          if old not in text:
+            raise SystemExit('state marker not found')
+          text=text.replace(old,new)
+
+          old="const[dev,training]=await Promise.all([fetch(`/api/club-portal/player-development/clubs/${encodeURIComponent(clubId)}`,{headers}),fetch(`/api/club-portal/training/clubs/${encodeURIComponent(clubId)}`,{headers})]);const dp=await dev.json();if(!dev.ok)throw new Error(dp.error||'Unable to load player development');const tp=await training.json().catch(()=>({data:{}}));"
+          new="const[dev,training,matchDay]=await Promise.all([fetch(`/api/club-portal/player-development/clubs/${encodeURIComponent(clubId)}`,{headers}),fetch(`/api/club-portal/training/clubs/${encodeURIComponent(clubId)}`,{headers}),fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/history`,{headers})]);const dp=await dev.json();if(!dev.ok)throw new Error(dp.error||'Unable to load player development');const tp=await training.json().catch(()=>({data:{}}));const mp=await matchDay.json().catch(()=>({data:[]}));"
+          if old not in text:
+            raise SystemExit('load marker not found')
+          text=text.replace(old,new)
+
+          old="if(training.ok){setTrainingSessions(Array.isArray(tp.data?.sessions)?tp.data.sessions:[]);setAttendance(Array.isArray(tp.data?.attendance)?tp.data.attendance:[])}setError('')"
+          new="if(training.ok){setTrainingSessions(Array.isArray(tp.data?.sessions)?tp.data.sessions:[]);setAttendance(Array.isArray(tp.data?.attendance)?tp.data.attendance:[])}if(matchDay.ok)setMatchDayRecords(Array.isArray(mp.data)?mp.data:[]);else setMatchDayRecords([]);setError('')"
+          if old not in text:
+            raise SystemExit('load result marker not found')
+          text=text.replace(old,new)
+
+          old="const matches=useMemo(()=>{const found:Array<{sheetId:string;plusMinus:number;position:string}>=[];for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i)||'';if(!key.startsWith(`playfooty.matchday.v1.${clubId}.`))continue;try{const state=JSON.parse(localStorage.getItem(key)||'{}');const slot=Array.isArray(state.slots)?state.slots.find((s:any)=>s.clubPlayerId===selectedId):null;if(slot)found.push({sheetId:String(state.sheetId||key.split('.').pop()),plusMinus:Number(slot.plusMinus||0),position:String(slot.positionCode||'')})}catch{}}return found},[clubId,selectedId,updates])"
+          new="const matches=useMemo(()=>matchDayRecords.flatMap(record=>{const slot=Array.isArray(record.state?.slots)?record.state.slots.find(item=>item.clubPlayerId===selectedId):null;return slot?[{sheetId:record.sheetId,plusMinus:Number(slot.plusMinus||0),position:String(slot.positionCode||''),updatedAt:record.updatedAt}]:[]}),[matchDayRecords,selectedId])"
+          if old not in text:
+            raise SystemExit('local match history marker not found')
+          text=text.replace(old,new)
+
+          old="<small>Plus/minus</small></article>):<p>No Match Day records for this player are stored on this device yet.</p>}"
+          new="<small>{date(m.updatedAt)} · Plus/minus</small></article>):<p>No shared Match Day records are available for this player yet.</p>}"
+          if old not in text:
+            raise SystemExit('match history copy marker not found')
+          text=text.replace(old,new)
+          page.write_text(text)
+          PY
+      - name: Commit source changes
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add backend/src/api/routes/club-match-day.ts src/pages/ClubPortalPlayerDevelopment.tsx
+          git commit -m 'Read player development history from shared Match Day data' || exit 0
+          git push
