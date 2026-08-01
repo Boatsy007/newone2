@@ -1,0 +1,77 @@
+name: Connect shared club operations
+on:
+  push:
+    paths:
+      - '.github/workflows/connect-shared-club-operations.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch backend and portal pages
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          access=Path('backend/src/api/routes/club-portal-access.ts')
+          text=access.read_text()
+          imp="import { clubOperationsRouter } from './club-operations.js'\n"
+          if imp not in text:
+              anchor="import { clubPortalPlansRouter, adminClubPlansRouter } from './club-portal-plans.js'\n"
+              if anchor not in text: raise SystemExit('club portal import anchor missing')
+              text=text.replace(anchor,anchor+imp)
+          mount="router.use('/operations',clubOperationsRouter)\n"
+          if mount not in text:
+              anchor="router.use('/availability',clubPlayerAvailabilityRouter)\n"
+              if anchor not in text: raise SystemExit('club portal mount anchor missing')
+              text=text.replace(anchor,mount+anchor)
+          access.write_text(text)
+
+          volunteers=Path('src/pages/ClubPortalVolunteers.tsx')
+          text=volunteers.read_text()
+          imp="import { loadClubOperations, saveVolunteerOperations } from '../lib/clubOperations'\n"
+          if imp not in text:
+              anchor="import Footer from '../components/layout/Footer'\n"
+              if anchor not in text: raise SystemExit('volunteer import anchor missing')
+              text=text.replace(anchor,anchor+imp)
+          old=" const{clubId=''}=useParams();const[data,setData]=useState<Store>(()=>read(clubId));const[view,setView]=useState<'roster'|'people'>('roster');const[showShift,setShowShift]=useState(false);const[showVolunteer,setShowVolunteer]=useState(false);const[editing,setEditing]=useState<Shift|null>(null);const[message,setMessage]=useState('')\n useEffect(()=>{setData(read(clubId))},[clubId])\n useEffect(()=>{localStorage.setItem(key(clubId),JSON.stringify(data))},[clubId,data])"
+          new=" const{clubId=''}=useParams();const[data,setData]=useState<Store>(EMPTY);const[view,setView]=useState<'roster'|'people'>('roster');const[showShift,setShowShift]=useState(false);const[showVolunteer,setShowVolunteer]=useState(false);const[editing,setEditing]=useState<Shift|null>(null);const[message,setMessage]=useState('');const[ready,setReady]=useState(false);const[syncError,setSyncError]=useState('')\n useEffect(()=>{let live=true;setReady(false);setSyncError('');loadClubOperations(clubId).then(async payload=>{if(!live)return;let next:Store={volunteers:payload.volunteers as Volunteer[],shifts:payload.shifts as Shift[]};const local=read(clubId);if(!next.volunteers.length&&!next.shifts.length&&(local.volunteers.length||local.shifts.length)){next=local;await saveVolunteerOperations(clubId,next.volunteers,next.shifts);localStorage.removeItem(key(clubId))}if(live){setData(next);setReady(true)}}).catch(error=>{if(live)setSyncError(error instanceof Error?error.message:'Unable to load shared volunteer data')});return()=>{live=false}},[clubId])\n useEffect(()=>{if(!ready)return;const timer=window.setTimeout(()=>{saveVolunteerOperations(clubId,data.volunteers,data.shifts).then(()=>setSyncError('')).catch(error=>setSyncError(error instanceof Error?error.message:'Unable to save shared volunteer data'))},350);return()=>window.clearTimeout(timer)},[clubId,data,ready])"
+          if old not in text: raise SystemExit('volunteer state block missing')
+          text=text.replace(old,new)
+          marker="  {message&&<div className=\"cpv-message\">"
+          replacement="  {syncError&&<div className=\"cpv-message\" style={{background:'#fff0f0',color:'#a51c1c'}}>{syncError}</div>}\n"+marker
+          if marker not in text: raise SystemExit('volunteer message marker missing')
+          text=text.replace(marker,replacement,1)
+          volunteers.write_text(text)
+
+          equipment=Path('src/pages/ClubPortalEquipment.tsx')
+          text=equipment.read_text()
+          imp="import { loadClubOperations, saveEquipmentOperations } from '../lib/clubOperations'\n"
+          if imp not in text:
+              anchor="import Footer from '../components/layout/Footer'\n"
+              if anchor not in text: raise SystemExit('equipment import anchor missing')
+              text=text.replace(anchor,anchor+imp)
+          old=" const{clubId=''}=useParams();const[items,setItems]=useState<Item[]>(()=>read(clubId));const[category,setCategory]=useState<'All'|Category>('All');const[query,setQuery]=useState('');const[editing,setEditing]=useState<Item|null>(null);const[showForm,setShowForm]=useState(false)\n useEffect(()=>setItems(read(clubId)),[clubId]);useEffect(()=>localStorage.setItem(key(clubId),JSON.stringify(items)),[clubId,items])"
+          new=" const{clubId=''}=useParams();const[items,setItems]=useState<Item[]>([]);const[category,setCategory]=useState<'All'|Category>('All');const[query,setQuery]=useState('');const[editing,setEditing]=useState<Item|null>(null);const[showForm,setShowForm]=useState(false);const[ready,setReady]=useState(false);const[syncError,setSyncError]=useState('')\n useEffect(()=>{let live=true;setReady(false);setSyncError('');loadClubOperations(clubId).then(async payload=>{if(!live)return;let next=payload.equipment as Item[];const raw=localStorage.getItem(key(clubId));if(!next.length&&raw){try{const local=JSON.parse(raw);if(Array.isArray(local)&&local.length){next=local;await saveEquipmentOperations(clubId,next);localStorage.removeItem(key(clubId))}}catch{}}if(live){setItems(next);setReady(true)}}).catch(error=>{if(live)setSyncError(error instanceof Error?error.message:'Unable to load shared equipment data')});return()=>{live=false}},[clubId])\n useEffect(()=>{if(!ready)return;const timer=window.setTimeout(()=>{saveEquipmentOperations(clubId,items).then(()=>setSyncError('')).catch(error=>setSyncError(error instanceof Error?error.message:'Unable to save shared equipment data'))},350);return()=>window.clearTimeout(timer)},[clubId,items,ready])"
+          if old not in text: raise SystemExit('equipment state block missing')
+          text=text.replace(old,new)
+          marker="  <section className=\"cpe-summary\">"
+          replacement="  {syncError&&<section className=\"cpe-alerts\"><div><AlertTriangle size={18}/><span>{syncError}</span></div></section>}\n"+marker
+          if marker not in text: raise SystemExit('equipment summary marker missing')
+          text=text.replace(marker,replacement,1)
+          equipment.write_text(text)
+          PY
+      - name: Commit shared operations connection
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/src/api/routes/club-portal-access.ts src/pages/ClubPortalVolunteers.tsx src/pages/ClubPortalEquipment.tsx
+          git commit -m 'Store club operations in shared database'
+          git push origin newone1
