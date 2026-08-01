@@ -58,3 +58,4 @@ function MatchSummary({state,opponent,clubId}:{state:MatchState;opponent:string;
           git add src/pages/ClubPortalMatchDay.tsx
           git commit -m 'Add Finish Match and game summary'
           git push
+# retrigger 2026-08-02
