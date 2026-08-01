@@ -35,17 +35,25 @@ type LiveRow = {
   clubId:string;clubName:string;teamSheetId:string|null;roundLabel:string|null;opponentName:string|null;matchDate:string|null;quarter:number;elapsedSeconds:number;clockRunning:boolean;homeGoals:number;homeBehinds:number;awayGoals:number;awayBehinds:number;status:string;lastEvent:string|null;updatedAt:string
 }
 
+const liveSelect = `
+  SELECT lm.club_id AS "clubId",c.name AS "clubName",lm.team_sheet_id::text AS "teamSheetId",
+    lm.round_label AS "roundLabel",lm.opponent_name AS "opponentName",lm.match_date AS "matchDate",
+    lm.quarter,
+    CASE
+      WHEN lm.clock_running THEN lm.elapsed_seconds + GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (now() - lm.updated_at))))::int
+      ELSE lm.elapsed_seconds
+    END AS "elapsedSeconds",
+    lm.clock_running AS "clockRunning",
+    lm.home_goals AS "homeGoals",lm.home_behinds AS "homeBehinds",lm.away_goals AS "awayGoals",lm.away_behinds AS "awayBehinds",
+    lm.status,lm.last_event AS "lastEvent",lm.updated_at AS "updatedAt"
+  FROM football_live_matches lm
+  LEFT JOIN clubs c ON c.id::text=lm.club_id
+`
+
 router.get('/', async (_req, res) => {
   try {
     await ensureLiveMatchTable()
-    const rows = await prisma.$queryRawUnsafe<LiveRow[]>(`
-      SELECT lm.club_id AS "clubId",c.name AS "clubName",lm.team_sheet_id::text AS "teamSheetId",
-        lm.round_label AS "roundLabel",lm.opponent_name AS "opponentName",lm.match_date AS "matchDate",
-        lm.quarter,lm.elapsed_seconds AS "elapsedSeconds",lm.clock_running AS "clockRunning",
-        lm.home_goals AS "homeGoals",lm.home_behinds AS "homeBehinds",lm.away_goals AS "awayGoals",lm.away_behinds AS "awayBehinds",
-        lm.status,lm.last_event AS "lastEvent",lm.updated_at AS "updatedAt"
-      FROM football_live_matches lm
-      LEFT JOIN clubs c ON c.id::text=lm.club_id
+    const rows = await prisma.$queryRawUnsafe<LiveRow[]>(`${liveSelect}
       WHERE lm.status='LIVE' AND lm.updated_at > now() - interval '8 hours'
       ORDER BY lm.updated_at DESC
       LIMIT 100
@@ -77,14 +85,7 @@ router.get('/', async (_req, res) => {
 router.get('/clubs/:clubId', async (req, res) => {
   try {
     await ensureLiveMatchTable()
-    const rows = await prisma.$queryRawUnsafe<LiveRow[]>(`
-      SELECT lm.club_id AS "clubId",c.name AS "clubName",lm.team_sheet_id::text AS "teamSheetId",
-        lm.round_label AS "roundLabel",lm.opponent_name AS "opponentName",lm.match_date AS "matchDate",
-        lm.quarter,lm.elapsed_seconds AS "elapsedSeconds",lm.clock_running AS "clockRunning",
-        lm.home_goals AS "homeGoals",lm.home_behinds AS "homeBehinds",lm.away_goals AS "awayGoals",lm.away_behinds AS "awayBehinds",
-        lm.status,lm.last_event AS "lastEvent",lm.updated_at AS "updatedAt"
-      FROM football_live_matches lm
-      LEFT JOIN clubs c ON c.id::text=lm.club_id
+    const rows = await prisma.$queryRawUnsafe<LiveRow[]>(`${liveSelect}
       WHERE lm.club_id=$1 AND lm.status='LIVE'
         AND lm.updated_at > now() - interval '8 hours'
       LIMIT 1
