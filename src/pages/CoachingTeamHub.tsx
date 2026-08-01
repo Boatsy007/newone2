@@ -1,0 +1,18 @@
+import { Link, useParams } from 'react-router-dom'
+import { ArrowLeft, CalendarCheck, ChevronRight, ShieldCheck, Target, Trophy, UserRound, Workflow } from 'lucide-react'
+import Nav from '../components/layout/Nav'
+import Footer from '../components/layout/Footer'
+
+export default function CoachingTeamHub(){
+ const{clubId=''}=useParams()
+ const tools=[
+  {label:'Player availability',note:'See who is available, unavailable, injured or still waiting to respond.',to:`/club-portal/${clubId}/availability`,icon:CalendarCheck},
+  {label:'Team selection',note:'Build the side, assign positions, interchange and emergencies.',to:`/club-portal/${clubId}/team-selection`,icon:Trophy},
+  {label:'Opposition plan',note:'Save key threats, planned match-ups and game instructions.',to:`/club-portal/${clubId}/coaching?view=opposition`,icon:Target},
+  {label:'Player development',note:'Private player goals, strengths, notes and progress updates.',to:`/club-portal/${clubId}/coaching?view=player-development`,icon:UserRound},
+  {label:'Coaching whiteboard',note:'Work through positions, structures and tactical ideas.',to:`/club-portal/${clubId}/whiteboard`,icon:Workflow},
+ ]
+ return <><Nav/><main className="cth"><header><Link to={`/club-portal/${clubId}/coaching`}><ArrowLeft size={17}/>Coaching home</Link><span>Team</span><h1>Prepare the side</h1><p>Everything for player availability, selection, opposition planning and development is grouped here.</p></header><section className="cth-list">{tools.map(item=><Link key={item.label} to={item.to}><i><item.icon size={24}/></i><div><strong>{item.label}</strong><span>{item.note}</span></div><ChevronRight size={22}/></Link>)}</section><Link className="cth-exit" to={`/club-portal/${clubId}`}><ShieldCheck size={19}/><div><strong>Club dashboard</strong><span>Leave the coaching workspace</span></div><ChevronRight size={20}/></Link></main><Footer/><style>{styles}</style></>
+}
+const styles=`.cth{min-height:82vh;background:#f7f8fa;color:#0b0d10;padding:24px max(16px,calc((100vw - 720px)/2)) 110px;font-family:Barlow,Inter,Arial,sans-serif}.cth header>a{display:inline-flex;align-items:center;gap:6px;color:#111;text-decoration:none;font-weight:900;font-size:12px}.cth header>span{display:block;margin-top:24px;color:#42b8ff;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.cth h1{margin:6px 0 7px;font-family:'Bebas Neue',Impact,sans-serif;font-size:52px;line-height:.9;text-transform:uppercase}.cth header p{margin:0;max-width:560px;color:#707984;line-height:1.5}.cth-list{margin-top:24px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 8px 26px rgba(15,23,42,.07)}.cth-list>a{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:13px;min-height:92px;padding:12px 18px;color:#111;text-decoration:none;border-bottom:1px solid #e8ebee}.cth-list>a:last-child{border-bottom:0}.cth-list i{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#6131bb,#42b8ff);color:#fff;font-style:normal}.cth-list strong,.cth-list span,.cth-exit strong,.cth-exit span{display:block}.cth-list strong{font-size:17px}.cth-list span{margin-top:4px;color:#78818a;font-size:11px;line-height:1.4}.cth-exit{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;margin-top:16px;padding:17px;border-radius:17px;background:#e9ecef;color:#111;text-decoration:none}.cth-exit span{margin-top:3px;color:#747d86;font-size:10px}@media(max-width:560px){.cth{padding:18px 13px 105px}.cth h1{font-size:44px}.cth-list>a{grid-template-columns:48px 1fr auto;padding:11px 13px}.cth-list i{width:46px;height:46px}}
+`
