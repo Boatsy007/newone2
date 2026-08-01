@@ -1,0 +1,64 @@
+name: Add shared admin state API
+on:
+  push:
+    paths:
+      - '.github/workflows/add-admin-operations-state-api.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('backend/src/admin/quality.ts')
+          s=p.read_text()
+          marker='// Full engine run.\n'
+          block='''let operationsStateReady: Promise<void> | null = null
+function ensureOperationsStateTable() {
+  if (!operationsStateReady) operationsStateReady = prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS admin_operations_state (
+      state_key text PRIMARY KEY,
+      state_value jsonb NOT NULL DEFAULT '{}'::jsonb,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `).then(() => undefined).catch(error => { operationsStateReady = null; throw error })
+  return operationsStateReady
+}
+
+router.get('/operations-state/:key', async (req, res) => {
+  try {
+    await ensureOperationsStateTable()
+    const rows = await prisma.$queryRawUnsafe<Array<{ value: unknown; updatedAt: string }>>(
+      `SELECT state_value AS value, updated_at AS "updatedAt" FROM admin_operations_state WHERE state_key=$1 LIMIT 1`, req.params.key,
+    )
+    res.set('Cache-Control', 'no-store')
+    res.json({ data: rows[0] ?? { value: null, updatedAt: null } })
+  } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'unable to load admin operations state' }) }
+})
+
+router.put('/operations-state/:key', async (req, res) => {
+  try {
+    await ensureOperationsStateTable()
+    const value = req.body?.value ?? null
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO admin_operations_state(state_key,state_value,updated_at) VALUES($1,$2::jsonb,now()) ON CONFLICT(state_key) DO UPDATE SET state_value=EXCLUDED.state_value,updated_at=now()`,
+      req.params.key, JSON.stringify(value),
+    )
+    res.json({ data: { value, updatedAt: new Date().toISOString() } })
+  } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : 'unable to save admin operations state' }) }
+})
+
+'''
+          if "operations-state/:key" not in s:
+            if marker not in s: raise SystemExit('marker missing')
+            s=s.replace(marker,block+marker,1)
+            p.write_text(s)
+          PY
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add backend/src/admin/quality.ts
+          git commit -m 'Add shared admin operations state API'
+          git push
