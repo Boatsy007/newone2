@@ -1,0 +1,146 @@
+name: Share whiteboard recordings
+on:
+  push:
+    paths:
+      - '.github/workflows/share-whiteboard-recordings.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Patch whiteboard recording persistence
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          api=Path('backend/src/api/routes/club-coach-whiteboard.ts')
+          text=api.read_text()
+          anchor="router.get('/clubs/:clubId/whiteboards/:boardId', async (req, res) => {"
+          routes=r'''router.get('/clubs/:clubId/whiteboards/:boardId/recording', async (req, res) => {
+  try {
+    await ensureWhiteboardTable()
+    if (!canManage(res)) return res.status(403).json({ error: 'Your club role cannot manage the coach whiteboard' })
+    const rows = await prisma.$queryRawUnsafe<Array<{recording:unknown;updatedAt:string}>>(`
+      SELECT board_data->'playRecording' AS recording,updated_at AS "updatedAt"
+      FROM football_coach_whiteboards WHERE id::text=$1 AND club_id=$2 LIMIT 1
+    `, req.params.boardId, req.params.clubId)
+    if (!rows[0]) return res.status(404).json({ error: 'Whiteboard not found' })
+    res.json({ data: { recording: rows[0].recording ?? null, updatedAt: rows[0].updatedAt } })
+  } catch (error) { res.status(500).json({ error: 'Unable to load whiteboard recording', detail: String(error) }) }
+})
+
+router.put('/clubs/:clubId/whiteboards/:boardId/recording', async (req, res) => {
+  try {
+    await ensureWhiteboardTable()
+    if (!canManage(res)) return res.status(403).json({ error: 'Your club role cannot manage the coach whiteboard' })
+    const recording = req.body?.recording
+    if (!recording || typeof recording !== 'object' || Array.isArray(recording)) return res.status(400).json({ error: 'A valid recording is required' })
+    const value = recording as Record<string,unknown>
+    const tracks = value.tracks && typeof value.tracks === 'object' && !Array.isArray(value.tracks) ? value.tracks : {}
+    const cleanRecording = {
+      version: 1,
+      duration: Math.max(0, Math.min(3600000, Number(value.duration) || 0)),
+      tracks,
+      ball: value.ball && typeof value.ball === 'object' ? value.ball : null,
+      savedAt: new Date().toISOString(),
+    }
+    const changed = await prisma.$executeRawUnsafe(`
+      UPDATE football_coach_whiteboards
+      SET board_data=jsonb_set(COALESCE(board_data,'{}'::jsonb),'{playRecording}',$3::jsonb,true),updated_at=now()
+      WHERE id::text=$1 AND club_id=$2
+    `, req.params.boardId, req.params.clubId, JSON.stringify(cleanRecording))
+    if (!changed) return res.status(404).json({ error: 'Whiteboard not found' })
+    res.json({ data: { recording: cleanRecording }, message: 'Whiteboard recording saved' })
+  } catch (error) { res.status(500).json({ error: 'Unable to save whiteboard recording', detail: String(error) }) }
+})
+
+'''
+          if '/recording' not in text:
+            if anchor not in text: raise SystemExit('whiteboard route anchor missing')
+            text=text.replace(anchor,routes+anchor,1)
+            api.write_text(text)
+
+          js=Path('public/whiteboard-play-recorder.js')
+          text=js.read_text()
+          text=text.replace("  const localKey = key => `${STORAGE_PREFIX}${key}`\n", "  const localKey = key => `${STORAGE_PREFIX}${key}`\n  const session = () => { try { return JSON.parse(localStorage.getItem('playfooty.clubPortal.session.v1') || 'null') } catch { return null } }\n  const boardId = () => boardSelect()?.value || ''\n  const isSavedBoard = () => Boolean(boardId() && boardId() !== 'new')\n")
+          old=r'''  function saveLocal() {
+    state.boardKey = currentBoardKey()
+    try { localStorage.setItem(localKey(state.boardKey), JSON.stringify(recordingPayload())) } catch {}
+  }
+
+  function loadLocal() {
+    state.boardKey = currentBoardKey()
+    try {
+      const raw = localStorage.getItem(localKey(state.boardKey))
+      if (raw) applyRecording(JSON.parse(raw))
+      else applyRecording(null)
+    } catch { applyRecording(null) }
+  }
+'''
+          new=r'''  let saveTimer = 0
+  async function saveShared(payload) {
+    const auth = session()
+    if (!auth?.access_token || !isSavedBoard()) return false
+    const response = await originalFetch(`/api/club-portal/whiteboard/clubs/${encodeURIComponent(clubId())}/whiteboards/${encodeURIComponent(boardId())}/recording`, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${auth.access_token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ recording: payload }),
+    })
+    if (!response.ok) throw new Error('Unable to save shared whiteboard recording')
+    return true
+  }
+
+  function saveLocal() {
+    state.boardKey = currentBoardKey()
+    const payload = recordingPayload()
+    try { localStorage.setItem(localKey(state.boardKey), JSON.stringify(payload)) } catch {}
+    window.clearTimeout(saveTimer)
+    saveTimer = window.setTimeout(() => {
+      saveShared(payload).then(saved => {
+        if (saved) try { localStorage.removeItem(localKey(state.boardKey)) } catch {}
+      }).catch(() => {})
+    }, 250)
+  }
+
+  async function loadLocal() {
+    state.boardKey = currentBoardKey()
+    const auth = session()
+    if (auth?.access_token && isSavedBoard()) {
+      try {
+        const response = await originalFetch(`/api/club-portal/whiteboard/clubs/${encodeURIComponent(clubId())}/whiteboards/${encodeURIComponent(boardId())}/recording`, { headers: { authorization: `Bearer ${auth.access_token}` } })
+        const payload = await response.json()
+        if (response.ok && payload?.data?.recording) {
+          applyRecording(payload.data.recording)
+          try { localStorage.removeItem(localKey(state.boardKey)) } catch {}
+          return
+        }
+      } catch {}
+    }
+    try {
+      const raw = localStorage.getItem(localKey(state.boardKey))
+      if (raw) {
+        const recording = JSON.parse(raw)
+        applyRecording(recording)
+        if (isSavedBoard()) saveShared(recording).then(saved => { if (saved) localStorage.removeItem(localKey(state.boardKey)) }).catch(() => {})
+      } else applyRecording(null)
+    } catch { applyRecording(null) }
+  }
+'''
+          if 'async function saveShared' not in text:
+            if old not in text: raise SystemExit('recorder storage block missing')
+            text=text.replace(old,new,1)
+          text=text.replace("  window.addEventListener('beforeunload', saveLocal)\n", "  window.addEventListener('beforeunload', () => { if (!isSavedBoard()) saveLocal() })\n")
+          js.write_text(text)
+          PY
+      - name: Commit source
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add backend/src/api/routes/club-coach-whiteboard.ts public/whiteboard-play-recorder.js
+          git commit -m 'Store whiteboard recordings in shared database' || exit 0
+          git push
