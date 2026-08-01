@@ -1,0 +1,73 @@
+name: Restore whiteboard top controls
+
+on:
+  push:
+    paths:
+      - '.github/workflows/restore-whiteboard-top-controls.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore proven top-right media controls
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/components/club/WhiteboardAppMode.tsx')
+          text = path.read_text()
+
+          replacements = [
+            (
+              "type ActiveTool='move'|'line'|'arrow'|'circle'|'rectangle'|'square'|'triangle'|'zone'|'erase'\n",
+              "type ActiveTool='move'|'line'|'arrow'|'circle'|'rectangle'|'square'|'triangle'|'zone'|'erase'\ntype MediaState='idle'|'recording'|'playing'|'paused'\n"
+            ),
+            (
+              " const[portrait,setPortrait]=useState(false)\n",
+              " const[portrait,setPortrait]=useState(false)\n const[mediaState,setMediaState]=useState<MediaState>('idle')\n"
+            ),
+            (
+              " const media=(label:string)=>{click('.wb .playbar',label)}\n",
+              " const startRecording=()=>{click('.wb .playbar','record');setMediaState('recording');setTray(null)}\n const stopMedia=()=>{click('.wb .playbar','stop');setMediaState('idle')}\n const startPlay=()=>{click('.wb .playbar','play');setMediaState('playing');setTray(null)}\n const pausePlay=()=>{click('.wb .playbar','pause');setMediaState('paused')}\n const resumePlay=()=>{click('.wb .playbar','play');setMediaState('playing')}\n const restart=()=>{click('.wb .playbar','restart');setMediaState('idle');setTray(null)}\n const clearMotion=()=>{click('.wb .playbar','clear motion');setMediaState('idle');setTray(null)}\n"
+            ),
+            (
+              "<button className={tray==='media'?'active media':''} onClick={()=>toggle('media')}><Radio/><span>Record<br/>& Play</span></button>",
+              "<button className={tray==='media'||mediaState!=='idle'?'active media':''} onClick={()=>toggle('media')}><Radio/><span>Record<br/>& Play</span></button>"
+            ),
+            (
+              "  {tray==='media'&&<div className=\"wb-popup wb-media-tray\" role=\"dialog\" aria-label=\"Record and playback controls\">\n   <button className=\"record\" onClick={()=>media('record')}><Radio/><span>Record</span></button>\n   <button className=\"stop\" onClick={()=>media('stop')}><Square/><span>Stop</span></button>\n   <button onClick={()=>media('play')}><Play/><span>Play</span></button>\n   <button onClick={()=>media('pause')}><Pause/><span>Pause</span></button>\n   <button onClick={()=>media('restart')}><RotateCcw/><span>Restart</span></button>\n   <button onClick={()=>media('clear motion')}><X/><span>Clear</span></button>\n  </div>}\n",
+              "  {mediaState!=='idle'&&<div className=\"wb-live-controls\" aria-label=\"Active recording controls\">\n   <span className={mediaState==='recording'?'recording':'playing'}>{mediaState==='recording'?'Recording':mediaState==='paused'?'Paused':'Playing'}</span>\n   {mediaState==='playing'&&<button onClick={pausePlay}><Pause/><b>Pause</b></button>}\n   {mediaState==='paused'&&<button onClick={resumePlay}><Play/><b>Resume</b></button>}\n   <button className=\"stop\" onClick={stopMedia}><Square/><b>Stop</b></button>\n  </div>}\n\n  {tray==='media'&&<div className=\"wb-popup wb-media-tray\" role=\"dialog\" aria-label=\"Record and playback controls\">\n   <button className=\"record\" onClick={startRecording}><Radio/><span>Record play</span></button>\n   <button onClick={startPlay}><Play/><span>Play recording</span></button>\n   <button onClick={restart}><RotateCcw/><span>Restart</span></button>\n   <button onClick={clearMotion}><X/><span>Clear motion</span></button>\n  </div>}\n"
+            ),
+            (
+              ".ball-icon{font-size:22px;color:#a46628;line-height:1}.wb-popup{",
+              ".ball-icon{font-size:22px;color:#a46628;line-height:1}.wb-live-controls{position:fixed;z-index:100945;top:82px;right:24px;display:flex;align-items:center;gap:6px;padding:6px;border:1px solid #31414f;border-radius:11px;background:rgba(11,18,25,.94);box-shadow:0 8px 20px rgba(0,0,0,.24)}.wb-live-controls>span{padding:0 7px;color:#dbe5ed;font-size:9px;font-weight:900;text-transform:uppercase;white-space:nowrap}.wb-live-controls>span.recording{color:#ff7373}.wb-live-controls button{height:40px;border:1px solid #40515f;border-radius:8px;background:#1a2934;color:#fff;display:flex;align-items:center;gap:5px;padding:0 10px;font-size:9px;font-weight:900}.wb-live-controls button.stop{background:#922d2d;border-color:#c54b4b}.wb-live-controls svg{width:16px;height:16px}.wb-popup{"
+            ),
+            (
+              ".pf-whiteboard-app[data-wb-tray=\"players\"] .player-bank{max-height:138px!important}.wb-shape-tray{",
+              ".pf-whiteboard-app[data-wb-tray=\"players\"] .player-bank{max-height:138px!important}.wb-live-controls{top:70px;right:16px}.wb-shape-tray{"
+            )
+          ]
+
+          for old, new in replacements:
+            if old not in text:
+              raise SystemExit(f'Missing expected fragment: {old[:120]}')
+            text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+      - name: Commit restored controls
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add src/components/club/WhiteboardAppMode.tsx
+          git commit -m "Restore proven whiteboard top controls"
+          git push origin HEAD:newone1
