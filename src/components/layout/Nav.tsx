@@ -35,7 +35,7 @@ export default function Nav() {
   const followTarget: FollowTarget | null = clubMatch ? { entityType: 'CLUB', entityId: clubMatch[1] } : leagueMatch ? { entityType: 'LEAGUE', entityId: leagueMatch[1] } : playerMatch ? { entityType: 'PLAYER', entityId: playerMatch[1] } : null
 
   useEffect(() => { setOpen(false) }, [location.pathname])
-  useEffect(() => { document.body.style.overflow = open ? 'hidden' : ''; return () => { document.body.style.overflow = '' } }, [open])
+  useEffect(() => { document.body.style.overflow = open ? 'hidden' : ''; document.body.classList.toggle('pf-menu-open', open); return () => { document.body.style.overflow = ''; document.body.classList.remove('pf-menu-open') } }, [open])
   useEffect(() => {
     let active = true
     const refreshUnread = () => { loadFeed().then(items => { if (!active) return; const read = readIds(); setUnread(items.filter(item => !read.has(item.id)).length) }).catch(() => { if (active) setUnread(0) }) }
