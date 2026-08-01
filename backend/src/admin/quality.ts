@@ -18,6 +18,45 @@ import { mergeClubs, mergeLeagues } from '../quality/merge.js'
 const router = Router()
 router.use(requireAdminKey)
 
+let operationsStateReady: Promise<void> | null = null
+function ensureOperationsStateTable() {
+  if (!operationsStateReady) operationsStateReady = prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS admin_operations_state (
+      state_key text PRIMARY KEY,
+      state_value jsonb NOT NULL DEFAULT '{}'::jsonb,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `).then(() => undefined).catch(error => { operationsStateReady = null; throw error })
+  return operationsStateReady
+}
+
+router.get('/operations-state/:key', async (req, res) => {
+  try {
+    await ensureOperationsStateTable()
+    const rows = await prisma.$queryRawUnsafe<Array<{ value: unknown; updatedAt: string }>>(
+      `SELECT state_value AS value, updated_at AS "updatedAt" FROM admin_operations_state WHERE state_key=$1 LIMIT 1`, req.params.key,
+    )
+    res.set('Cache-Control', 'no-store')
+    res.json({ data: rows[0] ?? { value: null, updatedAt: null } })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'unable to load admin operations state' })
+  }
+})
+
+router.put('/operations-state/:key', async (req, res) => {
+  try {
+    await ensureOperationsStateTable()
+    const value = req.body?.value ?? null
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO admin_operations_state(state_key,state_value,updated_at) VALUES($1,$2::jsonb,now()) ON CONFLICT(state_key) DO UPDATE SET state_value=EXCLUDED.state_value,updated_at=now()`,
+      req.params.key, JSON.stringify(value),
+    )
+    res.json({ data: { value, updatedAt: new Date().toISOString() } })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'unable to save admin operations state' })
+  }
+})
+
 // Full engine run.
 router.post('/run', async (req, res) => {
   const b = (req.body ?? {}) as { raiseReviews?: boolean; storeHealth?: boolean }
