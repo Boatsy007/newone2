@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Bell, Building2, Home, ListFilter, Menu, Newspaper, Shield, Sparkles, Trophy, Users, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
+import MatchCentreLiveBanner from '../matches/MatchCentreLiveBanner'
 
 const HIDDEN_PREFIXES=['/club-portal','/league-portal','/admin','/reset-password','/player-availability']
 
@@ -27,7 +28,7 @@ export default function PublicAppNav(){
   {label:'Clubs',href:'/directory',icon:Users,active:pathname.startsWith('/directory')||pathname.startsWith('/team/')},
  ]
 
- return createPortal(<>
+ return <><MatchCentreLiveBanner/>{createPortal(<>
   <nav className="public-app-bottom" aria-label="PlayFooty app navigation"><div>
    {items.map(item=><Link key={item.label} to={item.href} className={item.active?'active':''} aria-current={item.active?'page':undefined}><item.icon size={22}/><span>{item.label}</span></Link>)}
    <button type="button" className={moreOpen||moreActive?'active':''} onClick={()=>setMoreOpen(value=>!value)} aria-expanded={moreOpen}><Menu size={22}/><span>More</span></button>
@@ -46,7 +47,7 @@ export default function PublicAppNav(){
    </section>
   </div>}
   <style>{styles}</style>
- </>,document.body)
+ </>,document.body)}</>
 }
 
 function MoreLink({to,icon:Icon,label,note}:{to:string;icon:typeof Home;label:string;note:string}){return <Link to={to}><i><Icon size={21}/></i><span><strong>{label}</strong><small>{note}</small></span></Link>}
