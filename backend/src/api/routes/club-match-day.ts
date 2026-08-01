@@ -38,6 +38,27 @@ router.use(publicRateLimit)
 router.use(authenticateClubUser)
 router.use('/clubs/:clubId', requireActiveClubMembership)
 
+router.get('/clubs/:clubId/history', async (req, res) => {
+  try {
+    await ensureTable()
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      sheetId: string
+      state: unknown
+      version: number
+      updatedAt: Date
+      updatedBy: string | null
+    }>>(`
+      SELECT sheet_id AS "sheetId", state, version, updated_at AS "updatedAt", updated_by AS "updatedBy"
+      FROM club_match_day_state
+      WHERE club_id = $1
+      ORDER BY updated_at DESC
+    `, req.params.clubId)
+    res.json({ data: rows })
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to load Match Day history', detail: error instanceof Error ? error.message : String(error) })
+  }
+})
+
 router.get('/clubs/:clubId/sheets/:sheetId', async (req, res) => {
   try {
     await ensureTable()
