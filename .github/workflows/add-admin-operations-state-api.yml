@@ -62,3 +62,4 @@ router.put('/operations-state/:key', async (req, res) => {
           git add backend/src/admin/quality.ts
           git commit -m 'Add shared admin operations state API'
           git push
+# trigger
