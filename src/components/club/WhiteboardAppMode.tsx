@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 
 type Tray='players'|'opposition'|'ball'|'shapes'|'media'|null
 type ActiveTool='move'|'line'|'arrow'|'circle'|'rectangle'|'square'|'triangle'|'zone'|'erase'
+type MediaState='idle'|'recording'|'playing'|'paused'
 
 export default function WhiteboardAppMode(){
  const{pathname}=useLocation()
@@ -13,6 +14,7 @@ export default function WhiteboardAppMode(){
  const[tray,setTray]=useState<Tray>(null)
  const[activeTool,setActiveTool]=useState<ActiveTool>('move')
  const[portrait,setPortrait]=useState(false)
+ const[mediaState,setMediaState]=useState<MediaState>('idle')
 
  useEffect(()=>{
   if(!active)return
@@ -46,7 +48,13 @@ export default function WhiteboardAppMode(){
  const toggle=(next:Exclude<Tray,null>)=>setTray(current=>current===next?null:next)
  const save=()=>document.querySelector<HTMLButtonElement>('.wb .meta .save')?.click()
  const fullscreen=async()=>{try{await document.documentElement.requestFullscreen?.()}catch{}}
- const media=(label:string)=>{click('.wb .playbar',label)}
+ const startRecording=()=>{click('.wb .playbar','record');setMediaState('recording');setTray(null)}
+ const stopMedia=()=>{click('.wb .playbar','stop');setMediaState('idle')}
+ const startPlay=()=>{click('.wb .playbar','play');setMediaState('playing');setTray(null)}
+ const pausePlay=()=>{click('.wb .playbar','pause');setMediaState('paused')}
+ const resumePlay=()=>{click('.wb .playbar','play');setMediaState('playing')}
+ const restart=()=>{click('.wb .playbar','restart');setMediaState('idle');setTray(null)}
+ const clearMotion=()=>{click('.wb .playbar','clear motion');setMediaState('idle');setTray(null)}
  const shapesActive=['line','arrow','circle','rectangle','square','triangle','zone'].includes(activeTool)
 
  const ui=<>
@@ -62,7 +70,7 @@ export default function WhiteboardAppMode(){
    <button className={tray==='players'?'active':''} onClick={()=>toggle('players')}><Users/><span>Players</span></button>
    <button className={tray==='opposition'?'active':''} onClick={()=>toggle('opposition')}><CircleDot/><span>Opposition</span></button>
    <button className={tray==='ball'?'active':''} onClick={()=>toggle('ball')}><span className="ball-icon">●</span><span>Ball</span></button>
-   <button className={tray==='media'?'active media':''} onClick={()=>toggle('media')}><Radio/><span>Record<br/>& Play</span></button>
+   <button className={tray==='media'||mediaState!=='idle'?'active media':''} onClick={()=>toggle('media')}><Radio/><span>Record<br/>& Play</span></button>
    <button className="save" onClick={save}><Save/><span>Save</span></button>
   </nav>
 
@@ -76,13 +84,18 @@ export default function WhiteboardAppMode(){
    <button className={activeTool==='zone'?'active':''} onClick={()=>selectTool('zone')}><CircleDot/><span>Zone</span></button>
   </div>}
 
+  {mediaState!=='idle'&&<div className="wb-live-controls" aria-label="Active recording controls">
+   <span className={mediaState==='recording'?'recording':'playing'}>{mediaState==='recording'?'Recording':mediaState==='paused'?'Paused':'Playing'}</span>
+   {mediaState==='playing'&&<button onClick={pausePlay}><Pause/><b>Pause</b></button>}
+   {mediaState==='paused'&&<button onClick={resumePlay}><Play/><b>Resume</b></button>}
+   <button className="stop" onClick={stopMedia}><Square/><b>Stop</b></button>
+  </div>}
+
   {tray==='media'&&<div className="wb-popup wb-media-tray" role="dialog" aria-label="Record and playback controls">
-   <button className="record" onClick={()=>media('record')}><Radio/><span>Record</span></button>
-   <button className="stop" onClick={()=>media('stop')}><Square/><span>Stop</span></button>
-   <button onClick={()=>media('play')}><Play/><span>Play</span></button>
-   <button onClick={()=>media('pause')}><Pause/><span>Pause</span></button>
-   <button onClick={()=>media('restart')}><RotateCcw/><span>Restart</span></button>
-   <button onClick={()=>media('clear motion')}><X/><span>Clear</span></button>
+   <button className="record" onClick={startRecording}><Radio/><span>Record play</span></button>
+   <button onClick={startPlay}><Play/><span>Play recording</span></button>
+   <button onClick={restart}><RotateCcw/><span>Restart</span></button>
+   <button onClick={clearMotion}><X/><span>Clear motion</span></button>
   </div>}
 
   {tray&&['players','opposition','ball'].includes(tray)&&<button className="wb-tray-close" onClick={()=>setTray(null)} aria-label="Close tray"><X/></button>}
@@ -97,5 +110,5 @@ body.pf-whiteboard-app{overflow:hidden!important;background:#0b1219!important}.p
 .pf-whiteboard-app[data-wb-tray] .workspace>aside{display:block!important;position:fixed!important;z-index:100850!important;left:158px!important;top:78px!important;width:min(760px,calc(100vw - 190px))!important;max-height:230px!important;padding:5px!important;border:1px solid #2d3c49!important;border-radius:12px!important;background:#101820!important;box-shadow:0 8px 20px rgba(0,0,0,.24)!important;overflow:auto!important}
 .pf-whiteboard-app[data-wb-tray] .workspace>aside>section{display:none!important;margin:0!important;padding:7px!important;border:0!important;border-radius:9px!important;background:#fff!important}.pf-whiteboard-app[data-wb-tray="players"] .workspace>aside>section:first-child,.pf-whiteboard-app[data-wb-tray="opposition"] .workspace>aside>section:nth-child(2),.pf-whiteboard-app[data-wb-tray="ball"] .workspace>aside>section:nth-child(3){display:block!important}
 .pf-whiteboard-app[data-wb-tray] .workspace>aside h2{margin:0 0 5px!important;font-size:13px!important;line-height:1!important}.pf-whiteboard-app[data-wb-tray="players"] .player-bank{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(102px,1fr))!important;gap:4px!important;max-height:174px!important;overflow:auto!important;padding:0!important}.pf-whiteboard-app[data-wb-tray="players"] .player-bank button{display:grid!important;grid-template-columns:25px minmax(0,1fr) 13px!important;min-width:0!important;height:38px!important;padding:3px 5px!important;font-size:9px!important;line-height:1!important;gap:4px!important}.pf-whiteboard-app[data-wb-tray="players"] .player-bank button b{width:25px!important;height:25px!important;min-width:25px!important;font-size:9px!important}.pf-whiteboard-app[data-wb-tray="players"] .player-bank button span{min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.pf-whiteboard-app[data-wb-tray="players"] .player-bank button svg{width:13px!important;height:13px!important}.pf-whiteboard-app[data-wb-tray="players"] .player-bank button:disabled{display:none!important}
-.wb-app-back,.wb-app-full{position:fixed;z-index:100950;top:10px;width:48px;height:48px;border:0;border-radius:12px;display:grid;place-items:center;background:#17242f;color:#fff}.wb-app-back{left:7px}.wb-app-full{right:7px;background:#42b8ff;color:#061018}.wb-app-back svg,.wb-app-full svg{width:21px}.wb-app-rail{position:fixed;z-index:100920;left:0;top:68px;bottom:0;width:150px;padding:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:64px;align-content:start;gap:7px;background:#0b1219;border-right:1px solid #2a3946;box-sizing:border-box;overflow-y:auto;scrollbar-width:none}.wb-app-rail::-webkit-scrollbar{display:none}.wb-app-rail button{min-width:0;height:64px;border:1px solid #31414f;border-radius:12px;background:#182630;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:9px;line-height:1.05;font-weight:900;text-align:center}.wb-app-rail button svg{width:20px;height:20px}.wb-app-rail button.active,.wb-app-rail button.save{background:#42b8ff!important;color:#061018!important;border-color:#42b8ff!important}.ball-icon{font-size:22px;color:#a46628;line-height:1}.wb-popup{position:fixed;z-index:100940;left:158px;top:78px;display:grid;gap:5px;padding:6px;border:1px solid #31414f;border-radius:11px;background:#101820;box-shadow:0 8px 20px rgba(0,0,0,.24);box-sizing:border-box}.wb-popup button{height:42px;border:1px solid #31414f;border-radius:8px;background:#182630;color:#fff;display:flex;align-items:center;gap:6px;padding:0 9px;font-size:9px;font-weight:900}.wb-popup button svg{width:17px;height:17px}.wb-popup button.active{background:#42b8ff;color:#061018;border-color:#42b8ff}.wb-shape-tray{grid-template-columns:repeat(4,92px);max-width:390px}.wb-media-tray{grid-template-columns:repeat(3,92px)}.wb-media-tray button.record{background:#982b2b;border-color:#c04444}.wb-media-tray button.stop{background:#3a2020;border-color:#754040}.wb-tray-close{position:fixed;z-index:100930;left:min(900px,calc(100vw - 44px));top:80px;width:30px;height:30px;border:0;border-radius:50%;background:#42b8ff;display:grid;place-items:center}.wb-tray-close svg{width:16px;height:16px}.wb-rotate{position:fixed;inset:0;z-index:101000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#0b1219;color:#fff}.wb-rotate svg{width:42px;height:42px}.wb-rotate strong{font-size:25px}.wb-rotate span{color:#aebbc6}@media(max-height:500px){.pf-whiteboard-app .wb>.meta{height:58px!important;left:134px!important;padding-top:6px!important}.pf-whiteboard-app .workspace{inset:58px 0 0 130px!important}.wb-app-rail{top:58px;width:130px;grid-auto-rows:56px;padding:6px;gap:5px}.wb-app-rail button{height:56px}.pf-whiteboard-app .oval{inset:8px 12px 46px!important}.pf-whiteboard-app[data-wb-tray] .workspace>aside,.wb-popup{left:138px!important;top:68px!important}.pf-whiteboard-app[data-wb-tray] .workspace>aside{max-height:190px!important}.pf-whiteboard-app[data-wb-tray="players"] .player-bank{max-height:138px!important}.wb-shape-tray{grid-template-columns:repeat(4,82px)}.wb-media-tray{grid-template-columns:repeat(3,86px)}}
+.wb-app-back,.wb-app-full{position:fixed;z-index:100950;top:10px;width:48px;height:48px;border:0;border-radius:12px;display:grid;place-items:center;background:#17242f;color:#fff}.wb-app-back{left:7px}.wb-app-full{right:7px;background:#42b8ff;color:#061018}.wb-app-back svg,.wb-app-full svg{width:21px}.wb-app-rail{position:fixed;z-index:100920;left:0;top:68px;bottom:0;width:150px;padding:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:64px;align-content:start;gap:7px;background:#0b1219;border-right:1px solid #2a3946;box-sizing:border-box;overflow-y:auto;scrollbar-width:none}.wb-app-rail::-webkit-scrollbar{display:none}.wb-app-rail button{min-width:0;height:64px;border:1px solid #31414f;border-radius:12px;background:#182630;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:9px;line-height:1.05;font-weight:900;text-align:center}.wb-app-rail button svg{width:20px;height:20px}.wb-app-rail button.active,.wb-app-rail button.save{background:#42b8ff!important;color:#061018!important;border-color:#42b8ff!important}.ball-icon{font-size:22px;color:#a46628;line-height:1}.wb-live-controls{position:fixed;z-index:100945;top:82px;right:24px;display:flex;align-items:center;gap:6px;padding:6px;border:1px solid #31414f;border-radius:11px;background:rgba(11,18,25,.94);box-shadow:0 8px 20px rgba(0,0,0,.24)}.wb-live-controls>span{padding:0 7px;color:#dbe5ed;font-size:9px;font-weight:900;text-transform:uppercase;white-space:nowrap}.wb-live-controls>span.recording{color:#ff7373}.wb-live-controls button{height:40px;border:1px solid #40515f;border-radius:8px;background:#1a2934;color:#fff;display:flex;align-items:center;gap:5px;padding:0 10px;font-size:9px;font-weight:900}.wb-live-controls button.stop{background:#922d2d;border-color:#c54b4b}.wb-live-controls svg{width:16px;height:16px}.wb-popup{position:fixed;z-index:100940;left:158px;top:78px;display:grid;gap:5px;padding:6px;border:1px solid #31414f;border-radius:11px;background:#101820;box-shadow:0 8px 20px rgba(0,0,0,.24);box-sizing:border-box}.wb-popup button{height:42px;border:1px solid #31414f;border-radius:8px;background:#182630;color:#fff;display:flex;align-items:center;gap:6px;padding:0 9px;font-size:9px;font-weight:900}.wb-popup button svg{width:17px;height:17px}.wb-popup button.active{background:#42b8ff;color:#061018;border-color:#42b8ff}.wb-shape-tray{grid-template-columns:repeat(4,92px);max-width:390px}.wb-media-tray{grid-template-columns:repeat(3,92px)}.wb-media-tray button.record{background:#982b2b;border-color:#c04444}.wb-media-tray button.stop{background:#3a2020;border-color:#754040}.wb-tray-close{position:fixed;z-index:100930;left:min(900px,calc(100vw - 44px));top:80px;width:30px;height:30px;border:0;border-radius:50%;background:#42b8ff;display:grid;place-items:center}.wb-tray-close svg{width:16px;height:16px}.wb-rotate{position:fixed;inset:0;z-index:101000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#0b1219;color:#fff}.wb-rotate svg{width:42px;height:42px}.wb-rotate strong{font-size:25px}.wb-rotate span{color:#aebbc6}@media(max-height:500px){.pf-whiteboard-app .wb>.meta{height:58px!important;left:134px!important;padding-top:6px!important}.pf-whiteboard-app .workspace{inset:58px 0 0 130px!important}.wb-app-rail{top:58px;width:130px;grid-auto-rows:56px;padding:6px;gap:5px}.wb-app-rail button{height:56px}.pf-whiteboard-app .oval{inset:8px 12px 46px!important}.pf-whiteboard-app[data-wb-tray] .workspace>aside,.wb-popup{left:138px!important;top:68px!important}.pf-whiteboard-app[data-wb-tray] .workspace>aside{max-height:190px!important}.pf-whiteboard-app[data-wb-tray="players"] .player-bank{max-height:138px!important}.wb-live-controls{top:70px;right:16px}.wb-shape-tray{grid-template-columns:repeat(4,82px)}.wb-media-tray{grid-template-columns:repeat(3,86px)}}
 `
