@@ -1,0 +1,70 @@
+name: Apply shared player match history robustly
+on:
+  push:
+    paths:
+      - '.github/workflows/connect-player-development-match-history-v2.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Patch source
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          route=Path('backend/src/api/routes/club-match-day.ts')
+          r=route.read_text()
+          if "router.get('/clubs/:clubId/history'" not in r:
+            anchor="router.get('/clubs/:clubId/sheets/:sheetId', async (req, res) => {"
+            history='''router.get('/clubs/:clubId/history', async (req, res) => {
+  try {
+    await ensureTable()
+    const rows = await prisma.$queryRawUnsafe<Array<{sheetId: string; state: unknown; version: number; updatedAt: Date; updatedBy: string | null}>>(`
+      SELECT sheet_id AS "sheetId", state, version, updated_at AS "updatedAt", updated_by AS "updatedBy"
+      FROM club_match_day_state
+      WHERE club_id = $1
+      ORDER BY updated_at DESC
+    `, req.params.clubId)
+    res.json({ data: rows })
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to load Match Day history', detail: error instanceof Error ? error.message : String(error) })
+  }
+})
+
+'''
+            if anchor not in r: raise SystemExit('route anchor missing')
+            r=r.replace(anchor,history+anchor,1)
+            route.write_text(r)
+
+          page=Path('src/pages/ClubPortalPlayerDevelopment.tsx')
+          s=page.read_text()
+          if 'type MatchDayRecord=' not in s:
+            s=s.replace("type Attendance={sessionId:string;clubPlayerId:string;status:string;leftEarly:boolean;missedPercentage:number|null}","type Attendance={sessionId:string;clubPlayerId:string;status:string;leftEarly:boolean;missedPercentage:number|null}\ntype MatchDayRecord={sheetId:string;state:{sheetId:string;slots:Array<{clubPlayerId:string;plusMinus:number;positionCode:string}>};updatedAt:string}",1)
+          s=s.replace("const[attendance,setAttendance]=useState<Attendance[]>([]);const[selectedId", "const[attendance,setAttendance]=useState<Attendance[]>([]);const[matchDayRecords,setMatchDayRecords]=useState<MatchDayRecord[]>([]);const[selectedId",1)
+          s=s.replace("const[dev,training]=await Promise.all([fetch(`/api/club-portal/player-development/clubs/${encodeURIComponent(clubId)}`,{headers}),fetch(`/api/club-portal/training/clubs/${encodeURIComponent(clubId)}`,{headers})]);", "const[dev,training,matchDay]=await Promise.all([fetch(`/api/club-portal/player-development/clubs/${encodeURIComponent(clubId)}`,{headers}),fetch(`/api/club-portal/training/clubs/${encodeURIComponent(clubId)}`,{headers}),fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/history`,{headers})]);",1)
+          s=s.replace("const tp=await training.json().catch(()=>({data:{}}));", "const tp=await training.json().catch(()=>({data:{}}));const mp=await matchDay.json().catch(()=>({data:[]}));",1)
+          s=s.replace("if(training.ok){setTrainingSessions(Array.isArray(tp.data?.sessions)?tp.data.sessions:[]);setAttendance(Array.isArray(tp.data?.attendance)?tp.data.attendance:[])}setError('')", "if(training.ok){setTrainingSessions(Array.isArray(tp.data?.sessions)?tp.data.sessions:[]);setAttendance(Array.isArray(tp.data?.attendance)?tp.data.attendance:[])}setMatchDayRecords(matchDay.ok&&Array.isArray(mp.data)?mp.data:[]);setError('')",1)
+          pattern=r"const matches=useMemo\(\(\)=>\{const found:Array<\{sheetId:string;plusMinus:number;position:string\}>\s*=\[\];.*?return found\},\[clubId,selectedId,updates\]\)"
+          replacement="const matches=useMemo(()=>matchDayRecords.flatMap(record=>{const slot=Array.isArray(record.state?.slots)?record.state.slots.find(item=>item.clubPlayerId===selectedId):null;return slot?[{sheetId:record.sheetId,plusMinus:Number(slot.plusMinus||0),position:String(slot.positionCode||''),updatedAt:record.updatedAt}]:[]}),[matchDayRecords,selectedId])"
+          s,n=re.subn(pattern,replacement,s,count=1,flags=re.S)
+          if n!=1 and 'matchDayRecords.flatMap' not in s: raise SystemExit('matches block not replaced')
+          s=s.replace("<small>Plus/minus</small></article>):<p>No Match Day records for this player are stored on this device yet.</p>}","<small>{date(m.updatedAt)} · Plus/minus</small></article>):<p>No shared Match Day records are available for this player yet.</p>}",1)
+          required=['type MatchDayRecord=','matchDayRecords.flatMap','/match-day/clubs/${encodeURIComponent(clubId)}/history','No shared Match Day records']
+          missing=[x for x in required if x not in s]
+          if missing: raise SystemExit('missing markers: '+','.join(missing))
+          page.write_text(s)
+          PY
+      - name: Commit source changes
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add backend/src/api/routes/club-match-day.ts src/pages/ClubPortalPlayerDevelopment.tsx
+          git commit -m 'Read player development from shared Match Day history' || exit 0
+          git push
