@@ -14,7 +14,7 @@ type LiveMatch={
  awayGoals:number
  awayBehinds:number
  lastEvent:string|null
- updatedAt:string
+ receivedAt:number
 }
 
 function formatTime(seconds:number){
@@ -29,7 +29,7 @@ export default function PublicClubLiveMatch({clubId}:{clubId:string}){
   let active=true
   const load=()=>fetch(`/api/live-match/clubs/${encodeURIComponent(clubId)}`,{cache:'no-store'})
    .then(async response=>response.ok?response.json():{data:null})
-   .then(payload=>{if(active)setMatch(payload?.data??null)})
+   .then(payload=>{if(active)setMatch(payload?.data?{...payload.data,receivedAt:Date.now()}:null)})
    .catch(()=>{if(active)setMatch(null)})
   void load()
   const timer=window.setInterval(()=>void load(),15000)
@@ -39,12 +39,11 @@ export default function PublicClubLiveMatch({clubId}:{clubId:string}){
   if(!match?.clockRunning)return
   const timer=window.setInterval(()=>setTick(value=>value+1),1000)
   return()=>window.clearInterval(timer)
- },[match?.clockRunning,match?.updatedAt])
+ },[match?.clockRunning,match?.receivedAt])
  if(!match)return null
  const home=match.homeGoals*6+match.homeBehinds
  const away=match.awayGoals*6+match.awayBehinds
- const updatedAt=Date.parse(match.updatedAt)
- const runningDelta=match.clockRunning&&Number.isFinite(updatedAt)?Math.max(0,Math.floor((Date.now()-updatedAt)/1000)):0
+ const runningDelta=match.clockRunning?Math.max(0,Math.floor((Date.now()-match.receivedAt)/1000)):0
  const elapsed=match.elapsedSeconds+runningDelta
  return <section className="public-club-live" aria-label="Live match">
   <header><span><i/>Live now</span><b>{match.roundLabel||`Quarter ${match.quarter}`}</b></header>
