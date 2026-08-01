@@ -1,0 +1,41 @@
+name: Patch player development shared history
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-player-development-shared-history.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Replace browser-only match history
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/pages/ClubPortalPlayerDevelopment.tsx')
+          s=p.read_text()
+          s=s.replace("type Attendance={sessionId:string;clubPlayerId:string;status:string;leftEarly:boolean;missedPercentage:number|null}\n", "type Attendance={sessionId:string;clubPlayerId:string;status:string;leftEarly:boolean;missedPercentage:number|null}\ntype MatchDayRecord={sheetId:string;state:{sheetId:string;slots:Array<{clubPlayerId:string;plusMinus:number;positionCode:string}>};updatedAt:string}\n", 1)
+          s=s.replace("const[attendance,setAttendance]=useState<Attendance[]>([]);const[selectedId", "const[attendance,setAttendance]=useState<Attendance[]>([]);const[matchDayRecords,setMatchDayRecords]=useState<MatchDayRecord[]>([]);const[selectedId", 1)
+          s=s.replace("const[dev,training]=await Promise.all([fetch(`/api/club-portal/player-development/clubs/${encodeURIComponent(clubId)}`,{headers}),fetch(`/api/club-portal/training/clubs/${encodeURIComponent(clubId)}`,{headers})]);", "const[dev,training,matchDay]=await Promise.all([fetch(`/api/club-portal/player-development/clubs/${encodeURIComponent(clubId)}`,{headers}),fetch(`/api/club-portal/training/clubs/${encodeURIComponent(clubId)}`,{headers}),fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/history`,{headers})]);", 1)
+          s=s.replace("const tp=await training.json().catch(()=>({data:{}}));", "const tp=await training.json().catch(()=>({data:{}}));const mp=await matchDay.json().catch(()=>({data:[]}));", 1)
+          s=s.replace("if(training.ok){setTrainingSessions(Array.isArray(tp.data?.sessions)?tp.data.sessions:[]);setAttendance(Array.isArray(tp.data?.attendance)?tp.data.attendance:[])}setError('')", "if(training.ok){setTrainingSessions(Array.isArray(tp.data?.sessions)?tp.data.sessions:[]);setAttendance(Array.isArray(tp.data?.attendance)?tp.data.attendance:[])}setMatchDayRecords(matchDay.ok&&Array.isArray(mp.data)?mp.data:[]);setError('')", 1)
+          start=s.index(" const matches=useMemo(()=>{")
+          end=s.index("\n if(loading)",start)
+          s=s[:start]+" const matches=useMemo(()=>matchDayRecords.flatMap(record=>{const slot=Array.isArray(record.state?.slots)?record.state.slots.find(item=>item.clubPlayerId===selectedId):null;return slot?[{sheetId:record.sheetId,plusMinus:Number(slot.plusMinus||0),position:String(slot.positionCode||''),updatedAt:record.updatedAt}]:[]}),[matchDayRecords,selectedId])"+s[end:]
+          s=s.replace("<small>Plus/minus</small></article>):<p>No Match Day records for this player are stored on this device yet.</p>}", "<small>{date(m.updatedAt)} · Plus/minus</small></article>):<p>No shared Match Day records are available for this player yet.</p>}", 1)
+          for marker in ('type MatchDayRecord=','matchDayRecords.flatMap','/match-day/clubs/${encodeURIComponent(clubId)}/history','No shared Match Day records'):
+            if marker not in s: raise SystemExit('missing '+marker)
+          if 'for(let i=0;i<localStorage.length' in s: raise SystemExit('browser history scan remains')
+          p.write_text(s)
+          PY
+      - name: Commit frontend source
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add src/pages/ClubPortalPlayerDevelopment.tsx
+          git commit -m 'Use shared Match Day history in player development'
+          git push
