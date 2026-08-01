@@ -1,0 +1,71 @@
+name: Connect shared Match Day persistence
+on:
+  push:
+    paths:
+      - '.github/workflows/connect-shared-match-day.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Connect backend and frontend
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          access=Path('backend/src/api/routes/club-portal-access.ts')
+          text=access.read_text()
+          old="import { clubOperationsRouter } from './club-operations.js'"
+          new=old+"\nimport { clubMatchDayRouter } from './club-match-day.js'"
+          if old not in text and "clubMatchDayRouter" not in text:
+              raise SystemExit('club operations import anchor missing')
+          text=text.replace(old,new,1) if "clubMatchDayRouter" not in text else text
+          old="router.use('/operations',clubOperationsRouter)"
+          new=old+"\nrouter.use('/match-day',clubMatchDayRouter)"
+          if old not in text and "router.use('/match-day'" not in text:
+              raise SystemExit('club operations router anchor missing')
+          text=text.replace(old,new,1) if "router.use('/match-day'" not in text else text
+          access.write_text(text)
+
+          page=Path('src/pages/ClubPortalMatchDay.tsx')
+          text=page.read_text()
+          old="const{clubId=''}=useParams();const[current]=useState(()=>session());const[sheets,setSheets]=useState<Sheet[]>([]);const[sheetId,setSheetId]=useState('');const[state,setState]=useState<MatchState|null>(null);const[selected,setSelected]=useState('');const[loading,setLoading]=useState(true);const[error,setError]=useState('');const[,setTick]=useState(0)"
+          new="const{clubId=''}=useParams();const[current]=useState(()=>session());const[sheets,setSheets]=useState<Sheet[]>([]);const[sheetId,setSheetId]=useState('');const[state,setState]=useState<MatchState|null>(null);const[selected,setSelected]=useState('');const[loading,setLoading]=useState(true);const[error,setError]=useState('');const[syncError,setSyncError]=useState('');const[ready,setReady]=useState(false);const[,setTick]=useState(0)"
+          if old not in text:
+              raise SystemExit('state anchor missing')
+          text=text.replace(old,new,1)
+
+          old="useEffect(()=>{if(!sheetId)return;const sheet=sheets.find(item=>item.id===sheetId);if(!sheet)return;try{const saved=localStorage.getItem(storageKey(clubId,sheetId));if(saved){setState(JSON.parse(saved));return}}catch{}const slots=sheet.players.map(player=>({...player,onGround:FIELD_POSITIONS.has(player.positionCode),plusMinus:0}));setState({sheetId,quarter:1,elapsed:0,runningSince:null,homeGoals:0,homeBehinds:0,awayGoals:0,awayBehinds:0,slots,events:[]})},[sheetId,sheets,clubId])\n useEffect(()=>{if(!state)return;localStorage.setItem(storageKey(clubId,state.sheetId),JSON.stringify(state))},[state,clubId])"
+          new="useEffect(()=>{if(!sheetId||!current)return;const sheet=sheets.find(item=>item.id===sheetId);if(!sheet)return;let live=true;setReady(false);setSyncError('');void fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{headers}).then(async r=>{const p=await r.json();if(!r.ok)throw new Error(p.error||'Unable to load shared Match Day');if(!live)return;let next=p.data?.state as MatchState|undefined;if(!next){try{const raw=localStorage.getItem(storageKey(clubId,sheetId));if(raw){next=JSON.parse(raw) as MatchState;const saved=await fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{method:'PUT',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({state:next})});if(!saved.ok)throw new Error('Unable to migrate existing Match Day record');localStorage.removeItem(storageKey(clubId,sheetId))}}catch(e){if(e instanceof Error&&e.message.includes('migrate'))throw e}}if(!next){const slots=sheet.players.map(player=>({...player,onGround:FIELD_POSITIONS.has(player.positionCode),plusMinus:0}));next={sheetId,quarter:1,elapsed:0,runningSince:null,homeGoals:0,homeBehinds:0,awayGoals:0,awayBehinds:0,slots,events:[]}}if(live){setState(next);setReady(true)}}).catch(e=>{if(live){setSyncError(e instanceof Error?e.message:'Unable to load shared Match Day');setError(e instanceof Error?e.message:'Unable to load shared Match Day')}});return()=>{live=false}},[sheetId,sheets,clubId,current,headers])\n useEffect(()=>{if(!state||!ready||!current)return;const timer=window.setTimeout(()=>{void fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(state.sheetId)}`,{method:'PUT',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({state})}).then(async r=>{const p=await r.json().catch(()=>({}));if(!r.ok)throw new Error(p.error||'Unable to save shared Match Day');setSyncError('')}).catch(e=>setSyncError(e instanceof Error?e.message:'Unable to save shared Match Day'))},300);return()=>window.clearTimeout(timer)},[state,ready,current,clubId,headers])"
+          if old not in text:
+              raise SystemExit('local Match Day effects anchor missing')
+          text=text.replace(old,new,1)
+
+          old="function resetMatch(){if(!sheet||!window.confirm('Reset this Match Day board? This clears the live score, swaps and plus/minus for this match only.'))return;localStorage.removeItem(storageKey(clubId,sheet.id));const slots=sheet.players.map(player=>({...player,onGround:FIELD_POSITIONS.has(player.positionCode),plusMinus:0}));setState({sheetId:sheet.id,quarter:1,elapsed:0,runningSince:null,homeGoals:0,homeBehinds:0,awayGoals:0,awayBehinds:0,slots,events:[]});setSelected('')}"
+          new="async function resetMatch(){if(!sheet||!window.confirm('Reset this Match Day board? This clears the shared live score, swaps and plus/minus for this match only.'))return;setSyncError('');try{const r=await fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheet.id)}`,{method:'DELETE',headers});const p=await r.json().catch(()=>({}));if(!r.ok)throw new Error(p.error||'Unable to reset shared Match Day');localStorage.removeItem(storageKey(clubId,sheet.id));const slots=sheet.players.map(player=>({...player,onGround:FIELD_POSITIONS.has(player.positionCode),plusMinus:0}));setState({sheetId:sheet.id,quarter:1,elapsed:0,runningSince:null,homeGoals:0,homeBehinds:0,awayGoals:0,awayBehinds:0,slots,events:[]});setSelected('')}catch(e){setSyncError(e instanceof Error?e.message:'Unable to reset shared Match Day')}}"
+          if old not in text:
+              raise SystemExit('reset anchor missing')
+          text=text.replace(old,new,1)
+
+          old="<p>Start the quarter, record scores and swap players. Only players currently on the ground receive each score differential.</p></header><section className=\"md-picker\">"
+          new="<p>Start the quarter, record scores and swap players. Only players currently on the ground receive each score differential.</p></header>{syncError&&<div className=\"md-sync-error\">{syncError}</div>}<section className=\"md-picker\">"
+          if old not in text:
+              raise SystemExit('status UI anchor missing')
+          text=text.replace(old,new,1)
+
+          old=".md-picker,.md-control,.md-leader,.md-log{background:#fff"
+          new=".md-sync-error{max-width:1280px;margin:12px auto 0;padding:11px 13px;border-radius:10px;background:#fff0f0;color:#a51c1c;font-weight:800}.md-picker,.md-control,.md-leader,.md-log{background:#fff"
+          if old not in text:
+              raise SystemExit('styles anchor missing')
+          text=text.replace(old,new,1)
+          page.write_text(text)
+          PY
+      - name: Commit source changes
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add backend/src/api/routes/club-portal-access.ts src/pages/ClubPortalMatchDay.tsx
+          git commit -m 'Store Match Day state in shared database'
+          git push
