@@ -61,11 +61,12 @@ export default function GlobalSearch({ controller }: { controller: SearchControl
   const go = useCallback((path: string) => { close(); setQuery(''); navigate(path) }, [close, navigate])
 
   useEffect(() => {
-    if (!isOpen) return
+    document.body.classList.toggle('pf-search-open', isOpen)
+    if (!isOpen) return () => { document.body.classList.remove('pf-search-open') }
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     window.setTimeout(() => inputRef.current?.focus(), 40)
-    return () => { document.body.style.overflow = previous }
+    return () => { document.body.style.overflow = previous; document.body.classList.remove('pf-search-open') }
   }, [isOpen])
 
   useEffect(() => {
