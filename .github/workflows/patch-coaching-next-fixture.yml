@@ -1,0 +1,64 @@
+name: Connect coaching next fixture
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-coaching-next-fixture.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Patch coaching home fixture source
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('src/pages/CoachingAppHome.tsx')
+          text=path.read_text()
+          text=text.replace(
+            "type Availability={players:Array<{status:string|null;reason:string|null}>}",
+            "type Availability={players:Array<{status:string|null;reason:string|null}>}\ntype Fixture={id:string;round?:string|number|null;matchDate?:string|null;venue?:string|null;homeClubId?:string|null;awayClubId?:string|null;homeClubName?:string|null;awayClubName?:string|null;homeName?:string|null;awayName?:string|null}"
+          )
+          text=text.replace(
+            "function dateLabel(value:string|null|undefined){if(!value)return 'Date to be confirmed';const date=new Date(value);return Number.isNaN(date.getTime())?'Date to be confirmed':date.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}",
+            "function dateLabel(value:string|null|undefined){if(!value)return 'Date to be confirmed';const date=new Date(value);return Number.isNaN(date.getTime())?'Date to be confirmed':date.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}\nfunction timeLabel(value:string|null|undefined){if(!value)return 'Time to be confirmed';const date=new Date(value);return Number.isNaN(date.getTime())?'Time to be confirmed':date.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'})}\nfunction roundLabel(value:string|number|null|undefined){if(value==null||String(value).trim()==='')return 'Round not set';const label=String(value).trim();return /^round\\b/i.test(label)?label:`Round ${label}`}"
+          )
+          text=text.replace(
+            "const{clubId=''}=useParams();const[data,setData]=useState<Dashboard|null>(null);const[availability,setAvailability]=useState<Availability|null>(null);const[loading,setLoading]=useState(true);const[error,setError]=useState('')",
+            "const{clubId=''}=useParams();const[data,setData]=useState<Dashboard|null>(null);const[availability,setAvailability]=useState<Availability|null>(null);const[fixtures,setFixtures]=useState<Fixture[]>([]);const[loading,setLoading]=useState(true);const[error,setError]=useState('')"
+          )
+          old="""  fetch(`/api/club-portal/availability/clubs/${encodeURIComponent(clubId)}/overview`,{headers:{authorization:`Bearer ${current.access_token}`}}).then(r=>r.ok?r.json():{data:null}).then(p=>p.data as Availability|null).catch(()=>null)
+ ]).then(([dashboard,availabilityData])=>{if(!live)return;setData(dashboard);setAvailability(availabilityData)}"""
+          new="""  fetch(`/api/club-portal/availability/clubs/${encodeURIComponent(clubId)}/overview`,{headers:{authorization:`Bearer ${current.access_token}`}}).then(r=>r.ok?r.json():{data:null}).then(p=>p.data as Availability|null).catch(()=>null),
+  fetch(`/api/clubs/${encodeURIComponent(clubId)}/fixtures?upcoming=true`).then(r=>r.ok?r.json():{data:[]}).then(p=>Array.isArray(p.data)?p.data as Fixture[]:[]).catch(()=>[])
+ ]).then(([dashboard,availabilityData,fixtureData])=>{if(!live)return;setData(dashboard);setAvailability(availabilityData);setFixtures(fixtureData)}"""
+          if old not in text: raise SystemExit('fixture fetch insertion point missing')
+          text=text.replace(old,new,1)
+          text=text.replace(
+            "const accent=data.club.primaryColour||'#42b8ff';const sheet=data.teamSelection",
+            "const accent=data.club.primaryColour||'#42b8ff';const sheet=data.teamSelection;const nextFixture=[...fixtures].filter(row=>{if(!row.matchDate)return true;const time=new Date(row.matchDate).getTime();return Number.isNaN(time)||time>=Date.now()-21600000}).sort((a,b)=>{const av=a.matchDate?new Date(a.matchDate).getTime():Number.MAX_SAFE_INTEGER;const bv=b.matchDate?new Date(b.matchDate).getTime():Number.MAX_SAFE_INTEGER;return av-bv})[0]||null;const homeName=nextFixture?.homeClubName||nextFixture?.homeName||'Home';const awayName=nextFixture?.awayClubName||nextFixture?.awayName||'Away';const isHome=nextFixture?.homeClubId===clubId||homeName.toLowerCase()===data.club.name.toLowerCase();const opponentName=nextFixture?(isHome?awayName:homeName):sheet?.opponentName||null"
+          )
+          old_card="""<section className=\"cah-week\"><div className=\"cah-week-copy\"><span>This week</span><h2>{sheet?.opponentName?`v ${sheet.opponentName}`:'Next match'}</h2><p>{sheet?.roundLabel||'Round not set'} · {dateLabel(sheet?.matchDate)}</p><div className=\"cah-status\"><b>{sheet?.status==='PUBLISHED'?'Team published':sheet?'Team in progress':'Team not started'}</b><small>{sheet?`${sheet.playerCount} players selected`:'Open Team to get started'}</small></div></div><div className=\"cah-ring\">"""
+          new_card="""<section className=\"cah-week\"><div className=\"cah-week-copy\"><span>This week</span><h2>{opponentName?`v ${opponentName}`:'Next match'}</h2><p>{roundLabel(nextFixture?.round||sheet?.roundLabel)} · {dateLabel(nextFixture?.matchDate||sheet?.matchDate)} · {timeLabel(nextFixture?.matchDate||sheet?.matchDate)}</p>{nextFixture?.venue&&<p className=\"cah-venue\">{nextFixture.venue}</p>}<div className=\"cah-status\"><b>{sheet?.status==='PUBLISHED'?'Team published':sheet?'Team in progress':'Team not started'}</b><small>{sheet?`${sheet.playerCount} players selected`:'Open Team to get started'}</small></div></div><div className=\"cah-ring\">"""
+          if old_card not in text: raise SystemExit('next match card insertion point missing')
+          text=text.replace(old_card,new_card,1)
+          text=text.replace(
+            ".cah-week p{margin:0;color:#c3ced7}",
+            ".cah-week p{margin:0;color:#c3ced7}.cah-week .cah-venue{margin-top:7px;color:#fff;font-size:13px;font-weight:800}"
+          )
+          path.write_text(text)
+          PY
+      - name: Commit source change
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add src/pages/CoachingAppHome.tsx
+          git commit -m "Show published next fixture on coaching home"
+          git push origin HEAD:newone1
