@@ -1,0 +1,60 @@
+name: Apply Match Day finish and summary
+on:
+  push:
+    paths:
+      - '.github/workflows/add-match-finish-summary-v2.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Match Day
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/pages/ClubPortalMatchDay.tsx')
+          s=p.read_text()
+          s=s.replace("type MatchState={sheetId:string;quarter:number;elapsed:number;runningSince:number|null;homeGoals:number;homeBehinds:number;awayGoals:number;awayBehinds:number;slots:Slot[];events:Event[]}","type MatchState={sheetId:string;quarter:number;elapsed:number;runningSince:number|null;homeGoals:number;homeBehinds:number;awayGoals:number;awayBehinds:number;slots:Slot[];events:Event[];finishedAt?:string|null}",1)
+          s=s.replace("const publicLive=Boolean(state.runningSince||state.elapsed>0||state.events.length||state.homeGoals||state.homeBehinds||state.awayGoals||state.awayBehinds);","const publicLive=!state.finishedAt&&Boolean(state.runningSince||state.elapsed>0||state.events.length||state.homeGoals||state.homeBehinds||state.awayGoals||state.awayBehinds);",1)
+          nextq=" function nextQuarter(){update(current=>{const elapsed=current.elapsed+(current.runningSince?Math.floor((Date.now()-current.runningSince)/1000):0);const quarter=Math.min(4,current.quarter+1);const event:Event={id:crypto.randomUUID(),quarter:current.quarter,seconds:elapsed,kind:'QUARTER',label:`Quarter ${current.quarter} ended`};return{...current,quarter,elapsed:0,runningSince:null,events:[event,...current.events]}})}"
+          finish=" function finishMatch(){if(!state||!window.confirm('Finish this match and create the game summary?'))return;update(current=>{const elapsed=current.elapsed+(current.runningSince?Math.floor((Date.now()-current.runningSince)/1000):0);const event:Event={id:crypto.randomUUID(),quarter:4,seconds:elapsed,kind:'QUARTER',label:'Match finished'};return{...current,elapsed,runningSince:null,finishedAt:new Date().toISOString(),events:[event,...current.events]}});setSelected('')}"
+          if 'function finishMatch()' not in s:
+            if nextq not in s: raise SystemExit('next quarter function not found')
+            s=s.replace(nextq,nextq+'\n'+finish,1)
+          old='<button disabled={state.quarter>=4} onClick={nextQuarter}><SkipForward size={18}/>Next quarter</button>'
+          new='{state.quarter>=4?<button className="md-finish" onClick={finishMatch}><Trophy size={18}/>Finish match</button>:<button onClick={nextQuarter}><SkipForward size={18}/>Next quarter</button>}'
+          if old not in s: raise SystemExit('next quarter button not found')
+          s=s.replace(old,new,1)
+          s=s.replace('<main className="md">','<main className={`md ${state?.finishedAt?\'is-finished\':\'\'}`}>',1)
+          picker='</section>{state&&<><section className="md-control">'
+          summary='</section>{state?.finishedAt&&<MatchSummary state={state} opponent={sheet?.opponentName||\'Opposition\'} clubId={clubId}/>} {state&&<><section className="md-control">'
+          if picker not in s: raise SystemExit('picker render marker not found')
+          s=s.replace(picker,summary,1)
+          component="""
+function MatchSummary({state,opponent,clubId}:{state:MatchState;opponent:string;clubId:string}){
+ const home=score(state.homeGoals,state.homeBehinds),away=score(state.awayGoals,state.awayBehinds)
+ const result=home===away?'Draw':home>away?`Your team won by ${home-away}`:`${opponent} won by ${away-home}`
+ const swaps=state.events.filter(event=>event.kind==='SWAP').length
+ const scores=state.events.filter(event=>event.kind==='SCORE').length
+ const leaders=[...state.slots].sort((a,b)=>b.plusMinus-a.plusMinus)
+ return <section className="md-summary"><header><span>Full time</span><h2>Game summary</h2><p>{result}</p></header><div className="md-summary-score"><div><strong>Your team</strong><b>{state.homeGoals}.{state.homeBehinds}</b><em>{home}</em></div><span>FINAL</span><div><strong>{opponent}</strong><b>{state.awayGoals}.{state.awayBehinds}</b><em>{away}</em></div></div><div className="md-summary-stats"><article><b>{formatTime(state.elapsed)}</b><span>Final-quarter time</span></article><article><b>{scores}</b><span>Scoring events</span></article><article><b>{swaps}</b><span>Player swaps</span></article><article><b>{state.events.length}</b><span>Total actions</span></article></div><section className="md-summary-list"><h3>Player plus/minus</h3>{leaders.map(slot=><div key={slot.clubPlayerId}><span>{slot.jumperNumber?`${slot.jumperNumber}. `:''}{slot.playerName}</span><b className={slot.plusMinus>0?'positive':slot.plusMinus<0?'negative':''}>{slot.plusMinus>0?'+':''}{slot.plusMinus}</b></div>)}</section><div className="md-summary-actions"><Link to={`/club-portal/${clubId}/coaching`}>Return to coaching</Link><button onClick={()=>window.print()}>Print summary</button></div></section>
+}
+"""
+          hook='function ScoreTeam({label,goals,behinds,onGoal,onBehind}'
+          if 'function MatchSummary(' not in s:
+            if hook not in s: raise SystemExit('score team hook not found')
+            s=s.replace(hook,component+'\n'+hook,1)
+          css=""".md-finish{background:#df2f36!important;color:#fff!important}.md.is-finished .md-control,.md.is-finished .md-layout{display:none}.md-summary{margin-top:15px!important;padding:18px;border:1px solid #dce4ea;border-radius:16px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.06)}.md-summary>header{text-align:center}.md-summary>header span{color:#df2f36;font-size:10px;font-weight:950;letter-spacing:.16em;text-transform:uppercase}.md-summary>header h2{margin:4px 0;font-size:48px}.md-summary>header p{margin:0;color:#5f6b76;font-weight:900}.md-summary-score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin:18px 0;padding:18px;border-radius:14px;background:#111c26;color:#fff;text-align:center}.md-summary-score div{display:grid}.md-summary-score b{font-family:'Bebas Neue',Impact,sans-serif;font-size:38px}.md-summary-score em{font-family:'Bebas Neue',Impact,sans-serif;font-size:58px;line-height:.9;font-style:normal}.md-summary-score>span{color:#7ed3ff;font-size:11px;font-weight:950}.md-summary-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.md-summary-stats article{padding:12px;border-radius:10px;background:#eef3f7;text-align:center}.md-summary-stats b,.md-summary-stats span{display:block}.md-summary-stats b{font-size:24px}.md-summary-stats span{font-size:8px;font-weight:900;text-transform:uppercase;color:#6e7983}.md-summary-list{margin-top:12px;padding:14px;border:1px solid #e0e6eb;border-radius:12px}.md-summary-list h3{margin:0 0 8px;font-family:'Bebas Neue',Impact,sans-serif;font-size:29px;text-transform:uppercase}.md-summary-list>div{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #edf0f2}.md-summary-list>div b{font-size:18px}.md-summary-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.md-summary-actions a,.md-summary-actions button{border:0;border-radius:9px;padding:12px 14px;background:#e7edf2;color:#111;text-decoration:none;font-weight:950;text-transform:uppercase}.md-summary-actions button{background:#21c879}@media(max-width:650px){.md-summary{padding:13px}.md-summary-score{gap:6px;padding:13px 7px}.md-summary-score em{font-size:44px}.md-summary-score b{font-size:27px}.md-summary-stats{grid-template-columns:1fr 1fr}.md-summary-actions{flex-direction:column}.md-summary-actions a,.md-summary-actions button{text-align:center}}
+"""
+          s=s.replace('const styles=`','const styles=`'+css,1)
+          p.write_text(s)
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add src/pages/ClubPortalMatchDay.tsx
+          git commit -m 'Add Finish Match and game summary'
+          git push
