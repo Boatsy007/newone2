@@ -63,7 +63,8 @@ function cleanBoard(value: unknown) {
       label: clean(row.label, 100) || null,
     }
   }).filter(row => row.points.length > 0) : []
-  return { version: 1, markers, drawings }
+  const playRecording = board.playRecording && typeof board.playRecording === 'object' ? board.playRecording : undefined
+  return { version: 1, markers, drawings, ...(playRecording ? { playRecording } : {}) }
 }
 
 router.get('/clubs/:clubId/whiteboards/options', async (req, res) => {
@@ -80,6 +81,43 @@ router.get('/clubs/:clubId/whiteboards/options', async (req, res) => {
     `, req.params.clubId)
     res.json({ data: { players, boards } })
   } catch (error) { res.status(500).json({ error: 'Unable to load coach whiteboard', detail: String(error) }) }
+})
+
+router.get('/clubs/:clubId/whiteboards/:boardId/recording', async (req, res) => {
+  try {
+    await ensureWhiteboardTable()
+    if (!canManage(res)) return res.status(403).json({ error: 'Your club role cannot manage the coach whiteboard' })
+    const rows = await prisma.$queryRawUnsafe<Array<{recording:unknown;updatedAt:string}>>(`
+      SELECT board_data->'playRecording' AS recording,updated_at AS "updatedAt"
+      FROM football_coach_whiteboards WHERE id::text=$1 AND club_id=$2 LIMIT 1
+    `, req.params.boardId, req.params.clubId)
+    if (!rows[0]) return res.status(404).json({ error: 'Whiteboard not found' })
+    res.json({ data: { recording: rows[0].recording ?? null, updatedAt: rows[0].updatedAt } })
+  } catch (error) { res.status(500).json({ error: 'Unable to load whiteboard recording', detail: String(error) }) }
+})
+
+router.put('/clubs/:clubId/whiteboards/:boardId/recording', async (req, res) => {
+  try {
+    await ensureWhiteboardTable()
+    if (!canManage(res)) return res.status(403).json({ error: 'Your club role cannot manage the coach whiteboard' })
+    const recording = req.body?.recording
+    if (!recording || typeof recording !== 'object' || Array.isArray(recording)) return res.status(400).json({ error: 'A valid recording is required' })
+    const value = recording as Record<string,unknown>
+    const cleanRecording = {
+      version: 1,
+      duration: Math.max(0, Math.min(3600000, Number(value.duration) || 0)),
+      tracks: value.tracks && typeof value.tracks === 'object' && !Array.isArray(value.tracks) ? value.tracks : {},
+      ball: value.ball && typeof value.ball === 'object' ? value.ball : null,
+      savedAt: new Date().toISOString(),
+    }
+    const changed = await prisma.$executeRawUnsafe(`
+      UPDATE football_coach_whiteboards
+      SET board_data=jsonb_set(COALESCE(board_data,'{}'::jsonb),'{playRecording}',$3::jsonb,true),updated_at=now()
+      WHERE id::text=$1 AND club_id=$2
+    `, req.params.boardId, req.params.clubId, JSON.stringify(cleanRecording))
+    if (!changed) return res.status(404).json({ error: 'Whiteboard not found' })
+    res.json({ data: { recording: cleanRecording }, message: 'Whiteboard recording saved' })
+  } catch (error) { res.status(500).json({ error: 'Unable to save whiteboard recording', detail: String(error) }) }
 })
 
 router.get('/clubs/:clubId/whiteboards/:boardId', async (req, res) => {
