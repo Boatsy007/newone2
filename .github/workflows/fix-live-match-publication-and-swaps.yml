@@ -1,0 +1,118 @@
+name: Fix public live match publication and swaps
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-live-match-publication-and-swaps.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch live match pipeline
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Public all-live endpoint
+          p=Path('backend/src/api/routes/live-match.ts')
+          s=p.read_text()
+          marker="router.get('/clubs/:clubId', async (req, res) => {"
+          block="""router.get('/', async (_req, res) => {
+  try {
+    await ensureLiveMatchTable()
+    const rows = await prisma.$queryRawUnsafe<Array<{
+      clubId:string;clubName:string;teamSheetId:string|null;roundLabel:string|null;opponentName:string|null;matchDate:string|null;quarter:number;elapsedSeconds:number;clockRunning:boolean;homeGoals:number;homeBehinds:number;awayGoals:number;awayBehinds:number;status:string;lastEvent:string|null;updatedAt:string
+    }>>(`
+      SELECT lm.club_id AS \"clubId\",c.name AS \"clubName\",lm.team_sheet_id::text AS \"teamSheetId\",
+        lm.round_label AS \"roundLabel\",lm.opponent_name AS \"opponentName\",lm.match_date AS \"matchDate\",
+        lm.quarter,lm.elapsed_seconds AS \"elapsedSeconds\",lm.clock_running AS \"clockRunning\",
+        lm.home_goals AS \"homeGoals\",lm.home_behinds AS \"homeBehinds\",lm.away_goals AS \"awayGoals\",lm.away_behinds AS \"awayBehinds\",
+        lm.status,lm.last_event AS \"lastEvent\",lm.updated_at AS \"updatedAt\"
+      FROM football_live_matches lm
+      LEFT JOIN clubs c ON c.id::text=lm.club_id
+      WHERE lm.status='LIVE' AND lm.updated_at > now() - interval '8 hours'
+      ORDER BY lm.updated_at DESC
+      LIMIT 100
+    `)
+    const data = rows.map(row => ({
+      id: `live:${row.clubId}`,
+      sourceId: row.teamSheetId,
+      sourceType: 'portal',
+      homeClubId: row.clubId,
+      homeClubName: row.clubName,
+      awayClubName: row.opponentName || 'Opposition',
+      round: row.roundLabel,
+      matchDate: row.matchDate,
+      homeScore: row.homeGoals * 6 + row.homeBehinds,
+      awayScore: row.awayGoals * 6 + row.awayBehinds,
+      status: 'LIVE',
+      quarter: row.quarter,
+      elapsedSeconds: row.elapsedSeconds,
+      clockRunning: row.clockRunning,
+      lastEvent: row.lastEvent,
+    }))
+    res.set('Cache-Control', 'no-store')
+    res.json({ data })
+  } catch (error) {
+    res.status(500).json({ error: 'Unable to load live matches', detail: String(error) })
+  }
+})
+
+"""
+          if "router.get('/', async (_req, res)" not in s:
+            if marker not in s: raise SystemExit('live route marker missing')
+            s=s.replace(marker,block+marker,1)
+          p.write_text(s)
+
+          # Match Day publishes public-safe live state and swaps player identities through fixed slots
+          p=Path('src/pages/ClubPortalMatchDay.tsx')
+          s=p.read_text()
+          old="const slots=current.slots.map(slot=>slot.clubPlayerId===first.clubPlayerId?{...slot,positionCode:second.positionCode,onGround:second.onGround}:slot.clubPlayerId===second.clubPlayerId?{...slot,positionCode:first.positionCode,onGround:first.onGround}:slot);"
+          new="const slots=current.slots.map(slot=>slot.clubPlayerId===first.clubPlayerId?{...slot,clubPlayerId:second.clubPlayerId,playerName:second.playerName,jumperNumber:second.jumperNumber,plusMinus:second.plusMinus}:slot.clubPlayerId===second.clubPlayerId?{...slot,clubPlayerId:first.clubPlayerId,playerName:first.playerName,jumperNumber:first.jumperNumber,plusMinus:first.plusMinus}:slot);"
+          if old not in s: raise SystemExit('swap code marker missing')
+          s=s.replace(old,new,1)
+          marker=" const sheet=sheets.find(item=>item.id===sheetId)\n"
+          effect=""" const sheet=sheets.find(item=>item.id===sheetId)
+ useEffect(()=>{if(!state||!ready||!current||!sheet)return;const publicLive=Boolean(state.runningSince||state.elapsed>0||state.events.length||state.homeGoals||state.homeBehinds||state.awayGoals||state.awayBehinds);const elapsedSeconds=state.elapsed+(state.runningSince?Math.floor((Date.now()-state.runningSince)/1000):0);const timer=window.setTimeout(()=>{void fetch(`/api/live-match/clubs/${encodeURIComponent(clubId)}`,{method:'PUT',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({teamSheetId:state.sheetId,roundLabel:sheet.roundLabel,opponentName:sheet.opponentName,matchDate:sheet.matchDate,quarter:state.quarter,elapsedSeconds,clockRunning:Boolean(state.runningSince),homeGoals:state.homeGoals,homeBehinds:state.homeBehinds,awayGoals:state.awayGoals,awayBehinds:state.awayBehinds,status:publicLive?'LIVE':'HIDDEN',lastEvent:state.events[0]?.label||null})}).then(async response=>{if(!response.ok){const payload=await response.json().catch(()=>({}));throw new Error(payload.error||'Unable to publish public live match')}}).catch(error=>setSyncError(error instanceof Error?error.message:'Unable to publish public live match'))},450);return()=>window.clearTimeout(timer)},[state,ready,current,sheet,clubId,headers])
+"""
+          if '/api/live-match/clubs/' not in s:
+            if marker not in s: raise SystemExit('sheet marker missing')
+            s=s.replace(marker,effect,1)
+          p.write_text(s)
+
+          # Match Centre consumes portal live feed
+          p=Path('src/components/matches/MatchCentreLiveBanner.tsx')
+          s=p.read_text()
+          s=s.replace("sourceType?:'generic'|'football'","sourceType?:'generic'|'football'|'portal';homeClubId?:string|null")
+          old="load('/api/fixtures','generic'),load('/api/fixtures/football?limit=1000','football'),"
+          new="load('/api/live-match','portal'),load('/api/fixtures','generic'),load('/api/fixtures/football?limit=1000','football'),"
+          if old not in s: raise SystemExit('banner load marker missing')
+          s=s.replace(old,new,1)
+          old="const href=`/match/result/${encodeURIComponent(rawId)}${football&&!String(rawId).startsWith('football:')?'?source=football':''}`"
+          new="const href=row.sourceType==='portal'&&row.homeClubId?`/team/${encodeURIComponent(row.homeClubId)}`:`/match/result/${encodeURIComponent(rawId)}${football&&!String(rawId).startsWith('football:')?'?source=football':''}`"
+          if old not in s: raise SystemExit('banner href marker missing')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Club profile live card
+          p=Path('src/components/club/ClubLiveHub.tsx')
+          s=p.read_text()
+          imp="import PublicGoalKickersPanel from '../goal-kickers/PublicGoalKickersPanel'\n"
+          if "PublicClubLiveMatch" not in s:
+            if imp not in s: raise SystemExit('club hub import marker missing')
+            s=s.replace(imp,imp+"import PublicClubLiveMatch from './PublicClubLiveMatch'\n",1)
+            root='  return <div className="club-live-hub">\n'
+            if root not in s: raise SystemExit('club hub root marker missing')
+            s=s.replace(root,root+'    <PublicClubLiveMatch clubId={club.clubId} />\n',1)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add backend/src/api/routes/live-match.ts src/pages/ClubPortalMatchDay.tsx src/components/matches/MatchCentreLiveBanner.tsx src/components/club/ClubLiveHub.tsx
+          git commit -m 'Fix public live matches and fixed-position swaps'
+          git push
