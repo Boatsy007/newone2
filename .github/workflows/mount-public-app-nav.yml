@@ -1,0 +1,44 @@
+name: Mount public app navigation
+
+on:
+  push:
+    paths:
+      - '.github/workflows/mount-public-app-nav.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Mount component
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('src/main.tsx')
+          text=path.read_text()
+          if "import PublicAppNav" not in text:
+            anchor="import ClubPortalAppNav from './components/club/ClubPortalAppNav.tsx'"
+            assert anchor in text
+            text=text.replace(anchor,anchor+"\nimport PublicAppNav from './components/layout/PublicAppNav.tsx'",1)
+          if '<PublicAppNav/>' not in text:
+            anchor='<StrictMode><BrowserRouter><ScrollToTop/>'
+            assert anchor in text
+            text=text.replace(anchor,anchor+'<PublicAppNav/>',1)
+          path.write_text(text)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add src/main.tsx
+          git commit -m "Mount public app navigation"
+          git push origin HEAD:newone1
