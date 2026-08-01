@@ -1,0 +1,66 @@
+name: Apply club portal app shell
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-club-portal-app-shell.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Connect portal app navigation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          nav=Path('src/components/layout/Nav.tsx')
+          text=nav.read_text()
+          old="  useEffect(() => { document.body.style.overflow = open ? 'hidden' : ''; return () => { document.body.style.overflow = '' } }, [open])"
+          new="  useEffect(() => { document.body.style.overflow = open ? 'hidden' : ''; document.body.classList.toggle('pf-menu-open', open); return () => { document.body.style.overflow = ''; document.body.classList.remove('pf-menu-open') } }, [open])"
+          if old not in text: raise SystemExit('Nav menu effect not found')
+          nav.write_text(text.replace(old,new,1))
+
+          coaching=Path('src/components/club/CoachingPortalTabs.tsx')
+          text=coaching.read_text()
+          old=".coach-app-bottom{position:fixed;left:0;right:0;bottom:0;z-index:100200;"
+          new=".coach-app-bottom{position:fixed;left:0;right:0;bottom:0;z-index:100200;transition:transform .2s ease,opacity .2s ease;"
+          if old not in text: raise SystemExit('Coaching nav style not found')
+          text=text.replace(old,new,1)
+          marker=".coach-app-bottom a.active svg{stroke-width:2.8}"
+          replacement=marker+".pf-menu-open .coach-app-bottom{transform:translateY(calc(100% + 24px));opacity:0;pointer-events:none}"
+          if marker not in text: raise SystemExit('Coaching active style not found')
+          text=text.replace(marker,replacement,1)
+          desktop="@media(min-width:761px){.coach-app-bottom{left:50%;right:auto;bottom:18px;width:min(620px,calc(100% - 36px));transform:translateX(-50%);border:1px solid #dfe4e8;border-radius:20px;padding:7px;box-shadow:0 12px 34px rgba(15,23,42,.15)}}"
+          desktop_new="@media(min-width:761px){.coach-app-bottom{left:50%;right:auto;bottom:18px;width:min(620px,calc(100% - 36px));transform:translateX(-50%);border:1px solid #dfe4e8;border-radius:20px;padding:7px;box-shadow:0 12px 34px rgba(15,23,42,.15)}.pf-menu-open .coach-app-bottom{transform:translate(-50%,calc(100% + 40px))}}"
+          if desktop not in text: raise SystemExit('Coaching desktop style not found')
+          coaching.write_text(text.replace(desktop,desktop_new,1))
+
+          main=Path('src/main.tsx')
+          text=main.read_text()
+          import_marker="import ClubPortalPlanLink from './components/club/ClubPortalPlanLink.tsx'"
+          import_new=import_marker+"\nimport ClubPortalAppNav from './components/club/ClubPortalAppNav.tsx'"
+          if import_marker not in text: raise SystemExit('Main import marker not found')
+          text=text.replace(import_marker,import_new,1)
+          mount_marker="<StrictMode><BrowserRouter><ScrollToTop/><PublicClaimRemoval/>"
+          mount_new="<StrictMode><BrowserRouter><ScrollToTop/><ClubPortalAppNav/><PublicClaimRemoval/>"
+          if mount_marker not in text: raise SystemExit('Main mount marker not found')
+          main.write_text(text.replace(mount_marker,mount_new,1))
+          PY
+      - name: Commit portal app shell
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add src/components/layout/Nav.tsx src/components/club/CoachingPortalTabs.tsx src/main.tsx
+          git commit -m "Make club portal app-like and hide portal nav under menu"
+          git push origin HEAD:newone1
