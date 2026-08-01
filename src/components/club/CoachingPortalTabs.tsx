@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { Clock3, Dumbbell, Home, Users } from 'lucide-react'
 import TeamSelectionAvailabilityWarnings from './TeamSelectionAvailabilityWarnings'
+import WhiteboardAppMode from './WhiteboardAppMode'
 import CoachingAppHome from '../../pages/CoachingAppHome'
 import CoachingTeamHub from '../../pages/CoachingTeamHub'
 import ClubPortalMatchDay from '../../pages/ClubPortalMatchDay'
@@ -32,12 +33,12 @@ export default function CoachingPortalTabs(){
  const playerDevelopment=view==='player-development'
  const overlay=home||teamHub||matchDay||training||opposition||playerDevelopment
  const visible=Boolean(clubId&&COACHING_SECTIONS.has(section))
- const appVisible=visible&&section!=='users'
+ const appVisible=visible&&section!=='users'&&section!=='whiteboard'
 
  useEffect(()=>{if(!overlay)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=previous}},[overlay])
  useEffect(()=>{document.getElementById('playfooty-coaching-tabs')?.remove()},[pathname,search])
 
- const globalLayers=<><TeamSelectionAvailabilityWarnings/><MatchDayLiveSync/><PublicLiveMatchPortal/></>
+ const globalLayers=<><TeamSelectionAvailabilityWarnings/><MatchDayLiveSync/><PublicLiveMatchPortal/><WhiteboardAppMode/></>
  const bottomNav=appVisible?<CoachingBottomNav clubId={clubId} section={section} view={view}/>:null
 
  if(overlay)return <>{globalLayers}{createPortal(<div className="coach-workspace-layer"><Routes><Route path="/club-portal/:clubId/coaching" element={
