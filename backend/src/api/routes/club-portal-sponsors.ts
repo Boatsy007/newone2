@@ -16,6 +16,23 @@ const EXT: Record<string, string> = {
   'image/svg+xml': 'svg',
 }
 
+type LegacySponsorRow = {
+  id: string
+  scope: string
+  clubId: string | null
+  leagueId: string | null
+  name: string
+  websiteUrl: string | null
+  logoUrl: string | null
+  description: string | null
+  tier: string | null
+  startDate: Date | null
+  endDate: Date | null
+  displayOrder: number
+  createdAt: Date
+  updatedAt: Date
+}
+
 function requireSponsorPermission(req: any, res: any, next: any) {
   const membership = res.locals.clubMembership as Awaited<ReturnType<typeof membershipForClub>>
   if (!membership || !roleCan(membership.role, 'sponsors')) {
@@ -35,60 +52,75 @@ router.use(authenticateClubUser)
 router.use('/clubs/:clubId', requireActiveClubMembership)
 
 router.get('/clubs/:clubId/sponsors', async (req, res) => {
-  try {
-    const clubId = req.params.clubId
-    const [commercialRows, legacyRows] = await Promise.all([
-      prisma.sponsorship.findMany({
-        where: { clubId, deletedAt: null },
-        include: { sponsor: true },
-        orderBy: [{ displayPriority: 'desc' }, { createdAt: 'desc' }],
-      }),
-      prisma.sponsor.findMany({
-        where: { clubId, scope: 'CLUB', active: true, deletedAt: null },
-        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }],
-      }),
-    ])
+  const clubId = req.params.clubId
 
-    const commercialNames = new Set(
-      commercialRows.map(row => row.sponsor.name.trim().toLowerCase()),
-    )
-    const legacyMapped = legacyRows
-      .filter(row => !commercialNames.has(row.name.trim().toLowerCase()))
-      .map(row => ({
-        id: `legacy:${row.id}`,
-        sponsorId: row.id,
-        scope: row.scope,
-        clubId: row.clubId,
-        leagueId: row.leagueId,
-        package: 'CLUB_PARTNER',
-        tier: row.tier ?? 'CLUB',
-        status: 'APPROVED',
-        startDate: row.startDate,
-        endDate: row.endDate,
-        displayPriority: row.displayOrder,
-        bannerPosition: 'CLUB_PROFILE',
-        ctaLabel: 'Visit sponsor',
-        ctaUrl: row.websiteUrl,
-        notes: null,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        sponsor: {
-          id: row.id,
-          name: row.name,
-          businessName: row.name,
-          logoUrl: row.logoUrl,
-          websiteUrl: row.websiteUrl,
-          email: null,
-          phone: null,
-          description: row.description,
-          industry: null,
-        },
-      }))
+  const commercialRows = await prisma.sponsorship.findMany({
+    where: { clubId, deletedAt: null },
+    include: { sponsor: true },
+    orderBy: [{ displayPriority: 'desc' }, { createdAt: 'desc' }],
+  }).catch(() => [])
 
-    res.json({ data: [...commercialRows, ...legacyMapped] })
-  } catch (error) {
-    res.status(500).json({ error: 'Unable to load club sponsors', detail: String(error) })
-  }
+  const legacyRows = await prisma.$queryRawUnsafe<LegacySponsorRow[]>(`
+    SELECT
+      id,
+      scope,
+      "clubId",
+      "leagueId",
+      name,
+      "websiteUrl",
+      "logoUrl",
+      description,
+      tier,
+      "startDate",
+      "endDate",
+      "displayOrder",
+      "createdAt",
+      "updatedAt"
+    FROM sponsors
+    WHERE "clubId" = $1
+      AND scope = 'CLUB'
+      AND active = true
+      AND "deletedAt" IS NULL
+    ORDER BY "displayOrder" ASC, "createdAt" DESC
+  `, clubId).catch(() => [])
+
+  const commercialNames = new Set(
+    commercialRows.map(row => row.sponsor.name.trim().toLowerCase()),
+  )
+  const legacyMapped = legacyRows
+    .filter(row => !commercialNames.has(row.name.trim().toLowerCase()))
+    .map(row => ({
+      id: `legacy:${row.id}`,
+      sponsorId: row.id,
+      scope: row.scope,
+      clubId: row.clubId,
+      leagueId: row.leagueId,
+      package: 'CLUB_PARTNER',
+      tier: row.tier ?? 'CLUB',
+      status: 'APPROVED',
+      startDate: row.startDate,
+      endDate: row.endDate,
+      displayPriority: row.displayOrder,
+      bannerPosition: 'CLUB_PROFILE',
+      ctaLabel: 'Visit sponsor',
+      ctaUrl: row.websiteUrl,
+      notes: null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      sponsor: {
+        id: row.id,
+        name: row.name,
+        businessName: row.name,
+        logoUrl: row.logoUrl,
+        websiteUrl: row.websiteUrl,
+        email: null,
+        phone: null,
+        description: row.description,
+        industry: null,
+      },
+    }))
+
+  res.json({ data: [...commercialRows, ...legacyMapped] })
 })
 
 router.post('/clubs/:clubId/sponsors', requireSponsorPermission, async (req, res) => {
