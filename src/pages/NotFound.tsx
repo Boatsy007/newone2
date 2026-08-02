@@ -6,13 +6,15 @@ import Footer from '../components/layout/Footer'
 import ClubPortalAnalytics from './ClubPortalAnalytics'
 import ClubPortalMedia from './ClubPortalMedia'
 import ClubPortalTeamGraphic from './ClubPortalTeamGraphic'
+import ClubPortalMatchGraphic from './ClubPortalMatchGraphic'
 
 export default function NotFound() {
   const location = useLocation()
   const isClubAnalytics = /^\/club-portal\/[^/]+\/analytics\/?$/.test(location.pathname)
   const isClubMedia = /^\/club-portal\/[^/]+\/media\/?$/.test(location.pathname)
   const isTeamGraphic = /^\/club-portal\/[^/]+\/team-selection-graphic\/?$/.test(location.pathname)
-  const isMountedPortalPage = isClubAnalytics || isClubMedia || isTeamGraphic
+  const isMatchGraphic = /^\/club-portal\/[^/]+\/match-graphic\/?$/.test(location.pathname)
+  const isMountedPortalPage = isClubAnalytics || isClubMedia || isTeamGraphic || isMatchGraphic
   useEffect(() => {
     if (isMountedPortalPage) return
     document.title = 'Page not found | PlayFooty'
@@ -24,6 +26,7 @@ export default function NotFound() {
   if (isClubAnalytics) return <ClubPortalAnalytics/>
   if (isClubMedia) return <ClubPortalMedia/>
   if (isTeamGraphic) return <ClubPortalTeamGraphic/>
+  if (isMatchGraphic) return <ClubPortalMatchGraphic/>
   return <><Nav/><main className="not-found"><style>{styles}</style><section><span>404</span><h1>That page is out of bounds</h1><p>We could not find <code>{location.pathname}</code>. The page may have moved, been archived or never existed.</p><div><Link to="/"><ArrowLeft size={18}/>Back home</Link><Link to="/directory"><Search size={18}/>Find a club</Link></div></section></main><Footer/></>
 }
 
