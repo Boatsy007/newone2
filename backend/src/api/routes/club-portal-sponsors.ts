@@ -36,12 +36,56 @@ router.use('/clubs/:clubId', requireActiveClubMembership)
 
 router.get('/clubs/:clubId/sponsors', async (req, res) => {
   try {
-    const rows = await prisma.sponsorship.findMany({
-      where: { clubId: req.params.clubId, deletedAt: null },
-      include: { sponsor: true },
-      orderBy: [{ displayPriority: 'desc' }, { createdAt: 'desc' }],
-    })
-    res.json({ data: rows })
+    const clubId = req.params.clubId
+    const [commercialRows, legacyRows] = await Promise.all([
+      prisma.sponsorship.findMany({
+        where: { clubId, deletedAt: null },
+        include: { sponsor: true },
+        orderBy: [{ displayPriority: 'desc' }, { createdAt: 'desc' }],
+      }),
+      prisma.sponsor.findMany({
+        where: { clubId, scope: 'CLUB', active: true, deletedAt: null },
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }],
+      }),
+    ])
+
+    const commercialNames = new Set(
+      commercialRows.map(row => row.sponsor.name.trim().toLowerCase()),
+    )
+    const legacyMapped = legacyRows
+      .filter(row => !commercialNames.has(row.name.trim().toLowerCase()))
+      .map(row => ({
+        id: `legacy:${row.id}`,
+        sponsorId: row.id,
+        scope: row.scope,
+        clubId: row.clubId,
+        leagueId: row.leagueId,
+        package: 'CLUB_PARTNER',
+        tier: row.tier ?? 'CLUB',
+        status: 'APPROVED',
+        startDate: row.startDate,
+        endDate: row.endDate,
+        displayPriority: row.displayOrder,
+        bannerPosition: 'CLUB_PROFILE',
+        ctaLabel: 'Visit sponsor',
+        ctaUrl: row.websiteUrl,
+        notes: null,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        sponsor: {
+          id: row.id,
+          name: row.name,
+          businessName: row.name,
+          logoUrl: row.logoUrl,
+          websiteUrl: row.websiteUrl,
+          email: null,
+          phone: null,
+          description: row.description,
+          industry: null,
+        },
+      }))
+
+    res.json({ data: [...commercialRows, ...legacyMapped] })
   } catch (error) {
     res.status(500).json({ error: 'Unable to load club sponsors', detail: String(error) })
   }
