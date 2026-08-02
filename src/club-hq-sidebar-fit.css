@@ -10,6 +10,9 @@
   body:has(.club-section-sidebar) .cps,
   body:has(.club-section-sidebar) .cpu,
   body:has(.club-section-sidebar) .cpu-state,
+  body:has(.club-section-sidebar) .ca,
+  body:has(.club-section-sidebar) .cpa,
+  body:has(.club-section-sidebar) .cpa-state,
   body:has(.club-section-sidebar) .club-portal-page,
   body:has(.club-section-sidebar) .club-portal-page-wrap,
   body:has(.club-section-sidebar) .club-portal-profile,
@@ -36,6 +39,9 @@
   body:has(.club-section-sidebar) .cps > *,
   body:has(.club-section-sidebar) .cpu > *,
   body:has(.club-section-sidebar) .cpu-state > *,
+  body:has(.club-section-sidebar) .ca > *,
+  body:has(.club-section-sidebar) .cpa > *,
+  body:has(.club-section-sidebar) .cpa-state > *,
   body:has(.club-section-sidebar) .club-portal-page > *,
   body:has(.club-section-sidebar) .club-portal-page-wrap > *,
   body:has(.club-section-sidebar) .club-portal-profile > * {
@@ -59,7 +65,13 @@
   body:has(.club-section-sidebar) .cpu-grid,
   body:has(.club-section-sidebar) .usage-grid,
   body:has(.club-section-sidebar) .plan-grid,
-  body:has(.club-section-sidebar) .layout {
+  body:has(.club-section-sidebar) .layout,
+  body:has(.club-section-sidebar) .ca-grid,
+  body:has(.club-section-sidebar) .ca-panels,
+  body:has(.club-section-sidebar) .cpa-summary,
+  body:has(.club-section-sidebar) .cpa-panel,
+  body:has(.club-section-sidebar) .cpa-list,
+  body:has(.club-section-sidebar) .cpa-timeline {
     min-width: 0 !important;
   }
 
@@ -70,8 +82,17 @@
   body:has(.club-section-sidebar) .analytics-grid,
   body:has(.club-section-sidebar) .cpu-grid,
   body:has(.club-section-sidebar) .usage-grid,
-  body:has(.club-section-sidebar) .plan-grid {
+  body:has(.club-section-sidebar) .plan-grid,
+  body:has(.club-section-sidebar) .ca-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  body:has(.club-section-sidebar) .ca-panels {
+    grid-template-columns: minmax(0, 1.6fr) minmax(240px, .8fr) !important;
+  }
+
+  body:has(.club-section-sidebar) .cpa-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 
   body:has(.club-section-sidebar) .cps .layout {
@@ -112,7 +133,9 @@
   body:has(.club-section-sidebar) .table-scroll,
   body:has(.club-section-sidebar) .roster-table,
   body:has(.club-section-sidebar) .equipment-table,
-  body:has(.club-section-sidebar) .member-list {
+  body:has(.club-section-sidebar) .member-list,
+  body:has(.club-section-sidebar) .cpa-list,
+  body:has(.club-section-sidebar) .cpa-timeline {
     max-width: 100% !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
@@ -134,6 +157,8 @@
   body:has(.club-section-sidebar) .cpp > header,
   body:has(.club-section-sidebar) .cps > header,
   body:has(.club-section-sidebar) .cpu > header,
+  body:has(.club-section-sidebar) .ca > header,
+  body:has(.club-section-sidebar) .cpa > header,
   body:has(.club-section-sidebar) .portal-header,
   body:has(.club-section-sidebar) .page-header,
   body:has(.club-section-sidebar) .cp-hero {
@@ -144,6 +169,8 @@
   body:has(.club-section-sidebar) .cpp h1,
   body:has(.club-section-sidebar) .cps h1,
   body:has(.club-section-sidebar) .cpu h1,
+  body:has(.club-section-sidebar) .ca h1,
+  body:has(.club-section-sidebar) .cpa h1,
   body:has(.club-section-sidebar) .portal-header h1,
   body:has(.club-section-sidebar) .page-header h1 {
     font-size: clamp(2.7rem, 5vw, 4.5rem) !important;
@@ -167,7 +194,8 @@
   body:has(.club-section-sidebar) .portal-layout,
   body:has(.club-section-sidebar) .coaching-layout,
   body:has(.club-section-sidebar) .cps .layout,
-  body:has(.club-section-sidebar) .cpp .request {
+  body:has(.club-section-sidebar) .cpp .request,
+  body:has(.club-section-sidebar) .ca-panels {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
@@ -178,7 +206,9 @@
   body:has(.club-section-sidebar) .card-grid,
   body:has(.club-section-sidebar) .cpu-grid,
   body:has(.club-section-sidebar) .usage-grid,
-  body:has(.club-section-sidebar) .plan-grid {
+  body:has(.club-section-sidebar) .plan-grid,
+  body:has(.club-section-sidebar) .ca-grid,
+  body:has(.club-section-sidebar) .cpa-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
@@ -194,6 +224,8 @@
   body:has(.club-section-sidebar) .cpp > header,
   body:has(.club-section-sidebar) .cps > header,
   body:has(.club-section-sidebar) .cpu > header,
+  body:has(.club-section-sidebar) .ca > header,
+  body:has(.club-section-sidebar) .cpa > header,
   body:has(.club-section-sidebar) .portal-header,
   body:has(.club-section-sidebar) .page-header,
   body:has(.club-section-sidebar) .cp-hero {
@@ -208,6 +240,9 @@
   body:has(.club-section-mobile) .cps,
   body:has(.club-section-mobile) .cpu,
   body:has(.club-section-mobile) .cpu-state,
+  body:has(.club-section-mobile) .ca,
+  body:has(.club-section-mobile) .cpa,
+  body:has(.club-section-mobile) .cpa-state,
   body:has(.club-section-mobile) .club-portal-page,
   body:has(.club-section-mobile) .club-portal-page-wrap,
   body:has(.club-section-mobile) .club-portal-profile {
@@ -235,14 +270,19 @@
   body:has(.club-section-mobile) .usage-grid,
   body:has(.club-section-mobile) .plan-grid,
   body:has(.club-section-mobile) .cps .layout,
-  body:has(.club-section-mobile) .cpp .request {
+  body:has(.club-section-mobile) .cpp .request,
+  body:has(.club-section-mobile) .ca-grid,
+  body:has(.club-section-mobile) .ca-panels,
+  body:has(.club-section-mobile) .cpa-summary {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
   body:has(.club-section-mobile) .table-wrap,
   body:has(.club-section-mobile) .table-scroll,
   body:has(.club-section-mobile) table,
-  body:has(.club-section-mobile) .member-list {
+  body:has(.club-section-mobile) .member-list,
+  body:has(.club-section-mobile) .cpa-list,
+  body:has(.club-section-mobile) .cpa-timeline {
     max-width: 100% !important;
     overflow-x: auto !important;
   }
