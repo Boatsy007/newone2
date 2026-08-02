@@ -33,38 +33,38 @@ export default function CoachingPortalTabs(){
  const playerDevelopment=view==='player-development'
  const overlay=home||teamHub||matchDay||training||opposition||playerDevelopment
  const visible=Boolean(clubId&&COACHING_SECTIONS.has(section))
- const appVisible=visible&&section!=='users'&&section!=='whiteboard'
+ const toolsVisible=visible&&section!=='users'&&section!=='whiteboard'
 
  useEffect(()=>{if(!overlay)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=previous}},[overlay])
  useEffect(()=>{document.getElementById('playfooty-coaching-tabs')?.remove()},[pathname,search])
 
  const globalLayers=<><TeamSelectionAvailabilityWarnings/><MatchDayLiveSync/><PublicLiveMatchPortal/><WhiteboardAppMode/></>
- const bottomNav=appVisible?<CoachingBottomNav clubId={clubId} section={section} view={view}/>:null
+ const toolNav=toolsVisible?<CoachingToolNav clubId={clubId} section={section} view={view}/>:null
 
- if(overlay)return <>{globalLayers}{createPortal(<div className="coach-workspace-layer"><Routes><Route path="/club-portal/:clubId/coaching" element={
+ if(overlay)return <>{globalLayers}{createPortal(<div className="coach-workspace-layer">{toolNav}<div className="coach-workspace-content"><Routes><Route path="/club-portal/:clubId/coaching" element={
   home?<CoachingAppHome/>:
   teamHub?<CoachingTeamHub/>:
   matchDay?<><ClubPortalMatchDay/><PostMatchReviewPanel clubId={clubId}/><MatchDayGamePlanPanel clubId={clubId}/><LiveMatchReportPanel clubId={clubId}/></>:
   opposition?<ClubPortalOpposition/>:
   playerDevelopment?<ClubPortalPlayerDevelopment/>:
   <><ClubPortalTraining/><TrainingRecordsPanel clubId={clubId}/></>
- }/></Routes>{bottomNav}</div>,document.body)}<style>{workspaceStyles}</style></>
+ }/></Routes></div></div>,document.body)}<style>{workspaceStyles}</style></>
 
  if(!visible)return globalLayers
- return <>{globalLayers}{bottomNav&&createPortal(bottomNav,document.body)}<style>{workspaceStyles}</style></>
+ return <>{globalLayers}{toolNav&&createPortal(<div className="coach-page-tools">{toolNav}</div>,document.body)}<style>{workspaceStyles}</style></>
 }
 
-function CoachingBottomNav({clubId,section,view}:{clubId:string;section:string;view:string|null}){
- const teamActive=section==='availability'||section==='team-selection'||section==='whiteboard'||['team','opposition','player-development'].includes(view||'')
+function CoachingToolNav({clubId,section,view}:{clubId:string;section:string;view:string|null}){
+ const teamActive=section==='availability'||section==='team-selection'||['team','opposition','player-development'].includes(view||'')
  const items=[
-  {label:'Home',href:`/club-portal/${clubId}/coaching`,icon:Home,active:section==='coaching'&&!view},
-  {label:'Team',href:`/club-portal/${clubId}/coaching?view=team`,icon:Users,active:teamActive},
-  {label:'Training',href:`/club-portal/${clubId}/coaching?view=training`,icon:Dumbbell,active:view==='training'},
-  {label:'Match',href:`/club-portal/${clubId}/coaching?view=match-day`,icon:Clock3,active:view==='match-day'},
+  {label:'Coaching Home',detail:'Overview and next actions',href:`/club-portal/${clubId}/coaching`,icon:Home,active:section==='coaching'&&!view},
+  {label:'Team',detail:'Availability, selection and development',href:`/club-portal/${clubId}/coaching?view=team`,icon:Users,active:teamActive},
+  {label:'Training',detail:'Attendance, plans and records',href:`/club-portal/${clubId}/coaching?view=training`,icon:Dumbbell,active:view==='training'},
+  {label:'Match Day',detail:'Game plan, live match and review',href:`/club-portal/${clubId}/coaching?view=match-day`,icon:Clock3,active:view==='match-day'},
  ]
- return <nav className="coach-app-bottom" aria-label="Coaching app navigation"><div>{items.map(item=><Link key={item.label} to={item.href} className={item.active?'active':''} aria-current={item.active?'page':undefined}><item.icon size={22}/><span>{item.label}</span></Link>)}</div></nav>
+ return <nav className="coach-tool-nav" aria-label="Coaching tools">{items.map(item=><Link key={item.label} to={item.href} className={item.active?'active':''} aria-current={item.active?'page':undefined}><item.icon size={20}/><span><strong>{item.label}</strong><small>{item.detail}</small></span></Link>)}</nav>
 }
 
 const workspaceStyles=`
-.coach-workspace-layer{position:fixed;inset:0;z-index:100000;overflow:auto;background:#f7f8fa;padding-bottom:82px}.coach-app-bottom{position:fixed;left:0;right:0;bottom:0;z-index:100200;transition:transform .2s ease,opacity .2s ease;padding:7px 12px calc(7px + env(safe-area-inset-bottom));background:rgba(250,251,252,.96);border-top:1px solid #dfe4e8;box-shadow:0 -8px 28px rgba(15,23,42,.09);backdrop-filter:blur(18px)}.coach-app-bottom>div{width:min(620px,100%);margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}.coach-app-bottom a{display:flex;min-height:54px;flex-direction:column;align-items:center;justify-content:center;gap:4px;border-radius:13px;color:#92989f;text-decoration:none;font-size:10px;font-weight:850}.coach-app-bottom a.active{color:#5d2eb8;background:#f0eaff}.coach-app-bottom a.active svg{stroke-width:2.8}.pf-menu-open .coach-app-bottom{transform:translateY(calc(100% + 24px));opacity:0;pointer-events:none}@media(min-width:761px){.coach-app-bottom{left:50%;right:auto;bottom:18px;width:min(620px,calc(100% - 36px));transform:translateX(-50%);border:1px solid #dfe4e8;border-radius:20px;padding:7px;box-shadow:0 12px 34px rgba(15,23,42,.15)}.pf-menu-open .coach-app-bottom{transform:translate(-50%,calc(100% + 40px))}}
+.coach-workspace-layer{position:fixed;inset:0;z-index:100000;overflow:auto;background:#eef3f7}.coach-workspace-content{min-height:100%;box-sizing:border-box;padding:22px clamp(10px,3vw,34px) 70px}.coach-tool-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:10px;border-bottom:1px solid #dfe4e8;background:rgba(250,251,252,.97);box-shadow:0 8px 22px rgba(15,23,42,.05);backdrop-filter:blur(18px)}.coach-tool-nav a{display:grid;grid-template-columns:36px 1fr;align-items:center;gap:8px;min-width:0;padding:10px 12px;border-radius:13px;color:#6f7983;text-decoration:none}.coach-tool-nav a>svg{justify-self:center}.coach-tool-nav a>span{display:grid;min-width:0}.coach-tool-nav strong{font-size:12px}.coach-tool-nav small{overflow:hidden;color:#8a949d;font-size:8px;text-overflow:ellipsis;white-space:nowrap}.coach-tool-nav a.active{background:#e6f5fe;color:#087bbf}.coach-tool-nav a.active small{color:#4c8eaf}.coach-page-tools{position:fixed;left:248px;right:0;top:0;z-index:100250}.coach-page-tools+.club-hq-sidebar~*{}body:has(.coach-page-tools) .club-portal-page,body:has(.coach-page-tools) .club-portal-page-wrap{padding-top:88px!important}@media(max-width:900px){.coach-tool-nav{grid-template-columns:repeat(4,150px);overflow-x:auto}.coach-tool-nav a{grid-template-columns:30px 1fr}.coach-page-tools{left:248px}}@media(max-width:760px){.coach-workspace-content{padding:14px 8px 105px}.coach-tool-nav{position:sticky;top:0;z-index:4;grid-template-columns:repeat(4,142px);padding:8px;overflow-x:auto}.coach-tool-nav a{padding:9px}.coach-page-tools{left:0;right:0;top:0}.coach-page-tools .coach-tool-nav{position:relative}body:has(.coach-page-tools) .club-portal-page,body:has(.coach-page-tools) .club-portal-page-wrap{padding-top:82px!important}}
 `
