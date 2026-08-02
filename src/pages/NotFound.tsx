@@ -8,6 +8,7 @@ import ClubPortalMedia from './ClubPortalMedia'
 import ClubPortalTeamGraphic from './ClubPortalTeamGraphic'
 import ClubPortalMatchGraphic from './ClubPortalMatchGraphic'
 import ClubPortalMilestones from './ClubPortalMilestones'
+import ClubPortalMediaPublish from './ClubPortalMediaPublish'
 
 export default function NotFound() {
   const location = useLocation()
@@ -16,7 +17,8 @@ export default function NotFound() {
   const isTeamGraphic = /^\/club-portal\/[^/]+\/team-selection-graphic\/?$/.test(location.pathname)
   const isMatchGraphic = /^\/club-portal\/[^/]+\/match-graphic\/?$/.test(location.pathname)
   const isMilestones = /^\/club-portal\/[^/]+\/milestones\/?$/.test(location.pathname)
-  const isMountedPortalPage = isClubAnalytics || isClubMedia || isTeamGraphic || isMatchGraphic || isMilestones
+  const isMediaPublish = /^\/club-portal\/[^/]+\/media-publish\/?$/.test(location.pathname)
+  const isMountedPortalPage = isClubAnalytics || isClubMedia || isTeamGraphic || isMatchGraphic || isMilestones || isMediaPublish
   useEffect(() => {
     if (isMountedPortalPage) return
     document.title = 'Page not found | PlayFooty'
@@ -30,6 +32,7 @@ export default function NotFound() {
   if (isTeamGraphic) return <ClubPortalTeamGraphic/>
   if (isMatchGraphic) return <ClubPortalMatchGraphic/>
   if (isMilestones) return <ClubPortalMilestones/>
+  if (isMediaPublish) return <ClubPortalMediaPublish/>
   return <><Nav/><main className="not-found"><style>{styles}</style><section><span>404</span><h1>That page is out of bounds</h1><p>We could not find <code>{location.pathname}</code>. The page may have moved, been archived or never existed.</p><div><Link to="/"><ArrowLeft size={18}/>Back home</Link><Link to="/directory"><Search size={18}/>Find a club</Link></div></section></main><Footer/></>
 }
 
