@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Bell, Menu, Search, X } from 'lucide-react'
-import { Link, useLocation } from 'react-router-dom'
+import { Bell, LogOut, Menu, Search, X } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import GlobalSearch, { useSearchController } from '../rankings/GlobalSearch'
 import UnifiedSearchExtras from '../rankings/UnifiedSearchExtras'
 import FollowButton from '../supporter/FollowButton'
@@ -20,12 +20,14 @@ const links = [
 ]
 const HEADER_LOGO_PATH = '/Playfooty-logo-modern.png'
 const HEADER_LOGO_FALLBACK = 'https://raw.githubusercontent.com/Boatsy007/newone2/newone1/public/Playfooty-logo-modern.png'
+const CLUB_SESSION_KEY = 'playfooty.clubPortal.session.v1'
 type FollowTarget = { entityType: FollowEntity; entityId: string }
 
 export default function Nav() {
   const [open, setOpen] = useState(false)
   const [unread, setUnread] = useState(0)
   const location = useLocation()
+  const navigate = useNavigate()
   const search = useSearchController()
   const clubMatch = location.pathname.match(/^\/team\/([^/]+)/)
   const clubPortalMatch = location.pathname.match(/^\/club-portal\/([^/]+)/)
@@ -43,6 +45,29 @@ export default function Nav() {
     return () => { active = false; window.removeEventListener('playfooty:follows-changed', refreshUnread); window.removeEventListener('playfooty:notifications-read', refreshUnread) }
   }, [])
   const openSearch = () => { setOpen(false); search.open() }
+  const logoutClubPortal = () => {
+    localStorage.removeItem(CLUB_SESSION_KEY)
+    window.dispatchEvent(new Event('playfooty:club-session-changed'))
+    navigate('/club-portal', { replace: true })
+  }
+
+  if (clubPortalMatch) return <>
+    <DesktopLayoutPolish />
+    <header className="pf-nav pf-club-nav"><div className="pf-nav-inner pf-club-nav-inner">
+      <Link to={`/club-portal/${clubPortalMatch[1]}`} className="pf-brand" aria-label="Club HQ home"><img src={HEADER_LOGO_PATH} alt="PlayFooty" onError={event => { const image = event.currentTarget; if (image.src !== HEADER_LOGO_FALLBACK) image.src = HEADER_LOGO_FALLBACK }}/></Link>
+      <div className="pf-club-nav-label"><span>PLAYFOOTY</span><strong>Club HQ</strong></div>
+      <button type="button" className="pf-club-logout" onClick={logoutClubPortal}><LogOut size={18}/><span>Log out</span></button>
+    </div></header>
+    <style>{`
+      .pf-club-nav{position:sticky;top:0;z-index:80;background:#050505;color:#fff;border-bottom:1px solid rgba(255,255,255,.12)}
+      .pf-club-nav-inner{height:72px;max-width:none;padding:0 24px;display:flex;align-items:center;gap:18px}
+      .pf-club-nav .pf-brand{display:flex;align-items:center;flex:0 0 auto}.pf-club-nav .pf-brand img{display:block;width:166px;height:auto}
+      .pf-club-nav-label{display:grid;gap:1px;padding-left:18px;border-left:1px solid rgba(255,255,255,.18)}.pf-club-nav-label span{color:#52c0ff;font-size:8px;font-weight:950;letter-spacing:.18em}.pf-club-nav-label strong{font-family:'Barlow Condensed',Arial,sans-serif;font-size:17px;text-transform:uppercase;letter-spacing:.04em}
+      .pf-club-logout{margin-left:auto;display:flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 15px;border:1px solid rgba(255,255,255,.25);border-radius:999px;background:transparent;color:#fff;font:inherit;font-family:'Barlow Condensed',Arial,sans-serif;font-size:12px;font-weight:900;text-transform:uppercase;cursor:pointer}.pf-club-logout:hover,.pf-club-logout:focus-visible{background:#fff;color:#050505}
+      @media(max-width:760px){.pf-club-nav-inner{height:64px;padding:0 12px;gap:10px}.pf-club-nav .pf-brand img{width:138px}.pf-club-nav-label{padding-left:10px}.pf-club-nav-label strong{font-size:14px}.pf-club-logout{min-width:40px;width:40px;height:40px;padding:0}.pf-club-logout span{display:none}}
+      @media(max-width:390px){.pf-club-nav-label{display:none}}
+    `}</style>
+  </>
 
   return <>
     <DesktopLayoutPolish />
