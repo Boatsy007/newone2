@@ -1,0 +1,19 @@
+{
+  "appId": "au.com.playfooty.club",
+  "appName": "PlayFooty Club",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "playfooty.com.au",
+      "www.playfooty.com.au"
+    ]
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile",
+    "backgroundColor": "#eef3f7",
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}
