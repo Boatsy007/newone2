@@ -1,6 +1,7 @@
 import { BarChart3, ClipboardList, Home, Image, Settings2, UserRound } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
+import ClubHqCommandCentre from './ClubHqCommandCentre'
 
 const COACHING_SECTIONS=new Set(['coaching','availability','team-selection','whiteboard'])
 
@@ -10,7 +11,7 @@ export default function ClubPortalAppNav(){
  const clubId=match?.[1]??''
  const section=match?.[2]??''
  const visible=Boolean(clubId&&!COACHING_SECTIONS.has(section))
- if(!visible)return null
+ if(!visible)return <ClubHqCommandCentre/>
  const items=[
   {label:'Home',href:`/club-portal/${clubId}`,icon:Home,active:!section},
   {label:'Coaching',href:`/club-portal/${clubId}/coaching`,icon:ClipboardList,active:false},
@@ -19,7 +20,7 @@ export default function ClubPortalAppNav(){
   {label:'Analytics',href:`/club-portal/${clubId}/analytics`,icon:BarChart3,active:section==='analytics'},
   {label:'Profile',href:`/club-portal/${clubId}/profile`,icon:UserRound,active:section==='profile'||section==='sponsors'},
  ]
- return createPortal(<><nav className="club-app-bottom" aria-label="Club HQ navigation"><div>{items.map(item=><Link key={item.label} to={item.href} className={item.active?'active':''} aria-current={item.active?'page':undefined}><item.icon size={22}/><span>{item.label}</span></Link>)}</div></nav><style>{styles}</style></>,document.body)
+ return <><ClubHqCommandCentre/>{createPortal(<><nav className="club-app-bottom" aria-label="Club HQ navigation"><div>{items.map(item=><Link key={item.label} to={item.href} className={item.active?'active':''} aria-current={item.active?'page':undefined}><item.icon size={22}/><span>{item.label}</span></Link>)}</div></nav><style>{styles}</style></>,document.body)}</>
 }
 
 const styles=`
