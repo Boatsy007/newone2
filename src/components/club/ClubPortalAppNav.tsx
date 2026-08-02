@@ -46,8 +46,8 @@ function getSectionItems(clubId:string,section:string,view:string|null):SectionI
   {label:'Equipment & Stocktake',description:'Inventory, condition and alerts',href:`/club-portal/${clubId}/equipment`,icon:PackageSearch,active:section==='equipment'},
  ]
  if(ANALYTICS_SECTIONS.has(section))return[
-  {label:'Club Analytics',description:'Profile and audience performance',href:`/club-portal/${clubId}/analytics`,icon:BarChart3,active:section==='analytics'},
-  {label:'Media Analytics',description:'Content and creative performance',href:`/club-portal/${clubId}/media?section=analytics`,icon:Image,active:false},
+  {label:'Club Analytics',description:'Profile and audience performance',href:`/club-portal/${clubId}/analytics`,icon:BarChart3,active:section==='analytics'&&view!=='media'},
+  {label:'Media Analytics',description:'Content and creative performance',href:`/club-portal/${clubId}/analytics?view=media`,icon:Image,active:section==='analytics'&&view==='media'},
   {label:'Activity',description:'Recent Club HQ actions',href:`/club-portal/${clubId}/activity`,icon:Activity,active:section==='activity'},
  ]
  if(['profile','sponsors','users','plans'].includes(section))return[
