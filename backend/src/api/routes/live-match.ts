@@ -30,9 +30,22 @@ function ensureLiveMatchTable() {
 
 const text = (value: unknown, max = 200) => String(value ?? '').trim().slice(0, max)
 const integer = (value: unknown, min: number, max: number) => Math.min(max, Math.max(min, Number.parseInt(String(value ?? 0), 10) || 0))
+const numberValue = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0
 
 type LiveRow = {
   clubId:string;clubName:string;teamSheetId:string|null;roundLabel:string|null;opponentName:string|null;matchDate:string|null;quarter:number;elapsedSeconds:number;clockRunning:boolean;homeGoals:number;homeBehinds:number;awayGoals:number;awayBehinds:number;status:string;lastEvent:string|null;updatedAt:string
+}
+
+type SharedMatchRow = {
+  clubId:string
+  clubName:string|null
+  sheetId:string
+  roundLabel:string|null
+  opponentName:string|null
+  matchDate:string|null
+  sheetStatus:string
+  state: Record<string, unknown>
+  updatedAt:string
 }
 
 const liveSelect = `
@@ -49,6 +62,54 @@ const liveSelect = `
   FROM football_live_matches lm
   LEFT JOIN clubs c ON c.id::text=lm.club_id
 `
+
+async function sharedMatchDay(clubId: string): Promise<LiveRow | null> {
+  try {
+    const rows = await prisma.$queryRawUnsafe<SharedMatchRow[]>(`
+      SELECT md.club_id AS "clubId",c.name AS "clubName",md.sheet_id AS "sheetId",
+        ts.round_label AS "roundLabel",ts.opponent_name AS "opponentName",ts.match_date AS "matchDate",
+        ts.status AS "sheetStatus",md.state,md.updated_at AS "updatedAt"
+      FROM club_match_day_state md
+      JOIN football_team_sheets ts ON ts.id::text=md.sheet_id AND ts.club_id=md.club_id
+      LEFT JOIN clubs c ON c.id::text=md.club_id
+      WHERE md.club_id=$1
+      ORDER BY CASE WHEN ts.status='PUBLISHED' THEN 0 ELSE 1 END,md.updated_at DESC
+      LIMIT 1
+    `, clubId)
+    const row = rows[0]
+    if (!row || !row.state || typeof row.state !== 'object') return null
+    const state = row.state
+    const runningSince = numberValue(state.runningSince)
+    const elapsed = numberValue(state.elapsed)
+    const elapsedSeconds = elapsed + (runningSince > 0 ? Math.max(0, Math.floor((Date.now() - runningSince) / 1000)) : 0)
+    const events = Array.isArray(state.events) ? state.events as Array<{ label?: unknown }> : []
+    const homeGoals = numberValue(state.homeGoals)
+    const homeBehinds = numberValue(state.homeBehinds)
+    const awayGoals = numberValue(state.awayGoals)
+    const awayBehinds = numberValue(state.awayBehinds)
+    const active = Boolean(runningSince || elapsedSeconds || events.length || homeGoals || homeBehinds || awayGoals || awayBehinds)
+    return {
+      clubId: row.clubId,
+      clubName: row.clubName ?? '',
+      teamSheetId: text(state.sheetId, 80) || row.sheetId,
+      roundLabel: row.roundLabel,
+      opponentName: row.opponentName,
+      matchDate: row.matchDate,
+      quarter: Math.max(1, numberValue(state.quarter) || 1),
+      elapsedSeconds,
+      clockRunning: runningSince > 0,
+      homeGoals,
+      homeBehinds,
+      awayGoals,
+      awayBehinds,
+      status: active ? 'LIVE' : 'READY',
+      lastEvent: events[0]?.label ? text(events[0].label, 250) : null,
+      updatedAt: row.updatedAt,
+    }
+  } catch {
+    return null
+  }
+}
 
 router.get('/', async (_req, res) => {
   try {
@@ -84,6 +145,11 @@ router.get('/', async (_req, res) => {
 
 router.get('/clubs/:clubId', async (req, res) => {
   try {
+    const shared = await sharedMatchDay(req.params.clubId)
+    if (shared) {
+      res.set('Cache-Control', 'no-store')
+      return res.json({ data: shared })
+    }
     await ensureLiveMatchTable()
     const rows = await prisma.$queryRawUnsafe<LiveRow[]>(`${liveSelect}
       WHERE lm.club_id=$1 AND lm.status='LIVE'
