@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import MatchCentreLiveBanner from '../matches/MatchCentreLiveBanner'
 import PublicAnalyticsTracker from '../analytics/PublicAnalyticsTracker'
+import NativeAppBootstrap from '../native/NativeAppBootstrap'
 
 const HIDDEN_PREFIXES=['/club-portal','/league-portal','/admin','/reset-password','/player-availability']
 
@@ -21,7 +22,7 @@ export default function PublicAppNav(){
   return()=>{document.body.classList.remove('pf-public-more-open');document.body.style.overflow=previous}
  },[moreOpen])
 
- if(hidden)return null
+ if(hidden)return <NativeAppBootstrap/>
  const items=[
   {label:'Home',href:'/',icon:Home,active:pathname==='/'},
   {label:'Rankings',href:'/rankings',icon:Trophy,active:pathname.startsWith('/rankings')||pathname.startsWith('/power-rankings')},
@@ -29,7 +30,7 @@ export default function PublicAppNav(){
   {label:'Clubs',href:'/directory',icon:Users,active:pathname.startsWith('/directory')||pathname.startsWith('/team/')},
  ]
 
- return <><PublicAnalyticsTracker/><MatchCentreLiveBanner/>{createPortal(<>
+ return <><NativeAppBootstrap/><PublicAnalyticsTracker/><MatchCentreLiveBanner/>{createPortal(<>
   <nav className="public-app-bottom" aria-label="PlayFooty app navigation"><div>
    {items.map(item=><Link key={item.label} to={item.href} className={item.active?'active':''} aria-current={item.active?'page':undefined}><item.icon size={22}/><span>{item.label}</span></Link>)}
    <button type="button" className={moreOpen||moreActive?'active':''} onClick={()=>setMoreOpen(value=>!value)} aria-expanded={moreOpen}><Menu size={22}/><span>More</span></button>
