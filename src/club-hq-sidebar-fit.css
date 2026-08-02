@@ -1,0 +1,194 @@
+/* Club HQ section layout fit layer. Keeps Home full width and only adjusts pages that render a section sidebar. */
+@media (min-width: 761px) {
+  body:has(.club-section-sidebar) {
+    --club-section-width: 238px;
+    --club-workspace-pad: clamp(14px, 2.2vw, 30px);
+  }
+
+  body:has(.club-section-sidebar) .coach-workspace-layer,
+  body:has(.club-section-sidebar) .cpp,
+  body:has(.club-section-sidebar) .club-portal-page,
+  body:has(.club-section-sidebar) .club-portal-page-wrap,
+  body:has(.club-section-sidebar) .club-portal-profile,
+  body:has(.club-section-sidebar) main[class^='club-portal'],
+  body:has(.club-section-sidebar) main[class*=' club-portal'] {
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin-left: var(--club-section-width) !important;
+    padding-left: var(--club-workspace-pad) !important;
+    padding-right: var(--club-workspace-pad) !important;
+  }
+
+  body:has(.club-section-sidebar) .coach-workspace-layer {
+    left: var(--club-section-width) !important;
+    width: calc(100vw - var(--club-section-width)) !important;
+    margin-left: 0 !important;
+    padding-left: var(--club-workspace-pad) !important;
+    padding-right: var(--club-workspace-pad) !important;
+  }
+
+  body:has(.club-section-sidebar) .coach-workspace-layer > *,
+  body:has(.club-section-sidebar) .cpp > *,
+  body:has(.club-section-sidebar) .club-portal-page > *,
+  body:has(.club-section-sidebar) .club-portal-page-wrap > *,
+  body:has(.club-section-sidebar) .club-portal-profile > * {
+    width: 100% !important;
+    max-width: 1180px !important;
+    min-width: 0 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  body:has(.club-section-sidebar) .grid,
+  body:has(.club-section-sidebar) .cp-tools,
+  body:has(.club-section-sidebar) .cp-summary,
+  body:has(.club-section-sidebar) .colour-grid,
+  body:has(.club-section-sidebar) .photo-grid,
+  body:has(.club-section-sidebar) .vol-grid,
+  body:has(.club-section-sidebar) .equipment-grid,
+  body:has(.club-section-sidebar) .analytics-grid,
+  body:has(.club-section-sidebar) .cards,
+  body:has(.club-section-sidebar) .card-grid {
+    min-width: 0 !important;
+  }
+
+  body:has(.club-section-sidebar) .grid,
+  body:has(.club-section-sidebar) .cp-tools,
+  body:has(.club-section-sidebar) .vol-grid,
+  body:has(.club-section-sidebar) .equipment-grid,
+  body:has(.club-section-sidebar) .analytics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  body:has(.club-section-sidebar) .cp-layout,
+  body:has(.club-section-sidebar) .workspace,
+  body:has(.club-section-sidebar) .portal-layout,
+  body:has(.club-section-sidebar) .coaching-layout {
+    min-width: 0 !important;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px) !important;
+  }
+
+  body:has(.club-section-sidebar) header,
+  body:has(.club-section-sidebar) section,
+  body:has(.club-section-sidebar) article,
+  body:has(.club-section-sidebar) form,
+  body:has(.club-section-sidebar) table,
+  body:has(.club-section-sidebar) .panel,
+  body:has(.club-section-sidebar) .card {
+    min-width: 0;
+  }
+
+  body:has(.club-section-sidebar) table {
+    width: 100% !important;
+  }
+
+  body:has(.club-section-sidebar) .table-wrap,
+  body:has(.club-section-sidebar) .table-scroll,
+  body:has(.club-section-sidebar) .roster-table,
+  body:has(.club-section-sidebar) .equipment-table {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body:has(.club-section-sidebar) input,
+  body:has(.club-section-sidebar) select,
+  body:has(.club-section-sidebar) textarea,
+  body:has(.club-section-sidebar) button {
+    max-width: 100%;
+  }
+
+  body:has(.club-section-sidebar) img,
+  body:has(.club-section-sidebar) canvas,
+  body:has(.club-section-sidebar) video {
+    max-width: 100% !important;
+  }
+
+  body:has(.club-section-sidebar) .cpp > header,
+  body:has(.club-section-sidebar) .portal-header,
+  body:has(.club-section-sidebar) .page-header,
+  body:has(.club-section-sidebar) .cp-hero {
+    gap: 14px !important;
+    padding: clamp(17px, 2vw, 24px) !important;
+  }
+
+  body:has(.club-section-sidebar) .cpp h1,
+  body:has(.club-section-sidebar) .portal-header h1,
+  body:has(.club-section-sidebar) .page-header h1 {
+    font-size: clamp(2.7rem, 5vw, 4.5rem) !important;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  body:has(.club-section-sidebar) {
+    --club-section-width: 210px;
+    --club-workspace-pad: 16px;
+  }
+
+  body:has(.club-section-sidebar) .grid,
+  body:has(.club-section-sidebar) .cp-tools,
+  body:has(.club-section-sidebar) .vol-grid,
+  body:has(.club-section-sidebar) .equipment-grid,
+  body:has(.club-section-sidebar) .analytics-grid,
+  body:has(.club-section-sidebar) .cp-layout,
+  body:has(.club-section-sidebar) .workspace,
+  body:has(.club-section-sidebar) .portal-layout,
+  body:has(.club-section-sidebar) .coaching-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body:has(.club-section-sidebar) .cp-summary,
+  body:has(.club-section-sidebar) .colour-grid,
+  body:has(.club-section-sidebar) .photo-grid,
+  body:has(.club-section-sidebar) .cards,
+  body:has(.club-section-sidebar) .card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  body:has(.club-section-sidebar) .cpp > header,
+  body:has(.club-section-sidebar) .portal-header,
+  body:has(.club-section-sidebar) .page-header,
+  body:has(.club-section-sidebar) .cp-hero {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body:has(.club-section-mobile) .coach-workspace-layer,
+  body:has(.club-section-mobile) .cpp,
+  body:has(.club-section-mobile) .club-portal-page,
+  body:has(.club-section-mobile) .club-portal-page-wrap,
+  body:has(.club-section-mobile) .club-portal-profile {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+  }
+
+  body:has(.club-section-mobile) .grid,
+  body:has(.club-section-mobile) .cp-tools,
+  body:has(.club-section-mobile) .cp-summary,
+  body:has(.club-section-mobile) .colour-grid,
+  body:has(.club-section-mobile) .photo-grid,
+  body:has(.club-section-mobile) .vol-grid,
+  body:has(.club-section-mobile) .equipment-grid,
+  body:has(.club-section-mobile) .analytics-grid,
+  body:has(.club-section-mobile) .cp-layout,
+  body:has(.club-section-mobile) .workspace,
+  body:has(.club-section-mobile) .portal-layout,
+  body:has(.club-section-mobile) .coaching-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body:has(.club-section-mobile) .table-wrap,
+  body:has(.club-section-mobile) .table-scroll,
+  body:has(.club-section-mobile) table {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+  }
+}
