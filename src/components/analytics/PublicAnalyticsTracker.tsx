@@ -22,15 +22,36 @@ export function sendAnalyticsEvent(event:Record<string,unknown>){
  void fetch('/api/analytics/event',{method:'POST',headers:{'content-type':'application/json'},body:payload,keepalive:true}).catch(()=>{})
 }
 
+function sponsorId(element:HTMLElement){
+ const anchor=element.closest<HTMLAnchorElement>('a')
+ return (anchor?.href||element.textContent||'sponsor').slice(0,180)
+}
+
 export default function PublicAnalyticsTracker(){
  const{pathname}=useLocation()
  useEffect(()=>{
   const match=pathname.match(/^\/team\/([^/?#]+)/)
   if(!match)return
   const clubId=decodeURIComponent(match[1])
-  const key=`club:${clubId}:${pathname}`
-  try{if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1')}catch{}
-  sendAnalyticsEvent({eventType:'CLUB_VIEW',entityType:'CLUB',entityId:clubId})
+  const viewKey=`club:${clubId}:${pathname}`
+  try{if(!sessionStorage.getItem(viewKey)){sessionStorage.setItem(viewKey,'1');sendAnalyticsEvent({eventType:'CLUB_VIEW',entityType:'CLUB',entityId:clubId})}}catch{sendAnalyticsEvent({eventType:'CLUB_VIEW',entityType:'CLUB',entityId:clubId})}
+
+  const tracked=new WeakSet<Element>()
+  const scan=()=>document.querySelectorAll<HTMLElement>('.pf-sponsor-feature,.pf-sponsor-card').forEach(element=>{
+    if(tracked.has(element))return
+    tracked.add(element)
+    sendAnalyticsEvent({eventType:'SPONSOR_IMPRESSION',entityType:'SPONSOR',entityId:sponsorId(element),meta:{clubId,placement:element.classList.contains('pf-sponsor-feature')?'featured':'profile'}})
+  })
+  const click=(event:MouseEvent)=>{
+    const element=event.target instanceof Element?event.target.closest<HTMLElement>('.pf-sponsor-feature,.pf-sponsor-card'):null
+    if(!element)return
+    sendAnalyticsEvent({eventType:'SPONSOR_CLICK',entityType:'SPONSOR',entityId:sponsorId(element),meta:{clubId,placement:element.classList.contains('pf-sponsor-feature')?'featured':'profile'}})
+  }
+  scan()
+  const observer=new MutationObserver(scan)
+  observer.observe(document.body,{childList:true,subtree:true})
+  document.addEventListener('click',click,true)
+  return()=>{observer.disconnect();document.removeEventListener('click',click,true)}
  },[pathname])
  return null
 }
