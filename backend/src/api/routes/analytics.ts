@@ -16,6 +16,7 @@ import { recordEvent, recordEvents, type RawEventInput } from '../../analytics/t
 import { overview, clubReport, leagueReport, newsReport, searchReport, trendingReport, commercialReport, topReferrers } from '../../analytics/reports.js'
 import { clubInsights, leagueInsights } from '../../analytics/insights.js'
 import { logger } from '../../utils/logger.js'
+import { clubAnalyticsRouter } from './club-analytics.js'
 
 const router = Router()
 
@@ -38,11 +39,13 @@ router.post('/event', publicRateLimit, async (req, res) => {
       const r = await recordEvent(body.event, ctx)
       return res.status(r.ok ? 202 : 400).json(r.ok ? { data: { accepted: 1 } } : { error: r.error })
     }
-    // Also accept a bare event object.
     const r = await recordEvent(body as RawEventInput, ctx)
     return res.status(r.ok ? 202 : 400).json(r.ok ? { data: { accepted: 1 } } : { error: r.error })
   } catch (err) { logger.error('POST /analytics/event', { detail: String(err) }); res.status(500).json({ error: 'ingest failed' }) }
 })
+
+// Club-authorised dashboard report. Kept under the already-mounted analytics API.
+router.use('/club-portal', clubAnalyticsRouter)
 
 // ── Reports (admin-gated) ─────────────────────────────────────────────────────
 router.use(attachActor)
@@ -56,8 +59,6 @@ router.get('/search', requireAdminActor, async (req, res) => { res.json({ data: 
 router.get('/trending', requireAdminActor, async (_req, res) => { res.json({ data: await trendingReport() }) })
 router.get('/commercial', requireAdminActor, async (_req, res) => { res.json({ data: await commercialReport() }) })
 router.get('/referrers', requireAdminActor, async (_req, res) => { res.json({ data: await topReferrers() }) })
-
-// Per-entity insights (future dashboards).
 router.get('/clubs/:id', requireAdminActor, async (req, res) => { res.json({ data: await clubInsights(String(req.params.id)) }) })
 router.get('/leagues/:id', requireAdminActor, async (req, res) => { res.json({ data: await leagueInsights(String(req.params.id)) }) })
 
