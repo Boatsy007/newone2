@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 const SESSION_KEY='playfooty.clubPortal.session.v1'
@@ -10,35 +10,44 @@ const EMG=['EMERGENCY_1','EMERGENCY_2','EMERGENCY_3']
 type Player={positionCode:string;playerName:string;jumperNumber:number|null}
 type Sheet={id:string;roundLabel:string;opponentName:string|null;matchDate:string|null;status:string;grade:string;players:Player[]}
 type Club={clubName:string;logoUrl:string|null;primaryColour:string|null;secondaryColour:string|null;leagueName:string|null}
+type ModalState={open:boolean;status:'loading'|'success'|'error';title:string;message:string}
 
 function readToken(){try{const raw=localStorage.getItem(SESSION_KEY);if(!raw)return'';const parsed=JSON.parse(raw) as{access_token?:string};return parsed.access_token||''}catch{return''}}
 function safeColour(value:string|null|undefined,fallback:string){return /^#[0-9a-f]{6}$/i.test(value||'')?String(value):fallback}
 function playerAt(sheet:Sheet,code:string){return sheet.players.find(player=>player.positionCode===code)||null}
 function dateLabel(value:string|null){if(!value)return'DATE TBC';const date=new Date(value);return Number.isNaN(date.getTime())?'DATE TBC':date.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).toUpperCase()}
-async function loadImage(url:string|null){if(!url)return null;return new Promise<HTMLImageElement|null>(resolve=>{const image=new Image();image.crossOrigin='anonymous';image.onload=()=>resolve(image);image.onerror=()=>resolve(null);image.src=url})}
+async function loadImage(url:string|null,label:string){if(!url)throw new Error(`${label} was not returned.`);return new Promise<HTMLImageElement>((resolve,reject)=>{const image=new Image();image.crossOrigin='anonymous';image.onload=()=>resolve(image);image.onerror=()=>reject(new Error(`${label} could not be loaded by this browser.`));image.src=url})}
 function cover(ctx:CanvasRenderingContext2D,image:HTMLImageElement,w:number,h:number){const scale=Math.max(w/image.width,h/image.height);const dw=image.width*scale,dh=image.height*scale;ctx.drawImage(image,(w-dw)/2,(h-dh)/2,dw,dh)}
 function drawPlayer(ctx:CanvasRenderingContext2D,player:Player|null,x:number,y:number){ctx.textAlign='center';if(!player){ctx.fillStyle='rgba(255,255,255,.38)';ctx.font='700 21px Arial';ctx.fillText('—',x,y+28);ctx.textAlign='left';return}const parts=player.playerName.trim().split(/\s+/);ctx.fillStyle='rgba(255,255,255,.84)';ctx.font='600 20px Arial';ctx.fillText((parts[0]||'').toUpperCase(),x,y+18);ctx.fillStyle='#fff';ctx.font='900 24px Arial';ctx.fillText((parts.slice(1).join(' ')||parts[0]||'').toUpperCase(),x,y+46);if(player.jumperNumber){ctx.fillStyle='rgba(255,255,255,.72)';ctx.font='800 15px Arial';ctx.fillText(`#${player.jumperNumber}`,x,y+68)}ctx.textAlign='left'}
-function setInlineMessage(text:string,isError=false){let box=document.querySelector<HTMLElement>('[data-team-graphic-message]');if(!box){box=document.createElement('div');box.dataset.teamGraphicMessage='true';const sheet=document.querySelector('.cpts-sheet');sheet?.prepend(box)}box.textContent=text;box.style.cssText=`margin:0 0 12px;padding:11px 13px;border-radius:9px;font-weight:800;background:${isError?'#fff0f0':'#e7f7ff'};color:${isError?'#a51d16':'#0d4f72'}`}
 
-async function generateAndDownload(clubId:string,button:HTMLButtonElement){
+async function generateAndDownload(clubId:string,onProgress:(title:string,message:string)=>void){
  const token=readToken();if(!token)throw new Error('Your club session has expired. Please sign in again.')
  const headers:Record<string,string>={authorization:`Bearer ${token}`}
- const getJson=async(url:string,options:RequestInit={})=>{const response=await fetch(url,{...options,headers:{...(options.headers as Record<string,string>|undefined),...headers}});const payload=await response.json().catch(()=>({})) as any;if(!response.ok)throw new Error(payload.error||'Request failed');return payload}
- const[sheetPayload,clubPayload]=await Promise.all([getJson(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`),fetch(`/api/clubs/${encodeURIComponent(clubId)}`).then(async response=>{const payload=await response.json();if(!response.ok)throw new Error(payload.error||'Unable to load club');return payload})])
+ const getJson=async(url:string,options:RequestInit={})=>{let response:Response;try{response=await fetch(url,{...options,headers:{...(options.headers as Record<string,string>|undefined),...headers}})}catch(error){throw new Error(error instanceof Error?`Connection failed: ${error.message}`:'Connection to the image service failed.')}const payload=await response.json().catch(()=>({})) as any;if(!response.ok)throw new Error(payload.error||`Request failed (${response.status})`);return payload}
+
+ onProgress('Loading team','Checking the published team sheet and club branding…')
+ const[sheetPayload,clubPayload]=await Promise.all([
+  getJson(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`),
+  fetch(`/api/clubs/${encodeURIComponent(clubId)}`).then(async response=>{const payload=await response.json();if(!response.ok)throw new Error(payload.error||'Unable to load club');return payload})
+ ])
  const sheets=(Array.isArray(sheetPayload.data)?sheetPayload.data:[]) as Sheet[]
  const sheet=sheets.find(item=>item.status==='PUBLISHED')
  if(!sheet)throw new Error('Publish a team before generating the image.')
  const club=(clubPayload.data||null) as Club|null
  if(!club)throw new Error('Club details could not be loaded.')
- button.textContent='Generating AI…'
+
+ onProgress('Creating AI design','Generating a background in the club colours. This can take up to a minute…')
  const ai=await getJson(`/api/club-portal/ai-graphics/clubs/${encodeURIComponent(clubId)}/team-background`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clubName:club.clubName,opponentName:sheet.opponentName,primaryColour:club.primaryColour,secondaryColour:club.secondaryColour,style:'premium broadcast'})})
- const background=await loadImage(ai.data?.dataUrl||null)
- if(!background)throw new Error('The AI background could not be loaded.')
+
+ onProgress('Building graphic','Adding the exact team, positions, round and club logo…')
+ const background=await loadImage(ai.data?.dataUrl||null,'The AI background')
  const canvas=document.createElement('canvas');const W=1080,H=1350;canvas.width=W;canvas.height=H
  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Image canvas is unavailable.')
  cover(ctx,background,W,H);ctx.fillStyle='rgba(2,10,24,.62)';ctx.fillRect(0,0,W,H)
  const shade=ctx.createLinearGradient(0,0,0,H);shade.addColorStop(0,'rgba(0,0,0,.08)');shade.addColorStop(1,'rgba(0,0,0,.82)');ctx.fillStyle=shade;ctx.fillRect(0,0,W,H)
- const secondary=safeColour(club.secondaryColour,'#f4b000');const logo=await loadImage(club.logoUrl)
+ const secondary=safeColour(club.secondaryColour,'#f4b000')
+ let logo:HTMLImageElement|null=null
+ if(club.logoUrl){try{logo=await loadImage(club.logoUrl,'The club logo')}catch{logo=null}}
  if(logo){const scale=Math.min(130/logo.width,130/logo.height);ctx.drawImage(logo,72,55,logo.width*scale,logo.height*scale)}
  ctx.textAlign='left';ctx.fillStyle='#fff';ctx.font='900 58px Arial';ctx.fillText('TEAM',72,245);ctx.fillStyle=secondary;ctx.font='900 102px Arial';ctx.fillText('SELECTION',72,325)
  ctx.fillStyle='#fff';ctx.textAlign='right';ctx.font='800 27px Arial';ctx.fillText(sheet.roundLabel.toUpperCase(),1000,88);ctx.font='900 32px Arial';ctx.fillText(`V ${sheet.opponentName||'OPPONENT TBC'}`.toUpperCase(),1000,132);ctx.textAlign='left'
@@ -46,14 +55,22 @@ async function generateAndDownload(clubId:string,button:HTMLButtonElement){
  ROWS.forEach((row,index)=>{const y=startY+index*rowH;ctx.fillStyle=secondary;ctx.font='900 24px Arial';ctx.fillText(LABELS[index],72,y+38);row.forEach((code,col)=>drawPlayer(ctx,playerAt(sheet,code),colX[col],y));ctx.strokeStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.moveTo(145,y+82);ctx.lineTo(1008,y+82);ctx.stroke()})
  let y=startY+ROWS.length*rowH+8;ctx.fillStyle=secondary;ctx.font='900 22px Arial';ctx.fillText('INT',72,y+30);BENCH.forEach((code,index)=>drawPlayer(ctx,playerAt(sheet,code),245+(index%3)*285,y+Math.floor(index/3)*72));y+=155;ctx.fillStyle=secondary;ctx.fillText('EMG',72,y+30);EMG.forEach((code,index)=>drawPlayer(ctx,playerAt(sheet,code),245+index*285,y))
  ctx.fillStyle=secondary;ctx.font='900 23px Arial';ctx.fillText(dateLabel(sheet.matchDate),72,1284);ctx.fillStyle='#fff';ctx.font='700 19px Arial';ctx.fillText((club.leagueName||sheet.grade||'COMMUNITY FOOTBALL').toUpperCase(),72,1318)
- const anchor=document.createElement('a');anchor.download=`${club.clubName}-${sheet.roundLabel}-team-selection.png`.toLowerCase().replace(/[^a-z0-9.-]+/g,'-');anchor.href=canvas.toDataURL('image/png');anchor.click()
- setInlineMessage('Team graphic generated and downloaded.')
+
+ onProgress('Downloading graphic','Your team-selection image is ready…')
+ const anchor=document.createElement('a');anchor.download=`${club.clubName}-${sheet.roundLabel}-team-selection.png`.toLowerCase().replace(/[^a-z0-9.-]+/g,'-');anchor.href=canvas.toDataURL('image/png');document.body.appendChild(anchor);anchor.click();anchor.remove()
 }
 
 export default function TeamSelectionDeepLink(){
-  const{pathname,search}=useLocation();const navigate=useNavigate()
-  useEffect(()=>{const handleClick=(event:MouseEvent)=>{const graphic=event.target instanceof Element?event.target.closest<HTMLButtonElement>('[data-team-graphic-action]'):null;if(graphic){const clubId=graphic.dataset.clubId;if(clubId){event.preventDefault();if(graphic.disabled)return;graphic.disabled=true;const original=graphic.textContent||'Generate image';void generateAndDownload(clubId,graphic).catch(reason=>setInlineMessage(reason instanceof Error?reason.message:'Unable to generate image',true)).finally(()=>{graphic.disabled=false;graphic.textContent=original})}return}const anchor=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('.club-feature-game-card footer a'):null;if(!anchor)return;const url=new URL(anchor.href,window.location.origin);const match=url.pathname.match(/^\/team\/([^/]+)$/);if(!match)return;event.preventDefault();navigate(`/team/${match[1]}?tab=team-selection`)};document.addEventListener('click',handleClick);return()=>document.removeEventListener('click',handleClick)},[navigate])
-  useEffect(()=>{const portalMatch=pathname.match(/^\/club-portal\/([^/]+)\/team-selection\/?$/);if(!portalMatch)return;let cancelled=false;const connect=()=>{if(cancelled)return;const head=document.querySelector<HTMLElement>('.cpts-sheet-head>div:last-child');if(!head||head.querySelector('[data-team-graphic-action]'))return;const button=document.createElement('button');button.type='button';button.dataset.teamGraphicAction='true';button.dataset.clubId=portalMatch[1];button.className='team-graphic-action';button.textContent='Generate image';button.setAttribute('aria-label','Generate and download team selection social image');head.appendChild(button)};connect();const observer=new MutationObserver(connect);observer.observe(document.body,{childList:true,subtree:true});return()=>{cancelled=true;observer.disconnect()}},[pathname])
-  useEffect(()=>{if(!/^\/team\/[^/]+$/.test(pathname)||new URLSearchParams(search).get('tab')!=='team-selection')return;let observer:MutationObserver|null=null;let timeout=0;const open=()=>{const stack=document.querySelector<HTMLElement>('.club-team-selection-stack');if(!stack||stack.getAttribute('aria-hidden')==='true')return false;window.setTimeout(()=>stack.scrollIntoView({behavior:'smooth',block:'start'}),120);return true};if(!open()){observer=new MutationObserver(()=>{if(open())observer?.disconnect()});observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-hidden','style']});timeout=window.setTimeout(()=>observer?.disconnect(),10000)}return()=>{observer?.disconnect();window.clearTimeout(timeout)}},[pathname,search])
-  return null
+ const{pathname,search}=useLocation();const navigate=useNavigate()
+ const[modal,setModal]=useState<ModalState>({open:false,status:'loading',title:'Generating image',message:'Preparing your team graphic…'})
+ const closeModal=()=>setModal(current=>current.status==='loading'?current:{...current,open:false})
+
+ useEffect(()=>{document.body.style.overflow=modal.open?'hidden':'';return()=>{document.body.style.overflow=''}},[modal.open])
+ useEffect(()=>{const handleClick=(event:MouseEvent)=>{const graphic=event.target instanceof Element?event.target.closest<HTMLButtonElement>('[data-team-graphic-action]'):null;if(graphic){const clubId=graphic.dataset.clubId;if(clubId){event.preventDefault();if(graphic.disabled)return;graphic.disabled=true;setModal({open:true,status:'loading',title:'Preparing graphic',message:'Loading the published team…'});void generateAndDownload(clubId,(title,message)=>setModal({open:true,status:'loading',title,message})).then(()=>setModal({open:true,status:'success',title:'Graphic ready',message:'The team-selection PNG has been generated and downloaded.'})).catch(reason=>setModal({open:true,status:'error',title:'Image generation failed',message:reason instanceof Error?reason.message:'Unable to generate the image.'})).finally(()=>{graphic.disabled=false})}return}const anchor=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('.club-feature-game-card footer a'):null;if(!anchor)return;const url=new URL(anchor.href,window.location.origin);const match=url.pathname.match(/^\/team\/([^/]+)$/);if(!match)return;event.preventDefault();navigate(`/team/${match[1]}?tab=team-selection`)};document.addEventListener('click',handleClick);return()=>document.removeEventListener('click',handleClick)},[navigate])
+ useEffect(()=>{const portalMatch=pathname.match(/^\/club-portal\/([^/]+)\/team-selection\/?$/);if(!portalMatch)return;let cancelled=false;const connect=()=>{if(cancelled)return;const head=document.querySelector<HTMLElement>('.cpts-sheet-head>div:last-child');if(!head||head.querySelector('[data-team-graphic-action]'))return;const button=document.createElement('button');button.type='button';button.dataset.teamGraphicAction='true';button.dataset.clubId=portalMatch[1];button.className='team-graphic-action';button.textContent='Generate image';button.setAttribute('aria-label','Generate and download team selection social image');head.appendChild(button)};connect();const observer=new MutationObserver(connect);observer.observe(document.body,{childList:true,subtree:true});return()=>{cancelled=true;observer.disconnect()}},[pathname])
+ useEffect(()=>{if(!/^\/team\/[^/]+$/.test(pathname)||new URLSearchParams(search).get('tab')!=='team-selection')return;let observer:MutationObserver|null=null;let timeout=0;const open=()=>{const stack=document.querySelector<HTMLElement>('.club-team-selection-stack');if(!stack||stack.getAttribute('aria-hidden')==='true')return false;window.setTimeout(()=>stack.scrollIntoView({behavior:'smooth',block:'start'}),120);return true};if(!open()){observer=new MutationObserver(()=>{if(open())observer?.disconnect()});observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-hidden','style']});timeout=window.setTimeout(()=>observer?.disconnect(),10000)}return()=>{observer?.disconnect();window.clearTimeout(timeout)}},[pathname,search])
+
+ return modal.open?<div className="tg-modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)closeModal()}}><section className={`tg-modal ${modal.status}`} role="dialog" aria-modal="true" aria-labelledby="tg-modal-title"><div className="tg-modal-icon">{modal.status==='loading'?<span className="tg-spinner"/>:modal.status==='success'?'✓':'!'}</div><span className="tg-modal-kicker">AI MEDIA STUDIO</span><h2 id="tg-modal-title">{modal.title}</h2><p>{modal.message}</p>{modal.status==='loading'?<div className="tg-progress"><i/></div>:<button type="button" onClick={closeModal}>{modal.status==='success'?'Done':'Close'}</button>}<style>{modalStyles}</style></section></div>:null
 }
+
+const modalStyles=`.tg-modal-backdrop{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:20px;background:rgba(3,8,15,.76);backdrop-filter:blur(8px)}.tg-modal{width:min(430px,100%);box-sizing:border-box;padding:30px 25px;border-radius:22px;background:#fff;color:#111318;text-align:center;box-shadow:0 26px 80px rgba(0,0,0,.4);font-family:Barlow,Inter,Arial,sans-serif}.tg-modal-icon{width:66px;height:66px;margin:0 auto 16px;display:grid;place-items:center;border-radius:50%;background:#e8f7ff;color:#0783c9;font-size:34px;font-weight:950}.tg-modal.success .tg-modal-icon{background:#e2f8ec;color:#126c40}.tg-modal.error .tg-modal-icon{background:#ffe9e9;color:#a51d16}.tg-modal-kicker{color:#0783c9;font-size:10px;font-weight:950;letter-spacing:.16em}.tg-modal h2{margin:8px 0 10px;font-family:'Bebas Neue',Impact,sans-serif;font-size:42px;line-height:.95;text-transform:uppercase}.tg-modal p{margin:0;color:#667384;font-size:16px;line-height:1.5}.tg-modal button{width:100%;margin-top:22px;border:0;border-radius:11px;padding:14px;background:#111318;color:#fff;font-weight:950;text-transform:uppercase}.tg-progress{height:8px;margin-top:24px;overflow:hidden;border-radius:99px;background:#dfe8ef}.tg-progress i{display:block;width:42%;height:100%;border-radius:99px;background:#35b6ff;animation:tgProgress 1.25s ease-in-out infinite}.tg-spinner{width:28px;height:28px;border:4px solid rgba(7,131,201,.2);border-top-color:#0783c9;border-radius:50%;animation:tgSpin .8s linear infinite}@keyframes tgSpin{to{transform:rotate(360deg)}}@keyframes tgProgress{0%{transform:translateX(-110%)}100%{transform:translateX(250%)}}`
