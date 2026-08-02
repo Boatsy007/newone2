@@ -3,16 +3,20 @@ import { ArrowLeft, Search } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
+import ClubPortalAnalytics from './ClubPortalAnalytics'
 
 export default function NotFound() {
   const location = useLocation()
+  const isClubAnalytics = /^\/club-portal\/[^/]+\/analytics\/?$/.test(location.pathname)
   useEffect(() => {
+    if (isClubAnalytics) return
     document.title = 'Page not found | PlayFooty'
     const robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]') ?? document.head.appendChild(document.createElement('meta'))
     robots.name = 'robots'; const previous = robots.content; robots.content = 'noindex,follow'
     return () => { robots.content = previous }
-  }, [])
+  }, [isClubAnalytics])
 
+  if (isClubAnalytics) return <ClubPortalAnalytics/>
   return <><Nav/><main className="not-found"><style>{styles}</style><section><span>404</span><h1>That page is out of bounds</h1><p>We could not find <code>{location.pathname}</code>. The page may have moved, been archived or never existed.</p><div><Link to="/"><ArrowLeft size={18}/>Back home</Link><Link to="/directory"><Search size={18}/>Find a club</Link></div></section></main><Footer/></>
 }
 
