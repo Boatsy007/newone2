@@ -5,7 +5,7 @@ import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
 import ClubPortalAnalytics from './ClubPortalAnalytics'
 import ClubPortalMedia from './ClubPortalMedia'
-import ClubPortalAiTeamGraphic from './ClubPortalAiTeamGraphic'
+import ClubPortalAiTeamGraphicV2 from './ClubPortalAiTeamGraphicV2'
 import ClubPortalMatchGraphic from './ClubPortalMatchGraphic'
 import ClubPortalMilestones from './ClubPortalMilestones'
 import ClubPortalMediaPublish from './ClubPortalMediaPublish'
@@ -29,7 +29,7 @@ export default function NotFound() {
 
   if (isClubAnalytics) return <ClubPortalAnalytics/>
   if (isClubMedia) return <ClubPortalMedia/>
-  if (isTeamGraphic) return <ClubPortalAiTeamGraphic/>
+  if (isTeamGraphic) return <ClubPortalAiTeamGraphicV2/>
   if (isMatchGraphic) return <ClubPortalMatchGraphic/>
   if (isMilestones) return <ClubPortalMilestones/>
   if (isMediaPublish) return <ClubPortalMediaPublish/>
