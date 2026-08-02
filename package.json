@@ -9,7 +9,10 @@
     "verify:home-records": "node scripts/verify-home-record-portals.mjs",
     "build": "node scripts/simplify-whiteboard-build-play.mjs && npm run test:goal-kickers && npm run verify:home-records && tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "ipad:prepare": "node scripts/prepare-ipad-app.mjs",
+    "ipad:sync": "npx cap sync ios",
+    "ipad:open": "npx cap open ios"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
