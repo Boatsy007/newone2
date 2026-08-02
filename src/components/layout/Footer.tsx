@@ -1,10 +1,13 @@
 import { memo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 const FOOTER_LOGO_PATH = '/Playfooty-logo-modern.png'
 const FOOTER_LOGO_FALLBACK = 'https://raw.githubusercontent.com/Boatsy007/newone2/newone1/public/Playfooty-logo-modern.png'
 
 export default memo(function Footer() {
+  const { pathname } = useLocation()
+  if (pathname.startsWith('/club-portal')) return null
+
   return <footer className="pf-footer">
     <div className="pf-footer-cta">
       <div className="pf-footer-cta-inner">
