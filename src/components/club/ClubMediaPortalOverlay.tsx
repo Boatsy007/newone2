@@ -12,7 +12,7 @@ function fileData(file:File){return new Promise<string>((resolve,reject)=>{const
 
 export default function ClubMediaPortalOverlay({clubId}:{clubId:string}){
  const[current]=useState(()=>session());const[tab,setTab]=useState<'studio'|'library'>('studio');const[assets,setAssets]=useState<Asset[]>([]);const[loading,setLoading]=useState(false);const[uploading,setUploading]=useState(false);const[error,setError]=useState('');const[message,setMessage]=useState('');const[query,setQuery]=useState('');const[type,setType]=useState('ALL')
- const headers=useMemo<Record<string,string>>(()=>current?{authorization:`Bearer ${current.access_token}`}:{},[current])
+ const headers=useMemo<Record<string,string>>(()=>{const next:Record<string,string>={};if(current)next.authorization=`Bearer ${current.access_token}`;return next},[current])
  async function request(path:string,options:RequestInit={}){const response=await fetch(path,{...options,headers:{...headers,...(options.headers as Record<string,string>|undefined)}});const payload=await response.json().catch(()=>({})) as any;if(!response.ok)throw new Error(payload.error||'Request failed');return payload}
  async function load(){if(!current)return setError('Sign in through the Club Portal to continue.');setLoading(true);setError('');try{const params=new URLSearchParams();if(type!=='ALL')params.set('type',type);if(query.trim())params.set('q',query.trim());const payload=await request(`/api/club-portal/media/clubs/${encodeURIComponent(clubId)}?${params}`);setAssets(Array.isArray(payload.data)?payload.data:[])}catch(reason){setError(reason instanceof Error?reason.message:'Unable to load media')}finally{setLoading(false)}}
  useEffect(()=>{if(tab==='library')void load()},[tab,type,clubId])
