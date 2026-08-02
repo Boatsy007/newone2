@@ -24,7 +24,9 @@ function fixtureOpponent(fixture:Fixture){return fixture.awayClubName||fixture.a
 function findFixture(fixtures:Fixture[],sheet:Sheet){const opponent=normalise(sheet.opponentName);const date=String(sheet.matchDate||'').slice(0,10);return fixtures.find(item=>{const names=[item.homeClubName,item.homeName,item.awayClubName,item.awayName].map(normalise);const fixtureDate=String(item.matchDate||'').slice(0,10);return(!opponent||names.includes(opponent))&&(!date||fixtureDate===date)})||fixtures.find(item=>normalise(fixtureOpponent(item))===opponent)||null}
 async function loadImage(url:string|null,label:string){if(!url)throw new Error(`${label} was not returned.`);return new Promise<HTMLImageElement>((resolve,reject)=>{const image=new Image();image.crossOrigin='anonymous';image.onload=()=>resolve(image);image.onerror=()=>reject(new Error(`${label} could not be loaded by this browser.`));image.src=url})}
 function cover(ctx:CanvasRenderingContext2D,image:HTMLImageElement,w:number,h:number){const scale=Math.max(w/image.width,h/image.height);const dw=image.width*scale,dh=image.height*scale;ctx.drawImage(image,(w-dw)/2,(h-dh)/2,dw,dh)}
-function drawPlayer(ctx:CanvasRenderingContext2D,player:Player|null,x:number,y:number){ctx.textAlign='center';if(!player){ctx.fillStyle='rgba(255,255,255,.38)';ctx.font='700 21px Arial';ctx.fillText('—',x,y+28);ctx.textAlign='left';return}const parts=player.playerName.trim().split(/\s+/);ctx.fillStyle='rgba(255,255,255,.84)';ctx.font='600 20px Arial';ctx.fillText((parts[0]||'').toUpperCase(),x,y+18);ctx.fillStyle='#fff';ctx.font='900 24px Arial';ctx.fillText((parts.slice(1).join(' ')||parts[0]||'').toUpperCase(),x,y+46);if(player.jumperNumber){ctx.fillStyle='rgba(255,255,255,.72)';ctx.font='800 15px Arial';ctx.fillText(`#${player.jumperNumber}`,x,y+68)}ctx.textAlign='left'}
+function textShadow(ctx:CanvasRenderingContext2D,blur=10){ctx.shadowColor='rgba(0,0,0,.82)';ctx.shadowBlur=blur;ctx.shadowOffsetX=0;ctx.shadowOffsetY=2}
+function clearShadow(ctx:CanvasRenderingContext2D){ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0}
+function drawPlayer(ctx:CanvasRenderingContext2D,player:Player|null,x:number,y:number){ctx.textAlign='center';textShadow(ctx,9);if(!player){ctx.fillStyle='rgba(255,255,255,.5)';ctx.font='700 21px Arial';ctx.fillText('—',x,y+28);clearShadow(ctx);ctx.textAlign='left';return}const parts=player.playerName.trim().split(/\s+/);ctx.fillStyle='rgba(255,255,255,.88)';ctx.font='600 20px Arial';ctx.fillText((parts[0]||'').toUpperCase(),x,y+18);ctx.fillStyle='#fff';ctx.font='900 24px Arial';ctx.fillText((parts.slice(1).join(' ')||parts[0]||'').toUpperCase(),x,y+46);if(player.jumperNumber){ctx.fillStyle='rgba(255,255,255,.76)';ctx.font='800 15px Arial';ctx.fillText(`#${player.jumperNumber}`,x,y+68)}clearShadow(ctx);ctx.textAlign='left'}
 
 async function generateGraphic(clubId:string,onProgress:(title:string,message:string)=>void):Promise<GeneratedGraphic>{
  const token=readToken();if(!token)throw new Error('Your club session has expired. Please sign in again.')
@@ -48,25 +50,28 @@ async function generateGraphic(clubId:string,onProgress:(title:string,message:st
  const matchDate=fixture?.matchDate||sheet.matchDate
  const matchTime=fixture?.matchTime||fixture?.time||null
 
- onProgress('Creating AI design','Generating a background in the club colours. This can take up to a minute…')
- const ai=await getJson(`/api/club-portal/ai-graphics/clubs/${encodeURIComponent(clubId)}/team-background`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clubName:club.clubName,opponentName:sheet.opponentName,primaryColour:club.primaryColour,secondaryColour:club.secondaryColour,style:'premium broadcast'})})
+ onProgress('Creating AI design','Generating a seamless background in the club colours. This can take up to a minute…')
+ const ai=await getJson(`/api/club-portal/ai-graphics/clubs/${encodeURIComponent(clubId)}/team-background`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({clubName:club.clubName,opponentName:sheet.opponentName,primaryColour:club.primaryColour,secondaryColour:club.secondaryColour,style:'premium broadcast sports poster, seamless full-bleed stadium atmosphere, smooth continuous lighting and texture, no rectangular panels, no centre box, no frames, no borders, no text, no logos'})})
 
  onProgress('Building graphic','Adding the exact team, match details and club logo…')
  const background=await loadImage(ai.data?.dataUrl||null,'The AI background')
  const canvas=document.createElement('canvas');const W=1080,H=1350;canvas.width=W;canvas.height=H
  const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Image canvas is unavailable.')
- cover(ctx,background,W,H);ctx.fillStyle='rgba(2,10,24,.62)';ctx.fillRect(0,0,W,H)
- const shade=ctx.createLinearGradient(0,0,0,H);shade.addColorStop(0,'rgba(0,0,0,.08)');shade.addColorStop(1,'rgba(0,0,0,.82)');ctx.fillStyle=shade;ctx.fillRect(0,0,W,H)
+ cover(ctx,background,W,H)
+ ctx.fillStyle='rgba(2,8,18,.22)';ctx.fillRect(0,0,W,H)
+ const topFade=ctx.createLinearGradient(0,0,0,360);topFade.addColorStop(0,'rgba(0,0,0,.42)');topFade.addColorStop(.7,'rgba(0,0,0,.12)');topFade.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=topFade;ctx.fillRect(0,0,W,380)
+ const listFade=ctx.createLinearGradient(0,330,0,1320);listFade.addColorStop(0,'rgba(0,0,0,.02)');listFade.addColorStop(.12,'rgba(0,0,0,.18)');listFade.addColorStop(.55,'rgba(0,0,0,.30)');listFade.addColorStop(.9,'rgba(0,0,0,.22)');listFade.addColorStop(1,'rgba(0,0,0,.08)');ctx.fillStyle=listFade;ctx.fillRect(0,300,W,1050)
+ const vignette=ctx.createRadialGradient(W/2,H*.48,180,W/2,H*.48,790);vignette.addColorStop(0,'rgba(0,0,0,0)');vignette.addColorStop(.58,'rgba(0,0,0,.06)');vignette.addColorStop(1,'rgba(0,0,0,.58)');ctx.fillStyle=vignette;ctx.fillRect(0,0,W,H)
  const secondary=safeColour(club.secondaryColour,'#f4b000')
  let logo:HTMLImageElement|null=null
  if(club.logoUrl){try{logo=await loadImage(club.logoUrl,'The club logo')}catch{logo=null}}
  if(logo){const scale=Math.min(130/logo.width,130/logo.height);ctx.drawImage(logo,72,55,logo.width*scale,logo.height*scale)}
- ctx.textAlign='left';ctx.fillStyle='#fff';ctx.font='900 58px Arial';ctx.fillText('TEAM',72,245);ctx.fillStyle=secondary;ctx.font='900 102px Arial';ctx.fillText('SELECTION',72,325)
+ textShadow(ctx,14);ctx.textAlign='left';ctx.fillStyle='#fff';ctx.font='900 58px Arial';ctx.fillText('TEAM',72,245);ctx.fillStyle=secondary;ctx.font='900 102px Arial';ctx.fillText('SELECTION',72,325)
  ctx.fillStyle='#fff';ctx.textAlign='right';ctx.font='800 27px Arial';ctx.fillText(sheet.roundLabel.toUpperCase(),1000,75);ctx.font='900 32px Arial';ctx.fillText(`V ${sheet.opponentName||'OPPONENT TBC'}`.toUpperCase(),1000,120)
- ctx.fillStyle='rgba(255,255,255,.88)';ctx.font='800 20px Arial';ctx.fillText(`${dateLabel(matchDate)} · ${timeLabel(matchTime)}`,1000,158);ctx.fillStyle=secondary;ctx.font='900 19px Arial';ctx.fillText(venue.toUpperCase(),1000,190);ctx.textAlign='left'
+ ctx.fillStyle='rgba(255,255,255,.9)';ctx.font='800 20px Arial';ctx.fillText(`${dateLabel(matchDate)} · ${timeLabel(matchTime)}`,1000,158);ctx.fillStyle=secondary;ctx.font='900 19px Arial';ctx.fillText(venue.toUpperCase(),1000,190);clearShadow(ctx);ctx.textAlign='left'
  const startY=405,rowH=118,colX=[265,545,825]
- ROWS.forEach((row,index)=>{const y=startY+index*rowH;ctx.fillStyle=secondary;ctx.font='900 24px Arial';ctx.fillText(LABELS[index],72,y+38);row.forEach((code,col)=>drawPlayer(ctx,playerAt(sheet,code),colX[col],y));ctx.strokeStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.moveTo(145,y+82);ctx.lineTo(1008,y+82);ctx.stroke()})
- let y=startY+ROWS.length*rowH+8;ctx.fillStyle=secondary;ctx.font='900 22px Arial';ctx.fillText('INT',72,y+30);BENCH.forEach((code,index)=>drawPlayer(ctx,playerAt(sheet,code),245+(index%3)*285,y+Math.floor(index/3)*72));y+=155;ctx.fillStyle=secondary;ctx.fillText('EMG',72,y+30);EMG.forEach((code,index)=>drawPlayer(ctx,playerAt(sheet,code),245+index*285,y))
+ ROWS.forEach((row,index)=>{const y=startY+index*rowH;textShadow(ctx,8);ctx.fillStyle=secondary;ctx.font='900 24px Arial';ctx.fillText(LABELS[index],72,y+38);clearShadow(ctx);row.forEach((code,col)=>drawPlayer(ctx,playerAt(sheet,code),colX[col],y));ctx.strokeStyle='rgba(255,255,255,.16)';ctx.beginPath();ctx.moveTo(145,y+82);ctx.lineTo(1008,y+82);ctx.stroke()})
+ let y=startY+ROWS.length*rowH+8;textShadow(ctx,8);ctx.fillStyle=secondary;ctx.font='900 22px Arial';ctx.fillText('INT',72,y+30);clearShadow(ctx);BENCH.forEach((code,index)=>drawPlayer(ctx,playerAt(sheet,code),245+(index%3)*285,y+Math.floor(index/3)*72));y+=155;textShadow(ctx,8);ctx.fillStyle=secondary;ctx.fillText('EMG',72,y+30);clearShadow(ctx);EMG.forEach((code,index)=>drawPlayer(ctx,playerAt(sheet,code),245+index*285,y))
  const filename=`${club.clubName}-${sheet.roundLabel}-team-selection.png`.toLowerCase().replace(/[^a-z0-9.-]+/g,'-')
  return{dataUrl:canvas.toDataURL('image/png'),filename}
 }
