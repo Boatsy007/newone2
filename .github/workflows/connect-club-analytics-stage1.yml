@@ -50,9 +50,22 @@ jobs:
 """
             s=s.replace(marker,insert+marker)
             p.write_text(s)
+
+          p=Path('src/components/sponsors/SponsorShowcase.tsx')
+          s=p.read_text()
+          if "sendAnalyticsEvent" not in s:
+            s=s.replace("import { ExternalLink, Handshake } from 'lucide-react'", "import { ExternalLink, Handshake } from 'lucide-react'\nimport { sendAnalyticsEvent } from '../analytics/PublicAnalyticsTracker'")
+            s=s.replace("  const primary = ordered[0] ?? null\n  const partners = ordered.slice(1)", "  const primary = ordered[0] ?? null\n  const partners = ordered.slice(1)\n\n  useEffect(() => {\n    if (scope !== 'club' || ordered.length === 0) return\n    const key = `sponsor-impressions:${entityId}:${ordered.map(deal => deal.sponsor?.id).filter(Boolean).join(',')}`\n    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1') } catch {}\n    ordered.forEach(deal => { if (deal.sponsor?.id) sendAnalyticsEvent({ eventType: 'SPONSOR_IMPRESSION', entityType: 'SPONSOR', entityId: deal.sponsor.id, meta: { clubId: entityId, placement: deal.bannerPosition || deal.tier || deal.package || 'profile' } }) })\n  }, [entityId, ordered, scope])")
+            s=s.replace("function SponsorFeature({ deal, label }: { deal: Sponsorship; label: string })", "function SponsorFeature({ deal, label, clubId }: { deal: Sponsorship; label: string; clubId?: string })")
+            s=s.replace("function SponsorCard({ deal, label }: { deal: Sponsorship; label: string })", "function SponsorCard({ deal, label, clubId }: { deal: Sponsorship; label: string; clubId?: string })")
+            s=s.replace("<SponsorFeature deal={primary} label={placementLabel(primary, 0)} />", "<SponsorFeature deal={primary} label={placementLabel(primary, 0)} clubId={scope==='club'?entityId:undefined} />")
+            s=s.replace("<SponsorCard key={deal.id} deal={deal} label={placementLabel(deal, index + 1)} />", "<SponsorCard key={deal.id} deal={deal} label={placementLabel(deal, index + 1)} clubId={scope==='club'?entityId:undefined} />")
+            s=s.replace("return href ? <a className=\"pf-sponsor-feature\" href={href} target=\"_blank\" rel=\"sponsored noreferrer\">{content}</a>", "return href ? <a className=\"pf-sponsor-feature\" href={href} target=\"_blank\" rel=\"sponsored noreferrer\" onClick={()=>sendAnalyticsEvent({eventType:'SPONSOR_CLICK',entityType:'SPONSOR',entityId:sponsor.id,meta:{clubId:clubId||null,placement:deal.bannerPosition||deal.tier||deal.package||'profile'}})}>{content}</a>")
+            s=s.replace("return href ? <a className=\"pf-sponsor-card\" href={href} target=\"_blank\" rel=\"sponsored noreferrer\">{content}</a>", "return href ? <a className=\"pf-sponsor-card\" href={href} target=\"_blank\" rel=\"sponsored noreferrer\" onClick={()=>sendAnalyticsEvent({eventType:'SPONSOR_CLICK',entityType:'SPONSOR',entityId:sponsor.id,meta:{clubId:clubId||null,placement:deal.bannerPosition||deal.tier||deal.package||'profile'}})}>{content}</a>")
+            p.write_text(s)
           PY
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add backend/src/api/routes/club-portal-access.ts src/main.tsx src/components/club/ClubPortalDashboardLink.tsx
+          git add backend/src/api/routes/club-portal-access.ts src/main.tsx src/components/club/ClubPortalDashboardLink.tsx src/components/sponsors/SponsorShowcase.tsx
           git commit -m 'Connect club analytics tracking and dashboard'
           git push
