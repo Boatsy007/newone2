@@ -1,0 +1,58 @@
+name: Connect club analytics stage 1
+on:
+  push:
+    paths:
+      - '.github/workflows/connect-club-analytics-stage1.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('backend/src/api/routes/club-portal-access.ts')
+          s=p.read_text()
+          if "clubAnalyticsRouter" not in s:
+            s=s.replace("import { clubMatchDayRouter } from './club-match-day.js'", "import { clubMatchDayRouter } from './club-match-day.js'\nimport { clubAnalyticsRouter } from './club-analytics.js'")
+            s=s.replace("router.use('/operations',clubOperationsRouter)", "router.use('/analytics',clubAnalyticsRouter)\nrouter.use('/operations',clubOperationsRouter)")
+            p.write_text(s)
+
+          p=Path('src/main.tsx')
+          s=p.read_text()
+          if "ClubPortalAnalytics" not in s:
+            s=s.replace("import ClubPortalEquipment from './pages/ClubPortalEquipment.tsx'", "import ClubPortalEquipment from './pages/ClubPortalEquipment.tsx'\nimport ClubPortalAnalytics from './pages/ClubPortalAnalytics.tsx'")
+            s=s.replace("import MatchDayFinishEnhancer from './components/club/MatchDayFinishEnhancer.tsx'", "import MatchDayFinishEnhancer from './components/club/MatchDayFinishEnhancer.tsx'\nimport PublicAnalyticsTracker from './components/analytics/PublicAnalyticsTracker.tsx'")
+            s=s.replace("<StrictMode><BrowserRouter><ScrollToTop/>", "<StrictMode><BrowserRouter><ScrollToTop/><PublicAnalyticsTracker/>")
+            s=s.replace("<Route path=\"/club-portal/:clubId/equipment\" element={<ClubPortalEquipment/>}/>", "<Route path=\"/club-portal/:clubId/equipment\" element={<ClubPortalEquipment/>}/>\n    <Route path=\"/club-portal/:clubId/analytics\" element={<ClubPortalAnalytics/>}/>")
+            p.write_text(s)
+
+          p=Path('src/components/club/ClubPortalDashboardLink.tsx')
+          s=p.read_text()
+          marker="""          if (!document.querySelector('[data-coach-whiteboard-link]')) {
+            const whiteboard = link.cloneNode(true) as HTMLAnchorElement"""
+          if "data-club-analytics-link" not in s and marker in s:
+            insert="""          if (!document.querySelector('[data-club-analytics-link]')) {
+            const analytics = link.cloneNode(true) as HTMLAnchorElement
+            analytics.dataset.clubAnalyticsLink = 'true'
+            analytics.setAttribute('href', `/club-portal/${clubId}/analytics`)
+            analytics.setAttribute('aria-label', 'Open club profile and sponsor analytics')
+            const strong = analytics.querySelector('strong')
+            const detail = analytics.querySelector('span')
+            if (strong) strong.textContent = 'Club analytics'
+            if (detail) detail.textContent = 'Profile views, visitors and sponsor exposure'
+            anchor.insertAdjacentElement('afterend', analytics)
+            anchor = analytics
+          }
+"""
+            s=s.replace(marker,insert+marker)
+            p.write_text(s)
+          PY
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add backend/src/api/routes/club-portal-access.ts src/main.tsx src/components/club/ClubPortalDashboardLink.tsx
+          git commit -m 'Connect club analytics tracking and dashboard'
+          git push
