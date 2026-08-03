@@ -46,23 +46,23 @@
     try{
       const doc=studio.contentDocument
       const bug=doc?.querySelector('.top-bug')
-      if(!doc||!bug)return
+      if(!doc||!bug||bug.dataset.playfootyWatermarkInstalled==='true')return
       if(!doc.getElementById('playfooty-broadcast-watermark-style')){
         const style=doc.createElement('style')
         style.id='playfooty-broadcast-watermark-style'
         style.textContent=`
-          .top-bug{left:auto!important;right:12px!important;top:12px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:0!important;background:transparent!important;border-radius:0!important;font-size:0!important;letter-spacing:0!important;filter:drop-shadow(0 3px 8px rgba(0,0,0,.78));z-index:12}
+          .top-bug{left:auto!important;right:12px!important;top:12px!important;display:flex!important;align-items:center!important;gap:7px!important;padding:0!important;background:transparent!important;border-radius:0!important;font-size:0!important;letter-spacing:0!important;filter:drop-shadow(0 3px 8px rgba(0,0,0,.78));z-index:12;animation:none!important;transition:none!important}
+          .top-bug *{animation:none!important;transition:none!important}
           .top-bug .pf-broadcast-logo{display:block;width:clamp(104px,15vw,175px);height:auto;object-fit:contain}
           .top-bug .pf-broadcast-live{display:flex;align-items:center;gap:5px;padding:4px 7px;border-radius:999px;background:rgba(4,9,14,.82);border:1px solid rgba(255,255,255,.16);color:#fff;font-size:clamp(8px,1.1vw,11px);font-weight:1000;letter-spacing:.1em;line-height:1;text-transform:uppercase;backdrop-filter:blur(8px)}
-          .top-bug .pf-broadcast-live i{display:block;width:7px;height:7px;border-radius:50%;background:#f04451;box-shadow:0 0 0 0 rgba(240,68,81,.55);animation:pf-broadcast-live-pulse 1.35s ease-out infinite}
-          @keyframes pf-broadcast-live-pulse{0%{box-shadow:0 0 0 0 rgba(240,68,81,.55)}70%{box-shadow:0 0 0 7px rgba(240,68,81,0)}100%{box-shadow:0 0 0 0 rgba(240,68,81,0)}}
+          .top-bug .pf-broadcast-live i{display:block;width:7px;height:7px;border-radius:50%;background:#f04451;box-shadow:none!important}
           @media(max-width:700px){.top-bug{right:7px!important;top:7px!important;gap:5px!important}.top-bug .pf-broadcast-logo{width:105px}.top-bug .pf-broadcast-live{padding:3px 6px;font-size:8px}.top-bug .pf-broadcast-live i{width:6px;height:6px}}
-          @media(prefers-reduced-motion:reduce){.top-bug .pf-broadcast-live i{animation:none}}
         `
         doc.head.appendChild(style)
       }
       bug.innerHTML='<img class="pf-broadcast-logo" src="/Playfooty-logo-modern.png" alt="PlayFooty"><span class="pf-broadcast-live"><i aria-hidden="true"></i>Live</span>'
       bug.setAttribute('aria-label','PlayFooty Live')
+      bug.dataset.playfootyWatermarkInstalled='true'
     }catch{}
   }
 
@@ -70,13 +70,7 @@
   function teamAssets(doc,side){
     const panel=doc.getElementById(side+'Team')
     const image=doc.getElementById(side+'Logo')
-    return {
-      name:text(doc,side==='home'?'homeName':'awayName'),
-      score:text(doc,side==='home'?'homeScore':'awayScore'),
-      logo:image?.src||'',
-      cover:panel?.style.getPropertyValue('--team-cover')||'',
-      colour:panel?.style.getPropertyValue('--team-colour')||'#2daaf5',
-    }
+    return {name:text(doc,side==='home'?'homeName':'awayName'),score:text(doc,side==='home'?'homeScore':'awayScore'),logo:image?.src||'',cover:panel?.style.getPropertyValue('--team-cover')||'',colour:panel?.style.getPropertyValue('--team-colour')||'#2daaf5'}
   }
   function showVisual({type,team,name,score,logoUrl,cover,colour,period=false}){
     clearTimeout(hideTimer)
