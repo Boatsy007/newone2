@@ -10,7 +10,7 @@
     const link = document.createElement('a')
     link.id = ENTRY_ID
     link.className = 'pf-media-stream-entry'
-    link.href = `/live-stream-broadcast-v2.html?clubId=${encodeURIComponent(clubId)}`
+    link.href = `/live-stream-broadcast-v3.html?clubId=${encodeURIComponent(clubId)}`
     link.setAttribute('aria-label', 'Open Live Broadcast Studio')
     link.innerHTML = `
       <span class="pf-media-stream-icon" aria-hidden="true">
@@ -20,8 +20,8 @@
         </svg>
       </span>
       <strong>Live Broadcast Studio</strong>
-      <span class="pf-media-stream-copy">Film from a phone with the live scoreboard, team branding and automatic score, quarter-time and interchange graphics.</span>
-      <b>Stage 3</b>
+      <span class="pf-media-stream-copy">Film from a phone with live scoring, team branding, automatic broadcast graphics, interchanges and highlight clip capture.</span>
+      <b>Stage 4</b>
     `
     return link
   }
