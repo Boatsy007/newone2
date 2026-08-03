@@ -4,69 +4,319 @@ import { ArrowLeft, Pause, Play, RefreshCw, RotateCcw, ShieldCheck, SkipForward 
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
 
-type Session={access_token:string}
-type Player={id:string;clubPlayerId:string;playerName:string;jumperNumber:number|null;positionCode:string}
-type Sheet={id:string;roundLabel:string;opponentName:string|null;matchDate:string|null;status:string;players:Player[]}
-type Slot={clubPlayerId:string;playerName:string;jumperNumber:number|null;positionCode:string;onGround:boolean;plusMinus:number;goals?:number;behinds?:number}
-type Event={id:string;quarter:number;seconds:number;kind:'SCORE'|'SWAP'|'QUARTER';label:string;delta?:number;affected?:string[];before?:Slot[]}
-type MatchState={sheetId:string;quarter:number;elapsed:number;runningSince:number|null;homeGoals:number;homeBehinds:number;awayGoals:number;awayBehinds:number;slots:Slot[];events:Event[]}
-type FieldPoint={top:number;left:number}
+type Session = { access_token: string }
+type Player = { id: string; clubPlayerId: string; playerName: string; jumperNumber: number | null; positionCode: string }
+type Sheet = { id: string; roundLabel: string; opponentName: string | null; matchDate: string | null; status: string; players: Player[] }
+type Slot = { clubPlayerId: string; playerName: string; jumperNumber: number | null; positionCode: string; onGround: boolean; plusMinus: number; goals?: number; behinds?: number }
+type Event = { id: string; quarter: number; seconds: number; kind: 'SCORE' | 'SWAP' | 'QUARTER'; label: string; delta?: number; affected?: string[]; before?: Slot[] }
+type MatchState = { sheetId: string; quarter: number; elapsed: number; runningSince: number | null; homeGoals: number; homeBehinds: number; awayGoals: number; awayBehinds: number; slots: Slot[]; events: Event[] }
+type FieldPoint = { top: number; left: number }
 
-const SESSION_KEY='playfooty.clubPortal.session.v1'
-const FIELD_POSITIONS=new Set(['BP_LEFT','FB','BP_RIGHT','HBF_LEFT','CHB','HBF_RIGHT','WING_LEFT','CENTRE','WING_RIGHT','RUCK','RUCK_ROVER','ROVER','HFF_LEFT','CHF','HFF_RIGHT','FP_LEFT','FF','FP_RIGHT'])
-const POSITION_ORDER=['BP_LEFT','FB','BP_RIGHT','HBF_LEFT','CHB','HBF_RIGHT','WING_LEFT','RUCK','RUCK_ROVER','ROVER','CENTRE','WING_RIGHT','HFF_LEFT','CHF','HFF_RIGHT','FP_LEFT','FF','FP_RIGHT']
-const LABELS:Record<string,string>={BP_LEFT:'RBP',FB:'FB',BP_RIGHT:'LBP',HBF_LEFT:'RHB',CHB:'CHB',HBF_RIGHT:'LHB',WING_LEFT:'RW',CENTRE:'M3',WING_RIGHT:'LW',RUCK:'R',RUCK_ROVER:'M1',ROVER:'M2',HFF_LEFT:'RHF',CHF:'CHF',HFF_RIGHT:'LHF',FP_LEFT:'RFP',FF:'FF',FP_RIGHT:'LFP',INTERCHANGE_1:'INT',INTERCHANGE_2:'INT',INTERCHANGE_3:'INT',INTERCHANGE_4:'INT',EMERGENCY_1:'EMG',EMERGENCY_2:'EMG',EMERGENCY_3:'EMG'}
-const FIELD_LAYOUT:Record<string,FieldPoint>={
- BP_LEFT:{top:10,left:20},FB:{top:5,left:50},BP_RIGHT:{top:10,left:80},
- HBF_LEFT:{top:25,left:18},CHB:{top:21,left:50},HBF_RIGHT:{top:25,left:82},
- WING_LEFT:{top:43,left:17},RUCK:{top:37,left:35},RUCK_ROVER:{top:37,left:65},WING_RIGHT:{top:43,left:83},
- ROVER:{top:53,left:35},CENTRE:{top:53,left:65},
- HFF_LEFT:{top:68,left:19},CHF:{top:64,left:50},HFF_RIGHT:{top:68,left:81},
- FP_LEFT:{top:84,left:22},FF:{top:89,left:50},FP_RIGHT:{top:84,left:78},
+const SESSION_KEY = 'playfooty.clubPortal.session.v1'
+const FIELD_POSITIONS = new Set(['BP_LEFT', 'FB', 'BP_RIGHT', 'HBF_LEFT', 'CHB', 'HBF_RIGHT', 'WING_LEFT', 'CENTRE', 'WING_RIGHT', 'RUCK', 'RUCK_ROVER', 'ROVER', 'HFF_LEFT', 'CHF', 'HFF_RIGHT', 'FP_LEFT', 'FF', 'FP_RIGHT'])
+const POSITION_ORDER = ['BP_LEFT', 'FB', 'BP_RIGHT', 'HBF_LEFT', 'CHB', 'HBF_RIGHT', 'WING_LEFT', 'RUCK', 'RUCK_ROVER', 'ROVER', 'CENTRE', 'WING_RIGHT', 'HFF_LEFT', 'CHF', 'HFF_RIGHT', 'FP_LEFT', 'FF', 'FP_RIGHT']
+const LABELS: Record<string, string> = { BP_LEFT: 'RBP', FB: 'FB', BP_RIGHT: 'LBP', HBF_LEFT: 'RHB', CHB: 'CHB', HBF_RIGHT: 'LHB', WING_LEFT: 'RW', CENTRE: 'M3', WING_RIGHT: 'LW', RUCK: 'R', RUCK_ROVER: 'M1', ROVER: 'M2', HFF_LEFT: 'RHF', CHF: 'CHF', HFF_RIGHT: 'LHF', FP_LEFT: 'RFP', FF: 'FF', FP_RIGHT: 'LFP', INTERCHANGE_1: 'INT', INTERCHANGE_2: 'INT', INTERCHANGE_3: 'INT', INTERCHANGE_4: 'INT', EMERGENCY_1: 'EMG', EMERGENCY_2: 'EMG', EMERGENCY_3: 'EMG' }
+const FIELD_LAYOUT: Record<string, FieldPoint> = {
+  BP_LEFT: { top: 10, left: 20 }, FB: { top: 5, left: 50 }, BP_RIGHT: { top: 10, left: 80 },
+  HBF_LEFT: { top: 25, left: 18 }, CHB: { top: 21, left: 50 }, HBF_RIGHT: { top: 25, left: 82 },
+  WING_LEFT: { top: 43, left: 17 }, RUCK: { top: 37, left: 35 }, RUCK_ROVER: { top: 37, left: 65 }, WING_RIGHT: { top: 43, left: 83 },
+  ROVER: { top: 53, left: 35 }, CENTRE: { top: 53, left: 65 },
+  HFF_LEFT: { top: 68, left: 19 }, CHF: { top: 64, left: 50 }, HFF_RIGHT: { top: 68, left: 81 },
+  FP_LEFT: { top: 84, left: 22 }, FF: { top: 89, left: 50 }, FP_RIGHT: { top: 84, left: 78 },
 }
-function session():Session|null{try{const raw=localStorage.getItem(SESSION_KEY);return raw?JSON.parse(raw):null}catch{return null}}
-function formatTime(seconds:number){const value=Math.max(0,Math.floor(seconds));return `${String(Math.floor(value/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`}
-function score(goals:number,behinds:number){return goals*6+behinds}
-function storageKey(clubId:string,sheetId:string){return `playfooty.matchday.v1.${clubId}.${sheetId}`}
-function normalise(next:MatchState):MatchState{return{...next,slots:next.slots.map(slot=>({...slot,goals:Number(slot.goals)||0,behinds:Number(slot.behinds)||0}))}}
 
-export default function ClubPortalMatchDay(){
- const{clubId=''}=useParams()
- const[current]=useState(()=>session())
- const[sheets,setSheets]=useState<Sheet[]>([])
- const[sheetId,setSheetId]=useState('')
- const[state,setState]=useState<MatchState|null>(null)
- const[selected,setSelected]=useState('')
- const[loading,setLoading]=useState(true)
- const[error,setError]=useState('')
- const[syncError,setSyncError]=useState('')
- const[ready,setReady]=useState(false)
- const[,setTick]=useState(0)
- const headers=useMemo<Record<string,string>>(()=>{const next:Record<string,string>={};if(current)next.authorization=`Bearer ${current.access_token}`;return next},[current])
- useEffect(()=>{if(!current){setError('Sign in through the Club Portal to continue.');setLoading(false);return}void fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`,{headers}).then(async response=>{const payload=await response.json();if(!response.ok)throw new Error(payload.error||'Unable to load team sheets');const list=Array.isArray(payload.data)?payload.data as Sheet[]:[];setSheets(list);const published=list.find(item=>item.status==='PUBLISHED')||list[0];if(published)setSheetId(published.id)}).catch(value=>setError(value instanceof Error?value.message:'Unable to load Match Day')).finally(()=>setLoading(false))},[clubId,current,headers])
- useEffect(()=>{if(!sheetId||!current)return;const sheet=sheets.find(item=>item.id===sheetId);if(!sheet)return;let live=true;setReady(false);setSyncError('');void fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{headers}).then(async response=>{const payload=await response.json();if(!response.ok)throw new Error(payload.error||'Unable to load shared Match Day');if(!live)return;let next=payload.data?.state as MatchState|undefined;if(!next){try{const raw=localStorage.getItem(storageKey(clubId,sheetId));if(raw){next=JSON.parse(raw) as MatchState;const saved=await fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{method:'PUT',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({state:next})});if(!saved.ok)throw new Error('Unable to migrate existing Match Day record');localStorage.removeItem(storageKey(clubId,sheetId))}}catch(value){if(value instanceof Error&&value.message.includes('migrate'))throw value}}if(!next){const slots=sheet.players.map(player=>({...player,onGround:FIELD_POSITIONS.has(player.positionCode),plusMinus:0,goals:0,behinds:0}));next={sheetId,quarter:1,elapsed:0,runningSince:null,homeGoals:0,homeBehinds:0,awayGoals:0,awayBehinds:0,slots,events:[]}}if(live){setState(normalise(next));setReady(true)}}).catch(value=>{if(live){const message=value instanceof Error?value.message:'Unable to load shared Match Day';setSyncError(message);setError(message)}});return()=>{live=false}},[sheetId,sheets,clubId,current,headers])
- useEffect(()=>{if(!state||!ready||!current)return;const timer=window.setTimeout(()=>{void fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(state.sheetId)}`,{method:'PUT',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({state})}).then(async response=>{const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Unable to save shared Match Day');setSyncError('')}).catch(value=>setSyncError(value instanceof Error?value.message:'Unable to save shared Match Day'))},300);return()=>window.clearTimeout(timer)},[state,ready,current,clubId,headers])
- useEffect(()=>{if(!state?.runningSince)return;const timer=window.setInterval(()=>setTick(value=>value+1),1000);return()=>window.clearInterval(timer)},[state?.runningSince])
- const seconds=state?state.elapsed+(state.runningSince?Math.floor((Date.now()-state.runningSince)/1000):0):0
- const sheet=sheets.find(item=>item.id===sheetId)
- useEffect(()=>{if(!state||!ready||!current||!sheet)return;const publicLive=Boolean(state.runningSince||state.elapsed>0||state.events.length||state.homeGoals||state.homeBehinds||state.awayGoals||state.awayBehinds);const elapsedSeconds=state.elapsed+(state.runningSince?Math.floor((Date.now()-state.runningSince)/1000):0);const timer=window.setTimeout(()=>{void fetch(`/api/live-match/clubs/${encodeURIComponent(clubId)}`,{method:'PUT',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({teamSheetId:state.sheetId,roundLabel:sheet.roundLabel,opponentName:sheet.opponentName,matchDate:sheet.matchDate,quarter:state.quarter,elapsedSeconds,clockRunning:Boolean(state.runningSince),homeGoals:state.homeGoals,homeBehinds:state.homeBehinds,awayGoals:state.awayGoals,awayBehinds:state.awayBehinds,status:publicLive?'LIVE':'HIDDEN',lastEvent:state.events[0]?.label||null})}).then(async response=>{if(!response.ok){const payload=await response.json().catch(()=>({}));throw new Error(payload.error||'Unable to publish public live match')}}).catch(value=>setSyncError(value instanceof Error?value.message:'Unable to publish public live match'))},450);return()=>window.clearTimeout(timer)},[state,ready,current,sheet,clubId,headers])
- function update(mutator:(current:MatchState)=>MatchState){setState(current=>current?mutator(current):current)}
- function toggleTimer(){update(current=>current.runningSince?{...current,elapsed:current.elapsed+Math.floor((Date.now()-current.runningSince)/1000),runningSince:null}:{...current,runningSince:Date.now()})}
- function scoreEvent(side:'HOME'|'AWAY',points:1|6,scorerId?:string){update(current=>{const now=current.elapsed+(current.runningSince?Math.floor((Date.now()-current.runningSince)/1000):0);const delta=side==='HOME'?points:-points;const affected=current.slots.filter(slot=>slot.onGround).map(slot=>slot.clubPlayerId);const before=current.slots.map(slot=>({...slot}));const scorer=current.slots.find(slot=>slot.clubPlayerId===scorerId);const slots=current.slots.map(slot=>{const plusMinus=slot.onGround?slot.plusMinus+delta:slot.plusMinus;if(side==='HOME'&&scorerId===slot.clubPlayerId)return{...slot,plusMinus,goals:(slot.goals||0)+(points===6?1:0),behinds:(slot.behinds||0)+(points===1?1:0)};return{...slot,plusMinus}});const label=side==='HOME'&&scorer?`${scorer.playerName} ${points===6?'goal':'behind'}`:`${side==='HOME'?'Your team':'Opposition'} ${points===6?'goal':'behind'}`;const event:Event={id:crypto.randomUUID(),quarter:current.quarter,seconds:now,kind:'SCORE',label,delta,affected,before};return{...current,homeGoals:current.homeGoals+(side==='HOME'&&points===6?1:0),homeBehinds:current.homeBehinds+(side==='HOME'&&points===1?1:0),awayGoals:current.awayGoals+(side==='AWAY'&&points===6?1:0),awayBehinds:current.awayBehinds+(side==='AWAY'&&points===1?1:0),slots,events:[event,...current.events]}})}
- function choosePlayer(id:string){if(!state)return;if(!selected){setSelected(id);return}if(selected===id){setSelected('');return}update(current=>{const first=current.slots.find(slot=>slot.clubPlayerId===selected);const second=current.slots.find(slot=>slot.clubPlayerId===id);if(!first||!second)return current;const before=current.slots.map(slot=>({...slot}));const slots=current.slots.map(slot=>slot.clubPlayerId===first.clubPlayerId?{...slot,clubPlayerId:second.clubPlayerId,playerName:second.playerName,jumperNumber:second.jumperNumber,plusMinus:second.plusMinus,goals:second.goals,behinds:second.behinds}:slot.clubPlayerId===second.clubPlayerId?{...slot,clubPlayerId:first.clubPlayerId,playerName:first.playerName,jumperNumber:first.jumperNumber,plusMinus:first.plusMinus,goals:first.goals,behinds:first.behinds}:slot);const now=current.elapsed+(current.runningSince?Math.floor((Date.now()-current.runningSince)/1000):0);const event:Event={id:crypto.randomUUID(),quarter:current.quarter,seconds:now,kind:'SWAP',label:`${first.playerName} swapped with ${second.playerName}`,before};return{...current,slots,events:[event,...current.events]}});setSelected('')}
- function nextQuarter(){update(current=>{const elapsed=current.elapsed+(current.runningSince?Math.floor((Date.now()-current.runningSince)/1000):0);const quarter=Math.min(4,current.quarter+1);const event:Event={id:crypto.randomUUID(),quarter:current.quarter,seconds:elapsed,kind:'QUARTER',label:`Quarter ${current.quarter} ended`};return{...current,quarter,elapsed:0,runningSince:null,events:[event,...current.events]}})}
- function undo(){update(current=>{const[event,...events]=current.events;if(!event)return current;if(event.before){let next={...current,slots:event.before,events};if(event.kind==='SCORE'&&event.delta){if(event.delta>0)next=event.delta===6?{...next,homeGoals:Math.max(0,next.homeGoals-1)}:{...next,homeBehinds:Math.max(0,next.homeBehinds-1)};else next=event.delta===-6?{...next,awayGoals:Math.max(0,next.awayGoals-1)}:{...next,awayBehinds:Math.max(0,next.awayBehinds-1)}}return next}return{...current,events}})}
- async function resetMatch(){if(!sheet||!window.confirm('Reset this Match Day board? This clears the shared score, player tallies, swaps and plus/minus for this match only.'))return;setSyncError('');try{const response=await fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheet.id)}`,{method:'DELETE',headers});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Unable to reset shared Match Day');localStorage.removeItem(storageKey(clubId,sheet.id));const slots=sheet.players.map(player=>({...player,onGround:FIELD_POSITIONS.has(player.positionCode),plusMinus:0,goals:0,behinds:0}));setState({sheetId:sheet.id,quarter:1,elapsed:0,runningSince:null,homeGoals:0,homeBehinds:0,awayGoals:0,awayBehinds:0,slots,events:[]});setSelected('')}catch(value){setSyncError(value instanceof Error?value.message:'Unable to reset shared Match Day')}}
- if(loading)return <><Nav/><main className="md-state">Loading Match Day…</main><Footer/></>
- if(error&&!state)return <><Nav/><main className="md-state"><ShieldCheck size={40}/><h1>Match Day unavailable</h1><p>{error}</p><Link to={`/club-portal/${clubId}/coaching`}>Return to Coaching</Link></main><Footer/></>
- const ground=state?.slots.filter(slot=>slot.onGround).sort((a,b)=>POSITION_ORDER.indexOf(a.positionCode)-POSITION_ORDER.indexOf(b.positionCode))||[]
- const bench=state?.slots.filter(slot=>!slot.onGround)||[]
- return <><Nav/><main className="md"><header><div><Link to={`/club-portal/${clubId}/coaching`}><ArrowLeft size={18}/>Coaching</Link><span>Coaching Portal · Match Day</span><h1>Live Match</h1><p>{sheet?.roundLabel||'Match Day'} · {sheet?.opponentName?`v ${sheet.opponentName}`:'Opponent TBC'}</p></div><div className="md-header-actions"><button onClick={resetMatch}><RefreshCw size={17}/>Reset</button></div></header>{syncError&&<div className="md-sync-error">{syncError}</div>}<section className="md-picker"><label>Team sheet<select value={sheetId} onChange={event=>{setSheetId(event.target.value);setSelected('')}}>{sheets.map(item=><option key={item.id} value={item.id}>{item.roundLabel} · {item.opponentName||'Opponent TBC'} · {item.status}</option>)}</select></label></section>{state&&<><section className="md-toolbar"><div className="md-clock"><span>Q{state.quarter}</span><strong>{formatTime(seconds)}</strong><button className="start" onClick={toggleTimer}>{state.runningSince?<><Pause size={18}/>Pause</>:<><Play size={18}/>{state.elapsed?'Resume':'Start'}</>}</button><button disabled={state.quarter>=4} onClick={nextQuarter}><SkipForward size={18}/>Next quarter</button></div><div className="md-scoreboard"><div><small>Your team</small><strong>{state.homeGoals}.{state.homeBehinds}</strong><span>{score(state.homeGoals,state.homeBehinds)}</span></div><b>Q{state.quarter} {formatTime(seconds)}</b><div><small>{sheet?.opponentName||'Opposition'}</small><strong>{state.awayGoals}.{state.awayBehinds}</strong><span>{score(state.awayGoals,state.awayBehinds)}</span></div></div><div className="md-opposition-actions"><span>Opposition score</span><button onClick={()=>scoreEvent('AWAY',6)}>Goal</button><button onClick={()=>scoreEvent('AWAY',1)}>Behind</button><button disabled={!state.events.length} onClick={undo}><RotateCcw size={16}/>Undo</button></div></section><section className="md-layout"><div className="md-field-panel"><div className="md-field-head"><div><span>On ground</span><h2>Tap G or B to score</h2></div><p>Tap two player cards to swap positions.</p></div><div className="md-ground-wrap"><div className="md-ground"><div className="md-field-lines" aria-hidden="true"><span className="md-goal top"><i/><i/><i/><i/></span><span className="md-goal bottom"><i/><i/><i/><i/></span><span className="md-arc top"/><span className="md-arc bottom"/><span className="md-square"/><span className="md-circle"/></div>{ground.map(slot=><PlayerCard key={slot.positionCode} slot={slot} point={FIELD_LAYOUT[slot.positionCode]} selected={selected===slot.clubPlayerId} onSelect={()=>choosePlayer(slot.clubPlayerId)} onGoal={()=>scoreEvent('HOME',6,slot.clubPlayerId)} onBehind={()=>scoreEvent('HOME',1,slot.clubPlayerId)}/>)}</div></div><div className="md-bench-head"><span>Interchange</span><h2>Bench</h2></div><div className="md-bench">{bench.map(slot=><PlayerCard key={slot.positionCode} slot={slot} selected={selected===slot.clubPlayerId} onSelect={()=>choosePlayer(slot.clubPlayerId)} onGoal={()=>scoreEvent('HOME',6,slot.clubPlayerId)} onBehind={()=>scoreEvent('HOME',1,slot.clubPlayerId)}/>)}</div></div><aside><section className="md-events"><h2>Scoring events</h2>{state.events.filter(event=>event.kind==='SCORE').length?state.events.filter(event=>event.kind==='SCORE').slice(0,12).map(event=><div key={event.id}><span><b>{event.label}</b><small>Q{event.quarter} · {formatTime(event.seconds)}</small></span><em>{event.delta===6?'G':event.delta===1?'B':event.delta===-6?'OG':'OB'}</em></div>):<p>No scoring events yet.</p>}</section><section className="md-leaders"><h2>Player scoring</h2>{[...state.slots].sort((a,b)=>((b.goals||0)*6+(b.behinds||0))-((a.goals||0)*6+(a.behinds||0))).map(slot=><div key={slot.clubPlayerId}><span>{slot.jumperNumber?`${slot.jumperNumber}. `:''}{slot.playerName}<small>{slot.plusMinus>0?'+':''}{slot.plusMinus} +/−</small></span><b>{slot.goals||0}.{slot.behinds||0}</b></div>)}</section></aside></section></>}</main><Footer/><style>{styles}</style></>
+function session(): Session | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    return raw ? JSON.parse(raw) as Session : null
+  } catch {
+    return null
+  }
 }
-function PlayerCard({slot,point,selected,onSelect,onGoal,onBehind}:{slot:Slot;point?:FieldPoint;selected:boolean;onSelect:()=>void;onGoal:()=>void;onBehind:()=>void}){const style=point?{top:`${point.top}%`,left:`${point.left}%`}:undefined;return <article className={`md-player ${point?'on-field':''} ${selected?'selected':''}`} style={style}><button className="md-player-main" onClick={onSelect}><span className="number">{slot.jumperNumber||'—'}</span><strong>{slot.playerName}</strong><small>{LABELS[slot.positionCode]||slot.positionCode.replaceAll('_',' ')}</small><em className={slot.plusMinus>0?'positive':slot.plusMinus<0?'negative':''}>{slot.plusMinus>0?'+':''}{slot.plusMinus}</em></button><div className="md-player-score"><button onClick={onGoal}><b>G</b><span>{slot.goals||0}</span></button><button onClick={onBehind}><b>B</b><span>{slot.behinds||0}</span></button></div></article>}
-const styles=`
-html,body,#root{max-width:100%;overflow-x:hidden}.md{width:100%;min-width:0;min-height:100vh;background:#07111c;color:#edf5fb;padding:24px clamp(12px,3vw,36px) 90px;overflow-x:hidden}.md>*{width:100%;min-width:0;max-width:1420px;margin-left:auto;margin-right:auto}.md header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px}.md header a{display:inline-flex;align-items:center;gap:6px;color:#d7e2ea;text-decoration:none;font-weight:900}.md header span,.md-field-head span,.md-bench-head span{display:block;margin-top:15px;color:#42b8ff;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.md h1,.md h2{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.md h1{font-size:clamp(3rem,6vw,5.5rem);line-height:.85;margin:6px 0}.md header p{margin:0;color:#9aabb8}.md button{cursor:pointer}.md-header-actions button,.md-toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #2a3b49;border-radius:9px;background:#111d28;color:#eaf3f8;padding:11px 14px;font-weight:900;text-transform:uppercase}.md-sync-error{margin-top:12px;padding:11px 13px;border-radius:10px;background:#4a1720;color:#ffdce1;font-weight:800}.md-picker{margin-top:14px;padding:12px 14px;border:1px solid #233645;border-radius:12px;background:#0d1924}.md-picker label{display:grid;gap:6px;color:#8ea0ae;font-size:9px;font-weight:900;text-transform:uppercase}.md-picker select{width:100%;padding:10px;border:1px solid #314554;border-radius:8px;background:#09131d;color:#fff}.md-toolbar{display:grid;grid-template-columns:auto minmax(330px,1fr) auto;align-items:center;gap:16px;margin-top:14px;padding:14px;border:1px solid #233645;border-radius:14px;background:#0d1924}.md-clock{display:flex;align-items:center;gap:8px}.md-clock>span{display:grid;place-items:center;width:42px;height:42px;border-radius:9px;background:#138f4f;font-weight:950}.md-clock>strong{min-width:92px;font-family:monospace;font-size:28px}.md-clock .start{background:#159955;border-color:#159955}.md-scoreboard{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;text-align:center}.md-scoreboard div small,.md-scoreboard div strong,.md-scoreboard div span{display:block}.md-scoreboard small{color:#8fa0ad;font-size:9px;font-weight:900;text-transform:uppercase}.md-scoreboard strong{font:38px/1 'Bebas Neue',Impact,sans-serif}.md-scoreboard div>span{color:#9fb0bd;font-weight:800}.md-scoreboard>b{color:#5bd989;font-size:12px}.md-opposition-actions{display:grid;grid-template-columns:repeat(3,auto);gap:6px}.md-opposition-actions>span{grid-column:1/-1;color:#8fa0ad;font-size:9px;font-weight:900;text-transform:uppercase}.md-opposition-actions button:nth-of-type(1){background:#be2e35}.md-opposition-actions button:nth-of-type(2){background:#b88608}.md-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;margin-top:14px;min-width:0}.md-field-panel,.md-events,.md-leaders{min-width:0;border:1px solid #233645;border-radius:15px;background:#0b1621}.md-field-panel{padding:16px;overflow:hidden}.md-field-head{display:flex;align-items:end;justify-content:space-between;gap:12px}.md-field-head span,.md-bench-head span{margin:0}.md-field-head h2,.md-bench-head h2,.md-events h2,.md-leaders h2{margin:3px 0;font-size:30px}.md-field-head p{margin:0;color:#8799a7;font-size:11px}.md-ground-wrap{width:100%;max-width:100%;margin-top:14px;overflow:hidden;border-radius:48%/12%;background:#063b27}.md-ground{position:relative;width:100%;max-width:100%;aspect-ratio:.72;border:4px solid #92e4b6;border-radius:50%;overflow:hidden;background:repeating-linear-gradient(0deg,#0caf68 0 8%,#0aa35f 8% 16%);box-shadow:inset 0 0 0 10px rgba(255,255,255,.08)}.md-field-lines{position:absolute;inset:0;pointer-events:none}.md-field-lines:before{content:'';position:absolute;left:8%;right:8%;top:50%;border-top:3px solid rgba(224,255,236,.55)}.md-square{position:absolute;left:34%;top:40%;width:32%;height:20%;border:3px solid rgba(224,255,236,.55)}.md-circle{position:absolute;left:50%;top:50%;width:9%;aspect-ratio:1;border:3px solid rgba(224,255,236,.62);border-radius:50%;transform:translate(-50%,-50%)}.md-arc{position:absolute;left:17%;width:66%;height:23%;border:3px solid rgba(224,255,236,.55);border-radius:50%}.md-arc.top{top:4%;border-bottom-color:transparent}.md-arc.bottom{bottom:4%;border-top-color:transparent}.md-goal{position:absolute;left:50%;display:flex;gap:7%;width:24%;height:8%;transform:translateX(-50%)}.md-goal.top{top:-1%}.md-goal.bottom{bottom:-1%}.md-goal i{display:block;width:3px;height:100%;border-radius:3px;background:#f7fff9}.md-player{min-width:0;border-radius:10px;background:#f7fafc;color:#0d141b;box-shadow:0 6px 14px rgba(0,0,0,.24);overflow:hidden;transition:.15s ease}.md-player.on-field{position:absolute;z-index:2;width:24%;transform:translate(-50%,-50%)}.md-player.selected{outline:4px solid #42b8ff;z-index:4}.md-player.on-field.selected{transform:translate(-50%,-54%)}.md-player-main{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;width:100%;border:0;background:transparent;padding:0;text-align:left;color:#0d141b}.md-player-main .number{grid-row:1/3;display:grid;place-items:center;align-self:stretch;min-width:38px;background:#108d4e;color:#fff;font-weight:950}.md-player-main strong{padding:9px 7px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.md-player-main small{grid-column:2;padding:0 7px 7px;color:#6d7780;font-size:9px;font-weight:900}.md-player-main em{grid-row:1/3;grid-column:3;padding:0 8px;font-style:normal;font-size:13px;font-weight:950;color:#26323b}.md-player-score{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:5px;border-top:1px solid #e2e8ed}.md-player-score button{display:flex;align-items:center;justify-content:center;gap:5px;border:1px solid #cfe3d5;border-radius:7px;background:#e9f8ee;color:#0b2917;padding:5px;font-weight:900}.md-player-score button:last-child{border-color:#ead9a9;background:#fff5d8;color:#4b3900}.md-player-score span{font-size:10px}.positive{color:#07884b!important}.negative{color:#c92c35!important}.md-bench-head{margin-top:16px}.md-bench{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.md-layout aside{display:grid;align-content:start;gap:12px;min-width:0}.md-events,.md-leaders{padding:15px}.md-events>div,.md-leaders>div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-top:1px solid #203341}.md-events span,.md-events b,.md-events small,.md-leaders span,.md-leaders small{display:block}.md-events small,.md-leaders small{margin-top:3px;color:#8193a0;font-size:9px}.md-events em{display:grid;place-items:center;width:26px;height:26px;border-radius:6px;background:#159955;color:#fff;font-style:normal;font-weight:950}.md-events p{color:#8394a1}.md-leaders span{font-size:11px}.md-leaders b{font-size:16px}.md-state{min-height:60vh;display:grid;place-content:center;text-align:center}.md-state h1{font-family:'Bebas Neue',Impact,sans-serif;font-size:48px;margin:10px}.md-state a{color:#111;font-weight:900}
-@media(max-width:1150px){.md-toolbar{grid-template-columns:1fr 1fr}.md-opposition-actions{grid-column:1/-1;grid-template-columns:repeat(3,1fr)}.md-layout{grid-template-columns:1fr}.md-layout aside{grid-template-columns:1fr 1fr}.md-player.on-field{width:23%}}
-@media(max-width:760px){.md{padding:14px 9px 105px}.md header{align-items:flex-start;flex-direction:column}.md-toolbar{grid-template-columns:1fr;gap:10px;padding:10px}.md-clock{flex-wrap:wrap}.md-scoreboard{order:-1}.md-opposition-actions{grid-template-columns:1fr 1fr}.md-opposition-actions button:last-child{grid-column:1/-1}.md-layout aside{grid-template-columns:1fr}.md-field-head{align-items:flex-start;flex-direction:column}.md-field-panel{padding:8px}.md-ground-wrap{overflow:hidden;border-radius:18px}.md-ground{width:100%;min-width:0;aspect-ratio:.62;border-width:3px;box-shadow:inset 0 0 0 6px rgba(255,255,255,.08)}.md-player.on-field{width:28%;max-width:108px}.md-player-main{grid-template-columns:28px minmax(0,1fr) 21px}.md-player-main .number{min-width:28px;font-size:11px}.md-player-main strong{min-height:27px;padding:5px 3px 1px;overflow:visible;text-overflow:clip;white-space:normal;word-break:normal;line-height:1.02;font-size:9px}.md-player-main small{padding:0 3px 4px;font-size:7px}.md-player-main em{padding:0 3px;font-size:10px}.md-player-score{gap:3px;padding:3px}.md-player-score button{gap:2px;min-height:25px;padding:2px;font-size:10px}.md-player-score span{font-size:8px}.md-bench{grid-template-columns:repeat(2,minmax(0,1fr))}.md-field-head h2,.md-bench-head h2{font-size:26px}}
+function formatTime(seconds: number) {
+  const value = Math.max(0, Math.floor(seconds))
+  return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
+}
+function score(goals: number, behinds: number) { return goals * 6 + behinds }
+function storageKey(clubId: string, sheetId: string) { return `playfooty.matchday.v1.${clubId}.${sheetId}` }
+function normalise(next: MatchState): MatchState {
+  return { ...next, slots: next.slots.map(slot => ({ ...slot, goals: Number(slot.goals) || 0, behinds: Number(slot.behinds) || 0 })) }
+}
+
+export default function ClubPortalMatchDay() {
+  const { clubId = '' } = useParams()
+  const [current] = useState(() => session())
+  const [sheets, setSheets] = useState<Sheet[]>([])
+  const [sheetId, setSheetId] = useState('')
+  const [state, setState] = useState<MatchState | null>(null)
+  const [selected, setSelected] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [syncError, setSyncError] = useState('')
+  const [ready, setReady] = useState(false)
+  const [, setTick] = useState(0)
+  const headers = useMemo<Record<string, string>>(() => {
+    const next: Record<string, string> = {}
+    if (current) next.authorization = `Bearer ${current.access_token}`
+    return next
+  }, [current])
+
+  useEffect(() => {
+    if (!current) {
+      setError('Sign in through the Club Portal to continue.')
+      setLoading(false)
+      return
+    }
+    void fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`, { headers })
+      .then(async response => {
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload.error || 'Unable to load team sheets')
+        const list = Array.isArray(payload.data) ? payload.data as Sheet[] : []
+        setSheets(list)
+        const published = list.find(item => item.status === 'PUBLISHED') || list[0]
+        if (published) setSheetId(published.id)
+      })
+      .catch(value => setError(value instanceof Error ? value.message : 'Unable to load Match Day'))
+      .finally(() => setLoading(false))
+  }, [clubId, current, headers])
+
+  useEffect(() => {
+    if (!sheetId || !current) return
+    const sheet = sheets.find(item => item.id === sheetId)
+    if (!sheet) return
+    let live = true
+    setReady(false)
+    setSyncError('')
+    void fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`, { headers })
+      .then(async response => {
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload.error || 'Unable to load shared Match Day')
+        if (!live) return
+        let next = payload.data?.state as MatchState | undefined
+        if (!next) {
+          try {
+            const raw = localStorage.getItem(storageKey(clubId, sheetId))
+            if (raw) {
+              next = JSON.parse(raw) as MatchState
+              const saved = await fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`, {
+                method: 'PUT', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ state: next }),
+              })
+              if (!saved.ok) throw new Error('Unable to migrate existing Match Day record')
+              localStorage.removeItem(storageKey(clubId, sheetId))
+            }
+          } catch (value) {
+            if (value instanceof Error && value.message.includes('migrate')) throw value
+          }
+        }
+        if (!next) {
+          const slots = sheet.players.map(player => ({ ...player, onGround: FIELD_POSITIONS.has(player.positionCode), plusMinus: 0, goals: 0, behinds: 0 }))
+          next = { sheetId, quarter: 1, elapsed: 0, runningSince: null, homeGoals: 0, homeBehinds: 0, awayGoals: 0, awayBehinds: 0, slots, events: [] }
+        }
+        if (live) {
+          setState(normalise(next))
+          setReady(true)
+        }
+      })
+      .catch(value => {
+        if (live) {
+          const message = value instanceof Error ? value.message : 'Unable to load shared Match Day'
+          setSyncError(message)
+          setError(message)
+        }
+      })
+    return () => { live = false }
+  }, [sheetId, sheets, clubId, current, headers])
+
+  useEffect(() => {
+    if (!state || !ready || !current) return
+    const timer = window.setTimeout(() => {
+      void fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(state.sheetId)}`, {
+        method: 'PUT', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ state }),
+      })
+        .then(async response => {
+          const payload = await response.json().catch(() => ({}))
+          if (!response.ok) throw new Error(payload.error || 'Unable to save shared Match Day')
+          setSyncError('')
+        })
+        .catch(value => setSyncError(value instanceof Error ? value.message : 'Unable to save shared Match Day'))
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [state, ready, current, clubId, headers])
+
+  useEffect(() => {
+    if (!state?.runningSince) return
+    const timer = window.setInterval(() => setTick(value => value + 1), 1000)
+    return () => window.clearInterval(timer)
+  }, [state?.runningSince])
+
+  const seconds = state ? state.elapsed + (state.runningSince ? Math.floor((Date.now() - state.runningSince) / 1000) : 0) : 0
+  const sheet = sheets.find(item => item.id === sheetId)
+
+  useEffect(() => {
+    if (!state || !ready || !current || !sheet) return
+    const publicLive = Boolean(state.runningSince || state.elapsed > 0 || state.events.length || state.homeGoals || state.homeBehinds || state.awayGoals || state.awayBehinds)
+    const elapsedSeconds = state.elapsed + (state.runningSince ? Math.floor((Date.now() - state.runningSince) / 1000) : 0)
+    const timer = window.setTimeout(() => {
+      void fetch(`/api/live-match/clubs/${encodeURIComponent(clubId)}`, {
+        method: 'PUT', headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ teamSheetId: state.sheetId, roundLabel: sheet.roundLabel, opponentName: sheet.opponentName, matchDate: sheet.matchDate, quarter: state.quarter, elapsedSeconds, clockRunning: Boolean(state.runningSince), homeGoals: state.homeGoals, homeBehinds: state.homeBehinds, awayGoals: state.awayGoals, awayBehinds: state.awayBehinds, status: publicLive ? 'LIVE' : 'HIDDEN', lastEvent: state.events[0]?.label || null }),
+      })
+        .then(async response => {
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}))
+            throw new Error(payload.error || 'Unable to publish public live match')
+          }
+        })
+        .catch(value => setSyncError(value instanceof Error ? value.message : 'Unable to publish public live match'))
+    }, 450)
+    return () => window.clearTimeout(timer)
+  }, [state, ready, current, sheet, clubId, headers])
+
+  function update(mutator: (current: MatchState) => MatchState) { setState(currentState => currentState ? mutator(currentState) : currentState) }
+  function toggleTimer() {
+    update(currentState => currentState.runningSince
+      ? { ...currentState, elapsed: currentState.elapsed + Math.floor((Date.now() - currentState.runningSince) / 1000), runningSince: null }
+      : { ...currentState, runningSince: Date.now() })
+  }
+  function scoreEvent(side: 'HOME' | 'AWAY', points: 1 | 6, scorerId?: string) {
+    update(currentState => {
+      const now = currentState.elapsed + (currentState.runningSince ? Math.floor((Date.now() - currentState.runningSince) / 1000) : 0)
+      const delta = side === 'HOME' ? points : -points
+      const affected = currentState.slots.filter(slot => slot.onGround).map(slot => slot.clubPlayerId)
+      const before = currentState.slots.map(slot => ({ ...slot }))
+      const scorer = currentState.slots.find(slot => slot.clubPlayerId === scorerId)
+      const slots = currentState.slots.map(slot => {
+        const plusMinus = slot.onGround ? slot.plusMinus + delta : slot.plusMinus
+        if (side === 'HOME' && scorerId === slot.clubPlayerId) {
+          return { ...slot, plusMinus, goals: (slot.goals || 0) + (points === 6 ? 1 : 0), behinds: (slot.behinds || 0) + (points === 1 ? 1 : 0) }
+        }
+        return { ...slot, plusMinus }
+      })
+      const label = side === 'HOME' && scorer
+        ? `${scorer.playerName} ${points === 6 ? 'goal' : 'behind'}`
+        : `${side === 'HOME' ? 'Your team' : 'Opposition'} ${points === 6 ? 'goal' : 'behind'}`
+      const event: Event = { id: crypto.randomUUID(), quarter: currentState.quarter, seconds: now, kind: 'SCORE', label, delta, affected, before }
+      return {
+        ...currentState,
+        homeGoals: currentState.homeGoals + (side === 'HOME' && points === 6 ? 1 : 0),
+        homeBehinds: currentState.homeBehinds + (side === 'HOME' && points === 1 ? 1 : 0),
+        awayGoals: currentState.awayGoals + (side === 'AWAY' && points === 6 ? 1 : 0),
+        awayBehinds: currentState.awayBehinds + (side === 'AWAY' && points === 1 ? 1 : 0),
+        slots,
+        events: [event, ...currentState.events],
+      }
+    })
+  }
+  function choosePlayer(id: string) {
+    if (!state) return
+    if (!selected) { setSelected(id); return }
+    if (selected === id) { setSelected(''); return }
+    update(currentState => {
+      const first = currentState.slots.find(slot => slot.clubPlayerId === selected)
+      const second = currentState.slots.find(slot => slot.clubPlayerId === id)
+      if (!first || !second) return currentState
+      const before = currentState.slots.map(slot => ({ ...slot }))
+      const slots = currentState.slots.map(slot => slot.clubPlayerId === first.clubPlayerId
+        ? { ...slot, clubPlayerId: second.clubPlayerId, playerName: second.playerName, jumperNumber: second.jumperNumber, plusMinus: second.plusMinus, goals: second.goals, behinds: second.behinds }
+        : slot.clubPlayerId === second.clubPlayerId
+          ? { ...slot, clubPlayerId: first.clubPlayerId, playerName: first.playerName, jumperNumber: first.jumperNumber, plusMinus: first.plusMinus, goals: first.goals, behinds: first.behinds }
+          : slot)
+      const now = currentState.elapsed + (currentState.runningSince ? Math.floor((Date.now() - currentState.runningSince) / 1000) : 0)
+      const event: Event = { id: crypto.randomUUID(), quarter: currentState.quarter, seconds: now, kind: 'SWAP', label: `${first.playerName} swapped with ${second.playerName}`, before }
+      return { ...currentState, slots, events: [event, ...currentState.events] }
+    })
+    setSelected('')
+  }
+  function nextQuarter() {
+    update(currentState => {
+      const elapsed = currentState.elapsed + (currentState.runningSince ? Math.floor((Date.now() - currentState.runningSince) / 1000) : 0)
+      const quarter = Math.min(4, currentState.quarter + 1)
+      const event: Event = { id: crypto.randomUUID(), quarter: currentState.quarter, seconds: elapsed, kind: 'QUARTER', label: `Quarter ${currentState.quarter} ended` }
+      return { ...currentState, quarter, elapsed: 0, runningSince: null, events: [event, ...currentState.events] }
+    })
+  }
+  function undo() {
+    update(currentState => {
+      const [event, ...events] = currentState.events
+      if (!event) return currentState
+      if (event.before) {
+        let next = { ...currentState, slots: event.before, events }
+        if (event.kind === 'SCORE' && event.delta) {
+          if (event.delta > 0) next = event.delta === 6 ? { ...next, homeGoals: Math.max(0, next.homeGoals - 1) } : { ...next, homeBehinds: Math.max(0, next.homeBehinds - 1) }
+          else next = event.delta === -6 ? { ...next, awayGoals: Math.max(0, next.awayGoals - 1) } : { ...next, awayBehinds: Math.max(0, next.awayBehinds - 1) }
+        }
+        return next
+      }
+      return { ...currentState, events }
+    })
+  }
+  async function resetMatch() {
+    if (!sheet || !window.confirm('Reset this Match Day board? This clears the shared score, player tallies, swaps and plus/minus for this match only.')) return
+    setSyncError('')
+    try {
+      const response = await fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheet.id)}`, { method: 'DELETE', headers })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Unable to reset shared Match Day')
+      localStorage.removeItem(storageKey(clubId, sheet.id))
+      const slots = sheet.players.map(player => ({ ...player, onGround: FIELD_POSITIONS.has(player.positionCode), plusMinus: 0, goals: 0, behinds: 0 }))
+      setState({ sheetId: sheet.id, quarter: 1, elapsed: 0, runningSince: null, homeGoals: 0, homeBehinds: 0, awayGoals: 0, awayBehinds: 0, slots, events: [] })
+      setSelected('')
+    } catch (value) {
+      setSyncError(value instanceof Error ? value.message : 'Unable to reset shared Match Day')
+    }
+  }
+
+  if (loading) return <><Nav/><main className="md-state">Loading Match Day…</main><Footer/></>
+  if (error && !state) return <><Nav/><main className="md-state"><ShieldCheck size={40}/><h1>Match Day unavailable</h1><p>{error}</p><Link to={`/club-portal/${clubId}/coaching`}>Return to Coaching</Link></main><Footer/></>
+
+  const ground = state?.slots.filter(slot => slot.onGround).sort((a, b) => POSITION_ORDER.indexOf(a.positionCode) - POSITION_ORDER.indexOf(b.positionCode)) || []
+  const bench = state?.slots.filter(slot => !slot.onGround) || []
+
+  return <>
+    <Nav/>
+    <main className="md">
+      <header>
+        <div><Link to={`/club-portal/${clubId}/coaching`}><ArrowLeft size={18}/>Coaching</Link><span>Coaching Portal · Match Day</span><h1>Live Match</h1><p>{sheet?.roundLabel || 'Match Day'} · {sheet?.opponentName ? `v ${sheet.opponentName}` : 'Opponent TBC'}</p></div>
+        <div className="md-header-actions"><button onClick={resetMatch}><RefreshCw size={17}/>Reset</button></div>
+      </header>
+      {syncError && <div className="md-sync-error">{syncError}</div>}
+      <section className="md-picker"><label>Team sheet<select value={sheetId} onChange={event => { setSheetId(event.target.value); setSelected('') }}>{sheets.map(item => <option key={item.id} value={item.id}>{item.roundLabel} · {item.opponentName || 'Opponent TBC'} · {item.status}</option>)}</select></label></section>
+      {state && <>
+        <section className="md-toolbar">
+          <div className="md-clock"><span>Q{state.quarter}</span><strong>{formatTime(seconds)}</strong><button className="start" onClick={toggleTimer}>{state.runningSince ? <><Pause size={18}/>Pause</> : <><Play size={18}/>{state.elapsed ? 'Resume' : 'Start'}</>}</button><button disabled={state.quarter >= 4} onClick={nextQuarter}><SkipForward size={18}/>Next quarter</button></div>
+          <div className="md-scoreboard"><div><small>Your team</small><strong>{state.homeGoals}.{state.homeBehinds}</strong><span>{score(state.homeGoals, state.homeBehinds)}</span></div><b>Q{state.quarter} {formatTime(seconds)}</b><div><small>{sheet?.opponentName || 'Opposition'}</small><strong>{state.awayGoals}.{state.awayBehinds}</strong><span>{score(state.awayGoals, state.awayBehinds)}</span></div></div>
+          <div className="md-score-actions">
+            <div className="md-team-actions"><span>Your team score</span><button onClick={() => scoreEvent('HOME', 6)}>Goal</button><button onClick={() => scoreEvent('HOME', 1)}>Behind</button></div>
+            <div className="md-opposition-actions"><span>Opposition score</span><button onClick={() => scoreEvent('AWAY', 6)}>Goal</button><button onClick={() => scoreEvent('AWAY', 1)}>Behind</button><button disabled={!state.events.length} onClick={undo}><RotateCcw size={16}/>Undo</button></div>
+          </div>
+        </section>
+        <section className="md-layout">
+          <div className="md-field-panel">
+            <div className="md-field-head"><div><span>On ground</span><h2>Tap G or B to score</h2></div><p>Tap two player cards to swap positions.</p></div>
+            <div className="md-ground-wrap"><div className="md-ground"><div className="md-field-lines" aria-hidden="true"><span className="md-goal top"><i/><i/><i/><i/></span><span className="md-goal bottom"><i/><i/><i/><i/></span><span className="md-arc top"/><span className="md-arc bottom"/><span className="md-square"/><span className="md-circle"/></div>{ground.map(slot => <PlayerCard key={slot.positionCode} slot={slot} point={FIELD_LAYOUT[slot.positionCode]} selected={selected === slot.clubPlayerId} onSelect={() => choosePlayer(slot.clubPlayerId)} onGoal={() => scoreEvent('HOME', 6, slot.clubPlayerId)} onBehind={() => scoreEvent('HOME', 1, slot.clubPlayerId)}/>)}</div></div>
+            <div className="md-bench-head"><span>Interchange</span><h2>Bench</h2></div>
+            <div className="md-bench">{bench.map(slot => <PlayerCard key={slot.positionCode} slot={slot} selected={selected === slot.clubPlayerId} onSelect={() => choosePlayer(slot.clubPlayerId)} onGoal={() => scoreEvent('HOME', 6, slot.clubPlayerId)} onBehind={() => scoreEvent('HOME', 1, slot.clubPlayerId)}/>)}</div>
+          </div>
+          <aside>
+            <section className="md-events"><h2>Scoring events</h2>{state.events.filter(event => event.kind === 'SCORE').length ? state.events.filter(event => event.kind === 'SCORE').slice(0, 12).map(event => <div key={event.id}><span><b>{event.label}</b><small>Q{event.quarter} · {formatTime(event.seconds)}</small></span><em>{event.delta === 6 ? 'G' : event.delta === 1 ? 'B' : event.delta === -6 ? 'OG' : 'OB'}</em></div>) : <p>No scoring events yet.</p>}</section>
+            <section className="md-leaders"><h2>Player scoring</h2>{[...state.slots].sort((a, b) => ((b.goals || 0) * 6 + (b.behinds || 0)) - ((a.goals || 0) * 6 + (a.behinds || 0))).map(slot => <div key={slot.clubPlayerId}><span>{slot.jumperNumber ? `${slot.jumperNumber}. ` : ''}{slot.playerName}<small>{slot.plusMinus > 0 ? '+' : ''}{slot.plusMinus} +/−</small></span><b>{slot.goals || 0}.{slot.behinds || 0}</b></div>)}</section>
+          </aside>
+        </section>
+      </>}
+    </main>
+    <Footer/>
+    <style>{styles}</style>
+  </>
+}
+
+function PlayerCard({ slot, point, selected, onSelect, onGoal, onBehind }: { slot: Slot; point?: FieldPoint; selected: boolean; onSelect: () => void; onGoal: () => void; onBehind: () => void }) {
+  const style = point ? { top: `${point.top}%`, left: `${point.left}%` } : undefined
+  return <article className={`md-player ${point ? 'on-field' : ''} ${selected ? 'selected' : ''}`} style={style}><button className="md-player-main" onClick={onSelect}><span className="number">{slot.jumperNumber || '—'}</span><strong>{slot.playerName}</strong><small>{LABELS[slot.positionCode] || slot.positionCode.replaceAll('_', ' ')}</small><em className={slot.plusMinus > 0 ? 'positive' : slot.plusMinus < 0 ? 'negative' : ''}>{slot.plusMinus > 0 ? '+' : ''}{slot.plusMinus}</em></button><div className="md-player-score"><button onClick={onGoal}><b>G</b><span>{slot.goals || 0}</span></button><button onClick={onBehind}><b>B</b><span>{slot.behinds || 0}</span></button></div></article>
+}
+
+const styles = `
+html,body,#root{max-width:100%;overflow-x:hidden}.md{width:100%;min-width:0;min-height:100vh;background:#07111c;color:#edf5fb;padding:24px clamp(12px,3vw,36px) 90px;overflow-x:hidden}.md>*{width:100%;min-width:0;max-width:1420px;margin-left:auto;margin-right:auto}.md header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px}.md header a{display:inline-flex;align-items:center;gap:6px;color:#d7e2ea;text-decoration:none;font-weight:900}.md header span,.md-field-head span,.md-bench-head span{display:block;margin-top:15px;color:#42b8ff;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.md h1,.md h2{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.md h1{font-size:clamp(3rem,6vw,5.5rem);line-height:.85;margin:6px 0}.md header p{margin:0;color:#9aabb8}.md button{cursor:pointer}.md-header-actions button,.md-toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #2a3b49;border-radius:9px;background:#111d28;color:#eaf3f8;padding:11px 14px;font-weight:900;text-transform:uppercase}.md-sync-error{margin-top:12px;padding:11px 13px;border-radius:10px;background:#4a1720;color:#ffdce1;font-weight:800}.md-picker{margin-top:14px;padding:12px 14px;border:1px solid #233645;border-radius:12px;background:#0d1924}.md-picker label{display:grid;gap:6px;color:#8ea0ae;font-size:9px;font-weight:900;text-transform:uppercase}.md-picker select{width:100%;padding:10px;border:1px solid #314554;border-radius:8px;background:#09131d;color:#fff}.md-toolbar{display:grid;grid-template-columns:auto minmax(330px,1fr) auto;align-items:center;gap:16px;margin-top:14px;padding:14px;border:1px solid #233645;border-radius:14px;background:#0d1924}.md-clock{display:flex;align-items:center;gap:8px}.md-clock>span{display:grid;place-items:center;width:42px;height:42px;border-radius:9px;background:#138f4f;font-weight:950}.md-clock>strong{min-width:92px;font-family:monospace;font-size:28px}.md-clock .start{background:#159955;border-color:#159955}.md-scoreboard{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;text-align:center}.md-scoreboard div small,.md-scoreboard div strong,.md-scoreboard div span{display:block}.md-scoreboard small{color:#8fa0ad;font-size:9px;font-weight:900;text-transform:uppercase}.md-scoreboard strong{font:38px/1 'Bebas Neue',Impact,sans-serif}.md-scoreboard div>span{color:#9fb0bd;font-weight:800}.md-scoreboard>b{color:#5bd989;font-size:12px}.md-score-actions{display:grid;gap:10px;min-width:290px}.md-team-actions,.md-opposition-actions{display:grid;grid-template-columns:repeat(3,auto);gap:6px}.md-team-actions>span,.md-opposition-actions>span{grid-column:1/-1;color:#8fa0ad;font-size:9px;font-weight:900;text-transform:uppercase}.md-team-actions button:nth-of-type(1){background:#159955;border-color:#159955}.md-team-actions button:nth-of-type(2){background:#2daaf5;border-color:#2daaf5;color:#05121b}.md-opposition-actions button:nth-of-type(1){background:#be2e35}.md-opposition-actions button:nth-of-type(2){background:#b88608}.md-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;margin-top:14px;min-width:0}.md-field-panel,.md-events,.md-leaders{min-width:0;border:1px solid #233645;border-radius:15px;background:#0b1621}.md-field-panel{padding:16px;overflow:hidden}.md-field-head{display:flex;align-items:end;justify-content:space-between;gap:12px}.md-field-head span,.md-bench-head span{margin:0}.md-field-head h2,.md-bench-head h2,.md-events h2,.md-leaders h2{margin:3px 0;font-size:30px}.md-field-head p{margin:0;color:#8799a7;font-size:11px}.md-ground-wrap{width:100%;max-width:100%;margin-top:14px;overflow:hidden;border-radius:48%/12%;background:#063b27}.md-ground{position:relative;width:100%;max-width:100%;aspect-ratio:.72;border:4px solid #92e4b6;border-radius:50%;overflow:hidden;background:repeating-linear-gradient(0deg,#0caf68 0 8%,#0aa35f 8% 16%);box-shadow:inset 0 0 0 10px rgba(255,255,255,.08)}.md-field-lines{position:absolute;inset:0;pointer-events:none}.md-field-lines:before{content:'';position:absolute;left:8%;right:8%;top:50%;border-top:3px solid rgba(224,255,236,.55)}.md-square{position:absolute;left:34%;top:40%;width:32%;height:20%;border:3px solid rgba(224,255,236,.55)}.md-circle{position:absolute;left:50%;top:50%;width:9%;aspect-ratio:1;border:3px solid rgba(224,255,236,.62);border-radius:50%;transform:translate(-50%,-50%)}.md-arc{position:absolute;left:17%;width:66%;height:23%;border:3px solid rgba(224,255,236,.55);border-radius:50%}.md-arc.top{top:4%;border-bottom-color:transparent}.md-arc.bottom{bottom:4%;border-top-color:transparent}.md-goal{position:absolute;left:50%;display:flex;gap:7%;width:24%;height:8%;transform:translateX(-50%)}.md-goal.top{top:-1%}.md-goal.bottom{bottom:-1%}.md-goal i{display:block;width:3px;height:100%;border-radius:3px;background:#f7fff9}.md-player{min-width:0;border-radius:10px;background:#f7fafc;color:#0d141b;box-shadow:0 6px 14px rgba(0,0,0,.24);overflow:hidden;transition:.15s ease}.md-player.on-field{position:absolute;z-index:2;width:24%;transform:translate(-50%,-50%)}.md-player.selected{outline:4px solid #42b8ff;z-index:4}.md-player.on-field.selected{transform:translate(-50%,-54%)}.md-player-main{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;width:100%;border:0;background:transparent;padding:0;text-align:left;color:#0d141b}.md-player-main .number{grid-row:1/3;display:grid;place-items:center;align-self:stretch;min-width:38px;background:#108d4e;color:#fff;font-weight:950}.md-player-main strong{padding:9px 7px 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.md-player-main small{grid-column:2;padding:0 7px 7px;color:#6d7780;font-size:9px;font-weight:900}.md-player-main em{grid-row:1/3;grid-column:3;padding:0 8px;font-style:normal;font-size:13px;font-weight:950;color:#26323b}.md-player-score{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:5px;border-top:1px solid #e2e8ed}.md-player-score button{display:flex;align-items:center;justify-content:center;gap:5px;border:1px solid #cfe3d5;border-radius:7px;background:#e9f8ee;color:#0b2917;padding:5px;font-weight:900}.md-player-score button:last-child{border-color:#ead9a9;background:#fff5d8;color:#4b3900}.md-player-score span{font-size:10px}.positive{color:#07884b!important}.negative{color:#c92c35!important}.md-bench-head{margin-top:16px}.md-bench{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.md-layout aside{display:grid;align-content:start;gap:12px;min-width:0}.md-events,.md-leaders{padding:15px}.md-events>div,.md-leaders>div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-top:1px solid #203341}.md-events span,.md-events b,.md-events small,.md-leaders span,.md-leaders small{display:block}.md-events small,.md-leaders small{margin-top:3px;color:#8193a0;font-size:9px}.md-events em{display:grid;place-items:center;width:26px;height:26px;border-radius:6px;background:#159955;color:#fff;font-style:normal;font-weight:950}.md-events p{color:#8394a1}.md-leaders span{font-size:11px}.md-leaders b{font-size:16px}.md-state{min-height:60vh;display:grid;place-content:center;text-align:center}.md-state h1{font-family:'Bebas Neue',Impact,sans-serif;font-size:48px;margin:10px}.md-state a{color:#111;font-weight:900}
+@media(max-width:1150px){.md-toolbar{grid-template-columns:1fr 1fr}.md-score-actions{grid-column:1/-1;grid-template-columns:1fr 1fr;min-width:0}.md-team-actions,.md-opposition-actions{grid-template-columns:repeat(3,1fr)}.md-layout{grid-template-columns:1fr}.md-layout aside{grid-template-columns:1fr 1fr}.md-player.on-field{width:23%}}
+@media(max-width:760px){.md{padding:14px 9px 105px}.md header{align-items:flex-start;flex-direction:column}.md-toolbar{grid-template-columns:1fr;gap:10px;padding:10px}.md-clock{flex-wrap:wrap}.md-scoreboard{order:-1}.md-score-actions{grid-template-columns:1fr}.md-team-actions,.md-opposition-actions{grid-template-columns:1fr 1fr}.md-team-actions>span,.md-opposition-actions>span{grid-column:1/-1}.md-opposition-actions button:last-child{grid-column:1/-1}.md-layout aside{grid-template-columns:1fr}.md-field-head{align-items:flex-start;flex-direction:column}.md-field-panel{padding:8px}.md-ground-wrap{overflow:hidden;border-radius:18px}.md-ground{width:100%;min-width:0;aspect-ratio:.62;border-width:3px;box-shadow:inset 0 0 0 6px rgba(255,255,255,.08)}.md-player.on-field{width:28%;max-width:108px}.md-player-main{grid-template-columns:28px minmax(0,1fr) 21px}.md-player-main .number{min-width:28px;font-size:11px}.md-player-main strong{min-height:27px;padding:5px 3px 1px;overflow:visible;text-overflow:clip;white-space:normal;word-break:normal;line-height:1.02;font-size:9px}.md-player-main small{padding:0 3px 4px;font-size:7px}.md-player-main em{padding:0 3px;font-size:10px}.md-player-score{gap:3px;padding:3px}.md-player-score button{gap:2px;min-height:25px;padding:2px;font-size:10px}.md-player-score span{font-size:8px}.md-bench{grid-template-columns:repeat(2,minmax(0,1fr))}.md-field-head h2,.md-bench-head h2{font-size:26px}}
 @media(max-width:390px){.md-player.on-field{width:29%;max-width:102px}.md-player-main strong{font-size:8.5px}.md-player-main .number{font-size:10px}.md-ground{aspect-ratio:.59}}
 `
