@@ -4,30 +4,235 @@ import { ChevronDown, ChevronLeft, ChevronUp, Dumbbell, Plus, Save, Trash2 } fro
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
 
-type Session={access_token:string}
-type Drill={id:string;title:string;category:string|null;description:string|null;defaultMinutes:number}
-type Plan={id:string;planDate:string;title:string;startTime:string|null;location:string|null;focus:string|null;notes:string|null}
-type Item={id:string;planId?:string;drillId:string|null;title:string;category:string|null;durationMinutes:number;notes:string|null;sortOrder:number}
-const KEY='playfooty.clubPortal.session.v1'
-const auth=():Session|null=>{try{const raw=localStorage.getItem(KEY);return raw?JSON.parse(raw):null}catch{return null}}
-const today=()=>new Date().toISOString().slice(0,10)
-const label=(value:string)=>new Date(`${value}T12:00:00`).toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long'})
+type Session = { access_token: string }
+type Drill = { id: string; title: string; category: string | null; description: string | null; defaultMinutes: number }
+type Plan = { id: string; planDate: string; title: string; startTime: string | null; location: string | null; focus: string | null; notes: string | null }
+type PlanItem = { id: string; planId?: string; drillId: string | null; title: string; category: string | null; durationMinutes: number; notes: string | null; sortOrder: number }
 
-export default function ClubPortalTrainingPlanner(){
- const{clubId=''}=useParams();const[current]=useState(auth);const[plans,setPlans]=useState<Plan[]>([]);const[stored,setStored]=useState<Item[]>([]);const[drills,setDrills]=useState<Drill[]>([]);const[date,setDate]=useState(today());const[title,setTitle]=useState('Training session');const[startTime,setStartTime]=useState('18:00');const[location,setLocation]=useState('');const[focus,setFocus]=useState('');const[notes,setNotes]=useState('');const[items,setItems]=useState<Item[]>([]);const[loading,setLoading]=useState(true);const[saving,setSaving]=useState(false);const[message,setMessage]=useState('');const[error,setError]=useState('')
- const headers=useMemo<Record<string,string>>(()=>current?{authorization:`Bearer ${current.access_token}`}:{},[current])
- function openDate(nextDate:string,nextPlans=plans,nextItems=stored){setDate(nextDate);const plan=nextPlans.find(row=>row.planDate===nextDate);setTitle(plan?.title||'Training session');setStartTime(plan?.startTime||'18:00');setLocation(plan?.location||'');setFocus(plan?.focus||'');setNotes(plan?.notes||'');setItems(plan?nextItems.filter(row=>row.planId===plan.id).map((row,index)=>({...row,sortOrder:index})):[])}
- async function load(preferred=today()){if(!current){setError('Sign in through the Club Portal to continue.');setLoading(false);return}setLoading(true);try{const response=await fetch(`/api/club-portal/training-plans/clubs/${encodeURIComponent(clubId)}`,{headers});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'Unable to load training planner');const nextPlans=Array.isArray(payload.data?.plans)?payload.data.plans:[],nextItems=Array.isArray(payload.data?.items)?payload.data.items:[];setPlans(nextPlans);setStored(nextItems);setDrills(Array.isArray(payload.data?.drills)?payload.data.drills:[]);openDate(preferred,nextPlans,nextItems);setError('')}catch(value){setError(value instanceof Error?value.message:'Unable to load training planner')}finally{setLoading(false)}}
- useEffect(()=>{void load()},[clubId])
- const add=(drill?:Drill)=>setItems(rows=>[...rows,{id:crypto.randomUUID(),drillId:drill?.id||null,title:drill?.title||'New drill',category:drill?.category||null,durationMinutes:drill?.defaultMinutes||10,notes:drill?.description||'',sortOrder:rows.length}])
- const patch=(id:string,change:Partial<Item>)=>setItems(rows=>rows.map(row=>row.id===id?{...row,...change}:row))
- const remove=(id:string)=>setItems(rows=>rows.filter(row=>row.id!==id).map((row,index)=>({...row,sortOrder:index})))
- function move(id:string,by:-1|1){setItems(rows=>{const index=rows.findIndex(row=>row.id===id),target=index+by;if(index<0||target<0||target>=rows.length)return rows;const next=[...rows];[next[index],next[target]]=[next[target],next[index]];return next.map((row,sortOrder)=>({...row,sortOrder}))})}
- async function save(){setSaving(true);setMessage('');setError('');try{const response=await fetch(`/api/club-portal/training-plans/clubs/${encodeURIComponent(clubId)}/plans/${date}`,{method:'PUT',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({title,startTime,location,focus,notes,items})});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'Unable to save training plan');setMessage('Training plan saved.');await load(date)}catch(value){setError(value instanceof Error?value.message:'Unable to save training plan')}finally{setSaving(false)}}
- async function deletePlan(){if(!plans.some(plan=>plan.planDate===date)||!window.confirm(`Delete the plan for ${label(date)}?`))return;setSaving(true);try{const response=await fetch(`/api/club-portal/training-plans/clubs/${encodeURIComponent(clubId)}/plans/${date}`,{method:'DELETE',headers});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'Unable to delete training plan');setMessage('Training plan deleted.');await load(date)}catch(value){setError(value instanceof Error?value.message:'Unable to delete training plan')}finally{setSaving(false)}}
- const total=items.reduce((sum,row)=>sum+(Number(row.durationMinutes)||0),0)
- if(loading)return <><Nav/><main className="tp-state">Loading training planner…</main><Footer/></>
- return <><Nav/><main className="tp"><header><Link to={`/club-portal/${clubId}/coaching`}><ChevronLeft size={17}/>Coaching</Link><span>Coaching Portal</span><h1>Plan training</h1><p>Choose the date, add drills, set the timing and save the session.</p></header>{message&&<div className="notice ok">{message}</div>}{error&&<div className="notice error">{error}</div>}<section className="meta"><label>Date<input type="date" value={date} onChange={event=>openDate(event.target.value)}/></label><label>Start time<input type="time" value={startTime} onChange={event=>setStartTime(event.target.value)}/></label><label>Location<input value={location} onChange={event=>setLocation(event.target.value)} placeholder="Ground or area"/></label><label>Session title<input value={title} onChange={event=>setTitle(event.target.value)}/></label><label className="wide">Main focus<input value={focus} onChange={event=>setFocus(event.target.value)} placeholder="Main purpose of this session"/></label></section><section className="layout"><aside><h2>Drill library</h2>{drills.length?drills.map(drill=><button key={drill.id} onClick={()=>add(drill)}><Plus size={16}/><span><strong>{drill.title}</strong><small>{drill.category||'Drill'} · {drill.defaultMinutes} min</small></span></button>):<div className="empty-library"><Dumbbell size={28}/><strong>Library ready</strong><p>Your preloaded drills will appear here later.</p></div>}<button className="custom" onClick={()=>add()}><Plus size={17}/>Add custom drill</button><h3>Saved plans</h3>{plans.map(plan=><button key={plan.id} className={plan.planDate===date?'active':''} onClick={()=>openDate(plan.planDate)}><span><strong>{label(plan.planDate)}</strong><small>{plan.title}</small></span></button>)}</aside><section className="builder"><div className="builder-head"><div><span>{label(date)}</span><h2>Session plan</h2></div><div><b>{total}</b><small>minutes</small></div></div>{items.length?items.map((item,index)=><article key={item.id}><div className="order"><button disabled={index===0} onClick={()=>move(item.id,-1)}><ChevronUp size={17}/></button><b>{index+1}</b><button disabled={index===items.length-1} onClick={()=>move(item.id,1)}><ChevronDown size={17}/></button></div><div className="fields"><input className="title" value={item.title} onChange={event=>patch(item.id,{title:event.target.value})}/><div><label>Minutes<input type="number" min="1" max="180" value={item.durationMinutes} onChange={event=>patch(item.id,{durationMinutes:Number(event.target.value)})}/></label><label>Category<input value={item.category||''} onChange={event=>patch(item.id,{category:event.target.value||null})}/></label></div><textarea value={item.notes||''} onChange={event=>patch(item.id,{notes:event.target.value})} placeholder="Setup, instructions and coaching points"/></div><button className="remove" onClick={()=>remove(item.id)}><Trash2 size={17}/></button></article>):<div className="empty"><Dumbbell size={34}/><h3>Build the session</h3><p>Add a custom drill now. Preloaded drills can be connected later.</p><button onClick={()=>add()}><Plus size={17}/>Add first drill</button></div>}<label className="notes">Session notes<textarea value={notes} onChange={event=>setNotes(event.target.value)} placeholder="Equipment, reminders or messages for coaches"/></label><footer><button className="delete" onClick={deletePlan} disabled={saving||!plans.some(plan=>plan.planDate===date)}><Trash2 size={17}/>Delete</button><button className="save" onClick={save} disabled={saving}><Save size={17}/>{saving?'Saving…':'Save training plan'}</button></footer></section></section></main><Footer/><style>{styles}</style></>
+const SESSION_KEY = 'playfooty.clubPortal.session.v1'
+
+function getSession(): Session | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    return raw ? JSON.parse(raw) as Session : null
+  } catch {
+    return null
+  }
 }
-const styles=`.tp{min-height:80vh;background:#eef3f7;padding:24px clamp(10px,3vw,34px) 105px;color:#111318}.tp>*{max-width:1240px;margin:auto}.tp header>a{display:inline-flex;align-items:center;gap:5px;color:#111;text-decoration:none;font-weight:900}.tp header>span,.builder-head span{display:block;margin-top:15px;color:#118ed1;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.tp h1,.tp h2,.tp h3{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.tp h1{margin:4px 0;font-size:clamp(3rem,7vw,5rem);line-height:.9}.tp header p{color:#65717c}.notice{margin-top:12px;padding:12px;border-radius:10px;font-weight:850}.notice.ok{background:#def7e8;color:#08683a}.notice.error{background:#fee5e5;color:#9e2029}.meta{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px;padding:16px;border:1px solid #dbe4ea;border-radius:16px;background:#fff}.meta label,.fields label,.notes{display:grid;gap:6px;color:#687480;font-size:9px;font-weight:900;text-transform:uppercase}.meta .wide{grid-column:1/-1}.tp input,.tp textarea{width:100%;box-sizing:border-box;border:1px solid #ccd7df;border-radius:9px;background:#fff;padding:11px;color:#111;font:inherit}.layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;margin-top:14px}.layout>aside,.builder{border:1px solid #dbe4ea;border-radius:16px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.05)}.layout>aside{padding:15px;align-self:start}.layout>aside h2,.layout>aside h3{margin:0 0 9px;font-size:28px}.layout>aside h3{margin-top:18px;font-size:23px}.layout>aside>button{display:flex;width:100%;align-items:center;gap:8px;margin-top:7px;border:1px solid #e0e6eb;border-radius:10px;background:#f8fafb;padding:11px;text-align:left}.layout>aside button span,.layout>aside button strong,.layout>aside button small{display:block}.layout>aside button small{margin-top:3px;color:#7b8791;font-size:9px}.layout>aside button.active{border-color:#42b8ff;background:#eaf7ff}.layout>aside .custom{justify-content:center;background:#101820;color:#fff;font-weight:900}.empty-library{padding:20px;border-radius:12px;background:#f3f7fa;text-align:center;color:#66727d}.empty-library strong{display:block;margin-top:7px}.builder{padding:17px}.builder-head{display:flex;justify-content:space-between;align-items:center}.builder-head span{margin:0}.builder-head h2{margin:3px 0;font-size:32px}.builder-head>div:last-child{text-align:right}.builder-head b,.builder-head small{display:block}.builder-head b{font:40px/1 'Bebas Neue',Impact,sans-serif;color:#168bc8}.builder-head small{font-size:8px;text-transform:uppercase}.builder article{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:10px;margin-top:10px;padding:13px;border:1px solid #dfe6eb;border-radius:13px;background:#f9fbfc}.order{display:grid;align-content:center;justify-items:center}.order button,.remove{border:0;background:transparent}.order button:disabled{opacity:.25}.fields{display:grid;gap:8px}.fields>.title{font-weight:900}.fields>div{display:grid;grid-template-columns:120px 1fr;gap:8px}.fields textarea,.notes textarea{min-height:76px;resize:vertical}.remove{align-self:start;color:#a72b33}.empty{margin-top:14px;padding:40px 20px;border:2px dashed #d3dde5;border-radius:14px;text-align:center;color:#6a7681}.empty h3{margin:9px 0 3px}.empty button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:9px;padding:11px 14px;background:#111c26;color:#fff;font-weight:900}.notes{margin-top:14px}.builder footer{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}.builder footer button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:9px;padding:12px 14px;font-weight:950;text-transform:uppercase}.builder .delete{background:#fee6e6;color:#a1262f}.builder .save{background:#20c77a;color:#07140d}.tp-state{min-height:70vh;display:grid;place-items:center;background:#eef3f7}@media(max-width:850px){.layout{grid-template-columns:1fr}.layout>aside{order:2}.meta{grid-template-columns:1fr 1fr}}@media(max-width:560px){.tp{padding:14px 10px 105px}.meta{grid-template-columns:1fr}.builder article{grid-template-columns:34px minmax(0,1fr) auto;padding:10px}.fields>div{grid-template-columns:100px 1fr}.builder{padding:13px}.builder footer{flex-direction:column-reverse}.builder footer button{justify-content:center}}
+
+function today() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function dateLabel(value: string) {
+  const date = new Date(`${value}T12:00:00`)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
+export default function ClubPortalTrainingPlanner() {
+  const { clubId = '' } = useParams()
+  const [session] = useState<Session | null>(() => getSession())
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [storedItems, setStoredItems] = useState<PlanItem[]>([])
+  const [drills, setDrills] = useState<Drill[]>([])
+  const [date, setDate] = useState(today())
+  const [title, setTitle] = useState('Training session')
+  const [startTime, setStartTime] = useState('18:00')
+  const [location, setLocation] = useState('')
+  const [focus, setFocus] = useState('')
+  const [notes, setNotes] = useState('')
+  const [items, setItems] = useState<PlanItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  const headers = useMemo<Record<string, string>>(() => {
+    const next: Record<string, string> = {}
+    if (session) next.authorization = `Bearer ${session.access_token}`
+    return next
+  }, [session])
+
+  function openDate(nextDate: string, sourcePlans = plans, sourceItems = storedItems) {
+    setDate(nextDate)
+    const plan = sourcePlans.find(item => item.planDate === nextDate)
+    setTitle(plan?.title ?? 'Training session')
+    setStartTime(plan?.startTime ?? '18:00')
+    setLocation(plan?.location ?? '')
+    setFocus(plan?.focus ?? '')
+    setNotes(plan?.notes ?? '')
+    setItems(plan ? sourceItems.filter(item => item.planId === plan.id).map((item, index) => ({ ...item, sortOrder: index })) : [])
+  }
+
+  async function load(preferredDate = today()) {
+    if (!session) {
+      setError('Sign in through the Club Portal to continue.')
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/club-portal/training-plans/clubs/${encodeURIComponent(clubId)}`, { headers })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Unable to load training planner')
+
+      const nextPlans: Plan[] = Array.isArray(payload.data?.plans) ? payload.data.plans : []
+      const nextItems: PlanItem[] = Array.isArray(payload.data?.items) ? payload.data.items : []
+      const nextDrills: Drill[] = Array.isArray(payload.data?.drills) ? payload.data.drills : []
+
+      setPlans(nextPlans)
+      setStoredItems(nextItems)
+      setDrills(nextDrills)
+      openDate(preferredDate, nextPlans, nextItems)
+      setError('')
+    } catch (value) {
+      setError(value instanceof Error ? value.message : 'Unable to load training planner')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+  }, [clubId])
+
+  function addDrill(drill?: Drill) {
+    setItems(current => [...current, {
+      id: crypto.randomUUID(),
+      drillId: drill?.id ?? null,
+      title: drill?.title ?? 'New drill',
+      category: drill?.category ?? null,
+      durationMinutes: drill?.defaultMinutes ?? 10,
+      notes: drill?.description ?? '',
+      sortOrder: current.length,
+    }])
+  }
+
+  function updateItem(id: string, patch: Partial<PlanItem>) {
+    setItems(current => current.map(item => item.id === id ? { ...item, ...patch } : item))
+  }
+
+  function removeItem(id: string) {
+    setItems(current => current.filter(item => item.id !== id).map((item, index) => ({ ...item, sortOrder: index })))
+  }
+
+  function moveItem(id: string, direction: -1 | 1) {
+    setItems(current => {
+      const index = current.findIndex(item => item.id === id)
+      const target = index + direction
+      if (index < 0 || target < 0 || target >= current.length) return current
+      const next = [...current]
+      const first = next[index]
+      const second = next[target]
+      if (!first || !second) return current
+      next[index] = second
+      next[target] = first
+      return next.map((item, sortOrder) => ({ ...item, sortOrder }))
+    })
+  }
+
+  async function savePlan() {
+    setSaving(true)
+    setMessage('')
+    setError('')
+    try {
+      const response = await fetch(`/api/club-portal/training-plans/clubs/${encodeURIComponent(clubId)}/plans/${date}`, {
+        method: 'PUT',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ title, startTime, location, focus, notes, items }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Unable to save training plan')
+      setMessage('Training plan saved.')
+      await load(date)
+    } catch (value) {
+      setError(value instanceof Error ? value.message : 'Unable to save training plan')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deletePlan() {
+    const exists = plans.some(plan => plan.planDate === date)
+    if (!exists || !window.confirm(`Delete the training plan for ${dateLabel(date)}?`)) return
+
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/club-portal/training-plans/clubs/${encodeURIComponent(clubId)}/plans/${date}`, { method: 'DELETE', headers })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Unable to delete training plan')
+      setMessage('Training plan deleted.')
+      await load(date)
+    } catch (value) {
+      setError(value instanceof Error ? value.message : 'Unable to delete training plan')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const totalMinutes = items.reduce((sum, item) => sum + Math.max(0, Number(item.durationMinutes) || 0), 0)
+
+  if (loading) return <><Nav/><main className="tp-state">Loading training planner…</main><Footer/></>
+
+  return <><Nav/><main className="tp">
+    <header>
+      <Link to={`/club-portal/${clubId}/coaching`}><ChevronLeft size={17}/>Coaching</Link>
+      <span>Coaching Portal</span>
+      <h1>Plan training</h1>
+      <p>Choose the date, add drills, set the timing and save the session.</p>
+    </header>
+
+    {message && <div className="notice ok">{message}</div>}
+    {error && <div className="notice error">{error}</div>}
+
+    <section className="meta">
+      <label>Date<input type="date" value={date} onChange={event => openDate(event.target.value)}/></label>
+      <label>Start time<input type="time" value={startTime} onChange={event => setStartTime(event.target.value)}/></label>
+      <label>Location<input value={location} onChange={event => setLocation(event.target.value)} placeholder="Ground or area"/></label>
+      <label>Session title<input value={title} onChange={event => setTitle(event.target.value)}/></label>
+      <label className="wide">Main focus<input value={focus} onChange={event => setFocus(event.target.value)} placeholder="Main purpose of this session"/></label>
+    </section>
+
+    <section className="layout">
+      <aside>
+        <h2>Drill library</h2>
+        {drills.length ? drills.map(drill => <button key={drill.id} onClick={() => addDrill(drill)}><Plus size={16}/><span><strong>{drill.title}</strong><small>{drill.category || 'Drill'} · {drill.defaultMinutes} min</small></span></button>) : <div className="empty-library"><Dumbbell size={28}/><strong>Library ready</strong><p>Your preloaded drills will appear here later.</p></div>}
+        <button className="custom" onClick={() => addDrill()}><Plus size={17}/>Add custom drill</button>
+        <h3>Saved plans</h3>
+        {plans.map(plan => <button key={plan.id} className={plan.planDate === date ? 'active' : ''} onClick={() => openDate(plan.planDate)}><span><strong>{dateLabel(plan.planDate)}</strong><small>{plan.title}</small></span></button>)}
+      </aside>
+
+      <section className="builder">
+        <div className="builder-head"><div><span>{dateLabel(date)}</span><h2>Session plan</h2></div><div><b>{totalMinutes}</b><small>minutes</small></div></div>
+
+        {items.length ? items.map((item, index) => <article key={item.id}>
+          <div className="order">
+            <button disabled={index === 0} onClick={() => moveItem(item.id, -1)}><ChevronUp size={17}/></button>
+            <b>{index + 1}</b>
+            <button disabled={index === items.length - 1} onClick={() => moveItem(item.id, 1)}><ChevronDown size={17}/></button>
+          </div>
+          <div className="fields">
+            <input className="title" value={item.title} onChange={event => updateItem(item.id, { title: event.target.value })}/>
+            <div>
+              <label>Minutes<input type="number" min="1" max="180" value={item.durationMinutes} onChange={event => updateItem(item.id, { durationMinutes: Number(event.target.value) })}/></label>
+              <label>Category<input value={item.category ?? ''} onChange={event => updateItem(item.id, { category: event.target.value || null })}/></label>
+            </div>
+            <textarea value={item.notes ?? ''} onChange={event => updateItem(item.id, { notes: event.target.value })} placeholder="Setup, instructions and coaching points"/>
+          </div>
+          <button className="remove" onClick={() => removeItem(item.id)}><Trash2 size={17}/></button>
+        </article>) : <div className="empty"><Dumbbell size={34}/><h3>Build the session</h3><p>Add a custom drill now. Preloaded drills can be connected later.</p><button onClick={() => addDrill()}><Plus size={17}/>Add first drill</button></div>}
+
+        <label className="notes">Session notes<textarea value={notes} onChange={event => setNotes(event.target.value)} placeholder="Equipment, reminders or messages for coaches"/></label>
+        <footer>
+          <button className="delete" onClick={deletePlan} disabled={saving || !plans.some(plan => plan.planDate === date)}><Trash2 size={17}/>Delete</button>
+          <button className="save" onClick={savePlan} disabled={saving}><Save size={17}/>{saving ? 'Saving…' : 'Save training plan'}</button>
+        </footer>
+      </section>
+    </section>
+  </main><Footer/><style>{styles}</style></>
+}
+
+const styles = `
+.tp{min-height:80vh;background:#eef3f7;padding:24px clamp(10px,3vw,34px) 105px;color:#111318}.tp>*{max-width:1240px;margin-left:auto;margin-right:auto}.tp header>a{display:inline-flex;align-items:center;gap:5px;color:#111;text-decoration:none;font-weight:900}.tp header>span,.builder-head span{display:block;margin-top:15px;color:#118ed1;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.tp h1,.tp h2,.tp h3{font-family:'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.tp h1{margin:4px 0;font-size:clamp(3rem,7vw,5rem);line-height:.9}.tp header p{color:#65717c}.notice{margin-top:12px;padding:12px;border-radius:10px;font-weight:850}.notice.ok{background:#def7e8;color:#08683a}.notice.error{background:#fee5e5;color:#9e2029}.meta{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px;padding:16px;border:1px solid #dbe4ea;border-radius:16px;background:#fff}.meta label,.fields label,.notes{display:grid;gap:6px;color:#687480;font-size:9px;font-weight:900;text-transform:uppercase}.meta .wide{grid-column:1/-1}.tp input,.tp textarea{width:100%;box-sizing:border-box;border:1px solid #ccd7df;border-radius:9px;background:#fff;padding:11px;color:#111;font:inherit}.layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;margin-top:14px}.layout>aside,.builder{border:1px solid #dbe4ea;border-radius:16px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.05)}.layout>aside{padding:15px;align-self:start}.layout>aside h2,.layout>aside h3{margin:0 0 9px;font-size:28px}.layout>aside h3{margin-top:18px;font-size:23px}.layout>aside>button{display:flex;width:100%;align-items:center;gap:8px;margin-top:7px;border:1px solid #e0e6eb;border-radius:10px;background:#f8fafb;padding:11px;text-align:left}.layout>aside button span,.layout>aside button strong,.layout>aside button small{display:block}.layout>aside button small{margin-top:3px;color:#7b8791;font-size:9px}.layout>aside button.active{border-color:#42b8ff;background:#eaf7ff}.layout>aside .custom{justify-content:center;background:#101820;color:#fff;font-weight:900}.empty-library{padding:20px;border-radius:12px;background:#f3f7fa;text-align:center;color:#66727d}.empty-library strong{display:block;margin-top:7px}.builder{padding:17px}.builder-head{display:flex;justify-content:space-between;align-items:center}.builder-head span{margin:0}.builder-head h2{margin:3px 0;font-size:32px}.builder-head>div:last-child{text-align:right}.builder-head b,.builder-head small{display:block}.builder-head b{font:40px/1 'Bebas Neue',Impact,sans-serif;color:#168bc8}.builder-head small{font-size:8px;text-transform:uppercase}.builder article{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:10px;margin-top:10px;padding:13px;border:1px solid #dfe6eb;border-radius:13px;background:#f9fbfc}.order{display:grid;align-content:center;justify-items:center}.order button,.remove{border:0;background:transparent}.order button:disabled{opacity:.25}.fields{display:grid;gap:8px}.fields>.title{font-weight:900}.fields>div{display:grid;grid-template-columns:120px 1fr;gap:8px}.fields textarea,.notes textarea{min-height:76px;resize:vertical}.remove{align-self:start;color:#a72b33}.empty{margin-top:14px;padding:40px 20px;border:2px dashed #d3dde5;border-radius:14px;text-align:center;color:#6a7681}.empty h3{margin:9px 0 3px}.empty button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:9px;padding:11px 14px;background:#111c26;color:#fff;font-weight:900}.notes{margin-top:14px}.builder footer{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}.builder footer button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:9px;padding:12px 14px;font-weight:950;text-transform:uppercase}.builder .delete{background:#fee6e6;color:#a1262f}.builder .save{background:#20c77a;color:#07140d}.tp-state{min-height:70vh;display:grid;place-items:center;background:#eef3f7}@media(max-width:850px){.layout{grid-template-columns:1fr}.layout>aside{order:2}.meta{grid-template-columns:1fr 1fr}}@media(max-width:560px){.tp{padding:14px 10px 105px}.meta{grid-template-columns:1fr}.builder article{grid-template-columns:34px minmax(0,1fr) auto;padding:10px}.fields>div{grid-template-columns:100px 1fr}.builder{padding:13px}.builder footer{flex-direction:column-reverse}.builder footer button{justify-content:center}}
 `
