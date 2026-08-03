@@ -1,0 +1,79 @@
+/* Club HQ Home mobile viewport correction. Home has no section sidebar and must fill the device width. */
+@media (max-width: 760px) {
+  html:has(.cp-dashboard),
+  body:has(.cp-dashboard) {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  body:has(.cp-dashboard) #root {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: clip !important;
+  }
+
+  body:has(.cp-dashboard) #root > nav,
+  body:has(.cp-dashboard) .cp-dashboard {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    transform: none !important;
+  }
+
+  body:has(.cp-dashboard) .cp-dashboard {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  body:has(.cp-dashboard) .cp-dashboard > *,
+  body:has(.cp-dashboard) .cp-main,
+  body:has(.cp-dashboard) .cp-hero,
+  body:has(.cp-dashboard) .hq-ai-brief,
+  body:has(.cp-dashboard) .hq-schedule,
+  body:has(.cp-dashboard) .hqcc {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  body:has(.cp-dashboard) .cp-club {
+    display: grid !important;
+    grid-template-columns: 72px minmax(0, 1fr) !important;
+    align-items: start !important;
+  }
+
+  body:has(.cp-dashboard) .cp-club img,
+  body:has(.cp-dashboard) .cp-club > span {
+    max-width: 72px !important;
+    max-height: 72px !important;
+  }
+
+  body:has(.cp-dashboard) .cp-club h1 {
+    font-size: clamp(2rem, 10.5vw, 2.85rem) !important;
+    line-height: .92 !important;
+  }
+
+  body:has(.cp-dashboard) .hqcc > nav {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    overflow: visible !important;
+  }
+
+  body:has(.cp-dashboard) .hqcc > nav button {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    padding: 9px 7px !important;
+    white-space: nowrap !important;
+  }
+}
