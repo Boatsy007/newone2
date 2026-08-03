@@ -6,6 +6,25 @@ export default function ClubHqSponsorStatusSync({ clubId }: { clubId: string }) 
   useEffect(() => {
     if (!clubId) return
     let active = true
+    let timer: number | undefined
+
+    const clean = () => {
+      document.querySelectorAll<HTMLElement>('.hqcc-today a,.hqcc-action').forEach(item => {
+        const title = item.querySelector('strong')?.textContent?.trim().toLowerCase()
+        if (title === 'connect the club sponsors') item.remove()
+      })
+
+      document.querySelectorAll<HTMLElement>('.hq-ai-copy p').forEach(item => {
+        if (item.textContent?.trim() === 'No active sponsor is connected to Club HQ yet.') item.remove()
+      })
+
+      const actionCount = document.querySelector<HTMLElement>('.hqcc-counts b:first-child')
+      const visibleActions = document.querySelectorAll('.hqcc-today > div:first-child > a,.hqcc-today > div:first-child > .hqcc-action').length
+      if (actionCount) {
+        const textNode = Array.from(actionCount.childNodes).find(node => node.nodeType === Node.TEXT_NODE)
+        if (textNode) textNode.textContent = String(visibleActions)
+      }
+    }
 
     const sync = async () => {
       try {
@@ -18,42 +37,18 @@ export default function ClubHqSponsorStatusSync({ clubId }: { clubId: string }) 
         if (!active || sponsors.length === 0) return
 
         document.documentElement.dataset.clubHqHasSponsors = 'true'
-
-        const clean = () => {
-          document.querySelectorAll<HTMLElement>('.hqcc-today a,.hqcc-action').forEach(item => {
-            const title = item.querySelector('strong')?.textContent?.trim().toLowerCase()
-            if (title === 'connect the club sponsors') item.remove()
-          })
-
-          document.querySelectorAll<HTMLElement>('.hq-ai-copy p').forEach(item => {
-            if (item.textContent?.trim() === 'No active sponsor is connected to Club HQ yet.') item.remove()
-          })
-
-          const actionCount = document.querySelector<HTMLElement>('.hqcc-counts b:first-child')
-          const visibleActions = document.querySelectorAll('.hqcc-today > div:first-child > a,.hqcc-today > div:first-child > .hqcc-action').length
-          if (actionCount && visibleActions >= 0) {
-            const label = actionCount.querySelector('small')
-            actionCount.childNodes.forEach(node => {
-              if (node.nodeType === Node.TEXT_NODE) node.textContent = String(visibleActions)
-            })
-            if (label) label.textContent = 'Actions'
-          }
-        }
-
-        clean()
-        const observer = new MutationObserver(clean)
-        observer.observe(document.body, { childList: true, subtree: true })
-        return () => observer.disconnect()
+        window.requestAnimationFrame(clean)
       } catch {
-        // The existing dashboard state remains available when the public feed is temporarily unavailable.
+        // Keep the existing dashboard state when the public feed is temporarily unavailable.
       }
     }
 
-    let disconnect: (() => void) | undefined
-    void sync().then(value => { disconnect = value })
+    void sync()
+    timer = window.setInterval(() => void sync(), 15000)
+
     return () => {
       active = false
-      disconnect?.()
+      if (timer) window.clearInterval(timer)
       delete document.documentElement.dataset.clubHqHasSponsors
     }
   }, [clubId])
