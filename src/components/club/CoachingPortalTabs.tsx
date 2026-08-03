@@ -8,6 +8,7 @@ import CoachingAppHome from '../../pages/CoachingAppHome'
 import CoachingTeamHub from '../../pages/CoachingTeamHub'
 import ClubPortalMatchDay from '../../pages/ClubPortalMatchDay'
 import ClubPortalTraining from '../../pages/ClubPortalTraining'
+import ClubPortalTrainingPlanner from '../../pages/ClubPortalTrainingPlanner'
 import ClubPortalOpposition from '../../pages/ClubPortalOpposition'
 import ClubPortalPlayerDevelopment from '../../pages/ClubPortalPlayerDevelopment'
 import TrainingRecordsPanel from './TrainingRecordsPanel'
@@ -29,9 +30,10 @@ export default function CoachingPortalTabs(){
  const teamHub=view==='team'
  const matchDay=view==='match-day'
  const training=view==='training'
+ const trainingPlan=view==='training-plan'
  const opposition=view==='opposition'
  const playerDevelopment=view==='player-development'
- const overlay=home||teamHub||matchDay||training||opposition||playerDevelopment
+ const overlay=home||teamHub||matchDay||training||trainingPlan||opposition||playerDevelopment
  const visible=Boolean(clubId&&COACHING_SECTIONS.has(section))
 
  useEffect(()=>{if(!overlay)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=previous}},[overlay])
@@ -44,6 +46,7 @@ export default function CoachingPortalTabs(){
   home?<CoachingAppHome/>:
   teamHub?<CoachingTeamHub/>:
   matchDay?<><ClubPortalMatchDay/><PostMatchReviewPanel clubId={clubId}/><MatchDayGamePlanPanel clubId={clubId}/><LiveMatchReportPanel clubId={clubId}/></>:
+  trainingPlan?<ClubPortalTrainingPlanner/>:
   opposition?<ClubPortalOpposition/>:
   playerDevelopment?<ClubPortalPlayerDevelopment/>:
   <><ClubPortalTraining/><TrainingRecordsPanel clubId={clubId}/></>
@@ -59,7 +62,8 @@ function CoachingMobileMenu({clubId,section,view}:{clubId:string;section:string;
   {label:'Team',href:`/club-portal/${clubId}/coaching?view=team`,icon:Users,active:section==='coaching'&&view==='team'},
   {label:'Availability',href:`/club-portal/${clubId}/availability`,icon:ClipboardCheck,active:section==='availability'},
   {label:'Selection',href:`/club-portal/${clubId}/team-selection`,icon:ShieldCheck,active:section==='team-selection'},
-  {label:'Training',href:`/club-portal/${clubId}/coaching?view=training`,icon:Dumbbell,active:section==='coaching'&&view==='training'},
+  {label:'Plan Training',href:`/club-portal/${clubId}/coaching?view=training-plan`,icon:Dumbbell,active:section==='coaching'&&view==='training-plan'},
+  {label:'Training Records',href:`/club-portal/${clubId}/coaching?view=training`,icon:ClipboardList,active:section==='coaching'&&view==='training'},
   {label:'Match Day',href:`/club-portal/${clubId}/coaching?view=match-day`,icon:Swords,active:section==='coaching'&&view==='match-day'},
   {label:'Opposition',href:`/club-portal/${clubId}/coaching?view=opposition`,icon:ClipboardList,active:section==='coaching'&&view==='opposition'},
   {label:'Development',href:`/club-portal/${clubId}/coaching?view=player-development`,icon:Sparkles,active:section==='coaching'&&view==='player-development'},
