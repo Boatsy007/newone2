@@ -8,6 +8,7 @@ import { clubTeamSheetsRouter } from './club-team-sheets.js'
 import { clubPlayerAvailabilityRouter } from './player-availability.js'
 import { clubCoachWhiteboardRouter } from './club-coach-whiteboard.js'
 import { clubTrainingAttendanceRouter } from './club-training-attendance.js'
+import { clubTrainingPlansRouter } from './club-training-plans.js'
 import { clubOppositionPlansRouter } from './club-opposition-plans.js'
 import { clubPlayerDevelopmentRouter } from './club-player-development.js'
 import { clubPortalNewsRouter } from './club-portal-news.js'
@@ -49,6 +50,7 @@ router.use('/match-day',clubMatchDayRouter)
 router.use('/availability',clubPlayerAvailabilityRouter)
 router.use('/team-sheets',clubTeamSheetsRouter)
 router.use('/whiteboard',clubCoachWhiteboardRouter)
+router.use('/training-plans',clubTrainingPlansRouter)
 router.use('/training',clubTrainingAttendanceRouter)
 router.use('/opposition',clubOppositionPlansRouter)
 router.use('/player-development',clubPlayerDevelopmentRouter)
