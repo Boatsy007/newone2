@@ -38,7 +38,7 @@
   const visual=document.getElementById('swapVisual')
   const logo=document.getElementById('swapLogo')
   const clubId=new URLSearchParams(location.search).get('clubId')||''
-  let ready=false,lastEvent='',hideTimer=0,inspectTimer=0,pollInFlight=false
+  let ready=false,lastEvent='',hideTimer=0,inspectTimer=0,pollInFlight=false,rawSwapObserver=null
   broadcast.src='/live-stream-broadcast.html'+(location.search||'')
 
   function text(doc,id){return String(doc?.getElementById(id)?.textContent||'').trim()}
@@ -61,6 +61,16 @@
     const match=String(event||'').match(/^(.+?)\s+swapped\s+with\s+(.+)$/i)
     return match?{off:match[1].trim(),on:match[2].trim()}:null
   }
+  function suppressRawSwapLabel(){
+    const latest=innerStudio()?.getElementById('latest')
+    if(!latest)return false
+    const clearSwap=()=>{if(parseSwap(latest.textContent))latest.textContent=''}
+    clearSwap()
+    rawSwapObserver?.disconnect()
+    rawSwapObserver=new MutationObserver(clearSwap)
+    rawSwapObserver.observe(latest,{childList:true,characterData:true,subtree:true})
+    return true
+  }
   function showSwap(swap,brand){
     clearTimeout(hideTimer)
     document.getElementById('swapTeam').textContent=brand.team
@@ -73,6 +83,7 @@
     hideTimer=setTimeout(()=>visual.classList.remove('show'),4200)
   }
   async function inspect(){
+    suppressRawSwapLabel()
     if(!clubId||pollInFlight)return
     pollInFlight=true
     try{
@@ -91,10 +102,11 @@
   broadcast.addEventListener('load',()=>{
     ready=false
     clearInterval(inspectTimer)
+    suppressRawSwapLabel()
     inspect()
     inspectTimer=setInterval(inspect,300)
   })
-  window.addEventListener('beforeunload',()=>clearInterval(inspectTimer))
+  window.addEventListener('beforeunload',()=>{clearInterval(inspectTimer);rawSwapObserver?.disconnect()})
 })()
 </script>
 </body>
