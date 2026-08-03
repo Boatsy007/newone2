@@ -65,15 +65,18 @@
 </div>
 <script>
 (() => {
+  const SESSION_KEY='playfooty.clubPortal.session.v1'
   const qs = new URLSearchParams(location.search)
   const $ = id => document.getElementById(id)
   const video = $('video'), empty = $('empty'), status = $('status'), stage = $('stage')
   const clubInput = $('clubId'), cameraSelect = $('cameraSelect'), sourceState = $('sourceState'), audioState = $('audioState'), cameraError = $('cameraError')
   let stream = null, pollTimer = null, clockTimer = null, facing = 'environment', starting = false, pollInFlight = false
   let clockBaseSeconds = 0, clockSyncedAt = Date.now(), clockRunning = false
+  let activeSheetId = '', publicMeta = {}, pollCount = 0
   clubInput.value = qs.get('clubId') || ''
   $('title').value = qs.get('title') || ''
 
+  function token(){try{const raw=localStorage.getItem(SESSION_KEY);const session=raw?JSON.parse(raw):null;return session&&session.access_token?String(session.access_token):''}catch{return''}}
   function setStatus(text, live=false){status.querySelector('span').textContent=text;status.classList.toggle('live',live)}
   function showError(message){cameraError.textContent=message;cameraError.classList.add('show')}
   function clearError(){cameraError.textContent='';cameraError.classList.remove('show')}
@@ -129,29 +132,59 @@
     if(typeof data.isClockRunning==='boolean')return data.isClockRunning
     if(typeof data.running==='boolean')return data.running
     if(data.clock&&typeof data.clock.running==='boolean')return data.clock.running
-    return String(data.status||'').toUpperCase()==='LIVE'
+    return false
   }
   function render(data){
     const homeG=Number(data.homeGoals)||0,homeB=Number(data.homeBehinds)||0,awayG=Number(data.awayGoals)||0,awayB=Number(data.awayBehinds)||0
-    $('homeName').textContent=data.clubName||'Your team';$('awayName').textContent=data.opponentName||'Opposition'
+    $('homeName').textContent=data.clubName||publicMeta.clubName||'Your team';$('awayName').textContent=data.opponentName||publicMeta.opponentName||'Opposition'
     $('homeScore').textContent=homeG+'.'+homeB;$('awayScore').textContent=awayG+'.'+awayB
     $('homeTotal').textContent=total(homeG,homeB)+' points';$('awayTotal').textContent=total(awayG,awayB)+' points'
     $('quarter').textContent='Q'+(data.quarter||1)
     clockBaseSeconds=Math.max(0,Number(data.elapsedSeconds)||0);clockSyncedAt=Date.now();clockRunning=readRunning(data);drawClock()
     $('latest').textContent=data.lastEvent||''
   }
+  function sharedData(state){
+    const runningSince=Number(state.runningSince)||0
+    const elapsed=Number(state.elapsed)||0
+    const events=Array.isArray(state.events)?state.events:[]
+    return {...publicMeta,...state,elapsedSeconds:elapsed+(runningSince?Math.max(0,Math.floor((Date.now()-runningSince)/1000)):0),clockRunning:Boolean(runningSince),lastEvent:events[0]&&events[0].label?events[0].label:''}
+  }
+  async function loadPublic(clubId){
+    const response=await fetch('/api/live-match/clubs/'+encodeURIComponent(clubId)+'?t='+Date.now(),{cache:'no-store',headers:{'cache-control':'no-cache'}})
+    const payload=await response.json();if(!response.ok)throw new Error(payload.error||'No live match')
+    const data=payload.data||payload
+    publicMeta={clubName:data.clubName,opponentName:data.opponentName,roundLabel:data.roundLabel,matchDate:data.matchDate}
+    if(data.teamSheetId)activeSheetId=String(data.teamSheetId)
+    return data
+  }
+  async function loadShared(clubId){
+    const accessToken=token()
+    if(!accessToken||!activeSheetId)return null
+    const response=await fetch('/api/club-portal/match-day/clubs/'+encodeURIComponent(clubId)+'/sheets/'+encodeURIComponent(activeSheetId)+'?t='+Date.now(),{cache:'no-store',headers:{authorization:'Bearer '+accessToken,'cache-control':'no-cache'}})
+    if(!response.ok)return null
+    const payload=await response.json()
+    const state=payload&&payload.data&&payload.data.state
+    return state&&typeof state==='object'?sharedData(state):null
+  }
   async function poll(){
     const clubId=clubInput.value.trim();if(!clubId){sourceState.textContent='Waiting for club ID';sourceState.className='warn';return}
     if(pollInFlight)return
     pollInFlight=true
     try{
-      const response=await fetch('/api/live-match/clubs/'+encodeURIComponent(clubId)+'?t='+Date.now(),{cache:'no-store',headers:{'cache-control':'no-cache'}})
-      const payload=await response.json();if(!response.ok)throw new Error(payload.error||'No live match')
-      const data=payload.data||payload
-      render(data);sourceState.textContent=data.status==='LIVE'?'Connected · Live':'Connected · Waiting for match';sourceState.className='ok'
+      pollCount+=1
+      let data=null
+      if(activeSheetId)data=await loadShared(clubId)
+      if(!data||pollCount%8===1){
+        const publicData=await loadPublic(clubId)
+        if(!data)data=activeSheetId?await loadShared(clubId):null
+        if(!data)data=publicData
+      }
+      render(data)
+      sourceState.textContent=activeSheetId&&token()?'Connected · Direct Match Day':'Connected · Live'
+      sourceState.className='ok'
     }catch(err){sourceState.textContent='No live Match Day score yet';sourceState.className='warn'}finally{pollInFlight=false}
   }
-  function beginPolling(){clearInterval(pollTimer);clearInterval(clockTimer);poll();pollTimer=setInterval(poll,900);clockTimer=setInterval(drawClock,200)}
+  function beginPolling(){clearInterval(pollTimer);clearInterval(clockTimer);activeSheetId='';publicMeta={};pollCount=0;poll();pollTimer=setInterval(poll,450);clockTimer=setInterval(drawClock,200)}
   $('startCamera').addEventListener('click',startCamera)
   $('cameraBtn').addEventListener('click',startCamera)
   $('stopBtn').addEventListener('click',()=>stopCamera(true))
