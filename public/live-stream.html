@@ -16,7 +16,7 @@
     main{width:min(1100px,100%);margin:auto;padding:14px;display:grid;gap:14px}
     .stage{position:relative;width:100%;aspect-ratio:16/9;border:1px solid #263a49;border-radius:18px;overflow:hidden;background:#000;box-shadow:0 24px 80px rgba(0,0,0,.42)}
     video{width:100%;height:100%;object-fit:cover;background:#000}.mirror{transform:scaleX(-1)}
-    .empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:28px;background:linear-gradient(145deg,#0d1924,#05090d)}.empty strong{font-size:26px}.empty p{max-width:400px;color:var(--muted);line-height:1.45}.empty button,.primary{border:0;border-radius:12px;background:var(--blue);color:#00121d;padding:13px 18px;font-weight:1000;text-transform:uppercase}
+    .empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:28px;background:linear-gradient(145deg,#0d1924,#05090d);z-index:3}.empty strong{font-size:26px}.empty p{max-width:440px;color:var(--muted);line-height:1.45}.empty button,.primary{border:0;border-radius:12px;background:var(--blue);color:#00121d;padding:13px 18px;font-weight:1000;text-transform:uppercase}.camera-error{display:none;margin:10px auto 0;max-width:520px;padding:10px 12px;border:1px solid #7d2630;border-radius:9px;background:#351218;color:#ffced3;font-size:11px;line-height:1.45}.camera-error.show{display:block}
     .overlay{position:absolute;left:12px;right:12px;bottom:12px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:stretch;border-radius:12px;overflow:hidden;background:rgba(3,8,13,.9);box-shadow:0 8px 30px rgba(0,0,0,.42);backdrop-filter:blur(10px)}
     .team{padding:10px 12px;min-width:0}.team.right{text-align:right}.team small{display:block;color:#a7b4be;font-size:8px;font-weight:900;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.team strong{display:block;font-size:clamp(20px,5vw,42px);line-height:1;font-weight:1000}.team span{display:block;color:#c3d0d8;font-size:10px;font-weight:800}.centre{display:grid;place-items:center;align-content:center;min-width:78px;padding:7px 10px;background:var(--blue);color:#00131e;text-align:center}.centre b{font-size:17px}.centre span{font-family:monospace;font-size:12px;font-weight:1000}.latest{position:absolute;left:12px;bottom:86px;max-width:70%;padding:8px 11px;border-radius:8px;background:rgba(0,0,0,.78);font-size:10px;font-weight:900}.latest:empty{display:none}
     .top-bug{position:absolute;top:12px;left:12px;padding:7px 10px;border-radius:8px;background:rgba(0,0,0,.7);font-size:9px;font-weight:1000;letter-spacing:.12em}.top-bug b{color:var(--blue)}
@@ -36,8 +36,8 @@
   </header>
   <main>
     <section class="stage" id="stage">
-      <video id="video" playsinline muted></video>
-      <div class="empty" id="empty"><div><strong>Turn your phone into the match camera</strong><p>Allow camera and microphone access. The scoreboard reads the existing PlayFooty Match Day score automatically.</p><button id="startCamera">Start camera</button></div></div>
+      <video id="video" playsinline muted autoplay></video>
+      <div class="empty" id="empty"><div><strong>Turn your phone into the match camera</strong><p id="cameraHelp">Tap Start Camera, then allow camera access. Microphone access is optional for the preview.</p><button id="startCamera" type="button">Start Camera</button><div class="camera-error" id="cameraError"></div></div></div>
       <div class="top-bug"><b>PLAYFOOTY</b> LIVE</div>
       <div class="latest" id="latest"></div>
       <div class="overlay">
@@ -47,41 +47,78 @@
       </div>
     </section>
     <div class="controls">
-      <button id="cameraBtn">Start camera</button>
-      <button id="flipBtn">Flip camera</button>
-      <button id="fullBtn">Fullscreen</button>
-      <button id="stopBtn" class="danger">Stop</button>
+      <button id="cameraBtn" type="button">Start Camera</button>
+      <button id="flipBtn" type="button">Flip Camera</button>
+      <button id="fullBtn" type="button">Fullscreen</button>
+      <button id="stopBtn" type="button" class="danger">Stop Camera</button>
     </div>
     <section class="setup">
       <label>Club ID<input id="clubId" placeholder="Club ID" /></label>
       <label>Camera<select id="cameraSelect"><option value="environment">Rear camera</option><option value="user">Front camera</option></select></label>
       <label class="wide">Broadcast title<input id="title" placeholder="Round 1 — Live from the ground" /></label>
       <div class="source wide"><span>Match Day score source</span><b id="sourceState" class="warn">Waiting for club ID</b></div>
-      <div class="source wide"><span>Destination</span><b>Stage 1 preview · Facebook connection next</b></div>
+      <div class="source wide"><span>Camera audio</span><b id="audioState" class="warn">Not started</b></div>
+      <div class="source wide"><span>Destination</span><b>Stage 1 camera preview · Facebook connection next</b></div>
     </section>
   </main>
-  <footer>Keep the streaming phone connected to power and use landscape orientation for the best broadcast view.</footer>
+  <footer>On iPhone, open this page in Safari and allow Camera access under aA → Website Settings if permission was previously denied.</footer>
 </div>
 <script>
 (() => {
   const qs = new URLSearchParams(location.search)
   const $ = id => document.getElementById(id)
   const video = $('video'), empty = $('empty'), status = $('status'), stage = $('stage')
-  const clubInput = $('clubId'), cameraSelect = $('cameraSelect'), sourceState = $('sourceState')
-  let stream = null, pollTimer = null, facing = 'environment'
+  const clubInput = $('clubId'), cameraSelect = $('cameraSelect'), sourceState = $('sourceState'), audioState = $('audioState'), cameraError = $('cameraError')
+  let stream = null, pollTimer = null, facing = 'environment', starting = false
   clubInput.value = qs.get('clubId') || ''
   $('title').value = qs.get('title') || ''
 
   function setStatus(text, live=false){status.querySelector('span').textContent=text;status.classList.toggle('live',live)}
+  function showError(message){cameraError.textContent=message;cameraError.classList.add('show')}
+  function clearError(){cameraError.textContent='';cameraError.classList.remove('show')}
+  function cameraMessage(err){
+    const name=err&&err.name||''
+    if(!window.isSecureContext)return'Camera access requires a secure HTTPS page.'
+    if(name==='NotAllowedError'||name==='PermissionDeniedError')return'Camera permission was denied. On iPhone Safari, tap aA in the address bar → Website Settings → Camera → Allow, then reload this page.'
+    if(name==='NotFoundError'||name==='DevicesNotFoundError')return'No usable camera was found on this device.'
+    if(name==='NotReadableError'||name==='TrackStartError')return'The camera is already being used by another app. Close Camera, FaceTime or another browser tab and try again.'
+    if(name==='OverconstrainedError')return'The selected camera mode is unavailable. Try switching to the other camera.'
+    return'Camera could not start. Check browser camera permission and try again.'
+  }
   async function startCamera(){
+    if(starting)return
+    clearError()
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){showError('This browser does not support camera access. Open the studio in Safari on iPhone or Chrome on Android.');return}
+    starting=true
+    $('startCamera').disabled=true;$('cameraBtn').disabled=true;setStatus('Starting camera')
     stopCamera(false)
     facing = cameraSelect.value
     try{
-      stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}},audio:true})
-      video.srcObject=stream;video.classList.toggle('mirror',facing==='user');await video.play();empty.hidden=true;setStatus('Camera ready',true);$('cameraBtn').textContent='Restart camera'
-    }catch(err){empty.hidden=false;empty.querySelector('p').textContent='Camera access failed. Check Safari/Chrome camera and microphone permissions, then try again.';setStatus('Camera blocked')}
+      let nextStream
+      try{
+        nextStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}},audio:true})
+        audioState.textContent='Microphone connected';audioState.className='ok'
+      }catch(firstError){
+        nextStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}},audio:false})
+        audioState.textContent='Camera only · microphone unavailable';audioState.className='warn'
+      }
+      stream=nextStream
+      video.srcObject=stream
+      video.classList.toggle('mirror',facing==='user')
+      await video.play()
+      empty.hidden=true
+      setStatus('Camera ready',true)
+      $('cameraBtn').textContent='Restart Camera'
+    }catch(err){
+      empty.hidden=false
+      showError(cameraMessage(err))
+      setStatus('Camera blocked')
+      audioState.textContent='Not connected';audioState.className='warn'
+    }finally{
+      starting=false;$('startCamera').disabled=false;$('cameraBtn').disabled=false
+    }
   }
-  function stopCamera(show=true){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null;if(show)empty.hidden=false;setStatus('Camera off');$('cameraBtn').textContent='Start camera'}
+  function stopCamera(show=true){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.pause();video.srcObject=null;if(show)empty.hidden=false;setStatus('Camera off');$('cameraBtn').textContent='Start Camera';audioState.textContent='Not started';audioState.className='warn'}
   function total(g,b){return Number(g||0)*6+Number(b||0)}
   function fmt(seconds){seconds=Math.max(0,Math.floor(Number(seconds)||0));return String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0')}
   function render(data){
@@ -102,10 +139,13 @@
     }catch(err){sourceState.textContent='No live Match Day score yet';sourceState.className='warn'}
   }
   function beginPolling(){clearInterval(pollTimer);poll();pollTimer=setInterval(poll,3000)}
-  $('startCamera').onclick=startCamera;$('cameraBtn').onclick=startCamera;$('stopBtn').onclick=()=>stopCamera(true)
-  $('flipBtn').onclick=()=>{cameraSelect.value=cameraSelect.value==='environment'?'user':'environment';startCamera()}
-  cameraSelect.onchange=()=>{if(stream)startCamera()};clubInput.oninput=beginPolling
-  $('fullBtn').onclick=async()=>{try{if(!document.fullscreenElement){await stage.requestFullscreen();document.body.classList.add('fullscreen')}else{await document.exitFullscreen()}}catch{}}
+  $('startCamera').addEventListener('click',startCamera)
+  $('cameraBtn').addEventListener('click',startCamera)
+  $('stopBtn').addEventListener('click',()=>stopCamera(true))
+  $('flipBtn').addEventListener('click',()=>{cameraSelect.value=cameraSelect.value==='environment'?'user':'environment';startCamera()})
+  cameraSelect.addEventListener('change',()=>{if(stream)startCamera()})
+  clubInput.addEventListener('input',beginPolling)
+  $('fullBtn').addEventListener('click',async()=>{try{if(!document.fullscreenElement){await stage.requestFullscreen();document.body.classList.add('fullscreen')}else{await document.exitFullscreen()}}catch{showError('Fullscreen is not available in this browser. Rotate the phone to landscape instead.')}})
   document.addEventListener('fullscreenchange',()=>document.body.classList.toggle('fullscreen',Boolean(document.fullscreenElement)))
   window.addEventListener('beforeunload',()=>stopCamera(false));beginPolling()
 })()
