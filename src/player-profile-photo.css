@@ -23,30 +23,39 @@
   }
 }
 
-/* Match Day mobile field fit. Scoped to the live Coaching Match Day oval. */
+/* Live Match mobile oval rebuild. Presentation only; scoring and shared state stay unchanged. */
 @media (max-width: 760px) {
+  .md .md-field-panel {
+    overflow: visible !important;
+  }
+
   .md .md-ground-wrap {
-    padding-inline: 6px !important;
-    background: transparent !important;
+    width: 100% !important;
+    padding: 24px 2px 22px !important;
+    overflow: visible !important;
     border-radius: 0 !important;
+    background: transparent !important;
   }
 
   .md .md-ground {
-    width: 94% !important;
-    max-width: 94% !important;
+    width: calc(100% - 6px) !important;
     margin-inline: auto !important;
-    aspect-ratio: .68 !important;
-    border-radius: 50% !important;
+    aspect-ratio: .78 !important;
+    overflow: visible !important;
+    border-radius: 50% / 46% !important;
+    border-width: 3px !important;
+    box-shadow: inset 0 0 0 5px rgba(255,255,255,.08) !important;
   }
 
   .md .md-player.on-field {
-    width: 21.5% !important;
+    width: 20.5% !important;
     max-width: 82px !important;
     border-radius: 6px !important;
+    box-shadow: 0 3px 8px rgba(0,0,0,.24) !important;
   }
 
   .md .md-player-main {
-    grid-template-columns: 21px minmax(0, 1fr) 17px !important;
+    grid-template-columns: 21px minmax(0,1fr) 16px !important;
   }
 
   .md .md-player-main .number {
@@ -59,7 +68,10 @@
     min-height: 20px !important;
     padding: 3px 2px 0 !important;
     font-size: 7px !important;
-    line-height: .98 !important;
+    line-height: .96 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
   }
 
   .md .md-player-main small {
@@ -91,40 +103,47 @@
     font-size: 6px !important;
   }
 
-  /* Re-space all 18 positions for the smaller, true oval mobile field. */
-  .md .md-ground > .md-player.on-field:nth-of-type(1)  { top: 10% !important; left: 20% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(2)  { top: 5% !important;  left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(3)  { top: 10% !important; left: 80% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(4)  { top: 25% !important; left: 19% !important; }
+  /* Dedicated AFL position coordinates prevent row collisions on phones. */
+  .md .md-ground > .md-player.on-field:nth-of-type(1)  { top: 10% !important; left: 22% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(2)  { top: 5% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(3)  { top: 10% !important; left: 78% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(4)  { top: 25% !important; left: 18% !important; }
   .md .md-ground > .md-player.on-field:nth-of-type(5)  { top: 22% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(6)  { top: 25% !important; left: 81% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(7)  { top: 43% !important; left: 15% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(8)  { top: 37% !important; left: 35% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(9)  { top: 37% !important; left: 65% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(10) { top: 43% !important; left: 85% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(11) { top: 54% !important; left: 35% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(12) { top: 54% !important; left: 65% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(13) { top: 69% !important; left: 20% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(14) { top: 65% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(15) { top: 69% !important; left: 80% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(16) { top: 84% !important; left: 20% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(6)  { top: 25% !important; left: 82% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(7)  { top: 43% !important; left: 12% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(8)  { top: 38% !important; left: 36% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(9)  { top: 38% !important; left: 64% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(10) { top: 43% !important; left: 88% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(11) { top: 55% !important; left: 36% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(12) { top: 55% !important; left: 64% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(13) { top: 70% !important; left: 19% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(14) { top: 67% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(15) { top: 70% !important; left: 81% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(16) { top: 85% !important; left: 23% !important; }
   .md .md-ground > .md-player.on-field:nth-of-type(17) { top: 90% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(18) { top: 84% !important; left: 80% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(18) { top: 85% !important; left: 77% !important; }
 }
 
 @media (max-width: 390px) {
-  .md .md-ground {
-    width: 96% !important;
-    max-width: 96% !important;
-    aspect-ratio: .66 !important;
-  }
-
   .md .md-player.on-field {
-    width: 20.5% !important;
+    width: 19.5% !important;
     max-width: 76px !important;
   }
 
+  .md .md-ground {
+    aspect-ratio: .76 !important;
+  }
+
+  .md .md-player-main {
+    grid-template-columns: 19px minmax(0,1fr) 15px !important;
+  }
+
+  .md .md-player-main .number {
+    min-width: 19px !important;
+    font-size: 7.5px !important;
+  }
+
   .md .md-player-main strong {
-    font-size: 6.6px !important;
+    font-size: 6.5px !important;
   }
 }
