@@ -34,6 +34,32 @@ function validState(value: unknown, sheetId: string) {
     && Array.isArray(state.events)
 }
 
+async function normaliseTimer(clubId: string, sheetId: string, value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const state = { ...(value as Record<string, unknown>) }
+  try {
+    const rows = await prisma.$queryRawUnsafe<Array<{ elapsedSeconds: number; clockRunning: boolean }>>(`
+      SELECT
+        CASE
+          WHEN clock_running THEN elapsed_seconds + GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (NOW() - updated_at))))::int
+          ELSE elapsed_seconds
+        END AS "elapsedSeconds",
+        clock_running AS "clockRunning"
+      FROM football_live_matches
+      WHERE club_id = $1 AND team_sheet_id::text = $2
+      LIMIT 1
+    `, clubId, sheetId)
+    const live = rows[0]
+    if (!live) return state
+
+    state.elapsed = Math.max(0, Number(live.elapsedSeconds) || 0)
+    state.runningSince = live.clockRunning ? Date.now() : null
+    return state
+  } catch {
+    return state
+  }
+}
+
 router.use(publicRateLimit)
 router.use(authenticateClubUser)
 router.use('/clubs/:clubId', requireActiveClubMembership)
@@ -69,7 +95,11 @@ router.get('/clubs/:clubId/sheets/:sheetId', async (req, res) => {
       LIMIT 1
     `, req.params.clubId, req.params.sheetId)
     const row = rows[0]
-    res.json({ data: row ? { state: row.state, version: row.version, updatedAt: row.updatedAt, updatedBy: row.updatedBy } : null })
+    if (!row) return res.json({ data: null })
+
+    const state = await normaliseTimer(req.params.clubId, req.params.sheetId, row.state)
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+    res.json({ data: { state, version: row.version, updatedAt: row.updatedAt, updatedBy: row.updatedBy } })
   } catch (error) {
     res.status(500).json({ error: 'Unable to load Match Day state', detail: error instanceof Error ? error.message : String(error) })
   }
