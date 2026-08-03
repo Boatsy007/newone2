@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import ClubHqCommandCentre from './ClubHqCommandCentre'
+import ClubCoachingCommandCentre from './ClubCoachingCommandCentre'
 
 const COACHING_SECTIONS=new Set(['coaching','availability','team-selection','whiteboard'])
 const ANALYTICS_SECTIONS=new Set(['analytics','activity'])
@@ -37,7 +38,8 @@ export default function ClubPortalAppNav(){
  const sectionTitle=getSectionTitle(section)
  const navigation=<><nav className="club-hq-bottom" aria-label="Club HQ navigation"><div>{items.map(item=><Link key={item.label} to={item.href} className={item.active?'active':''} aria-current={item.active?'page':undefined}><item.icon size={22}/><span>{item.label}</span></Link>)}</div></nav>{sectionItems.length>0&&<><aside className="club-section-sidebar"><Link className="club-section-back" to={`/club-portal/${clubId}`}><Home size={17}/> Club HQ</Link><div className="club-section-title"><span>PLAYFOOTY</span><strong>{sectionTitle}</strong></div><nav>{sectionItems.map(item=><Link key={item.label} to={item.href} className={item.active?'active':''} aria-current={item.active?'page':undefined}><item.icon size={19}/><span><strong>{item.label}</strong><small>{item.description}</small></span></Link>)}</nav></aside><nav className="club-section-mobile" aria-label={`${sectionTitle} navigation`}>{sectionItems.map(item=><Link key={item.label} to={item.href} className={item.active?'active':''}><item.icon size={18}/><span>{item.label}</span></Link>)}</nav></>}<style>{styles}</style></>
  const sponsorShortcut=profileHost?createPortal(<Link className="club-profile-sponsor-card" to={`/club-portal/${clubId}/sponsors`}><ShieldCheck size={28}/><span><small>CLUB PARTNERS</small><strong>Sponsors</strong><p>Manage sponsor logos, placements, links and approval status from the records shown on your public profile.</p></span><b>Manage sponsors</b></Link>,profileHost):null
- return <><ClubHqCommandCentre/>{createPortal(navigation,document.body)}{sponsorShortcut}{loadingCard}</>
+ const coachingCommand=section==='coaching'&&!view?<ClubCoachingCommandCentre clubId={clubId}/>:null
+ return <><ClubHqCommandCentre/>{coachingCommand}{createPortal(navigation,document.body)}{sponsorShortcut}{loadingCard}</>
 }
 
 function getLoadingLabel(pathname:string,search:string){
