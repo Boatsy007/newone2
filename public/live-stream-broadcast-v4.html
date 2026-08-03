@@ -14,7 +14,65 @@
 <body>
   <iframe id="studio" title="PlayFooty Live Broadcast Studio" allow="camera; microphone; fullscreen; autoplay"></iframe>
   <script>
-    document.getElementById('studio').src='/live-stream-broadcast-v3.html'+(location.search||'')
+  (()=>{
+    const studio=document.getElementById('studio')
+    studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
+    let installTimer=0
+
+    function deepestStudio(){
+      try{
+        const v3=studio.contentDocument
+        const v2=v3?.getElementById('interchange')?.contentDocument
+        const broadcast=v2?.getElementById('broadcast')?.contentDocument
+        return broadcast?.getElementById('studio')?.contentDocument||null
+      }catch{return null}
+    }
+
+    function setOperatorFullscreen(doc,active){
+      doc.body.classList.toggle('stage-fullscreen',active)
+      doc.documentElement.classList.toggle('stage-fullscreen-root',active)
+      const button=doc.getElementById('stageFullscreenBtn')
+      if(!button)return
+      button.setAttribute('aria-pressed',String(active))
+      button.setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen')
+      button.innerHTML=active
+        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>'
+        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>'
+    }
+
+    function installOperatorFullscreen(){
+      const doc=deepestStudio()
+      const button=doc?.getElementById('stageFullscreenBtn')
+      if(!doc||!button)return false
+      if(button.dataset.operatorFullscreenBound==='1')return true
+      button.dataset.operatorFullscreenBound='1'
+      button.addEventListener('click',event=>{
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+        const active=doc.body.classList.contains('stage-fullscreen')
+        setOperatorFullscreen(doc,!active)
+        try{
+          if(!active)screen.orientation?.lock?.('landscape').catch(()=>{})
+          else screen.orientation?.unlock?.()
+        }catch{}
+      },true)
+      return true
+    }
+
+    function beginInstall(){
+      clearInterval(installTimer)
+      if(installOperatorFullscreen())return
+      installTimer=setInterval(()=>{
+        if(installOperatorFullscreen())clearInterval(installTimer)
+      },250)
+      setTimeout(()=>clearInterval(installTimer),15000)
+    }
+
+    studio.addEventListener('load',beginInstall)
+    window.addEventListener('pageshow',beginInstall)
+    window.addEventListener('beforeunload',()=>clearInterval(installTimer))
+  })()
   </script>
 </body>
 </html>
