@@ -6,6 +6,7 @@ import Footer from '../components/layout/Footer'
 import { TeamLogo } from '../components/rankings/bits'
 import ClubHqAiDailyBrief from '../components/club/ClubHqAiDailyBrief'
 import ClubHqUpcomingSchedule from '../components/club/ClubHqUpcomingSchedule'
+import ClubHqSponsorStatusSync from '../components/club/ClubHqSponsorStatusSync'
 
 type Dashboard = {
   club:{id:string;name:string;shortName:string|null;logoUrl:string|null;primaryColour:string|null;secondaryColour:string|null;state:string;stateName:string;leagueId:string|null;leagueName:string|null;season:string|null;grade:string|null}
@@ -45,6 +46,7 @@ export default function ClubPortalDashboard(){
     error||!data?
       <section className="cp-error"><ShieldCheck size={38}/><h1>Club access required</h1><p>{error||'This dashboard is unavailable.'}</p><Link to="/club-portal">Return to Club Portal <ArrowRight size={16}/></Link></section>:
       <>
+        <ClubHqSponsorStatusSync clubId={data.club.id}/>
         <header className="cp-hero" style={{'--accent':accent} as React.CSSProperties}>
           <div className="cp-club"><TeamLogo name={data.club.name} src={data.club.logoUrl??undefined} size={82}/><div><span>{data.club.leagueName||data.club.stateName}</span><h1>{data.club.name}</h1><p>{[data.club.season,data.club.grade,roleLabel(data.membership.role)].filter(Boolean).join(' · ')}</p></div></div>
           <div className="cp-hero-actions"><Link to={`/team/${data.club.id}`}>View public club <ArrowRight size={16}/></Link>{data.club.leagueId&&<Link to={`/league/${data.club.leagueId}`}>League page</Link>}</div>
