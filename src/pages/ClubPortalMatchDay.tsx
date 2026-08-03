@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Clock3, Pause, Play, RefreshCw, RotateCcw, ShieldCheck, SkipForward } from 'lucide-react'
+import { ArrowLeft, Pause, Play, RefreshCw, RotateCcw, ShieldCheck, SkipForward } from 'lucide-react'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
 
