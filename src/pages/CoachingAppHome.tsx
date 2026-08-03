@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ShieldCheck } from 'lucide-react'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
+import ClubCoachingCommandCentre from '../components/club/ClubCoachingCommandCentre'
 import { TeamLogo } from '../components/rankings/bits'
 
 type Session={access_token:string}
@@ -30,6 +31,7 @@ export default function CoachingAppHome(){
  return <><Nav/><main className="cah" style={{'--accent':accent} as React.CSSProperties}>
   <header className="cah-head"><div className="cah-identity"><TeamLogo name={data.club.name} src={data.club.logoUrl||undefined} size={62}/><div><span>Coaching</span><h1>{data.club.name}</h1><p>{[data.club.leagueName,data.club.season,data.club.grade,roleLabel(data.membership.role)].filter(Boolean).join(' · ')}</p></div></div><Link to={`/club-portal/${clubId}`} aria-label="Club dashboard"><ShieldCheck size={22}/></Link></header>
   <section className="cah-week"><div className="cah-week-copy"><span>This week</span><h2>{opponentName?`v ${opponentName}`:'Next match'}</h2><p>{roundLabel(nextFixture?.round||sheet?.roundLabel)} · {dateLabel(nextFixture?.matchDate||sheet?.matchDate)} · {timeLabel(nextFixture?.matchDate||sheet?.matchDate)}</p>{nextFixture?.venue&&<p className="cah-venue">{nextFixture.venue}</p>}<div className="cah-status"><b>{sheet?.status==='PUBLISHED'?'Team published':sheet?'Team in progress':'Team not started'}</b><small>{sheet?`${sheet.playerCount} players selected`:'Open Team to get started'}</small></div></div><div className="cah-ring"><strong>{counts.total?Math.round((counts.available/counts.total)*100):0}%</strong><span>available</span></div></section>
+  <ClubCoachingCommandCentre clubId={clubId}/>
  </main><Footer/><style>{styles}</style></>
 }
 const styles=`
