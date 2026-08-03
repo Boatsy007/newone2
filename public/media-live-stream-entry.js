@@ -10,8 +10,8 @@
     const link = document.createElement('a')
     link.id = ENTRY_ID
     link.className = 'pf-media-stream-entry'
-    link.href = `/live-stream.html?clubId=${encodeURIComponent(clubId)}`
-    link.setAttribute('aria-label', 'Open Live Stream Studio')
+    link.href = `/live-stream-broadcast.html?clubId=${encodeURIComponent(clubId)}`
+    link.setAttribute('aria-label', 'Open Live Broadcast Studio')
     link.innerHTML = `
       <span class="pf-media-stream-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -19,9 +19,9 @@
           <rect width="13" height="14" x="3" y="5" rx="2" ry="2"></rect>
         </svg>
       </span>
-      <strong>Live Stream Studio</strong>
-      <span class="pf-media-stream-copy">Film from a phone with the live Match Day score, quarter and clock overlaid automatically.</span>
-      <b>Stage 1</b>
+      <strong>Live Broadcast Studio</strong>
+      <span class="pf-media-stream-copy">Film from a phone with the live scoreboard, team branding and automatic goal, behind and quarter-time graphics.</span>
+      <b>Stage 3</b>
     `
     return link
   }
