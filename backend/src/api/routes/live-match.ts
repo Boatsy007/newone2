@@ -111,6 +111,13 @@ async function sharedMatchDay(clubId: string): Promise<LiveRow | null> {
   }
 }
 
+function disableCaching(res: Parameters<Router['get']>[1] extends never ? never : any) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+  res.set('Pragma', 'no-cache')
+  res.set('Expires', '0')
+  res.set('Surrogate-Control', 'no-store')
+}
+
 router.get('/', async (_req, res) => {
   try {
     await ensureLiveMatchTable()
@@ -136,7 +143,7 @@ router.get('/', async (_req, res) => {
       clockRunning: row.clockRunning,
       lastEvent: row.lastEvent,
     }))
-    res.set('Cache-Control', 'no-store')
+    disableCaching(res)
     res.json({ data })
   } catch (error) {
     res.status(500).json({ error: 'Unable to load live matches', detail: String(error) })
@@ -145,19 +152,17 @@ router.get('/', async (_req, res) => {
 
 router.get('/clubs/:clubId', async (req, res) => {
   try {
-    const shared = await sharedMatchDay(req.params.clubId)
-    if (shared) {
-      res.set('Cache-Control', 'no-store')
-      return res.json({ data: shared })
-    }
     await ensureLiveMatchTable()
     const rows = await prisma.$queryRawUnsafe<LiveRow[]>(`${liveSelect}
       WHERE lm.club_id=$1 AND lm.status='LIVE'
         AND lm.updated_at > now() - interval '8 hours'
       LIMIT 1
     `, req.params.clubId)
-    res.set('Cache-Control', 'no-store')
-    res.json({ data: rows[0] ?? null })
+    disableCaching(res)
+    if (rows[0]) return res.json({ data: rows[0] })
+
+    const shared = await sharedMatchDay(req.params.clubId)
+    return res.json({ data: shared })
   } catch (error) {
     res.status(500).json({ error: 'Unable to load live match', detail: String(error) })
   }
@@ -194,6 +199,7 @@ router.put('/clubs/:clubId', authenticateClubUser, requireActiveClubMembership, 
       integer(req.body?.awayGoals, 0, 99), integer(req.body?.awayBehinds, 0, 99),
       status, text(req.body?.lastEvent, 250) || null,
     )
+    disableCaching(res)
     res.json({ message: status === 'LIVE' ? 'Live match updated' : 'Live match hidden' })
   } catch (error) {
     res.status(500).json({ error: 'Unable to update live match', detail: String(error) })
