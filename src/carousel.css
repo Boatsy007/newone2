@@ -214,3 +214,100 @@
   .featured-story { grid-template-columns: minmax(0,1.15fr) minmax(330px,.85fr) !important; }
   .league-dashboard .actions { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
 }
+
+/* Match Day mobile completion pass. Keeps all 18 positions visible without horizontal scrolling. */
+.md-player-main .number {
+  background: #05070a !important;
+  color: #fff !important;
+}
+
+@media (max-width: 760px) {
+  .md-ground {
+    aspect-ratio: .52 !important;
+    border-radius: 48% / 12% !important;
+  }
+
+  .md-player.on-field {
+    width: 22.5% !important;
+    max-width: 86px !important;
+    border-radius: 6px !important;
+  }
+
+  .md-player.on-field .md-player-main {
+    grid-template-columns: 22px minmax(0, 1fr) 17px !important;
+  }
+
+  .md-player.on-field .md-player-main .number {
+    min-width: 22px !important;
+    font-size: 9px !important;
+  }
+
+  .md-player.on-field .md-player-main strong {
+    min-height: 22px !important;
+    padding: 3px 2px 0 !important;
+    font-size: 7.6px !important;
+    line-height: 1 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+  }
+
+  .md-player.on-field .md-player-main small {
+    padding: 0 2px 3px !important;
+    font-size: 6px !important;
+  }
+
+  .md-player.on-field .md-player-main em {
+    padding: 0 2px !important;
+    font-size: 8px !important;
+  }
+
+  .md-player.on-field .md-player-score {
+    gap: 2px !important;
+    padding: 2px !important;
+  }
+
+  .md-player.on-field .md-player-score button {
+    min-height: 20px !important;
+    padding: 1px !important;
+    border-radius: 4px !important;
+    background: #05070a !important;
+    border-color: #05070a !important;
+    color: #fff !important;
+    font-size: 8px !important;
+  }
+
+  .md-player.on-field .md-player-score span {
+    font-size: 7px !important;
+  }
+
+  /* Re-centre the three outside columns so pocket and wing cards stay inside the oval. */
+  .md-ground > article:nth-of-type(1),
+  .md-ground > article:nth-of-type(4),
+  .md-ground > article:nth-of-type(7),
+  .md-ground > article:nth-of-type(12),
+  .md-ground > article:nth-of-type(13),
+  .md-ground > article:nth-of-type(16) { left: 17% !important; }
+
+  .md-ground > article:nth-of-type(3),
+  .md-ground > article:nth-of-type(6),
+  .md-ground > article:nth-of-type(10),
+  .md-ground > article:nth-of-type(15),
+  .md-ground > article:nth-of-type(18) { left: 83% !important; }
+
+  .md-ground > article:nth-of-type(8),
+  .md-ground > article:nth-of-type(11) { left: 35% !important; }
+
+  .md-ground > article:nth-of-type(9),
+  .md-ground > article:nth-of-type(12) { left: 65% !important; }
+}
+
+@media (max-width: 390px) {
+  .md-player.on-field {
+    width: 21.5% !important;
+    max-width: 80px !important;
+  }
+
+  .md-player.on-field .md-player-main strong {
+    font-size: 7.1px !important;
+  }
+}
