@@ -7,21 +7,10 @@
   <title>PlayFooty Live Broadcast Studio</title>
   <style>
     *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;font-family:Inter,Arial,sans-serif}iframe{display:block;width:100%;height:100%;border:0;background:#05090d}
-    .pf-live-watermark{position:fixed;top:max(14px,env(safe-area-inset-top));right:max(16px,env(safe-area-inset-right));z-index:30000;display:flex;align-items:flex-end;gap:9px;pointer-events:none;filter:drop-shadow(0 3px 8px rgba(0,0,0,.78));opacity:.92}
-    .pf-logo{display:block;width:clamp(120px,17vw,190px);height:auto;object-fit:contain}
-    .pf-live{display:flex;align-items:center;gap:5px;padding:4px 7px;border-radius:6px;background:rgba(4,9,14,.78);color:#fff;font-size:clamp(8px,1.2vw,11px);font-weight:1000;letter-spacing:.12em;line-height:1;text-transform:uppercase;backdrop-filter:blur(8px)}
-    .pf-live i{display:block;width:7px;height:7px;border-radius:50%;background:#f04451;box-shadow:0 0 0 0 rgba(240,68,81,.55);animation:pf-live-pulse 1.35s ease-out infinite}
-    @keyframes pf-live-pulse{0%{box-shadow:0 0 0 0 rgba(240,68,81,.55)}70%{box-shadow:0 0 0 7px rgba(240,68,81,0)}100%{box-shadow:0 0 0 0 rgba(240,68,81,0)}}
-    @media(max-width:620px){.pf-live-watermark{top:max(9px,env(safe-area-inset-top));right:max(9px,env(safe-area-inset-right));gap:6px}.pf-logo{width:108px}.pf-live{padding:3px 5px;font-size:8px}.pf-live i{width:6px;height:6px}}
-    @media(prefers-reduced-motion:reduce){.pf-live i{animation:none}}
   </style>
 </head>
 <body>
   <iframe id="studio" title="PlayFooty Live Broadcast Studio" allow="camera; microphone; fullscreen; autoplay"></iframe>
-  <div class="pf-live-watermark" aria-label="PlayFooty Live">
-    <img class="pf-logo" src="/Playfooty-logo-modern.png" alt="PlayFooty" />
-    <div class="pf-live"><i aria-hidden="true"></i><span>Live</span></div>
-  </div>
   <script>document.getElementById('studio').src='/live-stream-broadcast-v3.html'+(location.search||'')</script>
 </body>
 </html>
