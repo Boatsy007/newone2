@@ -15,6 +15,7 @@
   (()=>{
     const studio=document.getElementById('studio')
     studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
+    let installTimer=0
 
     function deepestStudio(){
       try{
@@ -23,23 +24,6 @@
         const broadcast=v2?.getElementById('broadcast')?.contentDocument
         return broadcast?.getElementById('studio')?.contentDocument||null
       }catch{return null}
-    }
-
-    function installSingleWatermark(doc,stage){
-      try{
-        doc.querySelectorAll('.pf-live-watermark,.playfooty-live-watermark').forEach((node,index)=>{
-          if(index>0||node.id!=='playfootyBroadcastWatermark')node.remove()
-        })
-        stage.querySelector('.top-bug')?.remove()
-        let mark=stage.querySelector('#playfootyBroadcastWatermark')
-        if(!mark){
-          mark=doc.createElement('div')
-          mark.id='playfootyBroadcastWatermark'
-          mark.setAttribute('aria-label','PlayFooty Live')
-          mark.innerHTML='<img class="pf-broadcast-logo" src="/Playfooty-logo-modern.png" alt="PlayFooty"><span class="pf-broadcast-live"><i class="pf-broadcast-dot" aria-hidden="true"></i>Live</span>'
-          stage.appendChild(mark)
-        }
-      }catch{}
     }
 
     function setStageFullscreen(doc,active){
@@ -72,30 +56,38 @@
       setStageFullscreen(doc,true)
     }
 
-    function installStageControls(doc,stage){
-      if(doc.getElementById('playfooty-broadcast-shell-style')===null){
-        const style=doc.createElement('style')
+    function install(){
+      const doc=deepestStudio()
+      const stage=doc?.getElementById('stage')
+      if(!doc||!stage)return false
+
+      stage.querySelectorAll('.top-bug,.pf-live-watermark,.playfooty-live-watermark,#playfootyBroadcastWatermark').forEach(node=>node.remove())
+      doc.getElementById('fullBtn')?.style.setProperty('display','none','important')
+
+      let style=doc.getElementById('playfooty-broadcast-shell-style')
+      if(!style){
+        style=doc.createElement('style')
         style.id='playfooty-broadcast-shell-style'
         style.textContent=`
-          #playfootyBroadcastWatermark{position:absolute;top:12px;right:12px;z-index:120;display:flex;align-items:center;gap:7px;pointer-events:none;filter:drop-shadow(0 3px 8px rgba(0,0,0,.78));opacity:.94;transform:none!important;animation:none!important}
-          #playfootyBroadcastWatermark .pf-broadcast-logo{display:block;width:clamp(96px,15vw,170px);height:auto;object-fit:contain;transform:none!important;animation:none!important;opacity:1!important}
-          #playfootyBroadcastWatermark .pf-broadcast-live{display:flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid rgba(255,255,255,.2);border-radius:999px;background:rgba(4,9,14,.82);color:#fff;font-size:9px;font-weight:1000;letter-spacing:.12em;line-height:1;text-transform:uppercase;backdrop-filter:blur(8px);transform:none!important;animation:none!important}
-          #playfootyBroadcastWatermark .pf-broadcast-dot{display:block;width:7px;height:7px;border-radius:50%;background:#f04451;box-shadow:0 0 0 0 rgba(240,68,81,.55);animation:pfBroadcastDotPulse 1.35s ease-out infinite}
-          @keyframes pfBroadcastDotPulse{0%{box-shadow:0 0 0 0 rgba(240,68,81,.55)}70%{box-shadow:0 0 0 6px rgba(240,68,81,0)}100%{box-shadow:0 0 0 0 rgba(240,68,81,0)}}
+          #playfootyBroadcastWatermark{position:absolute;top:10px;right:10px;z-index:120;display:flex;align-items:center;gap:6px;pointer-events:none;filter:drop-shadow(0 3px 8px rgba(0,0,0,.78));opacity:.96;transform:none!important;animation:none!important;transition:none!important}
+          #playfootyBroadcastWatermark *{animation:none!important;transition:none!important}
+          #playfootyBroadcastWatermark .pf-broadcast-logo{display:block;width:clamp(92px,13vw,150px);height:auto;object-fit:contain;opacity:1!important}
+          #playfootyBroadcastWatermark .pf-broadcast-live{display:flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(4,9,14,.86);color:#fff;font-size:9px;font-weight:1000;letter-spacing:.12em;line-height:1;text-transform:uppercase}
+          #playfootyBroadcastWatermark .pf-broadcast-dot{display:block;width:7px;height:7px;border-radius:50%;background:#f04451}
 
-          #stage .overlay{left:50%!important;right:auto!important;bottom:12px!important;width:min(620px,calc(100% - 24px))!important;transform:translateX(-50%)!important;grid-template-columns:minmax(0,1fr) 68px minmax(0,1fr)!important;border-radius:8px!important;box-shadow:0 5px 20px rgba(0,0,0,.5)!important}
-          #stage .team{gap:7px!important;padding:6px 9px!important;min-height:56px!important}
-          #stage .team-logo{width:32px!important;height:32px!important}
-          #stage .team small{font-size:7px!important;line-height:1.1!important}
-          #stage .team strong{font-size:24px!important;line-height:.95!important}
-          #stage .team span{font-size:8px!important;line-height:1.1!important}
-          #stage .centre{min-width:68px!important;padding:5px 8px!important}
-          #stage .centre b{font-size:15px!important}
-          #stage .centre span{font-size:10px!important}
-          #stage .latest{bottom:76px!important;max-width:min(460px,70%)!important}
+          #stage .overlay{left:50%!important;right:auto!important;bottom:10px!important;width:min(500px,calc(100% - 110px))!important;transform:translateX(-50%)!important;grid-template-columns:minmax(0,1fr) 62px minmax(0,1fr)!important;border-radius:7px!important;box-shadow:0 5px 20px rgba(0,0,0,.5)!important}
+          #stage .team{gap:5px!important;padding:5px 7px!important;min-height:48px!important}
+          #stage .team-logo{width:27px!important;height:27px!important}
+          #stage .team small{font-size:6px!important;line-height:1.05!important}
+          #stage .team strong{font-size:20px!important;line-height:.95!important}
+          #stage .team span{font-size:7px!important;line-height:1!important}
+          #stage .centre{min-width:62px!important;padding:4px 6px!important}
+          #stage .centre b{font-size:13px!important}
+          #stage .centre span{font-size:9px!important}
+          #stage .latest{bottom:67px!important;max-width:min(410px,65%)!important}
 
-          #playfootyStageFullscreen{position:absolute;left:14px;bottom:82px;z-index:150;display:grid!important;place-items:center;width:40px;height:40px;padding:0;border:1px solid rgba(255,255,255,.5);border-radius:8px;background:rgba(3,8,13,.9);color:#fff;box-shadow:0 5px 18px rgba(0,0,0,.58);backdrop-filter:blur(8px);cursor:pointer;visibility:visible!important;opacity:1!important}
-          #playfootyStageFullscreen svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+          #playfootyStageFullscreen{position:absolute;right:10px;left:auto;bottom:10px;z-index:180;display:grid!important;place-items:center;width:38px;height:38px;padding:0;border:1px solid rgba(255,255,255,.62);border-radius:8px;background:rgba(3,8,13,.92);color:#fff;box-shadow:0 5px 18px rgba(0,0,0,.65);cursor:pointer;visibility:visible!important;opacity:1!important;-webkit-appearance:none;appearance:none}
+          #playfootyStageFullscreen svg{display:block;width:22px;height:22px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
           #fullBtn{display:none!important}
 
           html.pf-stage-fullscreen-root,html.pf-stage-fullscreen-root body{width:100%!important;height:100%!important;min-height:100%!important;overflow:hidden!important;background:#000!important}
@@ -104,29 +96,35 @@
           body.pf-stage-fullscreen main{position:fixed!important;inset:0!important;z-index:2147483000!important;width:100vw!important;height:100dvh!important;max-width:none!important;margin:0!important;padding:0!important;background:#000!important}
           body.pf-stage-fullscreen #stage{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;max-height:none!important;aspect-ratio:auto!important;border:0!important;border-radius:0!important;background:#000!important}
           body.pf-stage-fullscreen #stage video{width:100%!important;height:100%!important;object-fit:cover!important}
-          body.pf-stage-fullscreen #playfootyStageFullscreen{left:max(14px,env(safe-area-inset-left));bottom:max(82px,calc(env(safe-area-inset-bottom) + 70px))}
+          body.pf-stage-fullscreen #playfootyStageFullscreen{right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom))}
 
           @media(max-width:700px){
-            #playfootyBroadcastWatermark{top:8px;right:8px;gap:5px}
-            #playfootyBroadcastWatermark .pf-broadcast-logo{width:96px}
-            #playfootyBroadcastWatermark .pf-broadcast-live{padding:3px 6px;font-size:8px}
-            #stage .overlay{bottom:7px!important;width:calc(100% - 14px)!important;grid-template-columns:minmax(0,1fr) 58px minmax(0,1fr)!important}
-            #stage .team{gap:4px!important;padding:5px 6px!important;min-height:50px!important}
-            #stage .team-logo{width:27px!important;height:27px!important}
-            #stage .team small{font-size:6px!important}
-            #stage .team strong{font-size:20px!important}
-            #stage .team span{font-size:7px!important}
-            #stage .centre{min-width:58px!important;padding:4px 5px!important}
-            #stage .centre b{font-size:13px!important}
-            #stage .centre span{font-size:9px!important}
-            #stage .latest{left:7px!important;bottom:66px!important}
-            #playfootyStageFullscreen{left:10px;bottom:66px;width:38px;height:38px;border-color:rgba(255,255,255,.65)}
-            body.pf-stage-fullscreen #playfootyStageFullscreen{bottom:max(66px,calc(env(safe-area-inset-bottom) + 58px))}
+            #playfootyBroadcastWatermark{top:7px;right:7px;gap:4px}
+            #playfootyBroadcastWatermark .pf-broadcast-logo{width:88px}
+            #playfootyBroadcastWatermark .pf-broadcast-live{padding:3px 5px;font-size:7px}
+            #playfootyBroadcastWatermark .pf-broadcast-dot{width:6px;height:6px}
+            #stage .overlay{bottom:7px!important;width:min(390px,calc(100% - 96px))!important;grid-template-columns:minmax(0,1fr) 54px minmax(0,1fr)!important}
+            #stage .team{gap:3px!important;padding:4px 5px!important;min-height:44px!important}
+            #stage .team-logo{width:23px!important;height:23px!important}
+            #stage .team small{font-size:5.5px!important}
+            #stage .team strong{font-size:18px!important}
+            #stage .team span{font-size:6px!important}
+            #stage .centre{min-width:54px!important;padding:3px 4px!important}
+            #stage .centre b{font-size:12px!important}
+            #stage .centre span{font-size:8px!important}
+            #stage .latest{left:7px!important;bottom:58px!important}
+            #playfootyStageFullscreen{right:7px;bottom:7px;width:36px;height:36px}
+            body.pf-stage-fullscreen #playfootyStageFullscreen{right:max(7px,env(safe-area-inset-right));bottom:max(7px,env(safe-area-inset-bottom))}
           }
-          @media(prefers-reduced-motion:reduce){#playfootyBroadcastWatermark .pf-broadcast-dot{animation:none}}
         `
         doc.head.appendChild(style)
       }
+
+      const mark=doc.createElement('div')
+      mark.id='playfootyBroadcastWatermark'
+      mark.setAttribute('aria-label','PlayFooty Live')
+      mark.innerHTML='<img class="pf-broadcast-logo" src="/Playfooty-logo-modern.png" alt="PlayFooty"><span class="pf-broadcast-live"><i class="pf-broadcast-dot" aria-hidden="true"></i>Live</span>'
+      stage.appendChild(mark)
 
       let button=doc.getElementById('playfootyStageFullscreen')
       if(!button){
@@ -148,20 +146,21 @@
         doc.__playfootyFullscreenBound=true
         doc.addEventListener('fullscreenchange',()=>setStageFullscreen(doc,Boolean(doc.fullscreenElement)))
       }
+      return true
     }
 
-    function install(){
-      const doc=deepestStudio()
-      const stage=doc?.getElementById('stage')
-      if(!doc||!stage)return
-      installSingleWatermark(doc,stage)
-      installStageControls(doc,stage)
+    function beginInstall(){
+      clearInterval(installTimer)
+      if(install())return
+      installTimer=setInterval(()=>{
+        if(install())clearInterval(installTimer)
+      },250)
+      setTimeout(()=>clearInterval(installTimer),15000)
     }
 
-    studio.addEventListener('load',install)
-    const timer=setInterval(install,500)
-    window.addEventListener('pageshow',install)
-    window.addEventListener('beforeunload',()=>clearInterval(timer))
+    studio.addEventListener('load',beginInstall)
+    window.addEventListener('pageshow',beginInstall)
+    window.addEventListener('beforeunload',()=>clearInterval(installTimer))
   })()
   </script>
 </body>
