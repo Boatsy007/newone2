@@ -8,39 +8,20 @@
   <style>
     *{box-sizing:border-box}
     html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d}
-    iframe{position:fixed;inset:0;z-index:1;display:block;width:100%;height:100%;border:0;background:#05090d}
-    .operator-highlights{position:fixed;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));z-index:2147483647;display:flex;align-items:center;gap:8px;visibility:visible;opacity:1;pointer-events:auto}
-    .operator-highlights button{min-height:38px;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:9px 13px;background:rgba(4,10,16,.92);color:#fff;font:900 11px/1 Inter,Arial,sans-serif;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,.52);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
-    .operator-highlights .mark{background:#d42d3b;border-color:#ef6671}
-    .operator-highlights .mark.recording{background:#831821}
-    .operator-highlights button:disabled{opacity:.56}
-    .operator-highlights .count{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:5px;border-radius:999px;background:#2daaf5;color:#04121c;font-size:10px}
-    @media(max-width:620px){.operator-highlights{top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));gap:6px}.operator-highlights button{min-height:34px;padding:8px 10px;font-size:10px}}
+    iframe{position:fixed;inset:0;display:block;width:100%;height:100%;border:0;background:#05090d}
   </style>
 </head>
 <body>
   <iframe id="studio" title="PlayFooty Live Broadcast Studio" allow="camera; microphone; fullscreen; autoplay"></iframe>
-  <div class="operator-highlights" aria-label="Operator highlight controls">
-    <button class="mark" id="operatorMark" type="button">Mark Highlight</button>
-    <button id="operatorClips" type="button">Clips <span class="count" id="operatorClipCount">0</span></button>
-  </div>
   <script>
   (()=>{
     const studio=document.getElementById('studio')
-    const operatorMark=document.getElementById('operatorMark')
-    const operatorClips=document.getElementById('operatorClips')
-    const operatorClipCount=document.getElementById('operatorClipCount')
     studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
     let installTimer=0
-    let syncTimer=0
-
-    function v3Document(){
-      try{return studio.contentDocument||null}catch{return null}
-    }
 
     function deepestStudio(){
       try{
-        const v3=v3Document()
+        const v3=studio.contentDocument
         const v2=v3?.getElementById('interchange')?.contentDocument
         const broadcast=v2?.getElementById('broadcast')?.contentDocument
         return broadcast?.getElementById('studio')?.contentDocument||null
@@ -79,55 +60,18 @@
       return true
     }
 
-    function installOperatorHighlights(){
-      const v3=v3Document()
-      const mark=v3?.getElementById('highlightButton')
-      const clips=v3?.getElementById('clipsButton')
-      const count=v3?.getElementById('clipCount')
-      if(!v3||!mark||!clips||!count)return false
-
-      let style=v3.getElementById('outer-operator-controls-style')
-      if(!style){
-        style=v3.createElement('style')
-        style.id='outer-operator-controls-style'
-        style.textContent='.highlight-controls{display:none!important}'
-        v3.head.appendChild(style)
-      }
-
-      operatorMark.onclick=()=>mark.click()
-      operatorClips.onclick=()=>clips.click()
-
-      clearInterval(syncTimer)
-      const sync=()=>{
-        operatorMark.textContent=mark.textContent||'Mark Highlight'
-        operatorMark.disabled=Boolean(mark.disabled)
-        operatorMark.classList.toggle('recording',mark.classList.contains('recording'))
-        operatorClipCount.textContent=count.textContent||'0'
-      }
-      sync()
-      syncTimer=setInterval(sync,250)
-      return true
-    }
-
-    function install(){
-      const fullscreenReady=installOperatorFullscreen()
-      const highlightsReady=installOperatorHighlights()
-      return fullscreenReady&&highlightsReady
-    }
-
     function beginInstall(){
       clearInterval(installTimer)
-      clearInterval(syncTimer)
-      if(install())return
+      if(installOperatorFullscreen())return
       installTimer=setInterval(()=>{
-        if(install())clearInterval(installTimer)
+        if(installOperatorFullscreen())clearInterval(installTimer)
       },250)
       setTimeout(()=>clearInterval(installTimer),15000)
     }
 
     studio.addEventListener('load',beginInstall)
     window.addEventListener('pageshow',beginInstall)
-    window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(syncTimer)})
+    window.addEventListener('beforeunload',()=>clearInterval(installTimer))
   })()
   </script>
 </body>
