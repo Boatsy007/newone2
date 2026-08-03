@@ -7,33 +7,29 @@
   <title>PlayFooty Live Broadcast Studio</title>
   <style>
     *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;font-family:Inter,Arial,sans-serif}iframe{display:block;width:100%;height:100%;border:0;background:#05090d}
-    .swap-visual{position:fixed;inset:0;z-index:12000;display:grid;place-items:center;padding:clamp(18px,5vw,48px);pointer-events:none;opacity:0;visibility:hidden;transition:opacity .2s ease,visibility .2s ease}
-    .swap-visual.show{opacity:1;visibility:visible}.swap-backdrop{position:absolute;inset:0;background:linear-gradient(135deg,rgba(2,7,12,.96),rgba(2,7,12,.78)),var(--swap-cover,none);background-position:center;background-size:cover;transform:scale(1.04)}
-    .swap-backdrop:after{content:'';position:absolute;inset:0;background:radial-gradient(circle at center,transparent 0,rgba(0,0,0,.64) 74%)}
-    .swap-card{position:relative;z-index:1;width:min(820px,94vw);padding:clamp(24px,5vw,56px);border:1px solid rgba(255,255,255,.22);border-radius:clamp(18px,4vw,34px);background:linear-gradient(145deg,color-mix(in srgb,var(--swap-colour,#2daaf5) 42%,rgba(0,0,0,.86)),rgba(0,0,0,.74));box-shadow:0 32px 100px rgba(0,0,0,.62);color:#fff;text-align:center;overflow:hidden;transform:translateY(24px) scale(.96);transition:transform .4s cubic-bezier(.2,.8,.2,1)}
-    .swap-visual.show .swap-card{transform:translateY(0) scale(1)}.swap-card:before{content:'';position:absolute;inset:-45%;background:conic-gradient(from 180deg,transparent,rgba(255,255,255,.16),transparent 32%);animation:spin 3s linear infinite}.swap-card>*{position:relative;z-index:1}
-    .swap-logo{display:none;width:clamp(68px,13vw,120px);height:clamp(68px,13vw,120px);margin:0 auto 10px;object-fit:contain;filter:drop-shadow(0 10px 22px rgba(0,0,0,.6))}.swap-logo.show{display:block}
-    .swap-team{font-size:clamp(11px,2vw,17px);font-weight:1000;letter-spacing:.22em;text-transform:uppercase;color:#d8edf9}.swap-title{margin:6px 0 clamp(18px,4vw,34px);font-size:clamp(48px,10vw,108px);font-weight:1000;letter-spacing:-.055em;line-height:.82;text-transform:uppercase;text-shadow:0 6px 30px rgba(0,0,0,.55)}
-    .swap-players{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:clamp(12px,3vw,28px)}.swap-player{display:grid;gap:7px;padding:clamp(14px,3vw,26px);border:1px solid rgba(255,255,255,.16);border-radius:18px;background:rgba(0,0,0,.32)}.swap-player small{font-size:clamp(10px,1.6vw,14px);font-weight:1000;letter-spacing:.18em;text-transform:uppercase}.swap-player strong{font-size:clamp(21px,4.5vw,48px);line-height:1;text-transform:uppercase}.swap-player.off small{color:#ff7c84}.swap-player.on small{color:#55e897}.swap-arrow{font-size:clamp(30px,6vw,64px);font-weight:1000;color:#dbeaf3}.swap-footer{margin-top:clamp(16px,3vw,28px);font-size:clamp(9px,1.5vw,13px);font-weight:950;letter-spacing:.18em;text-transform:uppercase;color:#c8d4db}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    @media(max-width:560px){.swap-players{grid-template-columns:1fr}.swap-arrow{transform:rotate(90deg);line-height:.7}.swap-card{padding:24px 18px}.swap-title{font-size:48px}}
-    @media(prefers-reduced-motion:reduce){.swap-card{transition:none}.swap-card:before{animation:none}}
+    .swap-visual{position:fixed;left:max(14px,env(safe-area-inset-left));bottom:max(88px,calc(env(safe-area-inset-bottom) + 70px));z-index:12000;width:min(460px,calc(100vw - 28px));pointer-events:none;opacity:0;visibility:hidden;transform:translateX(calc(-100% - 28px));transition:transform .38s cubic-bezier(.2,.8,.2,1),opacity .2s ease,visibility .2s ease}
+    .swap-visual.show{opacity:1;visibility:visible;transform:translateX(0)}
+    .swap-card{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px;padding:11px 14px;border:1px solid rgba(255,255,255,.22);border-left:5px solid var(--swap-colour,#2daaf5);border-radius:14px;background:linear-gradient(100deg,rgba(3,9,14,.96),rgba(3,9,14,.88)),var(--swap-cover,none);background-position:center;background-size:cover;box-shadow:0 14px 38px rgba(0,0,0,.52);color:#fff;overflow:hidden;backdrop-filter:blur(12px)}
+    .swap-card:after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,color-mix(in srgb,var(--swap-colour,#2daaf5) 24%,transparent),transparent 58%);pointer-events:none}.swap-card>*{position:relative;z-index:1}
+    .swap-logo{display:none;width:54px;height:54px;object-fit:contain;filter:drop-shadow(0 5px 10px rgba(0,0,0,.62))}.swap-logo.show{display:block}
+    .swap-copy{min-width:0}.swap-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.swap-team{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:1000;letter-spacing:.13em;text-transform:uppercase;color:#dcecf5}.swap-title{font-size:9px;font-weight:1000;letter-spacing:.14em;text-transform:uppercase;color:#8fcff5}
+    .swap-players{display:grid;gap:5px}.swap-player{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;gap:8px;min-width:0}.swap-player small{display:grid;place-items:center;height:22px;border-radius:6px;font-size:9px;font-weight:1000;letter-spacing:.08em;text-transform:uppercase}.swap-player strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;line-height:1.05;text-transform:uppercase}.swap-player.off small{background:#6f2028;color:#ffd9dc}.swap-player.on small{background:#176b45;color:#d8ffec}
+    @media(max-width:620px){.swap-visual{left:8px;bottom:max(76px,calc(env(safe-area-inset-bottom) + 66px));width:min(390px,calc(100vw - 16px))}.swap-card{gap:9px;padding:9px 10px;border-radius:11px}.swap-logo{width:42px;height:42px}.swap-player{grid-template-columns:38px minmax(0,1fr);gap:6px}.swap-player small{height:20px;font-size:8px}.swap-player strong{font-size:13px}.swap-head{margin-bottom:5px}.swap-team{font-size:8px}.swap-title{font-size:8px}}
+    @media(prefers-reduced-motion:reduce){.swap-visual{transition:none}}
   </style>
 </head>
 <body>
   <iframe id="broadcast" title="PlayFooty Live Broadcast Studio" allow="camera; microphone; fullscreen; autoplay"></iframe>
   <section class="swap-visual" id="swapVisual" aria-live="polite">
-    <div class="swap-backdrop"></div>
     <article class="swap-card">
       <img class="swap-logo" id="swapLogo" alt="" />
-      <div class="swap-team" id="swapTeam">Your Team</div>
-      <div class="swap-title">Interchange</div>
-      <div class="swap-players">
-        <div class="swap-player off"><small>Coming off</small><strong id="playerOff"></strong></div>
-        <div class="swap-arrow">↔</div>
-        <div class="swap-player on"><small>Coming on</small><strong id="playerOn"></strong></div>
+      <div class="swap-copy">
+        <div class="swap-head"><div class="swap-team" id="swapTeam">Your Team</div><div class="swap-title">Interchange</div></div>
+        <div class="swap-players">
+          <div class="swap-player off"><small>Off</small><strong id="playerOff"></strong></div>
+          <div class="swap-player on"><small>On</small><strong id="playerOn"></strong></div>
+        </div>
       </div>
-      <div class="swap-footer">PlayFooty Live Match</div>
     </article>
   </section>
 <script>
