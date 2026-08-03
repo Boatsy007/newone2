@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#050505" />
+  <title>PlayFooty Live Broadcast Studio</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;font-family:Inter,Arial,sans-serif;color:#fff}iframe{display:block;width:100%;height:100%;border:0;background:#05090d}
+    .highlight-controls{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));z-index:15000;display:flex;gap:8px;align-items:center}
+    .highlight-button,.clips-button{border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(4,10,16,.9);color:#fff;padding:12px 16px;font-weight:950;text-transform:uppercase;box-shadow:0 10px 30px rgba(0,0,0,.4);backdrop-filter:blur(12px)}
+    .highlight-button{background:#d42d3b;border-color:#ef6671}.highlight-button.recording{background:#831821;animation:pulse 1s ease-in-out infinite}.highlight-button:disabled{opacity:.52}
+    .clips-button span{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:5px;border-radius:999px;background:#2daaf5;color:#04121c;font-size:10px}
+    .toast{position:fixed;left:50%;bottom:78px;z-index:15010;max-width:min(520px,90vw);transform:translateX(-50%);padding:10px 14px;border-radius:10px;background:rgba(4,10,16,.94);border:1px solid rgba(255,255,255,.18);font-size:12px;font-weight:850;opacity:0;pointer-events:none;transition:.2s}.toast.show{opacity:1}
+    .drawer{position:fixed;inset:0 0 0 auto;z-index:16000;width:min(430px,100vw);padding:max(18px,env(safe-area-inset-top)) 14px max(18px,env(safe-area-inset-bottom));background:#07111c;border-left:1px solid #273b4a;box-shadow:-18px 0 60px rgba(0,0,0,.5);transform:translateX(105%);transition:transform .25s ease;overflow:auto}.drawer.open{transform:translateX(0)}
+    .drawer-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.drawer h2{margin:0;font-size:25px}.drawer-head button{border:1px solid #344957;border-radius:9px;background:#101c26;color:#fff;padding:8px 11px;font-weight:900}.drawer-empty{margin-top:20px;padding:18px;border:1px dashed #344957;border-radius:12px;color:#91a1ae;text-align:center}
+    .clip{margin-top:12px;padding:12px;border:1px solid #263a49;border-radius:14px;background:#0d1924}.clip video{width:100%;max-height:230px;border-radius:10px;background:#000}.clip-meta{display:grid;gap:4px;margin:10px 0;color:#c4d0d8;font-size:11px}.clip-meta strong{color:#fff;font-size:13px}.clip-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.clip-actions button,.clip-actions a{display:grid;place-items:center;min-height:42px;border:1px solid #344957;border-radius:9px;background:#111d28;color:#fff;text-decoration:none;font-weight:900}.clip-actions .share{background:#2daaf5;color:#03131e;border-color:#2daaf5}
+    @keyframes pulse{50%{transform:scale(.96);box-shadow:0 0 0 8px rgba(212,45,59,.18)}}
+    @media(max-width:620px){.highlight-controls{left:8px;right:8px;bottom:max(8px,env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr auto}.highlight-button,.clips-button{padding:11px 12px}.toast{bottom:74px}}
+  </style>
+</head>
+<body>
+  <iframe id="interchange" title="PlayFooty Live Broadcast Studio" allow="camera; microphone; fullscreen; autoplay"></iframe>
+  <div class="highlight-controls">
+    <button class="highlight-button" id="highlightButton" type="button">Mark Highlight</button>
+    <button class="clips-button" id="clipsButton" type="button">Clips <span id="clipCount">0</span></button>
+  </div>
+  <div class="toast" id="toast"></div>
+  <aside class="drawer" id="drawer" aria-label="Captured highlights">
+    <div class="drawer-head"><div><small>PLAYFOOTY MEDIA</small><h2>Match highlights</h2></div><button id="closeDrawer" type="button">Close</button></div>
+    <div id="clipList"><div class="drawer-empty">No highlights captured yet. Start the camera, then tap Mark Highlight.</div></div>
+  </aside>
+<script>
+(() => {
+  const frame=document.getElementById('interchange')
+  const button=document.getElementById('highlightButton')
+  const drawer=document.getElementById('drawer')
+  const list=document.getElementById('clipList')
+  const count=document.getElementById('clipCount')
+  const toast=document.getElementById('toast')
+  let clips=[],recording=false,toastTimer=0
+  frame.src='/live-stream-broadcast-v2.html'+(location.search||'')
+
+  function showToast(message){clearTimeout(toastTimer);toast.textContent=message;toast.classList.add('show');toastTimer=setTimeout(()=>toast.classList.remove('show'),2600)}
+  function studioDoc(){
+    const v2=frame.contentDocument
+    const broadcast=v2?.getElementById('broadcast')?.contentDocument
+    return broadcast?.getElementById('studio')?.contentDocument||null
+  }
+  function cameraStream(){const doc=studioDoc();const video=doc?.getElementById('video');return video?.srcObject instanceof MediaStream?video.srcObject:null}
+  function text(doc,id){return String(doc?.getElementById(id)?.textContent||'').trim()}
+  function metadata(){
+    const doc=studioDoc()
+    return {
+      title:text(doc,'title')||'Match highlight',
+      quarter:text(doc,'quarter')||'Q1',
+      clock:text(doc,'clock')||'00:00',
+      home:text(doc,'homeName')||'Your team',homeScore:text(doc,'homeScore')||'0.0',
+      away:text(doc,'awayName')||'Opposition',awayScore:text(doc,'awayScore')||'0.0',
+      event:text(doc,'latest')||'Highlight marked',capturedAt:new Date(),
+    }
+  }
+  function mimeType(){
+    const options=['video/mp4;codecs=h264,aac','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
+    return options.find(value=>window.MediaRecorder?.isTypeSupported?.(value))||''
+  }
+  function extension(type){return type.includes('mp4')?'mp4':'webm'}
+  function safeName(value){return String(value||'highlight').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').toLowerCase().slice(0,80)||'highlight'}
+  async function markHighlight(){
+    if(recording)return
+    const source=cameraStream()
+    if(!source){showToast('Start the camera before marking a highlight.');return}
+    if(!window.MediaRecorder){showToast('Highlight recording is not supported by this browser.');return}
+    const tracks=source.getTracks().filter(track=>track.readyState==='live')
+    if(!tracks.length){showToast('The camera stream is not active.');return}
+    const capture=new MediaStream(tracks)
+    const type=mimeType()
+    let recorder
+    try{recorder=type?new MediaRecorder(capture,{mimeType:type}):new MediaRecorder(capture)}catch{showToast('This camera format cannot be recorded on this device.');return}
+    const chunks=[]
+    const meta=metadata()
+    recording=true;button.disabled=true;button.classList.add('recording');button.textContent='Capturing 12s…'
+    recorder.ondataavailable=event=>{if(event.data&&event.data.size)chunks.push(event.data)}
+    recorder.onerror=()=>{recording=false;button.disabled=false;button.classList.remove('recording');button.textContent='Mark Highlight';showToast('The highlight could not be recorded.')}
+    recorder.onstop=()=>{
+      recording=false;button.disabled=false;button.classList.remove('recording');button.textContent='Mark Highlight'
+      if(!chunks.length){showToast('No video data was captured.');return}
+      const actualType=recorder.mimeType||type||'video/webm'
+      const blob=new Blob(chunks,{type:actualType})
+      const url=URL.createObjectURL(blob)
+      clips.unshift({id:crypto.randomUUID(),blob,url,type:actualType,meta})
+      while(clips.length>6){const removed=clips.pop();if(removed)URL.revokeObjectURL(removed.url)}
+      renderClips();drawer.classList.add('open');showToast('Highlight captured and ready to preview.')
+    }
+    recorder.start(250)
+    showToast('Capturing the next 12 seconds…')
+    setTimeout(()=>{if(recorder.state!=='inactive')recorder.stop()},12000)
+  }
+  async function shareClip(clip){
+    const ext=extension(clip.type)
+    const file=new File([clip.blob],safeName(`${clip.meta.quarter}-${clip.meta.clock}-${clip.meta.event}`)+'.'+ext,{type:clip.type})
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({title:'PlayFooty match highlight',text:`${clip.meta.home} ${clip.meta.homeScore} — ${clip.meta.awayScore} ${clip.meta.away} · ${clip.meta.quarter} ${clip.meta.clock}`,files:[file]})}catch(error){if(error?.name!=='AbortError')showToast('Share was unavailable. Use Save Clip instead.')}
+    }else showToast('Sharing is unavailable here. Use Save Clip instead.')
+  }
+  function renderClips(){
+    count.textContent=String(clips.length)
+    if(!clips.length){list.innerHTML='<div class="drawer-empty">No highlights captured yet. Start the camera, then tap Mark Highlight.</div>';return}
+    list.innerHTML=''
+    clips.forEach(clip=>{
+      const ext=extension(clip.type)
+      const article=document.createElement('article');article.className='clip'
+      const video=document.createElement('video');video.controls=true;video.playsInline=true;video.src=clip.url
+      const meta=document.createElement('div');meta.className='clip-meta';meta.innerHTML=`<strong>${clip.meta.event}</strong><span>${clip.meta.quarter} · ${clip.meta.clock}</span><span>${clip.meta.home} ${clip.meta.homeScore} — ${clip.meta.awayScore} ${clip.meta.away}</span>`
+      const actions=document.createElement('div');actions.className='clip-actions'
+      const share=document.createElement('button');share.className='share';share.type='button';share.textContent='Share';share.onclick=()=>shareClip(clip)
+      const save=document.createElement('a');save.href=clip.url;save.download=safeName(`${clip.meta.quarter}-${clip.meta.clock}-${clip.meta.event}`)+'.'+ext;save.textContent='Save Clip'
+      actions.append(share,save);article.append(video,meta,actions);list.appendChild(article)
+    })
+  }
+  button.addEventListener('click',markHighlight)
+  document.getElementById('clipsButton').addEventListener('click',()=>drawer.classList.add('open'))
+  document.getElementById('closeDrawer').addEventListener('click',()=>drawer.classList.remove('open'))
+  window.addEventListener('beforeunload',()=>clips.forEach(clip=>URL.revokeObjectURL(clip.url)))
+})()
+</script>
+</body>
+</html>
