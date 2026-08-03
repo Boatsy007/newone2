@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <meta name="theme-color" content="#050505" />
+  <meta name="theme-color" content="#05090d" />
   <title>PlayFooty Live Broadcast Studio</title>
   <style>
     *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;font-family:Inter,Arial,sans-serif}iframe{display:block;width:100%;height:100%;border:0;background:#05090d}
@@ -38,7 +38,7 @@
   const visual=document.getElementById('swapVisual')
   const logo=document.getElementById('swapLogo')
   const clubId=new URLSearchParams(location.search).get('clubId')||''
-  let ready=false,lastEvent='',hideTimer=0,inspectTimer=0,pollInFlight=false,rawSwapObserver=null
+  let ready=false,lastEvent='',hideTimer=0,inspectTimer=0,pollInFlight=false,rawSwapObserver=null,operatorSyncTimer=0
   broadcast.src='/live-stream-broadcast.html'+(location.search||'')
 
   function text(doc,id){return String(doc?.getElementById(id)?.textContent||'').trim()}
@@ -46,6 +46,60 @@
     const broadcastDoc=broadcast.contentDocument
     const studio=broadcastDoc?.getElementById('studio')
     return studio?.contentDocument||null
+  }
+  function operatorSource(){
+    try{
+      const parentDoc=window.parent?.document
+      const mark=parentDoc?.getElementById('highlightButton')
+      const clips=parentDoc?.getElementById('clipsButton')
+      const count=parentDoc?.getElementById('clipCount')
+      return mark&&clips&&count?{mark,clips,count}:null
+    }catch{return null}
+  }
+  function installOperatorControls(){
+    const doc=innerStudio()
+    const source=operatorSource()
+    if(!doc||!source)return false
+    let style=doc.getElementById('fullscreen-operator-highlight-style')
+    if(!style){
+      style=doc.createElement('style')
+      style.id='fullscreen-operator-highlight-style'
+      style.textContent=`
+        .operator-highlight-controls{display:none;position:fixed;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));z-index:2147483647;gap:8px;align-items:center;pointer-events:auto}
+        .stage-fullscreen .operator-highlight-controls{display:flex!important}
+        .operator-highlight-controls button{min-height:38px;border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:9px 13px;background:rgba(4,10,16,.94);color:#fff;font:900 11px/1 Inter,Arial,sans-serif;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,.55);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+        .operator-highlight-controls .mark{background:#d42d3b;border-color:#ef6671}
+        .operator-highlight-controls .mark.recording{background:#831821}
+        .operator-highlight-controls button:disabled{opacity:.56}
+        .operator-highlight-controls .count{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:5px;border-radius:999px;background:#2daaf5;color:#04121c;font-size:10px}
+        @media(max-width:620px){.operator-highlight-controls{top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));gap:6px}.operator-highlight-controls button{min-height:34px;padding:8px 10px;font-size:10px}}
+      `
+      doc.head.appendChild(style)
+    }
+    let controls=doc.getElementById('fullscreenOperatorHighlights')
+    if(!controls){
+      controls=doc.createElement('div')
+      controls.id='fullscreenOperatorHighlights'
+      controls.className='operator-highlight-controls'
+      controls.setAttribute('aria-label','Operator highlight controls')
+      controls.innerHTML='<button class="mark" id="fullscreenMarkHighlight" type="button">Mark Highlight</button><button id="fullscreenClips" type="button">Clips <span class="count" id="fullscreenClipCount">0</span></button>'
+      doc.body.appendChild(controls)
+      doc.getElementById('fullscreenMarkHighlight').addEventListener('click',()=>source.mark.click())
+      doc.getElementById('fullscreenClips').addEventListener('click',()=>source.clips.click())
+    }
+    clearInterval(operatorSyncTimer)
+    const sync=()=>{
+      const mark=doc.getElementById('fullscreenMarkHighlight')
+      const count=doc.getElementById('fullscreenClipCount')
+      if(!mark||!count)return
+      mark.textContent=source.mark.textContent||'Mark Highlight'
+      mark.disabled=Boolean(source.mark.disabled)
+      mark.classList.toggle('recording',source.mark.classList.contains('recording'))
+      count.textContent=source.count.textContent||'0'
+    }
+    sync()
+    operatorSyncTimer=setInterval(sync,250)
+    return true
   }
   function assets(doc){
     const panel=doc?.getElementById('homeTeam')
@@ -83,6 +137,7 @@
     hideTimer=setTimeout(()=>visual.classList.remove('show'),4200)
   }
   async function inspect(){
+    installOperatorControls()
     suppressRawSwapLabel()
     if(!clubId||pollInFlight)return
     pollInFlight=true
@@ -102,11 +157,12 @@
   broadcast.addEventListener('load',()=>{
     ready=false
     clearInterval(inspectTimer)
+    installOperatorControls()
     suppressRawSwapLabel()
     inspect()
     inspectTimer=setInterval(inspect,300)
   })
-  window.addEventListener('beforeunload',()=>{clearInterval(inspectTimer);rawSwapObserver?.disconnect()})
+  window.addEventListener('beforeunload',()=>{clearInterval(inspectTimer);clearInterval(operatorSyncTimer);rawSwapObserver?.disconnect()})
 })()
 </script>
 </body>
