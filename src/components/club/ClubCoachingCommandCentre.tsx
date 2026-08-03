@@ -96,7 +96,7 @@ export default function ClubCoachingCommandCentre({ clubId }: { clubId: string }
       <div className="coach-command-status">
         <Link to={`/club-portal/${clubId}/availability`}><CalendarCheck size={20}/><span><small>Availability</small><strong>{counts.available} available</strong><em>{counts.pending ? `${counts.pending} awaiting response` : 'All responses reviewed'}</em></span></Link>
         <Link to={`/club-portal/${clubId}/team-selection`}><ShieldCheck size={20}/><span><small>Team selection</small><strong>{selection?.playerCount ?? 0} selected</strong><em>{selectionStatus.replaceAll('_', ' ').toLowerCase()}</em></span></Link>
-        <Link to={`/club-portal/${clubId}/coaching?view=training`}><Dumbbell size={20}/><span><small>Training</small><strong>Plan training</strong><em>Build the next session</em></span></Link>
+        <Link to={`/club-portal/${clubId}/coaching?view=training-plan`}><Dumbbell size={20}/><span><small>Training</small><strong>Plan training</strong><em>Build the next session</em></span></Link>
         <Link to={`/club-portal/${clubId}/coaching?view=opposition`}><Target size={20}/><span><small>Opposition</small><strong>{selection?.opponentName || 'Not confirmed'}</strong><em>{selection?.roundLabel || 'Next match'}</em></span></Link>
         <Link to={`/club-portal/${clubId}/coaching?view=match-day`}><Swords size={20}/><span><small>Match Day</small><strong>{selectionReady ? 'Ready to open' : 'Selection required'}</strong><em>Scoring, events and review</em></span></Link>
       </div>
