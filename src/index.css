@@ -148,6 +148,74 @@ a.gn-card,button.gn-card { cursor: pointer; }
   }
 }
 
+/* iPad Team Selection: use the Coaching sidebar as the navigation and fit the workspace beside it. */
+@media (min-width: 761px) and (max-width: 1180px) {
+  body:has(.cpts) .club-hq-bottom {
+    display: none !important;
+  }
+  body:has(.cpts) .club-section-mobile {
+    display: none !important;
+  }
+  body:has(.cpts) .cpts {
+    width: calc(100% - 238px) !important;
+    min-width: 0 !important;
+    margin-left: 238px !important;
+    padding: 22px clamp(16px, 2.4vw, 28px) 54px !important;
+    overflow-x: hidden !important;
+  }
+  body:has(.cpts) .cpts > header,
+  body:has(.cpts) .cpts > section,
+  body:has(.cpts) .cpts-message,
+  body:has(.cpts) .cpts-error {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+  body:has(.cpts) .cpts h1 {
+    max-width: 100% !important;
+    font-size: clamp(3.4rem, 7vw, 5.2rem) !important;
+    overflow-wrap: anywhere;
+  }
+  body:has(.cpts) .cpts-grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(300px, .95fr) !important;
+    gap: 12px !important;
+  }
+  body:has(.cpts) .cpts-card {
+    min-width: 0 !important;
+    padding: 16px !important;
+  }
+  body:has(.cpts) .cpts-add {
+    grid-template-columns: minmax(0, 1fr) 58px auto !important;
+  }
+  body:has(.cpts) .cpts-players span {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  body:has(.cpts) .cpts-sheet-head {
+    align-items: flex-start !important;
+  }
+  body:has(.cpts) .cpts-sheet-head > div:last-child {
+    flex-wrap: wrap !important;
+    justify-content: flex-end;
+  }
+  body:has(.cpts) .cpts-oval {
+    width: min(620px, 100%) !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 900px) {
+  body:has(.cpts) .cpts-grid {
+    grid-template-columns: 1fr !important;
+  }
+  body:has(.cpts) .cpts-sheet-head {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+  body:has(.cpts) .cpts-sheet-head > div:last-child {
+    justify-content: flex-start;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gn-skel,.gn-live-dot { animation: none; }
   .gn-card,.gn-card-hover,.gn-row { transition: none; }
