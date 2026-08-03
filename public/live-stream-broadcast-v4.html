@@ -18,10 +18,15 @@
     const studio=document.getElementById('studio')
     studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
     let installTimer=0
+    let visibilityTimer=0
+
+    function v3Document(){
+      try{return studio.contentDocument||null}catch{return null}
+    }
 
     function deepestStudio(){
       try{
-        const v3=studio.contentDocument
+        const v3=v3Document()
         const v2=v3?.getElementById('interchange')?.contentDocument
         const broadcast=v2?.getElementById('broadcast')?.contentDocument
         return broadcast?.getElementById('studio')?.contentDocument||null
@@ -40,38 +45,58 @@
         : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>'
     }
 
+    function syncControlVisibility(){
+      const v3=v3Document()
+      const doc=deepestStudio()
+      const original=v3?.querySelector('.highlight-controls')
+      if(!original||!doc)return false
+      const fullscreen=doc.body.classList.contains('stage-fullscreen')
+      original.style.setProperty('display',fullscreen?'none':'flex','important')
+      return true
+    }
+
     function installOperatorFullscreen(){
       const doc=deepestStudio()
       const button=doc?.getElementById('stageFullscreenBtn')
       if(!doc||!button)return false
-      if(button.dataset.operatorFullscreenBound==='1')return true
-      button.dataset.operatorFullscreenBound='1'
-      button.addEventListener('click',event=>{
-        event.preventDefault()
-        event.stopPropagation()
-        event.stopImmediatePropagation()
-        const active=doc.body.classList.contains('stage-fullscreen')
-        setOperatorFullscreen(doc,!active)
-        try{
-          if(!active)screen.orientation?.lock?.('landscape').catch(()=>{})
-          else screen.orientation?.unlock?.()
-        }catch{}
-      },true)
+      if(button.dataset.operatorFullscreenBound!=='1'){
+        button.dataset.operatorFullscreenBound='1'
+        button.addEventListener('click',event=>{
+          event.preventDefault()
+          event.stopPropagation()
+          event.stopImmediatePropagation()
+          const active=doc.body.classList.contains('stage-fullscreen')
+          setOperatorFullscreen(doc,!active)
+          requestAnimationFrame(syncControlVisibility)
+          try{
+            if(!active)screen.orientation?.lock?.('landscape').catch(()=>{})
+            else screen.orientation?.unlock?.()
+          }catch{}
+        },true)
+      }
       return true
     }
 
     function beginInstall(){
       clearInterval(installTimer)
-      if(installOperatorFullscreen())return
-      installTimer=setInterval(()=>{
-        if(installOperatorFullscreen())clearInterval(installTimer)
-      },250)
-      setTimeout(()=>clearInterval(installTimer),15000)
+      clearInterval(visibilityTimer)
+      const install=()=>installOperatorFullscreen()
+      if(!install()){
+        installTimer=setInterval(()=>{
+          if(install())clearInterval(installTimer)
+        },250)
+        setTimeout(()=>clearInterval(installTimer),15000)
+      }
+      visibilityTimer=setInterval(syncControlVisibility,150)
+      syncControlVisibility()
     }
 
     studio.addEventListener('load',beginInstall)
     window.addEventListener('pageshow',beginInstall)
-    window.addEventListener('beforeunload',()=>clearInterval(installTimer))
+    window.addEventListener('beforeunload',()=>{
+      clearInterval(installTimer)
+      clearInterval(visibilityTimer)
+    })
   })()
   </script>
 </body>
