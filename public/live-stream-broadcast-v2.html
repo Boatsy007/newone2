@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#050505" />
+  <title>PlayFooty Live Broadcast Studio</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;font-family:Inter,Arial,sans-serif}iframe{display:block;width:100%;height:100%;border:0;background:#05090d}
+    .swap-visual{position:fixed;inset:0;z-index:12000;display:grid;place-items:center;padding:clamp(18px,5vw,48px);pointer-events:none;opacity:0;visibility:hidden;transition:opacity .2s ease,visibility .2s ease}
+    .swap-visual.show{opacity:1;visibility:visible}.swap-backdrop{position:absolute;inset:0;background:linear-gradient(135deg,rgba(2,7,12,.96),rgba(2,7,12,.78)),var(--swap-cover,none);background-position:center;background-size:cover;transform:scale(1.04)}
+    .swap-backdrop:after{content:'';position:absolute;inset:0;background:radial-gradient(circle at center,transparent 0,rgba(0,0,0,.64) 74%)}
+    .swap-card{position:relative;z-index:1;width:min(820px,94vw);padding:clamp(24px,5vw,56px);border:1px solid rgba(255,255,255,.22);border-radius:clamp(18px,4vw,34px);background:linear-gradient(145deg,color-mix(in srgb,var(--swap-colour,#2daaf5) 42%,rgba(0,0,0,.86)),rgba(0,0,0,.74));box-shadow:0 32px 100px rgba(0,0,0,.62);color:#fff;text-align:center;overflow:hidden;transform:translateY(24px) scale(.96);transition:transform .4s cubic-bezier(.2,.8,.2,1)}
+    .swap-visual.show .swap-card{transform:translateY(0) scale(1)}.swap-card:before{content:'';position:absolute;inset:-45%;background:conic-gradient(from 180deg,transparent,rgba(255,255,255,.16),transparent 32%);animation:spin 3s linear infinite}.swap-card>*{position:relative;z-index:1}
+    .swap-logo{display:none;width:clamp(68px,13vw,120px);height:clamp(68px,13vw,120px);margin:0 auto 10px;object-fit:contain;filter:drop-shadow(0 10px 22px rgba(0,0,0,.6))}.swap-logo.show{display:block}
+    .swap-team{font-size:clamp(11px,2vw,17px);font-weight:1000;letter-spacing:.22em;text-transform:uppercase;color:#d8edf9}.swap-title{margin:6px 0 clamp(18px,4vw,34px);font-size:clamp(48px,10vw,108px);font-weight:1000;letter-spacing:-.055em;line-height:.82;text-transform:uppercase;text-shadow:0 6px 30px rgba(0,0,0,.55)}
+    .swap-players{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:clamp(12px,3vw,28px)}.swap-player{display:grid;gap:7px;padding:clamp(14px,3vw,26px);border:1px solid rgba(255,255,255,.16);border-radius:18px;background:rgba(0,0,0,.32)}.swap-player small{font-size:clamp(10px,1.6vw,14px);font-weight:1000;letter-spacing:.18em;text-transform:uppercase}.swap-player strong{font-size:clamp(21px,4.5vw,48px);line-height:1;text-transform:uppercase}.swap-player.off small{color:#ff7c84}.swap-player.on small{color:#55e897}.swap-arrow{font-size:clamp(30px,6vw,64px);font-weight:1000;color:#dbeaf3}.swap-footer{margin-top:clamp(16px,3vw,28px);font-size:clamp(9px,1.5vw,13px);font-weight:950;letter-spacing:.18em;text-transform:uppercase;color:#c8d4db}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(max-width:560px){.swap-players{grid-template-columns:1fr}.swap-arrow{transform:rotate(90deg);line-height:.7}.swap-card{padding:24px 18px}.swap-title{font-size:48px}}
+    @media(prefers-reduced-motion:reduce){.swap-card{transition:none}.swap-card:before{animation:none}}
+  </style>
+</head>
+<body>
+  <iframe id="broadcast" title="PlayFooty Live Broadcast Studio" allow="camera; microphone; fullscreen; autoplay"></iframe>
+  <section class="swap-visual" id="swapVisual" aria-live="polite">
+    <div class="swap-backdrop"></div>
+    <article class="swap-card">
+      <img class="swap-logo" id="swapLogo" alt="" />
+      <div class="swap-team" id="swapTeam">Your Team</div>
+      <div class="swap-title">Interchange</div>
+      <div class="swap-players">
+        <div class="swap-player off"><small>Coming off</small><strong id="playerOff"></strong></div>
+        <div class="swap-arrow">↔</div>
+        <div class="swap-player on"><small>Coming on</small><strong id="playerOn"></strong></div>
+      </div>
+      <div class="swap-footer">PlayFooty Live Match</div>
+    </article>
+  </section>
+<script>
+(() => {
+  const broadcast=document.getElementById('broadcast')
+  const visual=document.getElementById('swapVisual')
+  const logo=document.getElementById('swapLogo')
+  let ready=false,lastEvent='',hideTimer=0,inspectTimer=0
+  broadcast.src='/live-stream-broadcast.html'+(location.search||'')
+
+  function text(doc,id){return String(doc?.getElementById(id)?.textContent||'').trim()}
+  function innerStudio(){
+    const broadcastDoc=broadcast.contentDocument
+    const studio=broadcastDoc?.getElementById('studio')
+    return studio?.contentDocument||null
+  }
+  function assets(doc){
+    const panel=doc?.getElementById('homeTeam')
+    const image=doc?.getElementById('homeLogo')
+    return {
+      team:text(doc,'homeName')||'Your Team',
+      logo:image?.src||'',
+      cover:panel?.style.getPropertyValue('--team-cover')||'none',
+      colour:panel?.style.getPropertyValue('--team-colour')||'#2daaf5',
+    }
+  }
+  function parseSwap(event){
+    const match=String(event||'').match(/^(.+?)\s+swapped\s+with\s+(.+)$/i)
+    return match?{off:match[1].trim(),on:match[2].trim()}:null
+  }
+  function showSwap(swap,brand){
+    clearTimeout(hideTimer)
+    document.getElementById('swapTeam').textContent=brand.team
+    document.getElementById('playerOff').textContent=swap.off
+    document.getElementById('playerOn').textContent=swap.on
+    visual.style.setProperty('--swap-colour',brand.colour)
+    visual.style.setProperty('--swap-cover',brand.cover||'none')
+    if(brand.logo){logo.src=brand.logo;logo.classList.add('show')}else{logo.removeAttribute('src');logo.classList.remove('show')}
+    requestAnimationFrame(()=>visual.classList.add('show'))
+    hideTimer=setTimeout(()=>visual.classList.remove('show'),4200)
+  }
+  function inspect(){
+    try{
+      const doc=innerStudio()
+      if(!doc)return
+      const event=text(doc,'latest')
+      if(!ready){lastEvent=event;ready=true;return}
+      if(event&&event!==lastEvent){
+        const swap=parseSwap(event)
+        if(swap)showSwap(swap,assets(doc))
+      }
+      lastEvent=event||lastEvent
+    }catch{}
+  }
+  broadcast.addEventListener('load',()=>{
+    ready=false
+    clearInterval(inspectTimer)
+    inspectTimer=setInterval(inspect,160)
+  })
+  window.addEventListener('beforeunload',()=>clearInterval(inspectTimer))
+})()
+</script>
+</body>
+</html>
