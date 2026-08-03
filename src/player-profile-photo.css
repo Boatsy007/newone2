@@ -25,41 +25,51 @@
 
 /* Match Day mobile field fit. Scoped to the live Coaching Match Day oval. */
 @media (max-width: 760px) {
+  .md .md-ground-wrap {
+    padding-inline: 6px !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+  }
+
   .md .md-ground {
-    aspect-ratio: .60 !important;
+    width: 94% !important;
+    max-width: 94% !important;
+    margin-inline: auto !important;
+    aspect-ratio: .68 !important;
+    border-radius: 50% !important;
   }
 
   .md .md-player.on-field {
-    width: 24.5% !important;
-    max-width: 94px !important;
-    border-radius: 7px !important;
+    width: 21.5% !important;
+    max-width: 82px !important;
+    border-radius: 6px !important;
   }
 
   .md .md-player-main {
-    grid-template-columns: 24px minmax(0, 1fr) 18px !important;
+    grid-template-columns: 21px minmax(0, 1fr) 17px !important;
   }
 
   .md .md-player-main .number {
-    min-width: 24px !important;
+    min-width: 21px !important;
     background: #050607 !important;
-    font-size: 9px !important;
+    font-size: 8px !important;
   }
 
   .md .md-player-main strong {
-    min-height: 23px !important;
-    padding: 4px 2px 0 !important;
-    font-size: 7.8px !important;
-    line-height: 1 !important;
+    min-height: 20px !important;
+    padding: 3px 2px 0 !important;
+    font-size: 7px !important;
+    line-height: .98 !important;
   }
 
   .md .md-player-main small {
-    padding: 0 2px 3px !important;
-    font-size: 6px !important;
+    padding: 0 2px 2px !important;
+    font-size: 5.5px !important;
   }
 
   .md .md-player-main em {
     padding: 0 2px !important;
-    font-size: 8px !important;
+    font-size: 7px !important;
   }
 
   .md .md-player-score {
@@ -68,38 +78,53 @@
   }
 
   .md .md-player-score button {
-    min-height: 20px !important;
-    padding: 1px !important;
+    min-height: 18px !important;
+    padding: 0 !important;
     border-radius: 4px !important;
     background: #050607 !important;
     border-color: #050607 !important;
     color: #fff !important;
-    font-size: 8px !important;
-  }
-
-  .md .md-player-score span {
     font-size: 7px !important;
   }
 
-  /* Back pockets and forward pockets sit slightly wider, while remaining inside the oval. */
-  .md .md-ground > .md-player.on-field:nth-of-type(1),
-  .md .md-ground > .md-player.on-field:nth-of-type(16) {
-    left: 17% !important;
+  .md .md-player-score span {
+    font-size: 6px !important;
   }
 
-  .md .md-ground > .md-player.on-field:nth-of-type(3),
-  .md .md-ground > .md-player.on-field:nth-of-type(18) {
-    left: 83% !important;
-  }
+  /* Re-space all 18 positions for the smaller, true oval mobile field. */
+  .md .md-ground > .md-player.on-field:nth-of-type(1)  { top: 10% !important; left: 20% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(2)  { top: 5% !important;  left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(3)  { top: 10% !important; left: 80% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(4)  { top: 25% !important; left: 19% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(5)  { top: 22% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(6)  { top: 25% !important; left: 81% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(7)  { top: 43% !important; left: 15% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(8)  { top: 37% !important; left: 35% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(9)  { top: 37% !important; left: 65% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(10) { top: 43% !important; left: 85% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(11) { top: 54% !important; left: 35% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(12) { top: 54% !important; left: 65% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(13) { top: 69% !important; left: 20% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(14) { top: 65% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(15) { top: 69% !important; left: 80% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(16) { top: 84% !important; left: 20% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(17) { top: 90% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(18) { top: 84% !important; left: 80% !important; }
 }
 
 @media (max-width: 390px) {
-  .md .md-player.on-field {
-    width: 23.5% !important;
-    max-width: 88px !important;
+  .md .md-ground {
+    width: 96% !important;
+    max-width: 96% !important;
+    aspect-ratio: .66 !important;
   }
 
-  .md .md-ground {
-    aspect-ratio: .58 !important;
+  .md .md-player.on-field {
+    width: 20.5% !important;
+    max-width: 76px !important;
+  }
+
+  .md .md-player-main strong {
+    font-size: 6.6px !important;
   }
 }
