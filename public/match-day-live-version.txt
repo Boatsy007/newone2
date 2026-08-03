@@ -1,0 +1,3 @@
+PlayFooty Match Day live player scoring
+Deployment trigger: 3 August 2026
+Includes player goal/behind controls, shared scoring state, team score updates and undo support.
