@@ -6,8 +6,9 @@ import { authenticateClubUser, membershipForClub, requireActiveClubMembership, r
 const router = Router()
 const MEDIA_BUCKET = process.env.SUPABASE_MEDIA_BUCKET || process.env.SUPABASE_LOGO_BUCKET || 'playfooty-logos'
 const IMAGE_TYPES = new Set(['image/png','image/jpeg','image/jpg','image/webp'])
-const EXT:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/jpg':'jpg','image/webp':'webp'}
-const MEDIA_TYPES = new Set(['PLAYER','MATCH','MILESTONE','TEAM_SELECTION','SPONSOR','CLUB','GENERATED','OTHER'])
+const VIDEO_TYPES = new Set(['video/mp4','video/webm','video/quicktime'])
+const EXT:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/jpg':'jpg','image/webp':'webp','video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'}
+const MEDIA_TYPES = new Set(['PLAYER','MATCH','MILESTONE','TEAM_SELECTION','SPONSOR','CLUB','GENERATED','HIGHLIGHT','OTHER'])
 const STATUSES = new Set(['DRAFT','READY','ARCHIVED'])
 let ready:Promise<void>|null=null
 
@@ -50,6 +51,8 @@ async function requireMediaPermission(req:any,res:any,next:any){
 }
 const text=(value:unknown,max=180)=>String(value??'').trim().slice(0,max)
 const tags=(value:unknown)=>Array.isArray(value)?value.map(item=>text(item,40)).filter(Boolean).slice(0,20):[]
+const storageConfig=()=>({url:(process.env.SUPABASE_URL??'').replace(/\/$/,''),key:process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_KEY||''})
+const publicUrl=(url:string,path:string)=>`${url}/storage/v1/object/public/${MEDIA_BUCKET}/${path}`
 
 router.use(authenticateClubUser)
 router.use('/clubs/:clubId',requireActiveClubMembership,requireMediaPermission)
@@ -84,12 +87,12 @@ router.post('/clubs/:clubId/upload',async(req,res)=>{
   if(!IMAGE_TYPES.has(contentType))return res.status(400).json({error:'Use PNG, JPG or WEBP images'})
   const raw=String(req.body?.dataUrl??req.body?.base64??''),base64=raw.includes(',')?raw.split(',').pop()!:raw,buffer=Buffer.from(base64,'base64')
   if(!buffer.length||buffer.length>10*1024*1024)return res.status(400).json({error:'Media image must be between 1 byte and 10 MB'})
-  const url=(process.env.SUPABASE_URL??'').replace(/\/$/,'');const key=process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_KEY||''
+  const {url,key}=storageConfig()
   if(!url||!key)return res.status(503).json({error:'Media storage is not configured'})
   const id=randomUUID(),ext=EXT[contentType]??'jpg',path=`club-media/${req.params.clubId}/${id}.${ext}`
   const upload=await fetch(`${url}/storage/v1/object/${MEDIA_BUCKET}/${path}`,{method:'POST',headers:{authorization:`Bearer ${key}`,apikey:key,'content-type':contentType,'x-upsert':'false'},body:buffer})
   if(!upload.ok)return res.status(400).json({error:`Media upload failed: HTTP ${upload.status}`})
-  const fileUrl=`${url}/storage/v1/object/public/${MEDIA_BUCKET}/${path}`
+  const fileUrl=publicUrl(url,path)
   const mediaType=MEDIA_TYPES.has(String(req.body?.mediaType))?String(req.body.mediaType):'OTHER'
   const status=STATUSES.has(String(req.body?.status))?String(req.body.status):'READY'
   const title=text(req.body?.title)||'Untitled media'
@@ -101,6 +104,51 @@ router.post('/clubs/:clubId/upload',async(req,res)=>{
    text(req.body?.sourceEntityType,60)||null,text(req.body?.sourceEntityId,100)||null,req.clubUser!.id)
   res.status(201).json({data:{id,clubId:req.params.clubId,title,description:text(req.body?.description,1000)||null,mediaType,status,fileUrl,contentType,fileSize:buffer.length,tags:tags(req.body?.tags),createdAt:new Date().toISOString()},message:'Media uploaded'})
  }catch(error){res.status(500).json({error:'Unable to upload media',detail:String(error)})}
+})
+
+router.post('/clubs/:clubId/signed-upload',async(req,res)=>{
+ try{
+  await ensureTable()
+  const contentType=text(req.body?.contentType,80)
+  const fileSize=Number(req.body?.fileSize)||0
+  if(!VIDEO_TYPES.has(contentType))return res.status(400).json({error:'Use MP4, WEBM or MOV video'})
+  if(fileSize<1||fileSize>150*1024*1024)return res.status(400).json({error:'Highlight video must be between 1 byte and 150 MB'})
+  const {url,key}=storageConfig()
+  if(!url||!key)return res.status(503).json({error:'Media storage is not configured'})
+  const id=randomUUID(),ext=EXT[contentType]??'mp4',path=`club-media/${req.params.clubId}/highlights/${id}.${ext}`
+  const signed=await fetch(`${url}/storage/v1/object/upload/sign/${MEDIA_BUCKET}/${path}`,{
+   method:'POST',headers:{authorization:`Bearer ${key}`,apikey:key,'content-type':'application/json'},body:JSON.stringify({upsert:false})
+  })
+  const payload=await signed.json().catch(()=>({})) as Record<string,unknown>
+  if(!signed.ok)return res.status(400).json({error:text(payload.message||payload.error)||`Unable to prepare upload: HTTP ${signed.status}`})
+  const token=text(payload.token,2000)
+  const returnedUrl=text(payload.url||payload.signedURL||payload.signedUrl,4000)
+  const uploadUrl=returnedUrl
+   ? (returnedUrl.startsWith('http')?returnedUrl:`${url}/storage/v1${returnedUrl.startsWith('/')?'':'/'}${returnedUrl}`)
+   : token?`${url}/storage/v1/object/upload/sign/${MEDIA_BUCKET}/${path}?token=${encodeURIComponent(token)}`:''
+  if(!uploadUrl)return res.status(500).json({error:'Storage did not return a signed upload URL'})
+  res.json({data:{id,path,uploadUrl,fileUrl:publicUrl(url,path),contentType,fileSize}})
+ }catch(error){res.status(500).json({error:'Unable to prepare highlight upload',detail:String(error)})}
+})
+
+router.post('/clubs/:clubId/complete-upload',async(req,res)=>{
+ try{
+  await ensureTable()
+  const id=text(req.body?.id,80),path=text(req.body?.path,500),contentType=text(req.body?.contentType,80),fileSize=Number(req.body?.fileSize)||0
+  if(!id||!path||!path.startsWith(`club-media/${req.params.clubId}/highlights/`))return res.status(400).json({error:'A valid highlight upload is required'})
+  if(!VIDEO_TYPES.has(contentType)||fileSize<1||fileSize>150*1024*1024)return res.status(400).json({error:'Invalid highlight video details'})
+  const {url}=storageConfig()
+  if(!url)return res.status(503).json({error:'Media storage is not configured'})
+  const title=text(req.body?.title)||'Match highlight'
+  const description=text(req.body?.description,1000)||null
+  const mediaType='HIGHLIGHT',status='READY',fileUrl=publicUrl(url,path)
+  await prisma.$executeRawUnsafe(`
+   INSERT INTO club_media_assets(id,club_id,title,description,media_type,status,file_url,storage_path,content_type,file_size,tags,source_entity_type,source_entity_id,created_by)
+   VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14)
+   ON CONFLICT(id) DO NOTHING
+  `,id,req.params.clubId,title,description,mediaType,status,fileUrl,path,contentType,fileSize,JSON.stringify(tags(req.body?.tags)),'LIVE_MATCH',text(req.body?.sourceEntityId,100)||null,req.clubUser!.id)
+  res.status(201).json({data:{id,clubId:req.params.clubId,title,description,mediaType,status,fileUrl,contentType,fileSize,tags:tags(req.body?.tags),createdAt:new Date().toISOString()},message:'Highlight saved to Media Library'})
+ }catch(error){res.status(500).json({error:'Unable to complete highlight upload',detail:String(error)})}
 })
 
 router.patch('/clubs/:clubId/:id',async(req,res)=>{
