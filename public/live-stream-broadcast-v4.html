@@ -7,6 +7,8 @@
   <title>PlayFooty Live Broadcast Studio</title>
   <style>
     *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;font-family:Inter,Arial,sans-serif}iframe{display:block;width:100%;height:100%;border:0;background:#05090d}
+    body.pf-mobile-fullscreen{position:fixed;inset:0;width:100vw;height:100dvh;overflow:hidden;background:#000;z-index:2147483000}
+    body.pf-mobile-fullscreen>#studio{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;background:#000;z-index:2147483000}
   </style>
 </head>
 <body>
@@ -15,6 +17,7 @@
   (()=>{
     const studio=document.getElementById('studio')
     studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
+    let boundFullscreenButton=null
 
     function deepestStudio(){
       try{
@@ -28,18 +31,14 @@
     function installSingleWatermark(){
       const doc=deepestStudio()
       if(!doc)return
-
       try{
         doc.querySelectorAll('.pf-live-watermark,.playfooty-live-watermark').forEach((node,index)=>{
           if(index>0||node.id!=='playfootyBroadcastWatermark')node.remove()
         })
-
         const stage=doc.getElementById('stage')
         if(!stage)return
-
         const oldBug=stage.querySelector('.top-bug')
         if(oldBug)oldBug.remove()
-
         let mark=stage.querySelector('#playfootyBroadcastWatermark')
         if(!mark){
           const style=doc.createElement('style')
@@ -54,7 +53,6 @@
             @media(prefers-reduced-motion:reduce){#playfootyBroadcastWatermark .pf-broadcast-dot{animation:none}}
           `
           doc.head.appendChild(style)
-
           mark=doc.createElement('div')
           mark.id='playfootyBroadcastWatermark'
           mark.setAttribute('aria-label','PlayFooty Live')
@@ -64,8 +62,45 @@
       }catch{}
     }
 
-    studio.addEventListener('load',installSingleWatermark)
-    const timer=setInterval(installSingleWatermark,750)
+    function setMobileFullscreen(active,button){
+      document.body.classList.toggle('pf-mobile-fullscreen',active)
+      document.documentElement.style.overflow=active?'hidden':''
+      if(button){
+        button.textContent=active?'Exit Fullscreen':'Fullscreen'
+        button.setAttribute('aria-pressed',String(active))
+      }
+      try{
+        if(active)screen.orientation?.lock?.('landscape').catch(()=>{})
+        else screen.orientation?.unlock?.()
+      }catch{}
+    }
+
+    function bindMobileFullscreen(){
+      const doc=deepestStudio()
+      const button=doc?.getElementById('fullBtn')
+      if(!button||button===boundFullscreenButton)return
+      boundFullscreenButton=button
+      button.setAttribute('aria-pressed','false')
+      button.addEventListener('click',event=>{
+        const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||!document.fullscreenEnabled
+        if(!mobile)return
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        setMobileFullscreen(!document.body.classList.contains('pf-mobile-fullscreen'),button)
+      },true)
+    }
+
+    function install(){
+      installSingleWatermark()
+      bindMobileFullscreen()
+    }
+
+    studio.addEventListener('load',install)
+    const timer=setInterval(install,500)
+    window.addEventListener('pageshow',install)
+    window.addEventListener('keydown',event=>{
+      if(event.key==='Escape'&&document.body.classList.contains('pf-mobile-fullscreen'))setMobileFullscreen(false,boundFullscreenButton)
+    })
     window.addEventListener('beforeunload',()=>clearInterval(timer))
   })()
   </script>
