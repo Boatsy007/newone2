@@ -11,6 +11,63 @@
 </head>
 <body>
   <iframe id="studio" title="PlayFooty Live Broadcast Studio" allow="camera; microphone; fullscreen; autoplay"></iframe>
-  <script>document.getElementById('studio').src='/live-stream-broadcast-v3.html'+(location.search||'')</script>
+  <script>
+  (()=>{
+    const studio=document.getElementById('studio')
+    studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
+
+    function deepestStudio(){
+      try{
+        const v3=studio.contentDocument
+        const v2=v3?.getElementById('interchange')?.contentDocument
+        const broadcast=v2?.getElementById('broadcast')?.contentDocument
+        return broadcast?.getElementById('studio')?.contentDocument||null
+      }catch{return null}
+    }
+
+    function installSingleWatermark(){
+      const doc=deepestStudio()
+      if(!doc)return
+
+      try{
+        doc.querySelectorAll('.pf-live-watermark,.playfooty-live-watermark').forEach((node,index)=>{
+          if(index>0||node.id!=='playfootyBroadcastWatermark')node.remove()
+        })
+
+        const stage=doc.getElementById('stage')
+        if(!stage)return
+
+        const oldBug=stage.querySelector('.top-bug')
+        if(oldBug)oldBug.remove()
+
+        let mark=stage.querySelector('#playfootyBroadcastWatermark')
+        if(!mark){
+          const style=doc.createElement('style')
+          style.id='playfooty-broadcast-watermark-style'
+          style.textContent=`
+            #playfootyBroadcastWatermark{position:absolute;top:12px;right:12px;z-index:12;display:flex;align-items:center;gap:7px;pointer-events:none;filter:drop-shadow(0 3px 8px rgba(0,0,0,.78));opacity:.94;transform:none!important;animation:none!important}
+            #playfootyBroadcastWatermark .pf-broadcast-logo{display:block;width:clamp(96px,15vw,170px);height:auto;object-fit:contain;transform:none!important;animation:none!important;opacity:1!important}
+            #playfootyBroadcastWatermark .pf-broadcast-live{display:flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid rgba(255,255,255,.2);border-radius:999px;background:rgba(4,9,14,.82);color:#fff;font-size:9px;font-weight:1000;letter-spacing:.12em;line-height:1;text-transform:uppercase;backdrop-filter:blur(8px);transform:none!important;animation:none!important}
+            #playfootyBroadcastWatermark .pf-broadcast-dot{display:block;width:7px;height:7px;border-radius:50%;background:#f04451;box-shadow:0 0 0 0 rgba(240,68,81,.55);animation:pfBroadcastDotPulse 1.35s ease-out infinite}
+            @keyframes pfBroadcastDotPulse{0%{box-shadow:0 0 0 0 rgba(240,68,81,.55)}70%{box-shadow:0 0 0 6px rgba(240,68,81,0)}100%{box-shadow:0 0 0 0 rgba(240,68,81,0)}}
+            @media(max-width:700px){#playfootyBroadcastWatermark{top:8px;right:8px;gap:5px}#playfootyBroadcastWatermark .pf-broadcast-logo{width:96px}#playfootyBroadcastWatermark .pf-broadcast-live{padding:3px 6px;font-size:8px}}
+            @media(prefers-reduced-motion:reduce){#playfootyBroadcastWatermark .pf-broadcast-dot{animation:none}}
+          `
+          doc.head.appendChild(style)
+
+          mark=doc.createElement('div')
+          mark.id='playfootyBroadcastWatermark'
+          mark.setAttribute('aria-label','PlayFooty Live')
+          mark.innerHTML='<img class="pf-broadcast-logo" src="/Playfooty-logo-modern.png" alt="PlayFooty"><span class="pf-broadcast-live"><i class="pf-broadcast-dot" aria-hidden="true"></i>Live</span>'
+          stage.appendChild(mark)
+        }
+      }catch{}
+    }
+
+    studio.addEventListener('load',installSingleWatermark)
+    const timer=setInterval(installSingleWatermark,750)
+    window.addEventListener('beforeunload',()=>clearInterval(timer))
+  })()
+  </script>
 </body>
 </html>
