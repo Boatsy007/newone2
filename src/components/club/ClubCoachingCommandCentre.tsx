@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarCheck, ClipboardCheck, ClipboardList, Dumbbell, ShieldCheck, Sparkles, Swords, Target, Users, Workflow } from 'lucide-react'
+import { ArrowRight, CalendarCheck, ClipboardCheck, Dumbbell, ShieldCheck, Sparkles, Swords, Target, Users, Workflow } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -40,23 +40,26 @@ export default function ClubCoachingCommandCentre({ clubId }: { clubId: string }
     let frame = 0
     let attempts = 0
     const findHost = () => {
-      const workspace = document.querySelector('.coach-workspace')
-      const hero = workspace?.querySelector('.coach-hero')
-      if (workspace && hero) {
+      const workspace = document.querySelector('.cah')
+      const weekCard = workspace?.querySelector('.cah-week')
+      if (workspace && weekCard) {
         let mount = workspace.querySelector('.coach-command-centre-host')
         if (!mount) {
           mount = document.createElement('div')
           mount.className = 'coach-command-centre-host'
-          hero.insertAdjacentElement('afterend', mount)
+          weekCard.insertAdjacentElement('afterend', mount)
         }
         setHost(mount)
         return
       }
       attempts += 1
-      if (attempts < 60) frame = requestAnimationFrame(findHost)
+      if (attempts < 120) frame = requestAnimationFrame(findHost)
     }
     frame = requestAnimationFrame(findHost)
-    return () => cancelAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(frame)
+      document.querySelector('.coach-command-centre-host')?.remove()
+    }
   }, [clubId])
 
   useEffect(() => {
@@ -135,8 +138,8 @@ export default function ClubCoachingCommandCentre({ clubId }: { clubId: string }
 }
 
 const styles = `
-.coach-command-centre{margin-top:16px;padding:22px;border:1px solid #d9e2e9;border-radius:16px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.05);color:#111318}.coach-command-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:16px}.coach-command-heading span,.coach-command-primary span{color:#0783c9;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.coach-command-heading h2{margin:5px 0 2px;font:42px/.9 'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.coach-command-heading p{margin:0;color:#687385;font-size:13px}.coach-command-heading>a{display:inline-flex;align-items:center;gap:6px;color:#087fbd;text-decoration:none;font-size:11px;font-weight:900;text-transform:uppercase}.coach-command-loading{display:grid;place-items:center;min-height:150px;border-radius:13px;background:#f3f7fa;color:#687385;font-weight:800}.coach-command-primary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:15px;padding:18px;border-radius:14px;background:linear-gradient(110deg,#0d141c,#172432);color:#fff}.coach-command-primary-icon{display:grid;place-items:center;width:50px;height:50px;border-radius:13px;background:#42b8ff;color:#071018}.coach-command-primary strong,.coach-command-primary p{display:block}.coach-command-primary strong{margin-top:4px;font-size:18px}.coach-command-primary p{margin:5px 0 0;color:#b9c6d1;font-size:12px}.coach-command-primary>a{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 13px;border-radius:10px;background:#42b8ff;color:#071018;text-decoration:none;font-size:11px;font-weight:950;text-transform:uppercase}.coach-command-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:10px}.coach-command-status>a{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:9px;padding:14px;border:1px solid #e0e7ec;border-radius:12px;color:#111318;text-decoration:none;background:#f8fafb}.coach-command-status>a>svg{color:#0783c9}.coach-command-status span{min-width:0}.coach-command-status small,.coach-command-status strong,.coach-command-status em{display:block}.coach-command-status small{color:#75808a;font-size:8px;font-weight:950;letter-spacing:.08em;text-transform:uppercase}.coach-command-status strong{margin-top:4px;overflow:hidden;text-overflow:ellipsis;font-size:13px;white-space:nowrap}.coach-command-status em{margin-top:3px;color:#7b8791;font-size:9px;font-style:normal;text-transform:capitalize}.coach-command-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.coach-command-actions>a{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 10px;border:1px solid #dce4ea;border-radius:11px;color:#53606b;text-decoration:none;font-size:10px;font-weight:900}.coach-command-actions>a:hover{border-color:#42b8ff;color:#087fbd;background:#eff9ff}
+.coach-command-centre{margin-top:28px;padding:22px;border:1px solid #d9e2e9;border-radius:20px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.06);color:#111318}.coach-command-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:16px}.coach-command-heading span,.coach-command-primary span{color:#0783c9;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.coach-command-heading h2{margin:5px 0 2px;font:42px/.9 'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.coach-command-heading p{margin:0;color:#687385;font-size:13px}.coach-command-heading>a{display:inline-flex;align-items:center;gap:6px;color:#087fbd;text-decoration:none;font-size:11px;font-weight:900;text-transform:uppercase}.coach-command-loading{display:grid;place-items:center;min-height:150px;border-radius:13px;background:#f3f7fa;color:#687385;font-weight:800}.coach-command-primary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:15px;padding:18px;border-radius:14px;background:linear-gradient(110deg,#0d141c,#172432);color:#fff}.coach-command-primary-icon{display:grid;place-items:center;width:50px;height:50px;border-radius:13px;background:#42b8ff;color:#071018}.coach-command-primary strong,.coach-command-primary p{display:block}.coach-command-primary strong{margin-top:4px;font-size:18px}.coach-command-primary p{margin:5px 0 0;color:#b9c6d1;font-size:12px}.coach-command-primary>a{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 13px;border-radius:10px;background:#42b8ff;color:#071018;text-decoration:none;font-size:11px;font-weight:950;text-transform:uppercase}.coach-command-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:10px}.coach-command-status>a{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:9px;padding:14px;border:1px solid #e0e7ec;border-radius:12px;color:#111318;text-decoration:none;background:#f8fafb}.coach-command-status>a>svg{color:#0783c9}.coach-command-status span{min-width:0}.coach-command-status small,.coach-command-status strong,.coach-command-status em{display:block}.coach-command-status small{color:#75808a;font-size:8px;font-weight:950;letter-spacing:.08em;text-transform:uppercase}.coach-command-status strong{margin-top:4px;overflow:hidden;text-overflow:ellipsis;font-size:13px;white-space:nowrap}.coach-command-status em{margin-top:3px;color:#7b8791;font-size:9px;font-style:normal;text-transform:capitalize}.coach-command-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.coach-command-actions>a{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 10px;border:1px solid #dce4ea;border-radius:11px;color:#53606b;text-decoration:none;font-size:10px;font-weight:900}.coach-command-actions>a:hover{border-color:#42b8ff;color:#087fbd;background:#eff9ff}
 @media(max-width:900px){.coach-command-status{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:760px){.coach-command-centre{padding:17px;border-radius:14px}.coach-command-heading{align-items:flex-start;flex-direction:column}.coach-command-heading h2{font-size:36px}.coach-command-primary{grid-template-columns:auto minmax(0,1fr);padding:15px}.coach-command-primary>a{grid-column:1/-1}.coach-command-status{grid-template-columns:1fr 1fr}.coach-command-actions{grid-template-columns:1fr 1fr}.coach-command-status>a{padding:12px}.coach-command-primary strong{font-size:16px}}
+@media(max-width:760px){.coach-command-centre{padding:17px;border-radius:18px}.coach-command-heading{align-items:flex-start;flex-direction:column}.coach-command-heading h2{font-size:36px}.coach-command-primary{grid-template-columns:auto minmax(0,1fr);padding:15px}.coach-command-primary>a{grid-column:1/-1}.coach-command-status{grid-template-columns:1fr 1fr}.coach-command-actions{grid-template-columns:1fr 1fr}.coach-command-status>a{padding:12px}.coach-command-primary strong{font-size:16px}}
 @media(max-width:420px){.coach-command-status{grid-template-columns:1fr}}
 `
