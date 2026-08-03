@@ -23,7 +23,7 @@
   }
 }
 
-/* Live Match mobile oval rebuild. Presentation only; scoring and shared state stay unchanged. */
+/* Match Day formation presentation only. Scoring and shared state are unchanged. */
 @media (max-width: 760px) {
   .md .md-field-panel {
     overflow: visible !important;
@@ -33,7 +33,7 @@
   .md .md-ground-wrap {
     width: calc(100% + 12px) !important;
     margin-left: -6px !important;
-    padding: 20px 0 20px !important;
+    padding: 18px 0 20px !important;
     overflow: visible !important;
     border-radius: 0 !important;
     background: transparent !important;
@@ -105,25 +105,29 @@
     font-size: 6px !important;
   }
 
-  /* Dedicated AFL position coordinates prevent row collisions on phones. */
-  .md .md-ground > .md-player.on-field:nth-of-type(1)  { top: 10% !important; left: 22% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(2)  { top: 5% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(3)  { top: 10% !important; left: 78% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(4)  { top: 25% !important; left: 18% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(5)  { top: 22% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(6)  { top: 25% !important; left: 82% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(7)  { top: 43% !important; left: 12% !important; }
+  /* Forward line at the scoreboard end (top). */
+  .md .md-ground > .md-player.on-field:nth-of-type(16) { top: 9% !important; left: 22% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(17) { top: 4% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(18) { top: 9% !important; left: 78% !important; }
+
+  .md .md-ground > .md-player.on-field:nth-of-type(13) { top: 25% !important; left: 18% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(14) { top: 22% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(15) { top: 25% !important; left: 82% !important; }
+
+  .md .md-ground > .md-player.on-field:nth-of-type(7)  { top: 44% !important; left: 12% !important; }
   .md .md-ground > .md-player.on-field:nth-of-type(8)  { top: 38% !important; left: 36% !important; }
   .md .md-ground > .md-player.on-field:nth-of-type(9)  { top: 38% !important; left: 64% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(10) { top: 43% !important; left: 88% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(11) { top: 55% !important; left: 36% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(12) { top: 55% !important; left: 64% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(13) { top: 70% !important; left: 19% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(14) { top: 67% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(15) { top: 70% !important; left: 81% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(16) { top: 85% !important; left: 23% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(17) { top: 90% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(18) { top: 85% !important; left: 77% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(10) { top: 44% !important; left: 88% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(11) { top: 56% !important; left: 36% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(12) { top: 56% !important; left: 64% !important; }
+
+  .md .md-ground > .md-player.on-field:nth-of-type(4)  { top: 72% !important; left: 18% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(5)  { top: 69% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(6)  { top: 72% !important; left: 82% !important; }
+
+  .md .md-ground > .md-player.on-field:nth-of-type(1)  { top: 87% !important; left: 22% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(2)  { top: 92% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(3)  { top: 87% !important; left: 78% !important; }
 }
 
 @media (max-width: 390px) {
@@ -150,7 +154,7 @@
   }
 }
 
-/* Dedicated iPad Match Day layout. Uses the available tablet width without overlap. */
+/* Dedicated iPad Match Day layout. */
 @media (min-width: 761px) and (max-width: 1180px) {
   .md .md-field-panel {
     padding: 14px !important;
@@ -214,24 +218,28 @@
     font-size: 10px !important;
   }
 
-  .md .md-ground > .md-player.on-field:nth-of-type(1)  { top: 10% !important; left: 21% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(2)  { top: 5% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(3)  { top: 10% !important; left: 79% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(4)  { top: 25% !important; left: 18% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(5)  { top: 22% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(6)  { top: 25% !important; left: 82% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(7)  { top: 43% !important; left: 12% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(16) { top: 9% !important; left: 21% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(17) { top: 4% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(18) { top: 9% !important; left: 79% !important; }
+
+  .md .md-ground > .md-player.on-field:nth-of-type(13) { top: 25% !important; left: 18% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(14) { top: 22% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(15) { top: 25% !important; left: 82% !important; }
+
+  .md .md-ground > .md-player.on-field:nth-of-type(7)  { top: 44% !important; left: 12% !important; }
   .md .md-ground > .md-player.on-field:nth-of-type(8)  { top: 38% !important; left: 36% !important; }
   .md .md-ground > .md-player.on-field:nth-of-type(9)  { top: 38% !important; left: 64% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(10) { top: 43% !important; left: 88% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(11) { top: 55% !important; left: 36% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(12) { top: 55% !important; left: 64% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(13) { top: 70% !important; left: 19% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(14) { top: 67% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(15) { top: 70% !important; left: 81% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(16) { top: 85% !important; left: 23% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(17) { top: 90% !important; left: 50% !important; }
-  .md .md-ground > .md-player.on-field:nth-of-type(18) { top: 85% !important; left: 77% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(10) { top: 44% !important; left: 88% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(11) { top: 56% !important; left: 36% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(12) { top: 56% !important; left: 64% !important; }
+
+  .md .md-ground > .md-player.on-field:nth-of-type(4)  { top: 72% !important; left: 18% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(5)  { top: 69% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(6)  { top: 72% !important; left: 82% !important; }
+
+  .md .md-ground > .md-player.on-field:nth-of-type(1)  { top: 87% !important; left: 21% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(2)  { top: 92% !important; left: 50% !important; }
+  .md .md-ground > .md-player.on-field:nth-of-type(3)  { top: 87% !important; left: 79% !important; }
 
   .md .md-bench {
     grid-template-columns: repeat(4,minmax(0,1fr)) !important;
