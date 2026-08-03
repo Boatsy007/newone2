@@ -1,12 +1,13 @@
 import { Activity, BarChart3, ClipboardCheck, ClipboardList, Dumbbell, Home, Image, LoaderCircle, PackageSearch, Settings2, ShieldCheck, Sparkles, Swords, UserRound, Users, Wrench } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import ClubHqCommandCentre from './ClubHqCommandCentre'
 
 const COACHING_SECTIONS=new Set(['coaching','availability','team-selection','whiteboard'])
 const ANALYTICS_SECTIONS=new Set(['analytics','activity'])
 type SectionItem={label:string;description:string;href:string;icon:typeof Home;active:boolean}
+type LoadingTarget={label:string;path:string;startedAt:number}
 
 export default function ClubPortalAppNav(){
  const{pathname,search}=useLocation()
@@ -15,10 +16,13 @@ export default function ClubPortalAppNav(){
  const section=match?.[2]??''
  const view=new URLSearchParams(search).get('view')
  const[profileHost,setProfileHost]=useState<Element|null>(null)
- const[loadingLabel,setLoadingLabel]=useState<string|null>(null)
+ const[loadingTarget,setLoadingTarget]=useState<LoadingTarget|null>(null)
+ const finishTimer=useRef<number|null>(null)
  useEffect(()=>{if(section!=='profile'){setProfileHost(null);return}const frame=requestAnimationFrame(()=>setProfileHost(document.querySelector('.cpp')));return()=>cancelAnimationFrame(frame)},[pathname,section])
- useEffect(()=>{if(!clubId)return;const handleClick=(event:MouseEvent)=>{if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;const anchor=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('a[href]'):null;if(!anchor||anchor.target==='_blank'||anchor.hasAttribute('download'))return;const destination=new URL(anchor.href,window.location.href);if(destination.origin!==window.location.origin||!destination.pathname.startsWith(`/club-portal/${clubId}`))return;if(destination.pathname===pathname&&destination.search===search)return;setLoadingLabel(getLoadingLabel(destination.pathname,destination.search))};document.addEventListener('click',handleClick,true);return()=>document.removeEventListener('click',handleClick,true)},[clubId,pathname,search])
- useEffect(()=>{if(!loadingLabel)return;const timer=window.setTimeout(()=>setLoadingLabel(null),220);return()=>window.clearTimeout(timer)},[pathname,search,loadingLabel])
+ useEffect(()=>{if(!clubId)return;const handleClick=(event:MouseEvent)=>{if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;const anchor=event.target instanceof Element?event.target.closest<HTMLAnchorElement>('a[href]'):null;if(!anchor||anchor.target==='_blank'||anchor.hasAttribute('download'))return;const destination=new URL(anchor.href,window.location.href);if(destination.origin!==window.location.origin||!destination.pathname.startsWith(`/club-portal/${clubId}`))return;if(destination.pathname===pathname&&destination.search===search)return;if(finishTimer.current!==null){window.clearTimeout(finishTimer.current);finishTimer.current=null}setLoadingTarget({label:getLoadingLabel(destination.pathname,destination.search),path:`${destination.pathname}${destination.search}`,startedAt:Date.now()})};document.addEventListener('click',handleClick,true);return()=>document.removeEventListener('click',handleClick,true)},[clubId,pathname,search])
+ useEffect(()=>{if(!loadingTarget||`${pathname}${search}`!==loadingTarget.path)return;const root=document.getElementById('root');if(!root)return;let settled=false;const finish=()=>{if(settled)return;settled=true;observer.disconnect();window.clearTimeout(fallback);const remaining=Math.max(0,700-(Date.now()-loadingTarget.startedAt));finishTimer.current=window.setTimeout(()=>{setLoadingTarget(current=>current?.path===loadingTarget.path?null:current);finishTimer.current=null},remaining)};const pageStillLoading=()=>/(^|\n)\s*Loading(?:\s+[^\n.]+)?(?:\.{3}|…)?\s*($|\n)/i.test(root.innerText);const check=()=>{window.requestAnimationFrame(()=>{if(!pageStillLoading())finish()})};const observer=new MutationObserver(check);observer.observe(root,{subtree:true,childList:true,characterData:true});const initial=window.setTimeout(check,80);const fallback=window.setTimeout(finish,15000);return()=>{window.clearTimeout(initial);window.clearTimeout(fallback);observer.disconnect()}},[pathname,search,loadingTarget])
+ useEffect(()=>()=>{if(finishTimer.current!==null)window.clearTimeout(finishTimer.current)},[])
+ const loadingLabel=loadingTarget?.label??null
  const loadingCard=loadingLabel?createPortal(<div className="club-page-loading" role="status" aria-live="polite" aria-label={`Loading ${loadingLabel}`}><div className="club-page-loading-card"><LoaderCircle size={34}/><span>CLUB HQ</span><strong>Loading {loadingLabel}</strong><p>Please wait while your {loadingLabel.toLowerCase()} workspace opens.</p></div></div>,document.body):null
  if(!clubId||section==='whiteboard')return <><ClubHqCommandCentre/>{loadingCard}<style>{styles}</style></>
  const items=[
