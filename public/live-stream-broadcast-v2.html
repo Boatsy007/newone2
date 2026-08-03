@@ -37,7 +37,8 @@
   const broadcast=document.getElementById('broadcast')
   const visual=document.getElementById('swapVisual')
   const logo=document.getElementById('swapLogo')
-  let ready=false,lastEvent='',hideTimer=0,inspectTimer=0
+  const clubId=new URLSearchParams(location.search).get('clubId')||''
+  let ready=false,lastEvent='',hideTimer=0,inspectTimer=0,pollInFlight=false
   broadcast.src='/live-stream-broadcast.html'+(location.search||'')
 
   function text(doc,id){return String(doc?.getElementById(id)?.textContent||'').trim()}
@@ -71,23 +72,27 @@
     requestAnimationFrame(()=>visual.classList.add('show'))
     hideTimer=setTimeout(()=>visual.classList.remove('show'),4200)
   }
-  function inspect(){
+  async function inspect(){
+    if(!clubId||pollInFlight)return
+    pollInFlight=true
     try{
-      const doc=innerStudio()
-      if(!doc)return
-      const event=text(doc,'latest')
+      const response=await fetch('/api/live-match/clubs/'+encodeURIComponent(clubId)+'?eventPoll='+Date.now(),{cache:'no-store',headers:{'cache-control':'no-cache'}})
+      if(!response.ok)return
+      const payload=await response.json()
+      const event=String((payload.data||payload)?.lastEvent||'').trim()
       if(!ready){lastEvent=event;ready=true;return}
       if(event&&event!==lastEvent){
         const swap=parseSwap(event)
-        if(swap)showSwap(swap,assets(doc))
+        if(swap)showSwap(swap,assets(innerStudio()))
       }
       lastEvent=event||lastEvent
-    }catch{}
+    }catch{}finally{pollInFlight=false}
   }
   broadcast.addEventListener('load',()=>{
     ready=false
     clearInterval(inspectTimer)
-    inspectTimer=setInterval(inspect,160)
+    inspect()
+    inspectTimer=setInterval(inspect,300)
   })
   window.addEventListener('beforeunload',()=>clearInterval(inspectTimer))
 })()
