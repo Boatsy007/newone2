@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#050505" />
+  <title>PlayFooty Live Broadcast Studio</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;font-family:Inter,Arial,sans-serif}iframe{display:block;width:100%;height:100%;border:0;background:#05090d}
+    .broadcast-visual{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:clamp(18px,5vw,48px);pointer-events:none;opacity:0;visibility:hidden;transition:opacity .2s ease,visibility .2s ease}
+    .broadcast-visual.show{opacity:1;visibility:visible}.broadcast-backdrop{position:absolute;inset:0;background:linear-gradient(135deg,rgba(2,7,12,.97),rgba(2,7,12,.82)),var(--visual-cover,none);background-position:center;background-size:cover;transform:scale(1.04)}
+    .broadcast-backdrop:after{content:'';position:absolute;inset:0;background:radial-gradient(circle at center,transparent 0,rgba(0,0,0,.58) 72%)}
+    .broadcast-card{position:relative;z-index:1;display:grid;justify-items:center;gap:clamp(8px,2vw,18px);width:min(760px,94vw);padding:clamp(24px,6vw,64px);border:1px solid rgba(255,255,255,.22);border-radius:clamp(18px,4vw,34px);background:linear-gradient(145deg,color-mix(in srgb,var(--visual-colour,#2daaf5) 48%,rgba(0,0,0,.84)),rgba(0,0,0,.72));box-shadow:0 32px 100px rgba(0,0,0,.6);text-align:center;color:#fff;overflow:hidden;transform:translateY(24px) scale(.96);transition:transform .42s cubic-bezier(.2,.8,.2,1)}
+    .broadcast-visual.show .broadcast-card{transform:translateY(0) scale(1)}.broadcast-card:before{content:'';position:absolute;inset:-45%;background:conic-gradient(from 180deg,transparent,rgba(255,255,255,.18),transparent 32%);animation:spin 2.8s linear infinite}.broadcast-card>*{position:relative;z-index:1}
+    .broadcast-logo{display:none;width:clamp(82px,18vw,160px);height:clamp(82px,18vw,160px);object-fit:contain;filter:drop-shadow(0 12px 24px rgba(0,0,0,.6))}.broadcast-logo.show{display:block}
+    .broadcast-label{font-size:clamp(12px,2vw,18px);font-weight:1000;letter-spacing:.24em;text-transform:uppercase;color:#d9edf9}.broadcast-type{font-size:clamp(54px,13vw,132px);font-weight:1000;letter-spacing:-.055em;line-height:.78;text-transform:uppercase;text-shadow:0 6px 30px rgba(0,0,0,.55)}
+    .broadcast-name{max-width:95%;font-size:clamp(22px,5vw,52px);font-weight:1000;line-height:1;text-transform:uppercase}.broadcast-score{font-size:clamp(20px,4vw,42px);font-weight:950}.broadcast-footer{font-size:clamp(9px,1.6vw,14px);font-weight:950;letter-spacing:.18em;text-transform:uppercase;color:#c8d4db}
+    .broadcast-visual.behind .broadcast-card{background:linear-gradient(145deg,color-mix(in srgb,var(--visual-colour,#2daaf5) 34%,rgba(0,0,0,.88)),rgba(0,0,0,.76))}.broadcast-visual.period .broadcast-card{width:min(900px,94vw)}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(prefers-reduced-motion:reduce){.broadcast-card{transition:none}.broadcast-card:before{animation:none}}
+  </style>
+</head>
+<body>
+  <iframe id="studio" title="PlayFooty Live Stream Studio" allow="camera; microphone; fullscreen; autoplay"></iframe>
+  <section class="broadcast-visual" id="visual" aria-live="polite">
+    <div class="broadcast-backdrop"></div>
+    <article class="broadcast-card">
+      <img class="broadcast-logo" id="visualLogo" alt="" />
+      <div class="broadcast-label" id="visualTeam">PlayFooty Live</div>
+      <div class="broadcast-type" id="visualType">Goal</div>
+      <div class="broadcast-name" id="visualName"></div>
+      <div class="broadcast-score" id="visualScore"></div>
+      <div class="broadcast-footer">PlayFooty Live Match</div>
+    </article>
+  </section>
+<script>
+(() => {
+  const query=location.search||''
+  const studio=document.getElementById('studio')
+  const visual=document.getElementById('visual')
+  const logo=document.getElementById('visualLogo')
+  let lastEvent='',lastQuarter='',hideTimer=0,ready=false
+  studio.src='/live-stream.html'+query
+
+  function text(doc,id){return String(doc.getElementById(id)?.textContent||'').trim()}
+  function teamAssets(doc,side){
+    const panel=doc.getElementById(side+'Team')
+    const image=doc.getElementById(side+'Logo')
+    return {
+      name:text(doc,side==='home'?'homeName':'awayName'),
+      score:text(doc,side==='home'?'homeScore':'awayScore'),
+      logo:image?.src||'',
+      cover:panel?.style.getPropertyValue('--team-cover')||'',
+      colour:panel?.style.getPropertyValue('--team-colour')||'#2daaf5',
+    }
+  }
+  function showVisual({type,team,name,score,logoUrl,cover,colour,period=false}){
+    clearTimeout(hideTimer)
+    visual.className='broadcast-visual '+(type.toLowerCase()==='behind'?'behind ':'')+(period?'period ':'')
+    visual.style.setProperty('--visual-colour',colour||'#2daaf5')
+    visual.style.setProperty('--visual-cover',cover||'none')
+    document.getElementById('visualType').textContent=type
+    document.getElementById('visualTeam').textContent=team||'PlayFooty Live'
+    document.getElementById('visualName').textContent=name||''
+    document.getElementById('visualScore').textContent=score||''
+    if(logoUrl){logo.src=logoUrl;logo.classList.add('show')}else{logo.removeAttribute('src');logo.classList.remove('show')}
+    requestAnimationFrame(()=>visual.classList.add('show'))
+    hideTimer=setTimeout(()=>visual.classList.remove('show'),period?4200:3600)
+  }
+  function inspect(){
+    try{
+      const doc=studio.contentDocument
+      if(!doc)return
+      const event=text(doc,'latest')
+      const quarter=text(doc,'quarter')
+      const home=teamAssets(doc,'home'),away=teamAssets(doc,'away')
+      if(!ready){lastEvent=event;lastQuarter=quarter;ready=true;return}
+      if(quarter&&lastQuarter&&quarter!==lastQuarter){
+        const previous=Math.max(1,(Number(quarter.replace(/\D/g,''))||1)-1)
+        const label=previous===1?'Quarter Time':previous===2?'Half Time':previous===3?'Three Quarter Time':'Full Time'
+        showVisual({type:label,team:home.name+' v '+away.name,score:home.score+' — '+away.score,logoUrl:home.logo,cover:home.cover,colour:home.colour,period:true})
+      }
+      lastQuarter=quarter||lastQuarter
+      if(event&&event!==lastEvent){
+        const lower=event.toLowerCase()
+        const isGoal=/\bgoal\b/.test(lower),isBehind=/\bbehind\b/.test(lower)
+        if(isGoal||isBehind){
+          const opposition=lower.startsWith('opposition')||lower.includes('opposition goal')||lower.includes('opposition behind')
+          const side=opposition?away:home
+          let scorer=''
+          if(!opposition&&!lower.startsWith('your team')) scorer=event.replace(/\s+(goal|behind)\s*$/i,'').trim()
+          showVisual({type:isGoal?'Goal':'Behind',team:side.name,name:scorer,score:side.score,logoUrl:side.logo,cover:side.cover,colour:side.colour})
+        }else if(/full[ -]?time|final siren/i.test(event)){
+          showVisual({type:'Full Time',team:home.name+' v '+away.name,score:home.score+' — '+away.score,logoUrl:home.logo,cover:home.cover,colour:home.colour,period:true})
+        }
+      }
+      lastEvent=event||lastEvent
+    }catch{}
+  }
+  studio.addEventListener('load',()=>{ready=false;setInterval(inspect,180)})
+})()
+</script>
+</body>
+</html>
