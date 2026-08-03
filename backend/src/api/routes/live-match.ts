@@ -34,6 +34,8 @@ const numberValue = (value: unknown) => Number.isFinite(Number(value)) ? Number(
 
 type LiveRow = {
   clubId:string;clubName:string;teamSheetId:string|null;roundLabel:string|null;opponentName:string|null;matchDate:string|null;quarter:number;elapsedSeconds:number;clockRunning:boolean;homeGoals:number;homeBehinds:number;awayGoals:number;awayBehinds:number;status:string;lastEvent:string|null;updatedAt:string
+  homeLogoUrl:string|null;homeCoverUrl:string|null;homePrimaryColour:string|null
+  awayLogoUrl:string|null;awayCoverUrl:string|null;awayPrimaryColour:string|null
 }
 
 type SharedMatchRow = {
@@ -46,7 +48,17 @@ type SharedMatchRow = {
   sheetStatus:string
   state: Record<string, unknown>
   updatedAt:string
+  homeLogoUrl:string|null
+  homeCoverUrl:string|null
+  homePrimaryColour:string|null
+  awayLogoUrl:string|null
+  awayCoverUrl:string|null
+  awayPrimaryColour:string|null
 }
+
+const clubLogo = (alias: string) => `COALESCE(to_jsonb(${alias})->>'logoUrl',to_jsonb(${alias})->>'logo_url')`
+const clubCover = (alias: string) => `COALESCE(to_jsonb(${alias})->>'coverPhotoUrl',to_jsonb(${alias})->>'coverImageUrl',to_jsonb(${alias})->>'coverUrl',to_jsonb(${alias})->>'bannerUrl',to_jsonb(${alias})->>'heroImageUrl',to_jsonb(${alias})->>'cover_photo_url',to_jsonb(${alias})->>'cover_image_url')`
+const clubColour = (alias: string) => `COALESCE(to_jsonb(${alias})->>'primaryColour',to_jsonb(${alias})->>'primary_color')`
 
 const liveSelect = `
   SELECT lm.club_id AS "clubId",c.name AS "clubName",lm.team_sheet_id::text AS "teamSheetId",
@@ -58,9 +70,18 @@ const liveSelect = `
     END AS "elapsedSeconds",
     lm.clock_running AS "clockRunning",
     lm.home_goals AS "homeGoals",lm.home_behinds AS "homeBehinds",lm.away_goals AS "awayGoals",lm.away_behinds AS "awayBehinds",
-    lm.status,lm.last_event AS "lastEvent",lm.updated_at AS "updatedAt"
+    lm.status,lm.last_event AS "lastEvent",lm.updated_at AS "updatedAt",
+    ${clubLogo('c')} AS "homeLogoUrl",${clubCover('c')} AS "homeCoverUrl",${clubColour('c')} AS "homePrimaryColour",
+    ${clubLogo('opponent')} AS "awayLogoUrl",${clubCover('opponent')} AS "awayCoverUrl",${clubColour('opponent')} AS "awayPrimaryColour"
   FROM football_live_matches lm
   LEFT JOIN clubs c ON c.id::text=lm.club_id
+  LEFT JOIN LATERAL (
+    SELECT candidate.* FROM clubs candidate
+    WHERE lower(candidate.name)=lower(lm.opponent_name)
+       OR lower(COALESCE(candidate."shortName",''))=lower(lm.opponent_name)
+    ORDER BY CASE WHEN lower(candidate.name)=lower(lm.opponent_name) THEN 0 ELSE 1 END
+    LIMIT 1
+  ) opponent ON true
 `
 
 async function sharedMatchDay(clubId: string): Promise<LiveRow | null> {
@@ -68,10 +89,19 @@ async function sharedMatchDay(clubId: string): Promise<LiveRow | null> {
     const rows = await prisma.$queryRawUnsafe<SharedMatchRow[]>(`
       SELECT md.club_id AS "clubId",c.name AS "clubName",md.sheet_id AS "sheetId",
         ts.round_label AS "roundLabel",ts.opponent_name AS "opponentName",ts.match_date AS "matchDate",
-        ts.status AS "sheetStatus",md.state,md.updated_at AS "updatedAt"
+        ts.status AS "sheetStatus",md.state,md.updated_at AS "updatedAt",
+        ${clubLogo('c')} AS "homeLogoUrl",${clubCover('c')} AS "homeCoverUrl",${clubColour('c')} AS "homePrimaryColour",
+        ${clubLogo('opponent')} AS "awayLogoUrl",${clubCover('opponent')} AS "awayCoverUrl",${clubColour('opponent')} AS "awayPrimaryColour"
       FROM club_match_day_state md
       JOIN football_team_sheets ts ON ts.id::text=md.sheet_id AND ts.club_id=md.club_id
       LEFT JOIN clubs c ON c.id::text=md.club_id
+      LEFT JOIN LATERAL (
+        SELECT candidate.* FROM clubs candidate
+        WHERE lower(candidate.name)=lower(ts.opponent_name)
+           OR lower(COALESCE(candidate."shortName",''))=lower(ts.opponent_name)
+        ORDER BY CASE WHEN lower(candidate.name)=lower(ts.opponent_name) THEN 0 ELSE 1 END
+        LIMIT 1
+      ) opponent ON true
       WHERE md.club_id=$1
       ORDER BY CASE WHEN ts.status='PUBLISHED' THEN 0 ELSE 1 END,md.updated_at DESC
       LIMIT 1
@@ -105,13 +135,19 @@ async function sharedMatchDay(clubId: string): Promise<LiveRow | null> {
       status: active ? 'LIVE' : 'READY',
       lastEvent: events[0]?.label ? text(events[0].label, 250) : null,
       updatedAt: row.updatedAt,
+      homeLogoUrl: row.homeLogoUrl,
+      homeCoverUrl: row.homeCoverUrl,
+      homePrimaryColour: row.homePrimaryColour,
+      awayLogoUrl: row.awayLogoUrl,
+      awayCoverUrl: row.awayCoverUrl,
+      awayPrimaryColour: row.awayPrimaryColour,
     }
   } catch {
     return null
   }
 }
 
-function disableCaching(res: Parameters<Router['get']>[1] extends never ? never : any) {
+function disableCaching(res: any) {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   res.set('Pragma', 'no-cache')
   res.set('Expires', '0')
@@ -142,6 +178,12 @@ router.get('/', async (_req, res) => {
       elapsedSeconds: row.elapsedSeconds,
       clockRunning: row.clockRunning,
       lastEvent: row.lastEvent,
+      homeLogoUrl: row.homeLogoUrl,
+      homeCoverUrl: row.homeCoverUrl,
+      homePrimaryColour: row.homePrimaryColour,
+      awayLogoUrl: row.awayLogoUrl,
+      awayCoverUrl: row.awayCoverUrl,
+      awayPrimaryColour: row.awayPrimaryColour,
     }))
     disableCaching(res)
     res.json({ data })
