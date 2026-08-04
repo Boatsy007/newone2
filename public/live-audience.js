@@ -103,9 +103,11 @@
     if (onload) script.onload = onload
     document.body.appendChild(script)
   }
-  loadScript('/live-broadcast-director.js', 'data-live-director', () => {
-    loadScript('/live-break-production.js', 'data-live-break-production', () => {
-      loadScript('/live-sponsors.js', 'data-live-sponsors')
+  loadScript('/live-viewer-stability.js', 'data-live-viewer-stability', () => {
+    loadScript('/live-broadcast-director.js', 'data-live-director', () => {
+      loadScript('/live-break-production.js', 'data-live-break-production', () => {
+        loadScript('/live-sponsors.js', 'data-live-sponsors')
+      })
     })
   })
 })()
