@@ -38,7 +38,7 @@
       "dest": "/index.html"
     }
   ],
-  "installCommand": "npm ci && npm --prefix backend ci && PLAYWRIGHT_BROWSERS_PATH=0 npm --prefix backend run playhq:install-browser",
+  "installCommand": "npm ci && npm --prefix backend ci --include=dev && PLAYWRIGHT_BROWSERS_PATH=0 npm --prefix backend run playhq:install-browser",
   "env": {
     "PLAYWRIGHT_BROWSERS_PATH": "0"
   }
