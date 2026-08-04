@@ -8,143 +8,37 @@ let ready: Promise<void> | null = null
 
 function ensureTables() {
   if (!ready) ready = (async () => {
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS football_live_cameras (
-        club_id text NOT NULL,
-        camera_id text NOT NULL,
-        label text NOT NULL,
-        operator_user_id text NULL,
-        channel_arn text NULL,
-        ingest_endpoint text NULL,
-        playback_url text NULL,
-        stream_key text NULL,
-        status text NOT NULL DEFAULT 'OFFLINE',
-        last_heartbeat_at timestamptz NULL,
-        created_at timestamptz NOT NULL DEFAULT now(),
-        updated_at timestamptz NOT NULL DEFAULT now(),
-        PRIMARY KEY (club_id, camera_id)
-      )
-    `)
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS football_live_program (
-        club_id text PRIMARY KEY,
-        selected_camera_id text NULL,
-        switched_by text NULL,
-        switched_at timestamptz NULL,
-        updated_at timestamptz NOT NULL DEFAULT now()
-      )
-    `)
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS football_live_cameras (club_id text NOT NULL,camera_id text NOT NULL,label text NOT NULL,operator_user_id text NULL,channel_arn text NULL,ingest_endpoint text NULL,playback_url text NULL,stream_key text NULL,status text NOT NULL DEFAULT 'OFFLINE',last_heartbeat_at timestamptz NULL,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY (club_id,camera_id))`)
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS football_live_program (club_id text PRIMARY KEY,selected_camera_id text NULL,main_playback_url text NULL,switched_by text NULL,switched_at timestamptz NULL,updated_at timestamptz NOT NULL DEFAULT now())`)
+    await prisma.$executeRawUnsafe(`ALTER TABLE football_live_program ADD COLUMN IF NOT EXISTS main_playback_url text NULL`)
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS football_live_cameras_heartbeat_idx ON football_live_cameras (club_id,last_heartbeat_at DESC)`)
   })().catch(error => { ready = null; throw error })
   return ready
 }
 
 const IVS_REGIONS = new Set(['us-east-1','us-west-2','ap-south-1','ap-northeast-1','ap-northeast-2','eu-central-1','eu-west-1'])
-function awsConfig() {
-  const accessKeyId = String(process.env.AWS_ACCESS_KEY_ID ?? '').trim()
-  const secretAccessKey = String(process.env.AWS_SECRET_ACCESS_KEY ?? '').trim()
-  const sessionToken = String(process.env.AWS_SESSION_TOKEN ?? '').trim()
-  const requestedRegion = String(process.env.AWS_IVS_REGION ?? process.env.AWS_REGION ?? '').trim()
-  const region = IVS_REGIONS.has(requestedRegion) ? requestedRegion : 'ap-northeast-1'
-  return accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey, sessionToken, region } : null
-}
-const hex = (value: string) => createHash('sha256').update(value).digest('hex')
-const hmac = (key: Buffer | string, value: string) => createHmac('sha256', key).update(value).digest()
-async function ivsRequest<T>(operation: string, body: Record<string, unknown>): Promise<T> {
-  const config = awsConfig()
-  if (!config) throw new Error('Amazon IVS is not configured')
-  const service = 'ivs', host = `ivs.${config.region}.amazonaws.com`, path = `/${operation}`, payload = JSON.stringify(body)
-  const now = new Date(), amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, ''), dateStamp = amzDate.slice(0, 8)
-  const headers: Record<string,string> = {'content-type':'application/json',host,'x-amz-date':amzDate}
-  if (config.sessionToken) headers['x-amz-security-token'] = config.sessionToken
-  const names = Object.keys(headers).sort(), canonicalHeaders = names.map(name => `${name}:${headers[name].trim()}\n`).join(''), signedHeaders = names.join(';')
-  const canonicalRequest = ['POST',path,'',canonicalHeaders,signedHeaders,hex(payload)].join('\n')
-  const scope = `${dateStamp}/${config.region}/${service}/aws4_request`, stringToSign = ['AWS4-HMAC-SHA256',amzDate,scope,hex(canonicalRequest)].join('\n')
-  const signingKey = hmac(hmac(hmac(hmac(`AWS4${config.secretAccessKey}`,dateStamp),config.region),service),'aws4_request')
-  const signature = createHmac('sha256',signingKey).update(stringToSign).digest('hex')
-  headers.authorization = `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
-  const response = await fetch(`https://${host}${path}`,{method:'POST',headers,body:payload})
-  const result = await response.json().catch(() => ({})) as any
-  if (!response.ok) throw new Error(result?.message || result?.Message || `Amazon IVS ${operation} failed`)
-  return result as T
-}
+function awsConfig() { const accessKeyId=String(process.env.AWS_ACCESS_KEY_ID??'').trim(),secretAccessKey=String(process.env.AWS_SECRET_ACCESS_KEY??'').trim(),sessionToken=String(process.env.AWS_SESSION_TOKEN??'').trim(),requestedRegion=String(process.env.AWS_IVS_REGION??process.env.AWS_REGION??'').trim(),region=IVS_REGIONS.has(requestedRegion)?requestedRegion:'ap-northeast-1';return accessKeyId&&secretAccessKey?{accessKeyId,secretAccessKey,sessionToken,region}:null }
+const hex=(value:string)=>createHash('sha256').update(value).digest('hex'),hmac=(key:Buffer|string,value:string)=>createHmac('sha256',key).update(value).digest()
+async function ivsRequest<T>(operation:string,body:Record<string,unknown>):Promise<T>{const config=awsConfig();if(!config)throw new Error('Amazon IVS is not configured');const service='ivs',host=`ivs.${config.region}.amazonaws.com`,path=`/${operation}`,payload=JSON.stringify(body),now=new Date(),amzDate=now.toISOString().replace(/[:-]|\.\d{3}/g,''),dateStamp=amzDate.slice(0,8),headers:Record<string,string>={'content-type':'application/json',host,'x-amz-date':amzDate};if(config.sessionToken)headers['x-amz-security-token']=config.sessionToken;const names=Object.keys(headers).sort(),canonicalHeaders=names.map(name=>`${name}:${headers[name].trim()}\n`).join(''),signedHeaders=names.join(';'),canonicalRequest=['POST',path,'',canonicalHeaders,signedHeaders,hex(payload)].join('\n'),scope=`${dateStamp}/${config.region}/${service}/aws4_request`,stringToSign=['AWS4-HMAC-SHA256',amzDate,scope,hex(canonicalRequest)].join('\n'),signingKey=hmac(hmac(hmac(hmac(`AWS4${config.secretAccessKey}`,dateStamp),config.region),service),'aws4_request'),signature=createHmac('sha256',signingKey).update(stringToSign).digest('hex');headers.authorization=`AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;const response=await fetch(`https://${host}${path}`,{method:'POST',headers,body:payload}),result=await response.json().catch(()=>({})) as any;if(!response.ok)throw new Error(result?.message||result?.Message||`Amazon IVS ${operation} failed`);return result as T}
 
-type CameraRow = { clubId:string;cameraId:string;label:string;operatorUserId:string|null;channelArn:string|null;ingestEndpoint:string|null;playbackUrl:string|null;streamKey:string|null;status:string;lastHeartbeatAt:string|null;updatedAt:string }
-const selectCamera = `SELECT club_id AS "clubId",camera_id AS "cameraId",label,operator_user_id AS "operatorUserId",channel_arn AS "channelArn",ingest_endpoint AS "ingestEndpoint",playback_url AS "playbackUrl",stream_key AS "streamKey",status,last_heartbeat_at AS "lastHeartbeatAt",updated_at AS "updatedAt" FROM football_live_cameras`
-const cleanId = (value: unknown) => String(value ?? '').trim().replace(/[^a-zA-Z0-9_-]/g,'').slice(0,64)
-const cleanLabel = (value: unknown) => String(value ?? '').trim().slice(0,60)
-function canManage(res: Response) {
-  const membership = res.locals.clubMembership as { role: Parameters<typeof roleCan>[0] } | undefined
-  return Boolean(membership && roleCan(membership.role,'team_selection'))
-}
-async function createCameraChannel(clubId: string, cameraId: string) {
-  const name = `playfooty-${clubId}-${cameraId}`.replace(/[^a-zA-Z0-9-_]/g,'-').slice(0,128)
-  const result = await ivsRequest<any>('CreateChannel',{name,latencyMode:'LOW',type:'BASIC',authorized:false,insecureIngest:false,tags:{clubId,cameraId,platform:'PlayFooty',purpose:'multi-camera'}})
-  const channelArn = String(result.channel?.arn ?? ''), ingestEndpoint = String(result.channel?.ingestEndpoint ?? ''), playbackUrl = String(result.channel?.playbackUrl ?? ''), streamKey = String(result.streamKey?.value ?? '')
-  if (!channelArn || !ingestEndpoint || !playbackUrl || !streamKey) throw new Error('Amazon IVS did not return complete camera credentials')
-  return {channelArn,ingestEndpoint,playbackUrl,streamKey}
-}
+type CameraRow={clubId:string;cameraId:string;label:string;operatorUserId:string|null;channelArn:string|null;ingestEndpoint:string|null;playbackUrl:string|null;streamKey:string|null;status:string;lastHeartbeatAt:string|null;updatedAt:string}
+type MainRow={playbackUrl:string|null;status:string;lastHeartbeatAt:string|null}
+const selectCamera=`SELECT club_id AS "clubId",camera_id AS "cameraId",label,operator_user_id AS "operatorUserId",channel_arn AS "channelArn",ingest_endpoint AS "ingestEndpoint",playback_url AS "playbackUrl",stream_key AS "streamKey",status,last_heartbeat_at AS "lastHeartbeatAt",updated_at AS "updatedAt" FROM football_live_cameras`
+const cleanId=(value:unknown)=>String(value??'').trim().replace(/[^a-zA-Z0-9_-]/g,'').slice(0,64),cleanLabel=(value:unknown)=>String(value??'').trim().slice(0,60)
+function canManage(res:Response){const membership=res.locals.clubMembership as {role:Parameters<typeof roleCan>[0]}|undefined;return Boolean(membership&&roleCan(membership.role,'team_selection'))}
+async function createCameraChannel(clubId:string,cameraId:string){const name=`playfooty-${clubId}-${cameraId}`.replace(/[^a-zA-Z0-9-_]/g,'-').slice(0,128),result=await ivsRequest<any>('CreateChannel',{name,latencyMode:'LOW',type:'BASIC',authorized:false,insecureIngest:false,tags:{clubId,cameraId,platform:'PlayFooty',purpose:'multi-camera'}}),channelArn=String(result.channel?.arn??''),ingestEndpoint=String(result.channel?.ingestEndpoint??''),playbackUrl=String(result.channel?.playbackUrl??''),streamKey=String(result.streamKey?.value??'');if(!channelArn||!ingestEndpoint||!playbackUrl||!streamKey)throw new Error('Amazon IVS did not return complete camera credentials');return{channelArn,ingestEndpoint,playbackUrl,streamKey}}
 
 router.use(authenticateClubUser)
 router.use('/clubs/:clubId',requireActiveClubMembership)
 
-router.get('/clubs/:clubId/cameras',async (req,res) => {
-  try {
-    if (!canManage(res)) return res.status(403).json({error:'Your club role cannot manage multi-camera broadcasts'})
-    await ensureTables()
-    const cameras = await prisma.$queryRawUnsafe<CameraRow[]>(`${selectCamera} WHERE club_id=$1 ORDER BY created_at ASC`,req.params.clubId)
-    const program = await prisma.$queryRawUnsafe<Array<{selectedCameraId:string|null}>>(`SELECT selected_camera_id AS "selectedCameraId" FROM football_live_program WHERE club_id=$1 LIMIT 1`,req.params.clubId)
-    const data = cameras.map(camera => ({...camera,streamKey:undefined,connected:Boolean(camera.lastHeartbeatAt && Date.now()-new Date(camera.lastHeartbeatAt).getTime()<20000),isProgram:program[0]?.selectedCameraId===camera.cameraId}))
-    res.set('Cache-Control','no-store');res.json({data,selectedCameraId:program[0]?.selectedCameraId ?? null})
-  } catch(error) { res.status(500).json({error:'Unable to load multi-camera studio',detail:String(error)}) }
-})
+router.get('/clubs/:clubId/cameras',async(req,res)=>{try{if(!canManage(res))return res.status(403).json({error:'Your club role cannot manage multi-camera broadcasts'});await ensureTables();const cameras=await prisma.$queryRawUnsafe<CameraRow[]>(`${selectCamera} WHERE club_id=$1 ORDER BY created_at ASC`,req.params.clubId),program=await prisma.$queryRawUnsafe<Array<{selectedCameraId:string|null;mainPlaybackUrl:string|null}>>(`SELECT selected_camera_id AS "selectedCameraId",main_playback_url AS "mainPlaybackUrl" FROM football_live_program WHERE club_id=$1 LIMIT 1`,req.params.clubId),mainRows=await prisma.$queryRawUnsafe<MainRow[]>(`SELECT playback_url AS "playbackUrl",status,last_heartbeat_at AS "lastHeartbeatAt" FROM football_live_streams WHERE club_id=$1 LIMIT 1`,req.params.clubId),main=mainRows[0],selected=program[0]?.selectedCameraId||'main',mainUrl=program[0]?.mainPlaybackUrl||main?.playbackUrl||null,mainConnected=Boolean(main?.status==='LIVE'&&main.lastHeartbeatAt&&Date.now()-new Date(main.lastHeartbeatAt).getTime()<20000),data=[{clubId:req.params.clubId,cameraId:'main',label:'Main Camera',playbackUrl:mainUrl,status:main?.status||'OFFLINE',lastHeartbeatAt:main?.lastHeartbeatAt||null,connected:mainConnected,isProgram:selected==='main'},...cameras.map(camera=>({...camera,streamKey:undefined,connected:Boolean(camera.lastHeartbeatAt&&Date.now()-new Date(camera.lastHeartbeatAt).getTime()<20000),isProgram:selected===camera.cameraId}))];res.set('Cache-Control','no-store');res.json({data,selectedCameraId:selected})}catch(error){res.status(500).json({error:'Unable to load multi-camera studio',detail:String(error)})}})
 
-router.post('/clubs/:clubId/cameras/join',async (req,res) => {
-  try {
-    if (!canManage(res)) return res.status(403).json({error:'Your club role cannot join a multi-camera broadcast'})
-    await ensureTables()
-    const cameraId = cleanId(req.body?.cameraId) || `camera-${Date.now()}`
-    const label = cleanLabel(req.body?.label) || 'Camera'
-    let rows = await prisma.$queryRawUnsafe<CameraRow[]>(`${selectCamera} WHERE club_id=$1 AND camera_id=$2 LIMIT 1`,req.params.clubId,cameraId)
-    let camera = rows[0]
-    if (!camera?.channelArn || !camera.ingestEndpoint || !camera.playbackUrl || !camera.streamKey) {
-      const channel = await createCameraChannel(req.params.clubId,cameraId)
-      await prisma.$executeRawUnsafe(`INSERT INTO football_live_cameras(club_id,camera_id,label,operator_user_id,channel_arn,ingest_endpoint,playback_url,stream_key,status,last_heartbeat_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'READY',now(),now()) ON CONFLICT(club_id,camera_id) DO UPDATE SET label=EXCLUDED.label,operator_user_id=EXCLUDED.operator_user_id,channel_arn=EXCLUDED.channel_arn,ingest_endpoint=EXCLUDED.ingest_endpoint,playback_url=EXCLUDED.playback_url,stream_key=EXCLUDED.stream_key,status='READY',last_heartbeat_at=now(),updated_at=now()`,req.params.clubId,cameraId,label,req.clubUser?.id ?? null,channel.channelArn,channel.ingestEndpoint,channel.playbackUrl,channel.streamKey)
-      rows = await prisma.$queryRawUnsafe<CameraRow[]>(`${selectCamera} WHERE club_id=$1 AND camera_id=$2 LIMIT 1`,req.params.clubId,cameraId);camera=rows[0]
-    } else {
-      await prisma.$executeRawUnsafe(`UPDATE football_live_cameras SET label=$3,operator_user_id=$4,status='READY',last_heartbeat_at=now(),updated_at=now() WHERE club_id=$1 AND camera_id=$2`,req.params.clubId,cameraId,label,req.clubUser?.id ?? null)
-    }
-    res.set('Cache-Control','no-store');res.json({data:{cameraId,label,ingestEndpoint:camera?.ingestEndpoint,streamKey:camera?.streamKey,playbackUrl:camera?.playbackUrl}})
-  } catch(error) { const message=error instanceof Error?error.message:'Unable to join multi-camera broadcast';res.status(message.includes('not configured')?503:500).json({error:message}) }
-})
+router.post('/clubs/:clubId/cameras/join',async(req,res)=>{try{if(!canManage(res))return res.status(403).json({error:'Your club role cannot join a multi-camera broadcast'});await ensureTables();const cameraId=cleanId(req.body?.cameraId)||`camera-${Date.now()}`,label=cleanLabel(req.body?.label)||'Camera';if(cameraId==='main')return res.status(400).json({error:'main is reserved for the primary camera'});let rows=await prisma.$queryRawUnsafe<CameraRow[]>(`${selectCamera} WHERE club_id=$1 AND camera_id=$2 LIMIT 1`,req.params.clubId,cameraId),camera=rows[0];if(!camera?.channelArn||!camera.ingestEndpoint||!camera.playbackUrl||!camera.streamKey){const channel=await createCameraChannel(req.params.clubId,cameraId);await prisma.$executeRawUnsafe(`INSERT INTO football_live_cameras(club_id,camera_id,label,operator_user_id,channel_arn,ingest_endpoint,playback_url,stream_key,status,last_heartbeat_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'READY',now(),now()) ON CONFLICT(club_id,camera_id) DO UPDATE SET label=EXCLUDED.label,operator_user_id=EXCLUDED.operator_user_id,channel_arn=EXCLUDED.channel_arn,ingest_endpoint=EXCLUDED.ingest_endpoint,playback_url=EXCLUDED.playback_url,stream_key=EXCLUDED.stream_key,status='READY',last_heartbeat_at=now(),updated_at=now()`,req.params.clubId,cameraId,label,req.clubUser?.id??null,channel.channelArn,channel.ingestEndpoint,channel.playbackUrl,channel.streamKey);rows=await prisma.$queryRawUnsafe<CameraRow[]>(`${selectCamera} WHERE club_id=$1 AND camera_id=$2 LIMIT 1`,req.params.clubId,cameraId);camera=rows[0]}else await prisma.$executeRawUnsafe(`UPDATE football_live_cameras SET label=$3,operator_user_id=$4,status='READY',last_heartbeat_at=now(),updated_at=now() WHERE club_id=$1 AND camera_id=$2`,req.params.clubId,cameraId,label,req.clubUser?.id??null);res.set('Cache-Control','no-store');res.json({data:{cameraId,label,ingestEndpoint:camera?.ingestEndpoint,streamKey:camera?.streamKey,playbackUrl:camera?.playbackUrl}})}catch(error){const message=error instanceof Error?error.message:'Unable to join multi-camera broadcast';res.status(message.includes('not configured')?503:500).json({error:message})}})
 
-router.post('/clubs/:clubId/cameras/:cameraId/heartbeat',async (req,res) => {
-  try {
-    if (!canManage(res)) return res.status(403).json({error:'Your club role cannot manage a camera'})
-    await ensureTables();await prisma.$executeRawUnsafe(`UPDATE football_live_cameras SET status='LIVE',last_heartbeat_at=now(),updated_at=now() WHERE club_id=$1 AND camera_id=$2`,req.params.clubId,cleanId(req.params.cameraId));res.json({message:'Camera heartbeat received'})
-  } catch(error) { res.status(500).json({error:'Unable to update camera heartbeat',detail:String(error)}) }
-})
+router.post('/clubs/:clubId/cameras/:cameraId/heartbeat',async(req,res)=>{try{if(!canManage(res))return res.status(403).json({error:'Your club role cannot manage a camera'});await ensureTables();await prisma.$executeRawUnsafe(`UPDATE football_live_cameras SET status='LIVE',last_heartbeat_at=now(),updated_at=now() WHERE club_id=$1 AND camera_id=$2`,req.params.clubId,cleanId(req.params.cameraId));res.json({message:'Camera heartbeat received'})}catch(error){res.status(500).json({error:'Unable to update camera heartbeat',detail:String(error)})}})
+router.post('/clubs/:clubId/cameras/:cameraId/leave',async(req,res)=>{try{if(!canManage(res))return res.status(403).json({error:'Your club role cannot manage a camera'});await ensureTables();await prisma.$executeRawUnsafe(`UPDATE football_live_cameras SET status='OFFLINE',last_heartbeat_at=NULL,updated_at=now() WHERE club_id=$1 AND camera_id=$2`,req.params.clubId,cleanId(req.params.cameraId));res.json({message:'Camera disconnected'})}catch(error){res.status(500).json({error:'Unable to disconnect camera',detail:String(error)})}})
 
-router.post('/clubs/:clubId/cameras/:cameraId/leave',async (req,res) => {
-  try {
-    if (!canManage(res)) return res.status(403).json({error:'Your club role cannot manage a camera'})
-    await ensureTables();await prisma.$executeRawUnsafe(`UPDATE football_live_cameras SET status='OFFLINE',last_heartbeat_at=NULL,updated_at=now() WHERE club_id=$1 AND camera_id=$2`,req.params.clubId,cleanId(req.params.cameraId));res.json({message:'Camera disconnected'})
-  } catch(error) { res.status(500).json({error:'Unable to disconnect camera',detail:String(error)}) }
-})
-
-router.post('/clubs/:clubId/program/take',async (req,res) => {
-  try {
-    if (!canManage(res)) return res.status(403).json({error:'Your club role cannot switch cameras'})
-    await ensureTables();const cameraId=cleanId(req.body?.cameraId);if(!cameraId)return res.status(400).json({error:'cameraId required'})
-    const rows=await prisma.$queryRawUnsafe<CameraRow[]>(`${selectCamera} WHERE club_id=$1 AND camera_id=$2 LIMIT 1`,req.params.clubId,cameraId);const camera=rows[0]
-    if(!camera?.playbackUrl)return res.status(404).json({error:'Camera not found'})
-    if(!camera.lastHeartbeatAt || Date.now()-new Date(camera.lastHeartbeatAt).getTime()>=20000)return res.status(409).json({error:'That camera is not currently connected'})
-    await prisma.$transaction([
-      prisma.$executeRawUnsafe(`INSERT INTO football_live_program(club_id,selected_camera_id,switched_by,switched_at,updated_at) VALUES($1,$2,$3,now(),now()) ON CONFLICT(club_id) DO UPDATE SET selected_camera_id=EXCLUDED.selected_camera_id,switched_by=EXCLUDED.switched_by,switched_at=now(),updated_at=now()`,req.params.clubId,cameraId,req.clubUser?.id ?? null),
-      prisma.$executeRawUnsafe(`UPDATE football_live_streams SET playback_url=$2,status='LIVE',last_heartbeat_at=now(),updated_at=now() WHERE club_id=$1`,req.params.clubId,camera.playbackUrl),
-    ])
-    res.json({data:{selectedCameraId:cameraId,playbackUrl:camera.playbackUrl},message:`${camera.label} is live`})
-  } catch(error) { res.status(500).json({error:'Unable to take camera live',detail:String(error)}) }
-})
+router.post('/clubs/:clubId/program/take',async(req,res)=>{try{if(!canManage(res))return res.status(403).json({error:'Your club role cannot switch cameras'});await ensureTables();const cameraId=cleanId(req.body?.cameraId);if(!cameraId)return res.status(400).json({error:'cameraId required'});const program=await prisma.$queryRawUnsafe<Array<{mainPlaybackUrl:string|null}>>(`SELECT main_playback_url AS "mainPlaybackUrl" FROM football_live_program WHERE club_id=$1 LIMIT 1`,req.params.clubId),mainRows=await prisma.$queryRawUnsafe<MainRow[]>(`SELECT playback_url AS "playbackUrl",status,last_heartbeat_at AS "lastHeartbeatAt" FROM football_live_streams WHERE club_id=$1 LIMIT 1`,req.params.clubId),main=mainRows[0];let playbackUrl:string|null=null,label='Main Camera';if(cameraId==='main'){playbackUrl=program[0]?.mainPlaybackUrl||main?.playbackUrl||null;if(!playbackUrl)return res.status(404).json({error:'Main camera is not configured'});if(!main?.lastHeartbeatAt||Date.now()-new Date(main.lastHeartbeatAt).getTime()>=20000)return res.status(409).json({error:'Main camera is not currently connected'})}else{const rows=await prisma.$queryRawUnsafe<CameraRow[]>(`${selectCamera} WHERE club_id=$1 AND camera_id=$2 LIMIT 1`,req.params.clubId,cameraId),camera=rows[0];if(!camera?.playbackUrl)return res.status(404).json({error:'Camera not found'});if(!camera.lastHeartbeatAt||Date.now()-new Date(camera.lastHeartbeatAt).getTime()>=20000)return res.status(409).json({error:'That camera is not currently connected'});playbackUrl=camera.playbackUrl;label=camera.label}
+const originalMain=program[0]?.mainPlaybackUrl||(cameraId==='main'?playbackUrl:main?.playbackUrl)||null;await prisma.$transaction([prisma.$executeRawUnsafe(`INSERT INTO football_live_program(club_id,selected_camera_id,main_playback_url,switched_by,switched_at,updated_at) VALUES($1,$2,$3,$4,now(),now()) ON CONFLICT(club_id) DO UPDATE SET selected_camera_id=EXCLUDED.selected_camera_id,main_playback_url=COALESCE(football_live_program.main_playback_url,EXCLUDED.main_playback_url),switched_by=EXCLUDED.switched_by,switched_at=now(),updated_at=now()`,req.params.clubId,cameraId,originalMain,req.clubUser?.id??null),prisma.$executeRawUnsafe(`UPDATE football_live_streams SET playback_url=$2,status='LIVE',last_heartbeat_at=now(),updated_at=now() WHERE club_id=$1`,req.params.clubId,playbackUrl)]);res.json({data:{selectedCameraId:cameraId,playbackUrl},message:`${label} is live`})}catch(error){res.status(500).json({error:'Unable to take camera live',detail:String(error)})}})
 
 export { router as liveMulticameraRouter }
