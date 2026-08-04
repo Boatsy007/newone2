@@ -7,6 +7,7 @@
   <title>PlayFooty Live Broadcast Studio</title>
   <style>
     *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d}iframe{position:fixed;inset:0;display:block;width:100%;height:100%;border:0;background:#05090d}
+    html.operator-fullscreen-fallback,html.operator-fullscreen-fallback body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;background:#05090d}
     .watch-live,.camera-badge{position:fixed;z-index:2147483647;display:none;align-items:center;gap:7px;padding:10px 14px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(4,10,16,.92);color:#fff;text-decoration:none;font:900 11px/1 Inter,Arial,sans-serif;text-transform:uppercase;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(12px)}
     .watch-live{right:max(12px,env(safe-area-inset-right));top:max(12px,env(safe-area-inset-top))}.camera-badge{left:max(12px,env(safe-area-inset-left));top:max(12px,env(safe-area-inset-top));color:#8dd7ff}.watch-live.show,.camera-badge.show{display:flex}.watch-live i,.camera-badge i{width:8px;height:8px;border-radius:50%;background:#ef3348;box-shadow:0 0 0 5px rgba(239,51,72,.16)}.camera-badge i{background:#42b8ff;box-shadow:0 0 0 5px rgba(66,184,255,.16)}
     @media(max-width:620px){.watch-live{right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top))}.camera-badge{left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top))}.watch-live,.camera-badge{padding:9px 11px;font-size:10px}}
@@ -27,13 +28,14 @@
   studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
   if(clubId)watchLive.href='/live-room.html?clubId='+encodeURIComponent(clubId)
   if(multiCamera){cameraBadge.querySelector('span').textContent=cameraLabel;cameraBadge.classList.add('show')}
-  let installTimer=0,visibilityTimer=0,autoHighlightTimer=0,heartbeatTimer=0,ivsClient=null,endingBroadcast=false
+  let installTimer=0,visibilityTimer=0,autoHighlightTimer=0,heartbeatTimer=0,ivsClient=null,endingBroadcast=false,fullscreenFallback=false
 
   function token(){try{const raw=localStorage.getItem(SESSION_KEY);const value=raw?JSON.parse(raw):null;return typeof value?.access_token==='string'?value.access_token:''}catch{return''}}
   function headers(){return{authorization:'Bearer '+token(),'content-type':'application/json'}}
   function v3Document(){try{return studio.contentDocument||null}catch{return null}}
   function deepestStudio(){try{const v3=v3Document(),v2=v3?.getElementById('interchange')?.contentDocument,broadcast=v2?.getElementById('broadcast')?.contentDocument;return broadcast?.getElementById('studio')?.contentDocument||null}catch{return null}}
-  function cameraStream(){const stream=deepestStudio()?.getElementById('video')?.srcObject;return stream&&typeof stream.getTracks==='function'?stream:null}
+  function cameraVideo(){return deepestStudio()?.getElementById('video')||null}
+  function cameraStream(){const stream=cameraVideo()?.srcObject;return stream&&typeof stream.getTracks==='function'?stream:null}
   function notify(message){const v3=v3Document(),toast=v3?.getElementById('toast');if(!toast)return;toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3200)}
   async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Live stream request failed');return payload}
   function cameraBase(){return '/api/live-stream/multi-camera/clubs/'+encodeURIComponent(clubId)+'/cameras/'+encodeURIComponent(cameraId)}
@@ -58,9 +60,32 @@
   }
 
   function autoPublishHighlights(){const v3=v3Document();if(!v3||!clubId||!token()||multiCamera)return;v3.querySelectorAll('.clip-actions .library').forEach(button=>{if(!(button instanceof HTMLButtonElement)||button.disabled||button.dataset.autoPublish==='1'||!/save to media library/i.test(button.textContent||''))return;button.dataset.autoPublish='1';button.click()})}
-  function setOperatorFullscreen(doc,active){doc.body.classList.toggle('stage-fullscreen',active);doc.documentElement.classList.toggle('stage-fullscreen-root',active);const button=doc.getElementById('stageFullscreenBtn');if(!button)return;button.setAttribute('aria-pressed',String(active));button.setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');button.innerHTML=active?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>':'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>'}
-  function syncControlVisibility(){const v3=v3Document(),doc=deepestStudio(),original=v3?.querySelector('.highlight-controls');if(!original||!doc)return false;const fullscreen=doc.body.classList.contains('stage-fullscreen');original.style.setProperty('display',fullscreen||multiCamera?'none':'flex','important');watchLive.style.setProperty('display',fullscreen?'none':(ivsClient?'flex':'none'),'important');cameraBadge.style.setProperty('display',fullscreen?'none':(multiCamera?'flex':'none'),'important');const start=doc.getElementById('operatorStartRecording');if(start){const stream=cameraStream(),cameraLive=Boolean(stream?.getTracks().some(track=>track.readyState==='live')),recording=doc.body.classList.contains('operator-recording');start.style.setProperty('display',cameraLive&&!recording?'grid':'none','important')}return true}
-  function installOperatorFullscreen(){const doc=deepestStudio(),button=doc?.getElementById('stageFullscreenBtn');if(!doc||!button)return false;if(button.dataset.operatorFullscreenBound!=='1'){button.dataset.operatorFullscreenBound='1';button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();const active=doc.body.classList.contains('stage-fullscreen');setOperatorFullscreen(doc,!active);requestAnimationFrame(syncControlVisibility);try{if(!active)screen.orientation?.lock?.('landscape').catch(()=>{});else screen.orientation?.unlock?.()}catch{}},true)}return true}
+  function isOperatorFullscreen(){return Boolean(document.fullscreenElement||document.webkitFullscreenElement||fullscreenFallback)}
+  function updateFullscreenButton(active){const doc=deepestStudio(),button=doc?.getElementById('stageFullscreenBtn');if(!button)return;button.setAttribute('aria-pressed',String(active));button.setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');button.innerHTML=active?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>':'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>'}
+  function restoreCameraPreview(){const video=cameraVideo(),stream=cameraStream();if(!video||!stream)return;video.style.visibility='hidden';requestAnimationFrame(()=>{video.srcObject=stream;video.style.visibility='visible';const promise=video.play?.();if(promise?.catch)promise.catch(()=>{})})}
+  async function toggleOperatorFullscreen(){
+    const active=isOperatorFullscreen()
+    try{
+      if(active){
+        if(document.fullscreenElement&&document.exitFullscreen)await document.exitFullscreen()
+        else if(document.webkitFullscreenElement&&document.webkitExitFullscreen)document.webkitExitFullscreen()
+        else{fullscreenFallback=false;document.documentElement.classList.remove('operator-fullscreen-fallback')}
+        try{screen.orientation?.unlock?.()}catch{}
+      }else{
+        const target=document.documentElement
+        if(target.requestFullscreen)await target.requestFullscreen({navigationUI:'hide'}).catch(()=>target.requestFullscreen())
+        else if(target.webkitRequestFullscreen)target.webkitRequestFullscreen()
+        else{fullscreenFallback=true;target.classList.add('operator-fullscreen-fallback')}
+        try{await screen.orientation?.lock?.('landscape')}catch{}
+      }
+    }catch{
+      fullscreenFallback=!active
+      document.documentElement.classList.toggle('operator-fullscreen-fallback',fullscreenFallback)
+    }
+    updateFullscreenButton(isOperatorFullscreen());syncControlVisibility();setTimeout(restoreCameraPreview,120)
+  }
+  function syncControlVisibility(){const v3=v3Document(),doc=deepestStudio(),original=v3?.querySelector('.highlight-controls');if(!original||!doc)return false;const fullscreen=isOperatorFullscreen();doc.body.classList.toggle('stage-fullscreen',fullscreen);doc.documentElement.classList.toggle('stage-fullscreen-root',fullscreen);original.style.setProperty('display',fullscreen||multiCamera?'none':'flex','important');watchLive.style.setProperty('display',fullscreen?'none':(ivsClient?'flex':'none'),'important');cameraBadge.style.setProperty('display',fullscreen?'none':(multiCamera?'flex':'none'),'important');const start=doc.getElementById('operatorStartRecording');if(start){const stream=cameraStream(),cameraLive=Boolean(stream?.getTracks().some(track=>track.readyState==='live')),recording=doc.body.classList.contains('operator-recording');start.style.setProperty('display',cameraLive&&!recording?'grid':'none','important')}updateFullscreenButton(fullscreen);return true}
+  function installOperatorFullscreen(){const doc=deepestStudio(),button=doc?.getElementById('stageFullscreenBtn');if(!doc||!button)return false;if(button.dataset.operatorFullscreenBound!=='1'){button.dataset.operatorFullscreenBound='1';button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();toggleOperatorFullscreen()},true)}return true}
   function installStreamingControls(){
     const doc=deepestStudio(),start=doc?.getElementById('operatorStartRecording'),end=doc?.getElementById('operatorEndRecording'),stopCamera=doc?.getElementById('stopBtn');if(!doc||!start||!end||!stopCamera)return false
     if(start.dataset.stage2Bound!=='1'){
@@ -81,6 +106,8 @@
     return true
   }
   function beginInstall(){clearInterval(installTimer);clearInterval(visibilityTimer);clearInterval(autoHighlightTimer);const install=()=>installOperatorFullscreen()&&installStreamingControls();if(!install()){installTimer=setInterval(()=>{if(install())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}visibilityTimer=setInterval(syncControlVisibility,150);autoHighlightTimer=setInterval(autoPublishHighlights,500);syncControlVisibility();autoPublishHighlights()}
+  document.addEventListener('fullscreenchange',()=>{fullscreenFallback=false;document.documentElement.classList.remove('operator-fullscreen-fallback');syncControlVisibility();setTimeout(restoreCameraPreview,120)})
+  document.addEventListener('webkitfullscreenchange',()=>{fullscreenFallback=false;document.documentElement.classList.remove('operator-fullscreen-fallback');syncControlVisibility();setTimeout(restoreCameraPreview,120)})
   studio.addEventListener('load',beginInstall);window.addEventListener('pageshow',beginInstall)
   window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(visibilityTimer);clearInterval(autoHighlightTimer);clearInterval(heartbeatTimer);try{ivsClient?.stopBroadcast()}catch{}})
 })()
