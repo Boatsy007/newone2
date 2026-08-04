@@ -2,10 +2,9 @@ import { ArrowRight, CalendarCheck, ClipboardCheck, Dumbbell, ShieldCheck, Sword
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-type Dashboard = {
-  teamSelection: { roundLabel: string; opponentName: string | null; matchDate: string | null; status: string; playerCount: number } | null
-}
-
+type TeamSelection = { id?: string; roundLabel: string; opponentName: string | null; matchDate: string | null; status: string; playerCount: number }
+type Dashboard = { teamSelection: TeamSelection | null }
+type TeamSheet = { id: string; roundLabel: string; opponentName: string | null; matchDate: string | null; status: string; playerCount?: number; players?: unknown[] }
 type AvailabilityPlayer = { status: string | null; reason: string | null }
 type Availability = { players: AvailabilityPlayer[] }
 type Session = { access_token: string }
@@ -29,6 +28,22 @@ async function getJson<T>(path: string, token: string) {
   return payload
 }
 
+function sheetPlayerCount(sheet: TeamSheet) {
+  if (Array.isArray(sheet.players)) return sheet.players.length
+  return Number(sheet.playerCount) || 0
+}
+
+function currentSheet(sheets: TeamSheet[], dashboardSelection: TeamSelection | null) {
+  if (!sheets.length) return null
+  if (dashboardSelection?.id) {
+    const exact = sheets.find(sheet => sheet.id === dashboardSelection.id)
+    if (exact) return exact
+  }
+  return sheets.find(sheet => sheet.status?.toUpperCase() === 'PUBLISHED')
+    || sheets.find(sheet => sheet.status?.toUpperCase() === 'FINAL')
+    || sheets[0]
+}
+
 export default function ClubCoachingCommandCentre({ clubId }: { clubId: string }) {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [availability, setAvailability] = useState<Availability | null>(null)
@@ -50,9 +65,23 @@ export default function ClubCoachingCommandCentre({ clubId }: { clubId: string }
     Promise.all([
       getJson<{ data?: Dashboard }>(`/api/club-portal/clubs/${encodeURIComponent(clubId)}/dashboard`, current.access_token),
       getJson<{ data?: Availability }>(`/api/club-portal/availability/clubs/${encodeURIComponent(clubId)}/overview`, current.access_token).catch(() => ({ data: undefined })),
-    ]).then(([dashboardPayload, availabilityPayload]) => {
+      getJson<{ data?: TeamSheet[] }>(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`, current.access_token).catch(() => ({ data: [] })),
+    ]).then(([dashboardPayload, availabilityPayload, sheetsPayload]) => {
       if (!active) return
-      setDashboard(dashboardPayload.data ?? null)
+      const nextDashboard = dashboardPayload.data ?? null
+      const sheets = Array.isArray(sheetsPayload.data) ? sheetsPayload.data : []
+      const selectedSheet = currentSheet(sheets, nextDashboard?.teamSelection ?? null)
+      if (nextDashboard && selectedSheet) {
+        nextDashboard.teamSelection = {
+          id: selectedSheet.id,
+          roundLabel: selectedSheet.roundLabel,
+          opponentName: selectedSheet.opponentName,
+          matchDate: selectedSheet.matchDate,
+          status: selectedSheet.status,
+          playerCount: sheetPlayerCount(selectedSheet),
+        }
+      }
+      setDashboard(nextDashboard)
       setAvailability(availabilityPayload.data ?? null)
     }).catch(reason => {
       if (active) setError(reason instanceof Error ? reason.message : 'Unable to load coaching priorities')
