@@ -7,7 +7,7 @@ const router = Router()
 const MEDIA_BUCKET = process.env.SUPABASE_MEDIA_BUCKET || process.env.SUPABASE_LOGO_BUCKET || 'playfooty-logos'
 const IMAGE_TYPES = new Set(['image/png','image/jpeg','image/jpg','image/webp'])
 const VIDEO_TYPES = new Set(['video/mp4','video/webm','video/quicktime'])
-const EXT:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/jpg':'jpg','image/webp':'webp','video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'}
+const EXT:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/jpg':'jpg','image/webp':'webm','video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov'}
 const MEDIA_TYPES = new Set(['PLAYER','MATCH','MILESTONE','TEAM_SELECTION','SPONSOR','CLUB','GENERATED','HIGHLIGHT','OTHER'])
 const STATUSES = new Set(['DRAFT','READY','ARCHIVED'])
 let ready:Promise<void>|null=null
@@ -53,6 +53,22 @@ const text=(value:unknown,max=180)=>String(value??'').trim().slice(0,max)
 const tags=(value:unknown)=>Array.isArray(value)?value.map(item=>text(item,40)).filter(Boolean).slice(0,20):[]
 const storageConfig=()=>({url:(process.env.SUPABASE_URL??'').replace(/\/$/,''),key:process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_KEY||''})
 const publicUrl=(url:string,path:string)=>`${url}/storage/v1/object/public/${MEDIA_BUCKET}/${path}`
+
+router.get('/public/clubs/:clubId/highlights',async(req,res)=>{
+ try{
+  await ensureTable()
+  const rows=await prisma.$queryRawUnsafe<Array<Record<string,unknown>>>(`
+   SELECT id,club_id AS "clubId",title,description,file_url AS "fileUrl",content_type AS "contentType",
+    tags,source_entity_id AS "sourceEntityId",created_at AS "createdAt"
+   FROM club_media_assets
+   WHERE club_id=$1 AND media_type='HIGHLIGHT' AND status='READY' AND archived_at IS NULL
+    AND source_entity_type='LIVE_MATCH'
+   ORDER BY created_at DESC LIMIT 8
+  `,req.params.clubId)
+  res.set('Cache-Control','no-store')
+  res.json({data:rows})
+ }catch(error){res.status(500).json({error:'Unable to load live highlights',detail:String(error)})}
+})
 
 router.use(authenticateClubUser)
 router.use('/clubs/:clubId',requireActiveClubMembership,requireMediaPermission)
