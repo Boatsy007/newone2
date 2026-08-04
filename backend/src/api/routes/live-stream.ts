@@ -2,6 +2,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { Router, type Request, type Response, type NextFunction } from 'express'
 import { prisma } from '../../db/client.js'
 import { authenticateClubUser, requireActiveClubMembership, roleCan } from '../../auth/club-auth.js'
+import { liveMulticameraRouter } from './live-multicamera.js'
 
 const router = Router()
 let ready: Promise<void> | null = null
@@ -68,15 +69,8 @@ function publicState(row: StreamRow | null) {
 }
 
 const IVS_REGIONS = new Set([
-  'us-east-1',
-  'us-west-2',
-  'ap-south-1',
-  'ap-northeast-1',
-  'ap-northeast-2',
-  'eu-central-1',
-  'eu-west-1',
+  'us-east-1','us-west-2','ap-south-1','ap-northeast-1','ap-northeast-2','eu-central-1','eu-west-1',
 ])
-
 function awsConfig() {
   const accessKeyId = String(process.env.AWS_ACCESS_KEY_ID ?? '').trim()
   const secretAccessKey = String(process.env.AWS_SECRET_ACCESS_KEY ?? '').trim()
@@ -85,25 +79,14 @@ function awsConfig() {
   const region = IVS_REGIONS.has(requestedRegion) ? requestedRegion : 'ap-northeast-1'
   return accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey, sessionToken, region } : null
 }
-
 const hex = (value: string) => createHash('sha256').update(value).digest('hex')
 const hmac = (key: Buffer | string, value: string) => createHmac('sha256', key).update(value).digest()
-
 async function ivsRequest<T>(operation: string, body: Record<string, unknown>): Promise<T> {
   const config = awsConfig()
   if (!config) throw new Error('Amazon IVS is not configured')
-  const service = 'ivs'
-  const host = `ivs.${config.region}.amazonaws.com`
-  const path = `/${operation}`
-  const payload = JSON.stringify(body)
-  const now = new Date()
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '')
-  const dateStamp = amzDate.slice(0, 8)
-  const headers: Record<string, string> = {
-    'content-type': 'application/json',
-    host,
-    'x-amz-date': amzDate,
-  }
+  const service = 'ivs', host = `ivs.${config.region}.amazonaws.com`, path = `/${operation}`, payload = JSON.stringify(body)
+  const now = new Date(), amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, ''), dateStamp = amzDate.slice(0, 8)
+  const headers: Record<string, string> = {'content-type':'application/json',host,'x-amz-date':amzDate}
   if (config.sessionToken) headers['x-amz-security-token'] = config.sessionToken
   const signedHeaderNames = Object.keys(headers).sort()
   const canonicalHeaders = signedHeaderNames.map(name => `${name}:${headers[name].trim()}\n`).join('')
@@ -122,45 +105,24 @@ async function ivsRequest<T>(operation: string, body: Record<string, unknown>): 
   if (!response.ok) throw new Error(result?.message || result?.Message || `Amazon IVS ${operation} failed`)
   return result as T
 }
-
-type CreateChannelResult = {
-  channel?: { arn?: string; ingestEndpoint?: string; playbackUrl?: string }
-  streamKey?: { value?: string }
-}
-
+type CreateChannelResult = { channel?: { arn?: string; ingestEndpoint?: string; playbackUrl?: string }; streamKey?: { value?: string } }
 async function createIvsChannel(clubId: string) {
   const safeName = `playfooty-${clubId}`.replace(/[^a-zA-Z0-9-_]/g, '-').slice(0, 128)
-  const result = await ivsRequest<CreateChannelResult>('CreateChannel', {
-    name: safeName,
-    latencyMode: 'LOW',
-    type: 'BASIC',
-    authorized: false,
-    insecureIngest: false,
-    tags: { clubId, platform: 'PlayFooty' },
-  })
-  const channelArn = String(result.channel?.arn ?? '')
-  const ingestEndpoint = String(result.channel?.ingestEndpoint ?? '')
-  const playbackUrl = String(result.channel?.playbackUrl ?? '')
-  const streamKey = String(result.streamKey?.value ?? '')
+  const result = await ivsRequest<CreateChannelResult>('CreateChannel', {name:safeName,latencyMode:'LOW',type:'BASIC',authorized:false,insecureIngest:false,tags:{clubId,platform:'PlayFooty'}})
+  const channelArn = String(result.channel?.arn ?? ''), ingestEndpoint = String(result.channel?.ingestEndpoint ?? ''), playbackUrl = String(result.channel?.playbackUrl ?? ''), streamKey = String(result.streamKey?.value ?? '')
   if (!channelArn || !ingestEndpoint || !playbackUrl || !streamKey) throw new Error('Amazon IVS did not return a complete channel configuration')
   return { channelArn, ingestEndpoint, playbackUrl, streamKey }
 }
-
 function canManage(res: Response) {
   const membership = res.locals.clubMembership as { role: Parameters<typeof roleCan>[0] } | undefined
   return Boolean(membership && roleCan(membership.role, 'team_selection'))
 }
 
+router.use('/multi-camera', liveMulticameraRouter)
 router.get('/clubs/:clubId', async (req, res) => {
-  try {
-    const row = await rowForClub(req.params.clubId)
-    res.set('Cache-Control', 'no-store')
-    res.json({ data: publicState(row) })
-  } catch (error) {
-    res.status(500).json({ error: 'Unable to load live stream status', detail: String(error) })
-  }
+  try { const row = await rowForClub(req.params.clubId);res.set('Cache-Control', 'no-store');res.json({ data: publicState(row) }) }
+  catch (error) { res.status(500).json({ error: 'Unable to load live stream status', detail: String(error) }) }
 })
-
 router.post('/clubs/:clubId/start', authenticateClubUser, requireActiveClubMembership, async (req, res) => {
   try {
     if (!canManage(res)) return res.status(403).json({ error: 'Your club role cannot start a broadcast' })
@@ -168,59 +130,27 @@ router.post('/clubs/:clubId/start', authenticateClubUser, requireActiveClubMembe
     const needsIvsChannel = row?.provider !== 'aws-ivs' || !row.providerInputId || !row.publishUrl || !row.playbackUrl || !row.streamKey
     if (needsIvsChannel) {
       const channel = await createIvsChannel(req.params.clubId)
-      await prisma.$executeRawUnsafe(`
-        INSERT INTO football_live_streams(club_id,provider,provider_input_id,publish_url,playback_url,stream_key,status,updated_at)
-        VALUES($1,'aws-ivs',$2,$3,$4,$5,'OFFLINE',now())
-        ON CONFLICT(club_id) DO UPDATE SET provider='aws-ivs',provider_input_id=EXCLUDED.provider_input_id,publish_url=EXCLUDED.publish_url,playback_url=EXCLUDED.playback_url,stream_key=EXCLUDED.stream_key,status='OFFLINE',updated_at=now()
-      `, req.params.clubId, channel.channelArn, channel.ingestEndpoint, channel.playbackUrl, channel.streamKey)
+      await prisma.$executeRawUnsafe(`INSERT INTO football_live_streams(club_id,provider,provider_input_id,publish_url,playback_url,stream_key,status,updated_at) VALUES($1,'aws-ivs',$2,$3,$4,$5,'OFFLINE',now()) ON CONFLICT(club_id) DO UPDATE SET provider='aws-ivs',provider_input_id=EXCLUDED.provider_input_id,publish_url=EXCLUDED.publish_url,playback_url=EXCLUDED.playback_url,stream_key=EXCLUDED.stream_key,status='OFFLINE',updated_at=now()`,req.params.clubId,channel.channelArn,channel.ingestEndpoint,channel.playbackUrl,channel.streamKey)
       row = await rowForClub(req.params.clubId)
     }
     await prisma.$executeRawUnsafe(`UPDATE football_live_streams SET status='LIVE',started_at=now(),ended_at=NULL,last_heartbeat_at=now(),updated_at=now() WHERE club_id=$1`, req.params.clubId)
-    res.set('Cache-Control', 'no-store')
-    res.json({ data: { provider: 'aws-ivs', ingestEndpoint: row?.publishUrl, streamKey: row?.streamKey, playbackUrl: row?.playbackUrl, streamStatus: 'LIVE' } })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to start broadcast'
-    res.status(message.includes('not configured') ? 503 : 500).json({ error: message })
-  }
+    res.set('Cache-Control', 'no-store');res.json({ data: { provider:'aws-ivs',ingestEndpoint:row?.publishUrl,streamKey:row?.streamKey,playbackUrl:row?.playbackUrl,streamStatus:'LIVE' } })
+  } catch (error) { const message = error instanceof Error ? error.message : 'Unable to start broadcast';res.status(message.includes('not configured') ? 503 : 500).json({ error: message }) }
 })
-
 router.post('/clubs/:clubId/heartbeat', authenticateClubUser, requireActiveClubMembership, async (req, res) => {
-  try {
-    if (!canManage(res)) return res.status(403).json({ error: 'Your club role cannot manage a broadcast' })
-    await ensureTable()
-    await prisma.$executeRawUnsafe(`UPDATE football_live_streams SET status='LIVE',last_heartbeat_at=now(),updated_at=now() WHERE club_id=$1`, req.params.clubId)
-    res.json({ message: 'Broadcast heartbeat received' })
-  } catch (error) {
-    res.status(500).json({ error: 'Unable to update broadcast heartbeat', detail: String(error) })
-  }
+  try { if (!canManage(res)) return res.status(403).json({ error: 'Your club role cannot manage a broadcast' });await ensureTable();await prisma.$executeRawUnsafe(`UPDATE football_live_streams SET status='LIVE',last_heartbeat_at=now(),updated_at=now() WHERE club_id=$1`, req.params.clubId);res.json({ message: 'Broadcast heartbeat received' }) }
+  catch (error) { res.status(500).json({ error: 'Unable to update broadcast heartbeat', detail: String(error) }) }
 })
-
 router.post('/clubs/:clubId/stop', authenticateClubUser, requireActiveClubMembership, async (req, res) => {
-  try {
-    if (!canManage(res)) return res.status(403).json({ error: 'Your club role cannot end a broadcast' })
-    await ensureTable()
-    await prisma.$executeRawUnsafe(`UPDATE football_live_streams SET status='ENDED',ended_at=now(),last_heartbeat_at=NULL,updated_at=now() WHERE club_id=$1`, req.params.clubId)
-    res.json({ message: 'Broadcast ended' })
-  } catch (error) {
-    res.status(500).json({ error: 'Unable to end broadcast', detail: String(error) })
-  }
+  try { if (!canManage(res)) return res.status(403).json({ error: 'Your club role cannot end a broadcast' });await ensureTable();await prisma.$executeRawUnsafe(`UPDATE football_live_streams SET status='ENDED',ended_at=now(),last_heartbeat_at=NULL,updated_at=now() WHERE club_id=$1`, req.params.clubId);res.json({ message: 'Broadcast ended' }) }
+  catch (error) { res.status(500).json({ error: 'Unable to end broadcast', detail: String(error) }) }
 })
-
 export async function augmentLiveMatchStream(req: Request, res: Response, next: NextFunction) {
   try {
     const state = publicState(await rowForClub(req.params.clubId))
     const original = res.json.bind(res)
-    res.json = ((body: any) => {
-      if (body && typeof body === 'object') {
-        if (body.data && typeof body.data === 'object') body.data = { ...body.data, ...state }
-        else body = { ...body, ...state }
-      }
-      return original(body)
-    }) as typeof res.json
-  } catch {
-    // Live scores remain available even if streaming status cannot be loaded.
-  }
+    res.json = ((body: any) => { if (body && typeof body === 'object') { if (body.data && typeof body.data === 'object') body.data = { ...body.data, ...state }; else body = { ...body, ...state } } return original(body) }) as typeof res.json
+  } catch {}
   next()
 }
-
 export { router as liveStreamRouter }
