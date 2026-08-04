@@ -33,16 +33,7 @@
   function token(){try{const raw=localStorage.getItem(SESSION_KEY);const value=raw?JSON.parse(raw):null;return typeof value?.access_token==='string'?value.access_token:''}catch{return''}}
   function headers(){return{authorization:'Bearer '+token(),'content-type':'application/json'}}
   function v3(){try{return studio.contentDocument||null}catch{return null}}
-  function docs(){
-    const result=[]
-    try{
-      const d3=v3();if(d3)result.push(d3)
-      const d2=d3?.getElementById('interchange')?.contentDocument;if(d2)result.push(d2)
-      const db=d2?.getElementById('broadcast')?.contentDocument;if(db)result.push(db)
-      const ds=db?.getElementById('studio')?.contentDocument;if(ds)result.push(ds)
-    }catch{}
-    return result
-  }
+  function docs(){const result=[];try{const d3=v3();if(d3)result.push(d3);const d2=d3?.getElementById('interchange')?.contentDocument;if(d2)result.push(d2);const db=d2?.getElementById('broadcast')?.contentDocument;if(db)result.push(db);const ds=db?.getElementById('studio')?.contentDocument;if(ds)result.push(ds)}catch{}return result}
   function deepest(){const all=docs();return all[all.length-1]||null}
   function stream(){const s=deepest()?.getElementById('video')?.srcObject;return s&&typeof s.getTracks==='function'?s:null}
   function notify(message){const d=v3(),toast=d?.getElementById('toast');if(toast){toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3500)}else alert(message)}
@@ -50,68 +41,20 @@
   function setState(live,text){badge.classList.toggle('live',live);badge.querySelector('span').textContent=text;watch.classList.toggle('show',live)}
   async function heartbeat(){if(!stage||!clubId)return;try{await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/heartbeat',{method:'POST',body:'{}'})}catch{}}
 
-  const viewerSelectors=[
-    '.pf-director-overlay','.pf-goal-replay','.pf-rt-event','.pf-rt-replay','.pf-presented-by','.pf-sponsor-break','.pf-sponsor-break-overlay',
-    '.goal-animation','.goal-overlay','.behind-overlay','.interchange-overlay','.event-overlay','.event-banner','.score-event','.score-animation','.broadcast-event',
-    '.player-announcement','.goal-announcement','.interchange-announcement','.replay-overlay','.replay-player','[data-viewer-only="true"]'
-  ].join(',')
-  function cleanDocument(doc){
-    if(!doc?.head||!doc?.body)return
-    let style=doc.getElementById('pf-operator-clean-style')
-    if(!style){style=doc.createElement('style');style.id='pf-operator-clean-style';style.textContent=viewerSelectors+'{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;animation:none!important;transition:none!important}';doc.head.appendChild(style)}
-    doc.querySelectorAll(viewerSelectors).forEach(node=>node.remove())
-    const latest=doc.getElementById('latest')
-    if(latest){latest.style.display='none';latest.setAttribute('aria-hidden','true')}
-    if(!doc.documentElement.dataset.pfOperatorClean){
-      doc.documentElement.dataset.pfOperatorClean='1'
-      new MutationObserver(()=>{doc.querySelectorAll(viewerSelectors).forEach(node=>node.remove());const next=doc.getElementById('latest');if(next)next.style.display='none'}).observe(doc.body,{childList:true,subtree:true})
-    }
-  }
+  const viewerSelectors=['.pf-director-overlay','.pf-goal-replay','.pf-rt-event','.pf-rt-replay','.pf-presented-by','.pf-sponsor-break','.pf-sponsor-break-overlay','.goal-animation','.goal-overlay','.behind-overlay','.interchange-overlay','.event-overlay','.event-banner','.score-event','.score-animation','.broadcast-event','.player-announcement','.goal-announcement','.interchange-announcement','.replay-overlay','.replay-player','[data-viewer-only="true"]'].join(',')
+  function cleanDocument(doc){if(!doc?.head||!doc?.body)return;let style=doc.getElementById('pf-operator-clean-style');if(!style){style=doc.createElement('style');style.id='pf-operator-clean-style';style.textContent=viewerSelectors+'{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;animation:none!important;transition:none!important}';doc.head.appendChild(style)}doc.querySelectorAll(viewerSelectors).forEach(node=>node.remove());const latest=doc.getElementById('latest');if(latest){latest.style.display='none';latest.setAttribute('aria-hidden','true')}if(!doc.documentElement.dataset.pfOperatorClean){doc.documentElement.dataset.pfOperatorClean='1';new MutationObserver(()=>{doc.querySelectorAll(viewerSelectors).forEach(node=>node.remove());const next=doc.getElementById('latest');if(next)next.style.display='none'}).observe(doc.body,{childList:true,subtree:true})}}
   function cleanOperatorView(){docs().forEach(cleanDocument)}
 
-  async function joinStage(media){
-    const sdk=window.IVSBroadcastClient
-    if(!sdk?.Stage||!sdk?.LocalStageStream)throw new Error('Amazon IVS Real-Time SDK could not load')
-    const payload=await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/publisher-token',{method:'POST',body:JSON.stringify({cameraId,label})})
-    const participantToken=payload?.data?.token
-    if(!participantToken)throw new Error('No Real-Time participant token was returned')
-    const tracks=[]
-    const videoTrack=media.getVideoTracks().find(t=>t.readyState==='live')
-    const audioTrack=media.getAudioTracks().find(t=>t.readyState==='live')
-    if(!videoTrack)throw new Error('No live camera track is available')
-    tracks.push(new sdk.LocalStageStream(videoTrack,{maxBitrate:1800,maxFramerate:30,simulcast:{enabled:true}}))
-    if(audioTrack)tracks.push(new sdk.LocalStageStream(audioTrack))
-    const strategy={stageStreamsToPublish:()=>tracks,shouldPublishParticipant:()=>true,shouldSubscribeToParticipant:()=>sdk.SubscribeType.NONE}
-    const next=new sdk.Stage(participantToken,strategy);await next.join();return next
-  }
+  async function joinStage(media){const sdk=window.IVSBroadcastClient;if(!sdk?.Stage||!sdk?.LocalStageStream)throw new Error('Amazon IVS Real-Time SDK could not load');const payload=await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/publisher-token',{method:'POST',body:JSON.stringify({cameraId,label})});const participantToken=payload?.data?.token;if(!participantToken)throw new Error('No Real-Time participant token was returned');const tracks=[],videoTrack=media.getVideoTracks().find(t=>t.readyState==='live'),audioTrack=media.getAudioTracks().find(t=>t.readyState==='live');if(!videoTrack)throw new Error('No live camera track is available');tracks.push(new sdk.LocalStageStream(videoTrack,{maxBitrate:1800,maxFramerate:30,simulcast:{enabled:true}}));if(audioTrack)tracks.push(new sdk.LocalStageStream(audioTrack));const strategy={stageStreamsToPublish:()=>tracks,shouldPublishParticipant:()=>true,shouldSubscribeToParticipant:()=>sdk.SubscribeType.NONE};const next=new sdk.Stage(participantToken,strategy);await next.join();return next}
   async function leaveStage(){clearInterval(heartbeatTimer);heartbeatTimer=0;if(stage){try{stage.leave()}catch{}stage=null}setState(false,'Real-time ready')}
   async function stopBroadcast(){if(ending)return;ending=true;try{await leaveStage();if(clubId)await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/stop',{method:'POST',body:'{}'});notify('Real-time broadcast ended.')}catch(error){notify(error instanceof Error?error.message:'Unable to end broadcast')}finally{ending=false}}
 
-  function bind(){
-    cleanOperatorView()
-    const doc=deepest(),start=doc?.getElementById('operatorStartRecording'),end=doc?.getElementById('operatorEndRecording'),stop=doc?.getElementById('stopBtn')
-    if(!doc||!start||!end||!stop)return false
-    if(start.dataset.realtimeBound==='1')return true
-    start.dataset.realtimeBound='1'
-    start.addEventListener('click',async event=>{
-      if(start.dataset.realtimeBypass==='1'){start.dataset.realtimeBypass='0';return}
-      event.preventDefault();event.stopPropagation();event.stopImmediatePropagation()
-      const media=stream();if(!clubId||!media?.getVideoTracks().some(t=>t.readyState==='live'))return notify('Start the camera before going live.')
-      start.disabled=true;start.textContent='Connecting…'
-      try{stage=await joinStage(media);await heartbeat();heartbeatTimer=setInterval(heartbeat,5000);setState(true,'Real-time live');start.dataset.realtimeBypass='1';start.disabled=false;start.textContent='Start Recording';start.click();notify('PlayFooty Real-Time is live.')}catch(error){await leaveStage();start.disabled=false;start.textContent='Start Recording';notify(error instanceof Error?error.message:'Unable to start Real-Time broadcast')}
-    },true)
-    end.addEventListener('click',async event=>{if(end.dataset.realtimeBypass==='1'){end.dataset.realtimeBypass='0';return}event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();end.disabled=true;end.textContent='Ending…';await stopBroadcast();end.dataset.realtimeBypass='1';end.disabled=false;end.textContent='End Recording';end.click()},true)
-    stop.addEventListener('click',()=>{if(stage)stopBroadcast()},true)
-    return true
-  }
-  function install(){
-    clearInterval(installTimer);clearInterval(cleanTimer)
-    cleanOperatorView();cleanTimer=setInterval(cleanOperatorView,500)
-    if(!bind()){installTimer=setInterval(()=>{if(bind())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}
-  }
+  function bind(){cleanOperatorView();const doc=deepest(),start=doc?.getElementById('operatorStartRecording'),end=doc?.getElementById('operatorEndRecording'),stop=doc?.getElementById('stopBtn');if(!doc||!start||!end||!stop)return false;if(start.dataset.realtimeBound==='1')return true;start.dataset.realtimeBound='1';start.addEventListener('click',async event=>{if(start.dataset.realtimeBypass==='1'){start.dataset.realtimeBypass='0';return}event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();const media=stream();if(!clubId||!media?.getVideoTracks().some(t=>t.readyState==='live'))return notify('Start the camera before going live.');start.disabled=true;start.textContent='Connecting…';try{stage=await joinStage(media);await heartbeat();heartbeatTimer=setInterval(heartbeat,5000);setState(true,'Real-time live');start.dataset.realtimeBypass='1';start.disabled=false;start.textContent='Start Recording';start.click();notify('PlayFooty Real-Time is live.')}catch(error){await leaveStage();start.disabled=false;start.textContent='Start Recording';notify(error instanceof Error?error.message:'Unable to start Real-Time broadcast')}},true);end.addEventListener('click',async event=>{if(end.dataset.realtimeBypass==='1'){end.dataset.realtimeBypass='0';return}event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();end.disabled=true;end.textContent='Ending…';await stopBroadcast();end.dataset.realtimeBypass='1';end.disabled=false;end.textContent='End Recording';end.click()},true);stop.addEventListener('click',()=>{if(stage)stopBroadcast()},true);return true}
+  function install(){clearInterval(installTimer);clearInterval(cleanTimer);cleanOperatorView();cleanTimer=setInterval(cleanOperatorView,500);if(!bind()){installTimer=setInterval(()=>{if(bind())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}}
   studio.addEventListener('load',install);window.addEventListener('pageshow',install)
   window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(cleanTimer);clearInterval(heartbeatTimer);try{stage?.leave()}catch{}})
 })()
 </script>
+<script src="/live-realtime-state-relay.js"></script>
 </body>
 </html>
