@@ -3,39 +3,91 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#05090d" />
-  <title>PlayFooty Real-Time Live</title>
+  <meta name="theme-color" content="#ffffff" />
+  <title>Watch Live | PlayFooty</title>
   <script src="https://web-broadcast.live-video.net/1.37.0/amazon-ivs-web-broadcast.js"></script>
   <style>
-    :root{--blue:#42b8ff;--ink:#05090d;--panel:#0d1924;--line:#263a49;--muted:#91a1ae}
-    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#05090d;color:#fff;font-family:Inter,Arial,sans-serif}button,a{font:inherit}
-    body{background:radial-gradient(circle at top,#152a39 0,#07111c 43%,#030608 100%)}
-    .shell{width:min(1180px,calc(100% - 24px));margin:auto;padding:18px 0 40px}
-    header,.statusbar{display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{color:#fff;text-decoration:none;font-weight:1000;font-style:italic;font-size:24px;letter-spacing:-1.3px}.brand b{color:var(--blue)}
-    .statusbar{margin:12px 0 9px}.live-state{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:1000;letter-spacing:.12em;text-transform:uppercase}.dot{width:10px;height:10px;border-radius:50%;background:#657582}.live .dot{background:#21d178;box-shadow:0 0 0 6px rgba(33,209,120,.16)}
-    .player{position:relative;aspect-ratio:16/9;overflow:hidden;border:1px solid var(--line);border-radius:16px;background:#000;box-shadow:0 24px 80px rgba(0,0,0,.48)}
-    .stage-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;background:#000}.waiting{position:absolute;inset:0;z-index:2;display:grid;place-items:center;text-align:center;padding:28px;background:linear-gradient(145deg,#101d28,#05090d)}.waiting[hidden]{display:none}.waiting strong{display:block;font-size:clamp(28px,5vw,54px);font-family:Impact,'Arial Narrow Bold',sans-serif;text-transform:uppercase}.waiting p{max-width:520px;color:var(--muted);line-height:1.45}
-    .score{position:absolute;left:50%;bottom:14px;z-index:6;transform:translateX(-50%);display:grid;grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr);width:min(620px,calc(100% - 28px));min-height:64px;border-radius:9px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.55)}
-    .team{display:grid;grid-template-columns:42px minmax(0,1fr);align-items:center;gap:8px;padding:7px 10px;background:#101c26}.team.away{grid-template-columns:minmax(0,1fr) 42px;text-align:right}.team img{width:42px;height:42px;object-fit:contain;display:none}.team img.show{display:block}.away img{grid-column:2}.away .copy{grid-column:1;grid-row:1}.copy small,.copy strong,.copy span{display:block}.copy small{font-size:8px;font-weight:950;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.copy strong{font-size:25px;line-height:1}.copy span{font-size:8px;color:#dce6ec}.centre{display:grid;place-items:center;align-content:center;background:var(--blue);color:#00131e;text-align:center}.centre b{font-size:16px}.centre span{font-family:monospace;font-size:10px;font-weight:1000}
-    .below{margin-top:16px;padding:17px;border:1px solid var(--line);border-radius:14px;background:rgba(13,25,36,.88)}.below h1{margin:0;font-family:Impact,'Arial Narrow Bold',sans-serif;font-size:clamp(30px,5vw,52px);text-transform:uppercase}.below p{color:var(--muted)}
-    .error{display:none;margin-top:12px;padding:12px;border:1px solid #7d2630;border-radius:10px;background:#351218;color:#ffd1d5}
-    @media(max-width:700px){.shell{width:calc(100% - 12px);padding-top:8px}.player{border-radius:10px}.score{grid-template-columns:minmax(0,1fr) 58px minmax(0,1fr);min-height:52px;bottom:8px}.team{grid-template-columns:30px minmax(0,1fr);gap:4px;padding:5px 6px}.team.away{grid-template-columns:minmax(0,1fr) 30px}.team img{width:30px;height:30px}.copy small{font-size:6px}.copy strong{font-size:18px}.copy span{font-size:6px}.centre b{font-size:12px}.centre span{font-size:8px}}
+    :root{--blue:#2caaf3;--red:#e52c3d;--ink:#101419;--muted:#69727c;--line:#e5e8eb;--soft:#f4f6f8}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:#fff;color:var(--ink);font-family:Inter,Arial,sans-serif}
+    button,a{font:inherit}
+    body{overflow-x:hidden}
+    .page{width:100%;background:#fff}
+    .video-wrap{position:relative;width:100%;background:#000;overflow:hidden;aspect-ratio:16/9}
+    .stage-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;background:#000}
+    .waiting{position:absolute;inset:0;z-index:2;display:grid;place-items:center;text-align:center;padding:28px;background:linear-gradient(145deg,#111820,#020406);color:#fff}
+    .waiting[hidden]{display:none}
+    .waiting strong{display:block;font-size:clamp(25px,5vw,48px);font-weight:1000;letter-spacing:-.03em}
+    .waiting p{max-width:520px;margin:10px auto 0;color:#b9c2ca;line-height:1.45}
+    .top-overlay{position:absolute;inset:0 0 auto;z-index:7;display:flex;align-items:center;justify-content:space-between;padding:max(12px,env(safe-area-inset-top)) 14px 10px;background:linear-gradient(180deg,rgba(0,0,0,.68),transparent)}
+    .brand{color:#fff;text-decoration:none;font-weight:1000;font-style:italic;font-size:21px;letter-spacing:-1.2px;text-shadow:0 2px 12px rgba(0,0,0,.55)}
+    .brand b{color:var(--blue)}
+    .live-pill{display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid rgba(255,255,255,.35);border-radius:999px;background:rgba(5,9,13,.7);color:#fff;font-size:10px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;backdrop-filter:blur(9px)}
+    .live-pill i{width:8px;height:8px;border-radius:50%;background:#7c858d}
+    .live-pill.live i{background:var(--red);box-shadow:0 0 0 5px rgba(229,44,61,.18)}
+    .fullscreen{position:absolute;right:12px;bottom:90px;z-index:8;width:46px;height:46px;border:1px solid rgba(255,255,255,.4);border-radius:12px;background:rgba(5,9,13,.74);color:#fff;display:grid;place-items:center;box-shadow:0 8px 26px rgba(0,0,0,.35);backdrop-filter:blur(10px)}
+    .fullscreen svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+    .score{position:absolute;left:50%;bottom:12px;z-index:6;transform:translateX(-50%);display:grid;grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr);width:min(690px,calc(100% - 28px));min-height:66px;border-radius:9px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.55)}
+    .team{display:grid;grid-template-columns:42px minmax(0,1fr);align-items:center;gap:8px;padding:7px 10px;background:rgba(10,16,22,.94);color:#fff}
+    .team.away{grid-template-columns:minmax(0,1fr) 42px;text-align:right}
+    .team img{width:42px;height:42px;object-fit:contain;display:none}
+    .team img.show{display:block}.away img{grid-column:2}.away .copy{grid-column:1;grid-row:1}
+    .copy small,.copy strong,.copy span{display:block}.copy small{font-size:8px;font-weight:950;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.copy strong{font-size:25px;line-height:1}.copy span{font-size:8px;color:#dce6ec}
+    .centre{display:grid;place-items:center;align-content:center;background:var(--blue);color:#00131e;text-align:center}.centre b{font-size:16px}.centre span{font-family:monospace;font-size:10px;font-weight:1000}
+    .content{max-width:980px;margin:0 auto;padding:30px 28px 54px}
+    .meta{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+    .meta-left{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;font-weight:750}
+    .meta-left i{width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 5px rgba(229,44,61,.12)}
+    .round{color:#2568b7;font-weight:900;text-align:right}
+    h1{margin:26px 0 10px;font-size:clamp(34px,6vw,68px);line-height:1.02;letter-spacing:-.045em}
+    .subtitle{margin:0;color:var(--muted);font-size:clamp(18px,2.5vw,28px);line-height:1.35}
+    .details{margin-top:30px;padding:20px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .details strong{font-size:15px}.details span{color:var(--muted);font-size:14px}
+    .error{display:none;margin-top:16px;padding:12px;border:1px solid #e4a8ae;border-radius:10px;background:#fff1f2;color:#8f1e28}
+    .video-wrap:fullscreen,.video-wrap:-webkit-full-screen{width:100vw;height:100vh;aspect-ratio:auto;border-radius:0}
+    .video-wrap:fullscreen .stage-video,.video-wrap:-webkit-full-screen .stage-video{object-fit:cover}
+    .video-wrap:fullscreen .fullscreen,.video-wrap:-webkit-full-screen .fullscreen{bottom:18px}
+    @media(max-width:700px){
+      .video-wrap{aspect-ratio:16/9}
+      .content{padding:24px 20px 44px}
+      .top-overlay{padding-left:10px;padding-right:10px}
+      .brand{font-size:18px}.live-pill{padding:7px 9px;font-size:9px}
+      .score{grid-template-columns:minmax(0,1fr) 58px minmax(0,1fr);min-height:52px;bottom:7px;width:calc(100% - 14px)}
+      .team{grid-template-columns:30px minmax(0,1fr);gap:4px;padding:5px 6px}.team.away{grid-template-columns:minmax(0,1fr) 30px}.team img{width:30px;height:30px}.copy small{font-size:6px}.copy strong{font-size:18px}.copy span{font-size:6px}.centre b{font-size:12px}.centre span{font-size:8px}
+      .fullscreen{width:40px;height:40px;right:8px;bottom:66px}
+      .meta{align-items:flex-start}.round{max-width:48%}
+    }
+    @media(orientation:landscape) and (max-height:520px){
+      body.auto-landscape .video-wrap{position:fixed;inset:0;z-index:9999;width:100vw;height:100vh;aspect-ratio:auto}
+      body.auto-landscape .content{display:none}
+      body.auto-landscape .fullscreen{bottom:14px}
+    }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <header><a class="brand" href="/"><b>PLAY</b>FOOTY</a><strong>REAL-TIME LIVE</strong></header>
-    <div class="statusbar"><div class="live-state" id="liveState"><i class="dot"></i><span>Waiting for broadcast</span></div><div id="roundLabel">PlayFooty Live</div></div>
-    <section class="player" id="playerShell">
-      <div class="waiting" id="waiting"><div><strong>The broadcast will begin shortly</strong><p>Keep this page open. The real-time video will appear automatically.</p></div></div>
+  <main class="page">
+    <section class="video-wrap" id="playerShell">
+      <div class="top-overlay">
+        <a class="brand" href="/"><b>PLAY</b>FOOTY</a>
+        <div class="live-pill" id="liveState"><i></i><span>Waiting for broadcast</span></div>
+      </div>
+      <div class="waiting" id="waiting"><div><strong>The broadcast will begin shortly</strong><p>Keep this page open. The live video will appear automatically.</p></div></div>
+      <button class="fullscreen" id="fullscreenButton" type="button" aria-label="Enter fullscreen">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
+      </button>
       <section class="score">
         <div class="team" id="homeTeam"><img id="homeLogo" alt=""><div class="copy"><small id="homeName">Home</small><strong id="homeScore">0.0</strong><span id="homeTotal">0 points</span></div></div>
         <div class="centre"><b id="quarter">Q1</b><span id="clock">00:00</span></div>
         <div class="team away" id="awayTeam"><img id="awayLogo" alt=""><div class="copy"><small id="awayName">Away</small><strong id="awayScore">0.0</strong><span id="awayTotal">0 points</span></div></div>
       </section>
     </section>
-    <section class="below"><h1 id="title">Live community football</h1><p id="subtitle">Sub-second PlayFooty Real-Time broadcast.</p></section>
-    <div class="error" id="error"></div>
+    <section class="content">
+      <div class="meta"><div class="meta-left"><i></i><span>Live community football</span></div><div class="round" id="roundLabel">PlayFooty Live</div></div>
+      <h1 id="title">Live community football</h1>
+      <p class="subtitle" id="subtitle">Watch the match live on PlayFooty.</p>
+      <div class="details"><div><strong>Real-time broadcast</strong><br><span>Scores, replays and match updates appear during play.</span></div></div>
+      <div class="error" id="error"></div>
+    </section>
   </main>
 <script>
 (() => {
@@ -46,15 +98,14 @@
   function fmt(seconds){seconds=Math.max(0,Math.floor(Number(seconds)||0));return String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0')}
   function setLive(live,text){$('liveState').classList.toggle('live',live);$('liveState').querySelector('span').textContent=text;$('waiting').hidden=live}
   function logo(id,url){const image=$(id);if(url){image.src=url;image.classList.add('show')}else{image.removeAttribute('src');image.classList.remove('show')}}
-  function renderScore(data){if(!data)return;const hg=Number(data.homeGoals)||0,hb=Number(data.homeBehinds)||0,ag=Number(data.awayGoals)||0,ab=Number(data.awayBehinds)||0;$('homeName').textContent=data.clubName||'Home';$('awayName').textContent=data.opponentName||'Away';$('homeScore').textContent=hg+'.'+hb;$('awayScore').textContent=ag+'.'+ab;$('homeTotal').textContent=total(hg,hb)+' points';$('awayTotal').textContent=total(ag,ab)+' points';$('quarter').textContent='Q'+(data.quarter||1);$('clock').textContent=fmt(data.elapsedSeconds||0);$('roundLabel').textContent=data.roundLabel||'PlayFooty Live';$('title').textContent=(data.clubName||'Home')+' v '+(data.opponentName||'Away');$('subtitle').textContent=data.lastEvent||'Sub-second PlayFooty Real-Time broadcast.';logo('homeLogo',data.homeLogoUrl);logo('awayLogo',data.awayLogoUrl)}
+  function renderScore(data){if(!data)return;const hg=Number(data.homeGoals)||0,hb=Number(data.homeBehinds)||0,ag=Number(data.awayGoals)||0,ab=Number(data.awayBehinds)||0;$('homeName').textContent=data.clubName||'Home';$('awayName').textContent=data.opponentName||'Away';$('homeScore').textContent=hg+'.'+hb;$('awayScore').textContent=ag+'.'+ab;$('homeTotal').textContent=total(hg,hb)+' points';$('awayTotal').textContent=total(ag,ab)+' points';$('quarter').textContent='Q'+(data.quarter||1);$('clock').textContent=fmt(data.elapsedSeconds||0);$('roundLabel').textContent=data.roundLabel||'PlayFooty Live';$('title').textContent=(data.clubName||'Home')+' v '+(data.opponentName||'Away');$('subtitle').textContent=data.lastEvent||'Live scores, replays and match updates on PlayFooty.';logo('homeLogo',data.homeLogoUrl);logo('awayLogo',data.awayLogoUrl)}
   async function loadScore(){try{const r=await fetch('/api/live-match/clubs/'+encodeURIComponent(clubId)+'?t='+Date.now(),{cache:'no-store'});const p=await r.json();if(r.ok)renderScore(p.data||p)}catch{}}
   function removeParticipant(id){const entry=participants.get(id);if(entry){entry.video?.remove();participants.delete(id)}if(!participants.size)setLive(false,'Waiting for broadcast')}
   function renderParticipant(participant,streams){
-    const sdk=window.IVSBroadcastClient
     let entry=participants.get(participant.id)
     if(!entry){const video=document.createElement('video');video.className='stage-video';video.autoplay=true;video.playsInline=true;video.controls=false;video.muted=false;$('playerShell').prepend(video);entry={video,tracks:new Map()};participants.set(participant.id,entry)}
     streams.forEach(stream=>entry.tracks.set(stream.streamType,stream.mediaStreamTrack))
-    const tracks=[...entry.tracks.values()].filter(Boolean);entry.video.srcObject=new MediaStream(tracks);entry.video.play().catch(()=>{entry.video.muted=true;entry.video.play().catch(()=>{})});setLive(true,'Real-time live')
+    const tracks=[...entry.tracks.values()].filter(Boolean);entry.video.srcObject=new MediaStream(tracks);entry.video.play().catch(()=>{entry.video.muted=true;entry.video.play().catch(()=>{})});setLive(true,'Live now')
   }
   async function join(){
     if(joining||stage||!clubId)return
@@ -68,12 +119,19 @@
       next.on(sdk.StageEvents.STAGE_PARTICIPANT_STREAMS_ADDED,(participant,streams)=>renderParticipant(participant,streams))
       next.on(sdk.StageEvents.STAGE_PARTICIPANT_STREAMS_REMOVED,(participant)=>removeParticipant(participant.id))
       next.on(sdk.StageEvents.STAGE_PARTICIPANT_LEFT,(participant)=>removeParticipant(participant.id))
-      next.on(sdk.StageEvents.STAGE_CONNECTION_STATE_CHANGED,state=>{if(state===sdk.ConnectionState.CONNECTED)setLive(true,'Real-time live');if(state===sdk.ConnectionState.DISCONNECTED){stage=null;participants.forEach((_,id)=>removeParticipant(id));setLive(false,'Reconnecting…')}})
-      await next.join();stage=next;setLive(true,'Real-time live')
+      next.on(sdk.StageEvents.STAGE_CONNECTION_STATE_CHANGED,state=>{if(state===sdk.ConnectionState.CONNECTED)setLive(true,'Live now');if(state===sdk.ConnectionState.DISCONNECTED){stage=null;participants.forEach((_,id)=>removeParticipant(id));setLive(false,'Reconnecting…')}})
+      await next.join();stage=next;setLive(true,'Live now')
     }catch(error){setLive(false,'Waiting for broadcast')}finally{joining=false}
   }
+  function isFullscreen(){return Boolean(document.fullscreenElement||document.webkitFullscreenElement)}
+  async function toggleFullscreen(){const shell=$('playerShell');try{if(isFullscreen()){if(document.exitFullscreen)await document.exitFullscreen();else document.webkitExitFullscreen?.()}else if(shell.requestFullscreen)await shell.requestFullscreen({navigationUI:'hide'}).catch(()=>shell.requestFullscreen());else shell.webkitRequestFullscreen?.()}catch{}}
+  function syncFullscreenButton(){const active=isFullscreen(),button=$('fullscreenButton');button.setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');button.innerHTML=active?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>':'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>'}
+  function syncOrientation(){document.body.classList.toggle('auto-landscape',matchMedia('(orientation:landscape) and (max-height:520px)').matches)}
   async function monitor(){if(!stage)await join()}
-  loadScore();monitor();scoreTimer=setInterval(loadScore,1000);tokenTimer=setInterval(monitor,2500)
+  $('fullscreenButton').addEventListener('click',toggleFullscreen)
+  document.addEventListener('fullscreenchange',syncFullscreenButton);document.addEventListener('webkitfullscreenchange',syncFullscreenButton)
+  window.addEventListener('orientationchange',()=>setTimeout(syncOrientation,120));window.addEventListener('resize',syncOrientation)
+  syncOrientation();loadScore();monitor();scoreTimer=setInterval(loadScore,1000);tokenTimer=setInterval(monitor,2500)
   window.addEventListener('beforeunload',()=>{clearInterval(scoreTimer);clearInterval(tokenTimer);try{stage?.leave()}catch{}})
 })()
 </script>
