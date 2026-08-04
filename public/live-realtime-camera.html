@@ -29,7 +29,7 @@
   const studio=document.getElementById('studio'),badge=document.getElementById('badge'),watch=document.getElementById('watch')
   studio.src='/live-stream-broadcast-v3.html'+location.search
   watch.href='/live-realtime-room.html?clubId='+encodeURIComponent(clubId)
-  let stage=null,installTimer=0,ending=false
+  let stage=null,installTimer=0,heartbeatTimer=0,ending=false
 
   function token(){try{const raw=localStorage.getItem(SESSION_KEY);const value=raw?JSON.parse(raw):null;return typeof value?.access_token==='string'?value.access_token:''}catch{return''}}
   function headers(){return{authorization:'Bearer '+token(),'content-type':'application/json'}}
@@ -39,6 +39,7 @@
   function notify(message){const d=v3(),toast=d?.getElementById('toast');if(toast){toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3500)}else alert(message)}
   async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Real-time request failed');return payload}
   function setState(live,text){badge.classList.toggle('live',live);badge.querySelector('span').textContent=text;watch.classList.toggle('show',live)}
+  async function heartbeat(){if(!stage||!clubId)return;try{await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/heartbeat',{method:'POST',body:'{}'})}catch{}}
 
   async function joinStage(media){
     const sdk=window.IVSBroadcastClient
@@ -61,7 +62,7 @@
     await next.join()
     return next
   }
-  async function leaveStage(){if(stage){try{stage.leave()}catch{}stage=null}setState(false,'Real-time ready')}
+  async function leaveStage(){clearInterval(heartbeatTimer);heartbeatTimer=0;if(stage){try{stage.leave()}catch{}stage=null}setState(false,'Real-time ready')}
   async function stopBroadcast(){if(ending)return;ending=true;try{await leaveStage();if(clubId)await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/stop',{method:'POST',body:'{}'});notify('Real-time broadcast ended.')}catch(error){notify(error instanceof Error?error.message:'Unable to end broadcast')}finally{ending=false}}
 
   function bind(){
@@ -74,7 +75,7 @@
       event.preventDefault();event.stopPropagation();event.stopImmediatePropagation()
       const media=stream();if(!clubId||!media?.getVideoTracks().some(t=>t.readyState==='live'))return notify('Start the camera before going live.')
       start.disabled=true;start.textContent='Connecting…'
-      try{stage=await joinStage(media);setState(true,'Real-time live');start.dataset.realtimeBypass='1';start.disabled=false;start.textContent='Start Recording';start.click();notify('PlayFooty Real-Time is live.')}catch(error){await leaveStage();start.disabled=false;start.textContent='Start Recording';notify(error instanceof Error?error.message:'Unable to start Real-Time broadcast')}
+      try{stage=await joinStage(media);await heartbeat();heartbeatTimer=setInterval(heartbeat,5000);setState(true,'Real-time live');start.dataset.realtimeBypass='1';start.disabled=false;start.textContent='Start Recording';start.click();notify('PlayFooty Real-Time is live.')}catch(error){await leaveStage();start.disabled=false;start.textContent='Start Recording';notify(error instanceof Error?error.message:'Unable to start Real-Time broadcast')}
     },true)
     end.addEventListener('click',async event=>{if(end.dataset.realtimeBypass==='1'){end.dataset.realtimeBypass='0';return}event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();end.disabled=true;end.textContent='Ending…';await stopBroadcast();end.dataset.realtimeBypass='1';end.disabled=false;end.textContent='End Recording';end.click()},true)
     stop.addEventListener('click',()=>{if(stage)stopBroadcast()},true)
@@ -82,7 +83,7 @@
   }
   function install(){clearInterval(installTimer);if(!bind()){installTimer=setInterval(()=>{if(bind())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}}
   studio.addEventListener('load',install);window.addEventListener('pageshow',install)
-  window.addEventListener('beforeunload',()=>{clearInterval(installTimer);try{stage?.leave()}catch{}})
+  window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(heartbeatTimer);try{stage?.leave()}catch{}})
 })()
 </script>
 </body>
