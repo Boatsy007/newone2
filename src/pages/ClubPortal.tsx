@@ -1,183 +1,25 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, LogOut, ShieldCheck, UserPlus } from 'lucide-react'
+import { ArrowRight, LoaderCircle, LogOut, ShieldCheck, UserPlus } from 'lucide-react'
 import Nav from '../components/layout/Nav'
 import Footer from '../components/layout/Footer'
 import { TeamLogo } from '../components/rankings/bits'
-import {
-  portalSessionFromLocation,
-  requestPortalPasswordReset,
-  signInPortal,
-  signUpPortal,
-  type PortalAuthSession,
-  type PortalClubAccount,
-} from '../lib/portalAuth'
+import { portalSessionFromLocation, requestPortalPasswordReset, signInPortal, signUpPortal, type PortalAuthSession, type PortalClubAccount } from '../lib/portalAuth'
 
-const SESSION_KEY = 'playfooty.clubPortal.session.v1'
+const SESSION_KEY='playfooty.clubPortal.session.v1'
+function readSession():PortalAuthSession|null{try{const raw=localStorage.getItem(SESSION_KEY);return raw?JSON.parse(raw) as PortalAuthSession:null}catch{return null}}
+function saveSession(session:PortalAuthSession|null){if(session)localStorage.setItem(SESSION_KEY,JSON.stringify(session));else localStorage.removeItem(SESSION_KEY)}
+function openClub(clubId:string){window.location.assign(`/club-portal/${encodeURIComponent(clubId)}`)}
 
-function readSession(): PortalAuthSession | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY)
-    return raw ? JSON.parse(raw) as PortalAuthSession : null
-  } catch {
-    return null
-  }
+export default function ClubPortal(){
+ const[session,setSession]=useState<PortalAuthSession|null>(null),[accounts,setAccounts]=useState<PortalClubAccount[]>([]),[mode,setMode]=useState<'signin'|'signup'>('signin'),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[loading,setLoading]=useState(false),[openingClub,setOpeningClub]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('')
+ useEffect(()=>{const confirmed=portalSessionFromLocation(),stored=readSession(),current=stored?.club_accounts?.length?stored:null;if(current){setSession(current);setAccounts(current.club_accounts??[]);if(current.club_accounts?.length===1){setOpeningClub(true);openClub(current.club_accounts[0].clubId)}return}if(confirmed){saveSession(null);setMessage('Your email is confirmed. Sign in to open your club.')}else if(stored){saveSession(null);setMessage('Sign in to open your club.')}},[])
+ async function submitAuth(event:React.FormEvent){event.preventDefault();setLoading(true);setError('');setMessage('');try{const result=mode==='signup'?await signUpPortal(email,password):await signInPortal(email,password);if(mode==='signup'&&!result.access_token){setMessage('Account created. Confirm your email, then sign in to open your club.');setMode('signin');setPassword('');return}const linked=result.club_accounts??[];if(!linked.length){saveSession(null);setSession(null);setError('This PlayFooty login is not linked to an active club. Contact PlayFooty to be invited.');return}saveSession(result);setSession(result);setAccounts(linked);setPassword('');if(linked.length===1){setOpeningClub(true);openClub(linked[0].clubId)}}catch(reason){setError(reason instanceof Error?reason.message:'Unable to sign in')}finally{setLoading(false)}}
+ async function forgotPassword(){if(!email.trim()){setError('Enter your email address first.');return}setLoading(true);setError('');setMessage('');try{await requestPortalPasswordReset(email,'/club-portal');setMessage('Password reset email sent. Check your inbox and junk folder.')}catch(reason){setError(reason instanceof Error?reason.message:'Unable to send the reset email')}finally{setLoading(false)}}
+ function signOut(){saveSession(null);setSession(null);setAccounts([]);setMessage('You have signed out.')}
+ function chooseClub(clubId:string){setOpeningClub(true);openClub(clubId)}
+ return <><Nav/><main className="club-portal-page"><section className="club-portal-intro"><span>PlayFooty Club Portal</span><h1>Manage your club</h1><p>Sign in once and go directly to your club.</p><div><b><ShieldCheck size={18}/> Club accounts are issued by PlayFooty</b></div></section><section className="club-portal-panel">{!session||!accounts.length?<><h2>{mode==='signin'?'Club sign in':'Create PlayFooty login'}</h2>{new URLSearchParams(window.location.search).get('invite')&&<p className="notice">Use the email address that received this club invitation.</p>}<form onSubmit={submitAuth}><label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" required/></label><label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode==='signin'?'current-password':'new-password'} minLength={8} required/></label>{error&&<div className="error">{error}</div>}{message&&<div className="notice">{message}</div>}<button disabled={loading}>{loading?'Signing in…':mode==='signin'?'Sign in to your club':'Create login'} <ArrowRight size={16}/></button></form>{mode==='signin'&&<button className="text-button" type="button" onClick={forgotPassword}>Forgot your password?</button>}<button className="text-button" type="button" onClick={()=>{setMode(mode==='signin'?'signup':'signin');setError('');setMessage('')}}><UserPlus size={16}/> {mode==='signin'?'Create a PlayFooty login':'Already have a login? Sign in'}</button></>:<><div className="account-bar"><div><span>Signed in as</span><strong>{session.user?.email??'PlayFooty account'}</strong></div><button onClick={signOut}><LogOut size={16}/> Sign out</button></div><section className="membership-list"><h2>{accounts.length===1?'Your club':'Choose your club'}</h2>{accounts.map(account=><article key={account.clubId}><TeamLogo name={account.clubName} src={account.logoUrl??undefined} size={52}/><div><span>{account.role.replaceAll('_',' ')}</span><strong>{account.clubName}</strong></div><button type="button" onClick={()=>chooseClub(account.clubId)}>Open club <ArrowRight size={16}/></button></article>)}</section></>}</section></main><Footer/>{(loading||openingClub)&&<div className="club-opening" role="status" aria-live="polite"><section><LoaderCircle size={44}/><span>PlayFooty Club HQ</span><h2>Loading your club workspace</h2><p>Preparing your dashboard, coaching tools and club data.</p></section></div>}<style>{styles}</style></>
 }
 
-function saveSession(session: PortalAuthSession | null) {
-  if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session))
-  else localStorage.removeItem(SESSION_KEY)
-}
-
-function openClub(clubId: string) {
-  window.location.assign(`/club-portal/${encodeURIComponent(clubId)}`)
-}
-
-export default function ClubPortal() {
-  const [session, setSession] = useState<PortalAuthSession | null>(null)
-  const [accounts, setAccounts] = useState<PortalClubAccount[]>([])
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    const confirmed = portalSessionFromLocation()
-    const stored = readSession()
-    const current = stored?.club_accounts?.length ? stored : null
-
-    if (current) {
-      setSession(current)
-      setAccounts(current.club_accounts ?? [])
-      if (current.club_accounts?.length === 1) openClub(current.club_accounts[0].clubId)
-      return
-    }
-
-    if (confirmed) {
-      saveSession(null)
-      setMessage('Your email is confirmed. Sign in to open your club.')
-    } else if (stored) {
-      saveSession(null)
-      setMessage('Sign in to open your club.')
-    }
-  }, [])
-
-  async function submitAuth(event: React.FormEvent) {
-    event.preventDefault()
-    setLoading(true)
-    setError('')
-    setMessage('')
-    try {
-      const result = mode === 'signup'
-        ? await signUpPortal(email, password)
-        : await signInPortal(email, password)
-
-      if (mode === 'signup' && !result.access_token) {
-        setMessage('Account created. Confirm your email, then sign in to open your club.')
-        setMode('signin')
-        setPassword('')
-        return
-      }
-
-      const linked = result.club_accounts ?? []
-      if (!linked.length) {
-        saveSession(null)
-        setSession(null)
-        setError('This PlayFooty login is not linked to an active club. Contact PlayFooty to be invited.')
-        return
-      }
-
-      saveSession(result)
-      setSession(result)
-      setAccounts(linked)
-      setPassword('')
-      if (linked.length === 1) openClub(linked[0].clubId)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to sign in')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function forgotPassword() {
-    if (!email.trim()) {
-      setError('Enter your email address first.')
-      return
-    }
-    setLoading(true)
-    setError('')
-    setMessage('')
-    try {
-      await requestPortalPasswordReset(email, '/club-portal')
-      setMessage('Password reset email sent. Check your inbox and junk folder.')
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to send the reset email')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function signOut() {
-    saveSession(null)
-    setSession(null)
-    setAccounts([])
-    setMessage('You have signed out.')
-  }
-
-  return (
-    <>
-      <Nav />
-      <main className="club-portal-page">
-        <section className="club-portal-intro">
-          <span>PlayFooty Club Portal</span>
-          <h1>Manage your club</h1>
-          <p>Sign in once and go directly to your club.</p>
-          <div><b><ShieldCheck size={18} /> Club accounts are issued by PlayFooty</b></div>
-        </section>
-
-        <section className="club-portal-panel">
-          {!session || !accounts.length ? (
-            <>
-              <h2>{mode === 'signin' ? 'Club sign in' : 'Create PlayFooty login'}</h2>
-              {new URLSearchParams(window.location.search).get('invite') && (
-                <p className="notice">Use the email address that received this club invitation.</p>
-              )}
-              <form onSubmit={submitAuth}>
-                <label>Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required /></label>
-                <label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} minLength={8} required /></label>
-                {error && <div className="error">{error}</div>}
-                {message && <div className="notice">{message}</div>}
-                <button disabled={loading}>{loading ? 'Signing in…' : mode === 'signin' ? 'Sign in to your club' : 'Create login'} <ArrowRight size={16} /></button>
-              </form>
-              {mode === 'signin' && <button className="text-button" type="button" onClick={forgotPassword}>Forgot your password?</button>}
-              <button className="text-button" type="button" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setMessage('') }}>
-                <UserPlus size={16} /> {mode === 'signin' ? 'Create a PlayFooty login' : 'Already have a login? Sign in'}
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="account-bar"><div><span>Signed in as</span><strong>{session.user?.email ?? 'PlayFooty account'}</strong></div><button onClick={signOut}><LogOut size={16} /> Sign out</button></div>
-              <section className="membership-list">
-                <h2>{accounts.length === 1 ? 'Your club' : 'Choose your club'}</h2>
-                {accounts.map(account => (
-                  <article key={account.clubId}>
-                    <TeamLogo name={account.clubName} src={account.logoUrl ?? undefined} size={52} />
-                    <div><span>{account.role.replaceAll('_', ' ')}</span><strong>{account.clubName}</strong></div>
-                    <button type="button" onClick={() => openClub(account.clubId)}>Open club <ArrowRight size={16} /></button>
-                  </article>
-                ))}
-              </section>
-            </>
-          )}
-        </section>
-      </main>
-      <Footer />
-      <style>{styles}</style>
-    </>
-  )
-}
-
-const styles = `
-.club-portal-page{min-height:72vh;background:#eef3f7;padding:50px 20px;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,540px);gap:60px;align-items:start}.club-portal-intro>span{color:#0783c9;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}.club-portal-intro h1{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(4rem,9vw,8rem);line-height:.82;text-transform:uppercase;margin:12px 0}.club-portal-intro p{color:#526070;font-size:17px}.club-portal-intro b{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:12px 16px;border-radius:999px;background:#fff;border:1px solid #d8e0e7}.club-portal-panel{background:#fff;border:1px solid #dce3e9;border-radius:18px;box-shadow:0 18px 50px rgba(17,24,39,.1);padding:28px}.club-portal-panel h2,.membership-list h2{font-family:'Bebas Neue',Impact,sans-serif;font-size:40px;text-transform:uppercase;margin:8px 0 18px}.club-portal-panel form{display:grid;gap:13px}.club-portal-panel label{display:grid;gap:6px;font-size:12px;font-weight:900;text-transform:uppercase}.club-portal-panel input{width:100%;box-sizing:border-box;border:1px solid #ccd5de;border-radius:10px;padding:13px;font:inherit}.club-portal-panel form>button{min-height:50px;border:0;border-radius:10px;background:#111318;color:#fff;font-weight:900;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:7px}.text-button{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:12px;border:0;background:none;font-weight:900;color:#087bbf}.account-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #e1e6eb;padding-bottom:16px;margin-bottom:16px}.account-bar span,.account-bar strong{display:block}.account-bar span{font-size:10px;text-transform:uppercase;color:#75808d;font-weight:900}.account-bar button{display:flex;align-items:center;gap:6px;border:0;background:none;font-weight:900}.error,.notice{padding:12px;border-radius:10px;margin:10px 0}.error{background:#fff0f0;color:#a31414}.notice{background:#eaf7ff;color:#066aa1}.membership-list{display:grid;gap:12px}.membership-list article{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px;border:1px solid #e0e6eb;border-radius:12px}.membership-list span,.membership-list strong{display:block}.membership-list span{color:#0783c9;font-size:9px;font-weight:900;text-transform:uppercase}.membership-list button{display:flex;align-items:center;gap:5px;border:0;border-radius:999px;background:#2daaf5;padding:11px 14px;font-weight:900}@media(max-width:850px){.club-portal-page{grid-template-columns:1fr;gap:24px;padding:32px 14px}.club-portal-intro h1{font-size:4.6rem}.club-portal-panel{padding:20px}.membership-list article{grid-template-columns:auto minmax(0,1fr)}.membership-list article>button{grid-column:1/-1;justify-content:center}}
+const styles=`
+.club-portal-page{min-height:72vh;background:#eef3f7;padding:50px 20px;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,540px);gap:60px;align-items:start}.club-portal-intro>span{color:#0783c9;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}.club-portal-intro h1{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(4rem,9vw,8rem);line-height:.82;text-transform:uppercase;margin:12px 0}.club-portal-intro p{color:#526070;font-size:17px}.club-portal-intro b{display:inline-flex;align-items:center;gap:8px;margin-top:18px;padding:12px 16px;border-radius:999px;background:#fff;border:1px solid #d8e0e7}.club-portal-panel{background:#fff;border:1px solid #dce3e9;border-radius:18px;box-shadow:0 18px 50px rgba(17,24,39,.1);padding:28px}.club-portal-panel h2,.membership-list h2{font-family:'Bebas Neue',Impact,sans-serif;font-size:40px;text-transform:uppercase;margin:8px 0 18px}.club-portal-panel form{display:grid;gap:13px}.club-portal-panel label{display:grid;gap:6px;font-size:12px;font-weight:900;text-transform:uppercase}.club-portal-panel input{width:100%;box-sizing:border-box;border:1px solid #ccd5de;border-radius:10px;padding:13px;font:inherit}.club-portal-panel form>button{min-height:50px;border:0;border-radius:10px;background:#111318;color:#fff;font-weight:900;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:7px}.text-button{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:12px;border:0;background:none;font-weight:900;color:#087bbf}.account-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #e1e6eb;padding-bottom:16px;margin-bottom:16px}.account-bar span,.account-bar strong{display:block}.account-bar span{font-size:10px;text-transform:uppercase;color:#75808d;font-weight:900}.account-bar button{display:flex;align-items:center;gap:6px;border:0;background:none;font-weight:900}.error,.notice{padding:12px;border-radius:10px;margin:10px 0}.error{background:#fff0f0;color:#a31414}.notice{background:#eaf7ff;color:#066aa1}.membership-list{display:grid;gap:12px}.membership-list article{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px;border:1px solid #e0e6eb;border-radius:12px}.membership-list span,.membership-list strong{display:block}.membership-list span{color:#0783c9;font-size:9px;font-weight:900;text-transform:uppercase}.membership-list button{display:flex;align-items:center;gap:5px;border:0;border-radius:999px;background:#2daaf5;padding:11px 14px;font-weight:900}.club-opening{position:fixed;inset:0;z-index:200000;display:grid;place-items:center;padding:22px;background:rgba(238,243,247,.88);backdrop-filter:blur(9px)}.club-opening section{width:min(430px,calc(100vw - 34px));padding:34px 28px;border:1px solid #dce3e9;border-radius:22px;background:#fff;text-align:center;box-shadow:0 24px 70px rgba(15,23,42,.2)}.club-opening svg{color:#149fdf;animation:clubSpin .85s linear infinite}.club-opening span{display:block;margin-top:13px;color:#0783c9;font-size:10px;font-weight:950;letter-spacing:.16em;text-transform:uppercase}.club-opening h2{margin:6px 0 8px;font-family:'Bebas Neue',Impact,sans-serif;font-size:42px;line-height:.95;text-transform:uppercase}.club-opening p{margin:0;color:#687385;line-height:1.45}@keyframes clubSpin{to{transform:rotate(360deg)}}@media(max-width:850px){.club-portal-page{grid-template-columns:1fr;gap:24px;padding:32px 14px}.club-portal-intro h1{font-size:4.6rem}.club-portal-panel{padding:20px}.membership-list article{grid-template-columns:auto minmax(0,1fr)}.membership-list article>button{grid-column:1/-1;justify-content:center}}
 `
