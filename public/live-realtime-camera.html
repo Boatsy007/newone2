@@ -51,6 +51,7 @@
   async function heartbeat(){if(!stage||!clubId)return;try{await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/heartbeat',{method:'POST',body:'{}'})}catch{}}
 
   const viewerSelectors=[
+    '.overlay','.broadcast-visual','.swap-visual','.latest',
     '.pf-director-overlay','.pf-goal-replay','.pf-rt-event','.pf-rt-replay','.pf-presented-by','.pf-sponsor-break','.pf-sponsor-break-overlay',
     '.goal-animation','.goal-overlay','.behind-overlay','.interchange-overlay','.event-overlay','.event-banner','.score-event','.score-animation','.broadcast-event',
     '.player-announcement','.goal-announcement','.interchange-announcement','.replay-overlay','.replay-player','[data-viewer-only="true"]'
