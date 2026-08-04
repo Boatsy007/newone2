@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#05090d" />
   <title>PlayFooty Live Broadcast Studio</title>
   <style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d}iframe{position:fixed;inset:0;display:block;width:100%;height:100%;border:0;background:#05090d}</style>
+  <script src="https://web-broadcast.live-video.net/1.37.0/amazon-ivs-web-broadcast.js"></script>
 </head>
 <body>
   <iframe id="studio" title="PlayFooty Live Broadcast Studio" allow="camera; microphone; fullscreen; autoplay"></iframe>
@@ -15,7 +16,7 @@
   const studio=document.getElementById('studio')
   const clubId=new URLSearchParams(location.search).get('clubId')||''
   studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
-  let installTimer=0,visibilityTimer=0,heartbeatTimer=0,peer=null,resourceUrl=''
+  let installTimer=0,visibilityTimer=0,heartbeatTimer=0,ivsClient=null
 
   function token(){try{const raw=localStorage.getItem(SESSION_KEY);const value=raw?JSON.parse(raw):null;return typeof value?.access_token==='string'?value.access_token:''}catch{return''}}
   function headers(){return{authorization:'Bearer '+token(),'content-type':'application/json'}}
@@ -23,21 +24,26 @@
   function deepestStudio(){try{const v3=v3Document(),v2=v3?.getElementById('interchange')?.contentDocument,broadcast=v2?.getElementById('broadcast')?.contentDocument;return broadcast?.getElementById('studio')?.contentDocument||null}catch{return null}}
   function cameraStream(){const stream=deepestStudio()?.getElementById('video')?.srcObject;return stream&&typeof stream.getTracks==='function'?stream:null}
   function notify(message){const v3=v3Document(),toast=v3?.getElementById('toast');if(!toast)return;toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3200)}
-  function waitForIce(pc){return new Promise(resolve=>{if(pc.iceGatheringState==='complete')return resolve();const done=()=>{if(pc.iceGatheringState==='complete'){pc.removeEventListener('icegatheringstatechange',done);resolve()}};pc.addEventListener('icegatheringstatechange',done);setTimeout(resolve,5000)})}
-  async function beginWhip(url,stream){
-    const pc=new RTCPeerConnection()
-    stream.getTracks().filter(track=>track.readyState==='live').forEach(track=>pc.addTrack(track,stream))
-    await pc.setLocalDescription(await pc.createOffer())
-    await waitForIce(pc)
-    const response=await fetch(url,{method:'POST',headers:{'content-type':'application/sdp'},body:pc.localDescription?.sdp||''})
-    if(!response.ok)throw new Error('The live video provider rejected the broadcast')
-    await pc.setRemoteDescription({type:'answer',sdp:await response.text()})
-    const location=response.headers.get('location')||''
-    return{pc,resourceUrl:location?new URL(location,url).href:''}
-  }
-  async function endWhip(){clearInterval(heartbeatTimer);heartbeatTimer=0;if(resourceUrl)fetch(resourceUrl,{method:'DELETE'}).catch(()=>{});resourceUrl='';peer?.close();peer=null}
   async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Live stream request failed');return payload}
-  async function heartbeat(){if(!clubId||!peer)return;try{await api('/api/live-stream/clubs/'+encodeURIComponent(clubId)+'/heartbeat',{method:'POST',body:'{}'})}catch{}}
+  async function heartbeat(){if(!clubId||!ivsClient)return;try{await api('/api/live-stream/clubs/'+encodeURIComponent(clubId)+'/heartbeat',{method:'POST',body:'{}'})}catch{}}
+
+  async function beginIvs(ingestEndpoint,streamKey,stream){
+    const sdk=window.IVSBroadcastClient
+    if(!sdk?.create)throw new Error('Amazon IVS broadcasting could not load on this device')
+    const client=sdk.create({streamConfig:sdk.BASIC_LANDSCAPE,ingestEndpoint})
+    const videoTracks=stream.getVideoTracks().filter(track=>track.readyState==='live')
+    const audioTracks=stream.getAudioTracks().filter(track=>track.readyState==='live')
+    if(!videoTracks.length)throw new Error('No live camera track is available')
+    client.addVideoInputDevice(new MediaStream(videoTracks),'playfooty-camera',{index:0})
+    if(audioTracks.length)client.addAudioInputDevice(new MediaStream(audioTracks),'playfooty-microphone')
+    await client.startBroadcast(streamKey)
+    return client
+  }
+  async function endIvs(){
+    clearInterval(heartbeatTimer);heartbeatTimer=0
+    if(ivsClient){try{ivsClient.stopBroadcast()}catch{}try{ivsClient.delete?.()}catch{}}
+    ivsClient=null
+  }
 
   function setOperatorFullscreen(doc,active){
     doc.body.classList.toggle('stage-fullscreen',active);doc.documentElement.classList.toggle('stage-fullscreen-root',active)
@@ -68,23 +74,24 @@
         start.disabled=true;start.textContent='Connecting…'
         try{
           const payload=await api('/api/live-stream/clubs/'+encodeURIComponent(clubId)+'/start',{method:'POST',body:'{}'})
-          const publishUrl=payload?.data?.publishUrl;if(!publishUrl)throw new Error('No publishing URL was returned')
-          const connection=await beginWhip(publishUrl,stream);peer=connection.pc;resourceUrl=connection.resourceUrl
+          const ingestEndpoint=payload?.data?.ingestEndpoint,streamKey=payload?.data?.streamKey
+          if(!ingestEndpoint||!streamKey)throw new Error('Amazon IVS did not return the club broadcast credentials')
+          ivsClient=await beginIvs(ingestEndpoint,streamKey,stream)
           heartbeatTimer=setInterval(heartbeat,5000);await heartbeat()
           start.dataset.stage2Bypass='1';start.disabled=false;start.textContent='Start Recording';start.click();notify('PlayFooty broadcast is live.')
-        }catch(error){start.disabled=false;start.textContent='Start Recording';notify(error instanceof Error?error.message:'Unable to start the broadcast')}
+        }catch(error){await endIvs();start.disabled=false;start.textContent='Start Recording';notify(error instanceof Error?error.message:'Unable to start the broadcast')}
       },true)
       end.addEventListener('click',async event=>{
         if(end.dataset.stage2Bypass==='1'){end.dataset.stage2Bypass='0';return}
         event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();end.disabled=true;end.textContent='Ending…'
-        try{await endWhip();if(clubId)await api('/api/live-stream/clubs/'+encodeURIComponent(clubId)+'/stop',{method:'POST',body:'{}'});end.dataset.stage2Bypass='1';end.disabled=false;end.textContent='End Recording';end.click();notify('Broadcast ended.')}catch(error){end.disabled=false;end.textContent='End Recording';notify(error instanceof Error?error.message:'Unable to end the broadcast')}
+        try{await endIvs();if(clubId)await api('/api/live-stream/clubs/'+encodeURIComponent(clubId)+'/stop',{method:'POST',body:'{}'});end.dataset.stage2Bypass='1';end.disabled=false;end.textContent='End Recording';end.click();notify('Broadcast ended.')}catch(error){end.disabled=false;end.textContent='End Recording';notify(error instanceof Error?error.message:'Unable to end the broadcast')}
       },true)
     }
     return true
   }
   function beginInstall(){clearInterval(installTimer);clearInterval(visibilityTimer);const install=()=>installOperatorFullscreen()&&installStreamingControls();if(!install()){installTimer=setInterval(()=>{if(install())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}visibilityTimer=setInterval(syncControlVisibility,150);syncControlVisibility()}
   studio.addEventListener('load',beginInstall);window.addEventListener('pageshow',beginInstall)
-  window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(visibilityTimer);clearInterval(heartbeatTimer);peer?.close()})
+  window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(visibilityTimer);clearInterval(heartbeatTimer);try{ivsClient?.stopBroadcast()}catch{}})
 })()
 </script>
 </body>
