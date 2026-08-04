@@ -5,108 +5,87 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <meta name="theme-color" content="#05090d" />
   <title>PlayFooty Live Broadcast Studio</title>
-  <style>
-    *{box-sizing:border-box}
-    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d}
-    iframe{position:fixed;inset:0;display:block;width:100%;height:100%;border:0;background:#05090d}
-  </style>
+  <style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d}iframe{position:fixed;inset:0;display:block;width:100%;height:100%;border:0;background:#05090d}</style>
 </head>
 <body>
   <iframe id="studio" title="PlayFooty Live Broadcast Studio" allow="camera; microphone; fullscreen; autoplay"></iframe>
-  <script>
-  (()=>{
-    const studio=document.getElementById('studio')
-    studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
-    let installTimer=0
-    let visibilityTimer=0
+<script>
+(() => {
+  const SESSION_KEY='playfooty.clubPortal.session.v1'
+  const studio=document.getElementById('studio')
+  const clubId=new URLSearchParams(location.search).get('clubId')||''
+  studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
+  let installTimer=0,visibilityTimer=0,heartbeatTimer=0,peer=null,resourceUrl=''
 
-    function v3Document(){
-      try{return studio.contentDocument||null}catch{return null}
+  function token(){try{const raw=localStorage.getItem(SESSION_KEY);const value=raw?JSON.parse(raw):null;return typeof value?.access_token==='string'?value.access_token:''}catch{return''}}
+  function headers(){return{authorization:'Bearer '+token(),'content-type':'application/json'}}
+  function v3Document(){try{return studio.contentDocument||null}catch{return null}}
+  function deepestStudio(){try{const v3=v3Document(),v2=v3?.getElementById('interchange')?.contentDocument,broadcast=v2?.getElementById('broadcast')?.contentDocument;return broadcast?.getElementById('studio')?.contentDocument||null}catch{return null}}
+  function cameraStream(){const stream=deepestStudio()?.getElementById('video')?.srcObject;return stream&&typeof stream.getTracks==='function'?stream:null}
+  function notify(message){const v3=v3Document(),toast=v3?.getElementById('toast');if(!toast)return;toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3200)}
+  function waitForIce(pc){return new Promise(resolve=>{if(pc.iceGatheringState==='complete')return resolve();const done=()=>{if(pc.iceGatheringState==='complete'){pc.removeEventListener('icegatheringstatechange',done);resolve()}};pc.addEventListener('icegatheringstatechange',done);setTimeout(resolve,5000)})}
+  async function beginWhip(url,stream){
+    const pc=new RTCPeerConnection()
+    stream.getTracks().filter(track=>track.readyState==='live').forEach(track=>pc.addTrack(track,stream))
+    await pc.setLocalDescription(await pc.createOffer())
+    await waitForIce(pc)
+    const response=await fetch(url,{method:'POST',headers:{'content-type':'application/sdp'},body:pc.localDescription?.sdp||''})
+    if(!response.ok)throw new Error('The live video provider rejected the broadcast')
+    await pc.setRemoteDescription({type:'answer',sdp:await response.text()})
+    const location=response.headers.get('location')||''
+    return{pc,resourceUrl:location?new URL(location,url).href:''}
+  }
+  async function endWhip(){clearInterval(heartbeatTimer);heartbeatTimer=0;if(resourceUrl)fetch(resourceUrl,{method:'DELETE'}).catch(()=>{});resourceUrl='';peer?.close();peer=null}
+  async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Live stream request failed');return payload}
+  async function heartbeat(){if(!clubId||!peer)return;try{await api('/api/live-stream/clubs/'+encodeURIComponent(clubId)+'/heartbeat',{method:'POST',body:'{}'})}catch{}}
+
+  function setOperatorFullscreen(doc,active){
+    doc.body.classList.toggle('stage-fullscreen',active);doc.documentElement.classList.toggle('stage-fullscreen-root',active)
+    const button=doc.getElementById('stageFullscreenBtn');if(!button)return
+    button.setAttribute('aria-pressed',String(active));button.setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen')
+    button.innerHTML=active?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>':'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>'
+  }
+  function syncControlVisibility(){
+    const v3=v3Document(),doc=deepestStudio(),original=v3?.querySelector('.highlight-controls');if(!original||!doc)return false
+    original.style.setProperty('display',doc.body.classList.contains('stage-fullscreen')?'none':'flex','important')
+    const start=doc.getElementById('operatorStartRecording');if(start){const stream=cameraStream(),cameraLive=Boolean(stream?.getTracks().some(track=>track.readyState==='live')),recording=doc.body.classList.contains('operator-recording');start.style.setProperty('display',cameraLive&&!recording?'grid':'none','important')}
+    return true
+  }
+  function installOperatorFullscreen(){
+    const doc=deepestStudio(),button=doc?.getElementById('stageFullscreenBtn');if(!doc||!button)return false
+    if(button.dataset.operatorFullscreenBound!=='1'){button.dataset.operatorFullscreenBound='1';button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();const active=doc.body.classList.contains('stage-fullscreen');setOperatorFullscreen(doc,!active);requestAnimationFrame(syncControlVisibility);try{if(!active)screen.orientation?.lock?.('landscape').catch(()=>{});else screen.orientation?.unlock?.()}catch{}},true)}
+    return true
+  }
+  function installStreamingControls(){
+    const doc=deepestStudio(),start=doc?.getElementById('operatorStartRecording'),end=doc?.getElementById('operatorEndRecording');if(!doc||!start||!end)return false
+    if(start.dataset.stage2Bound!=='1'){
+      start.dataset.stage2Bound='1'
+      start.addEventListener('click',async event=>{
+        if(start.dataset.stage2Bypass==='1'){start.dataset.stage2Bypass='0';return}
+        event.preventDefault();event.stopPropagation();event.stopImmediatePropagation()
+        const stream=cameraStream(),live=stream?.getTracks().some(track=>track.readyState==='live')
+        if(!clubId||!live)return notify('Start the camera before starting the broadcast.')
+        start.disabled=true;start.textContent='Connecting…'
+        try{
+          const payload=await api('/api/live-stream/clubs/'+encodeURIComponent(clubId)+'/start',{method:'POST',body:'{}'})
+          const publishUrl=payload?.data?.publishUrl;if(!publishUrl)throw new Error('No publishing URL was returned')
+          const connection=await beginWhip(publishUrl,stream);peer=connection.pc;resourceUrl=connection.resourceUrl
+          heartbeatTimer=setInterval(heartbeat,5000);await heartbeat()
+          start.dataset.stage2Bypass='1';start.disabled=false;start.textContent='Start Recording';start.click();notify('PlayFooty broadcast is live.')
+        }catch(error){start.disabled=false;start.textContent='Start Recording';notify(error instanceof Error?error.message:'Unable to start the broadcast')}
+      },true)
+      end.addEventListener('click',async event=>{
+        if(end.dataset.stage2Bypass==='1'){end.dataset.stage2Bypass='0';return}
+        event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();end.disabled=true;end.textContent='Ending…'
+        try{await endWhip();if(clubId)await api('/api/live-stream/clubs/'+encodeURIComponent(clubId)+'/stop',{method:'POST',body:'{}'});end.dataset.stage2Bypass='1';end.disabled=false;end.textContent='End Recording';end.click();notify('Broadcast ended.')}catch(error){end.disabled=false;end.textContent='End Recording';notify(error instanceof Error?error.message:'Unable to end the broadcast')}
+      },true)
     }
-
-    function deepestStudio(){
-      try{
-        const v3=v3Document()
-        const v2=v3?.getElementById('interchange')?.contentDocument
-        const broadcast=v2?.getElementById('broadcast')?.contentDocument
-        return broadcast?.getElementById('studio')?.contentDocument||null
-      }catch{return null}
-    }
-
-    function setOperatorFullscreen(doc,active){
-      doc.body.classList.toggle('stage-fullscreen',active)
-      doc.documentElement.classList.toggle('stage-fullscreen-root',active)
-      const button=doc.getElementById('stageFullscreenBtn')
-      if(!button)return
-      button.setAttribute('aria-pressed',String(active))
-      button.setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen')
-      button.innerHTML=active
-        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>'
-        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>'
-    }
-
-    function syncControlVisibility(){
-      const v3=v3Document()
-      const doc=deepestStudio()
-      const original=v3?.querySelector('.highlight-controls')
-      if(!original||!doc)return false
-
-      const fullscreen=doc.body.classList.contains('stage-fullscreen')
-      original.style.setProperty('display',fullscreen?'none':'flex','important')
-
-      const startRecording=doc.getElementById('operatorStartRecording')
-      if(startRecording){
-        const stream=doc.getElementById('video')?.srcObject
-        const cameraLive=Boolean(stream&&typeof stream.getTracks==='function'&&stream.getTracks().some(track=>track.readyState==='live'))
-        const recording=doc.body.classList.contains('operator-recording')
-        startRecording.style.setProperty('display',cameraLive&&!recording?'grid':'none','important')
-      }
-      return true
-    }
-
-    function installOperatorFullscreen(){
-      const doc=deepestStudio()
-      const button=doc?.getElementById('stageFullscreenBtn')
-      if(!doc||!button)return false
-      if(button.dataset.operatorFullscreenBound!=='1'){
-        button.dataset.operatorFullscreenBound='1'
-        button.addEventListener('click',event=>{
-          event.preventDefault()
-          event.stopPropagation()
-          event.stopImmediatePropagation()
-          const active=doc.body.classList.contains('stage-fullscreen')
-          setOperatorFullscreen(doc,!active)
-          requestAnimationFrame(syncControlVisibility)
-          try{
-            if(!active)screen.orientation?.lock?.('landscape').catch(()=>{})
-            else screen.orientation?.unlock?.()
-          }catch{}
-        },true)
-      }
-      return true
-    }
-
-    function beginInstall(){
-      clearInterval(installTimer)
-      clearInterval(visibilityTimer)
-      const install=()=>installOperatorFullscreen()
-      if(!install()){
-        installTimer=setInterval(()=>{
-          if(install())clearInterval(installTimer)
-        },250)
-        setTimeout(()=>clearInterval(installTimer),15000)
-      }
-      visibilityTimer=setInterval(syncControlVisibility,150)
-      syncControlVisibility()
-    }
-
-    studio.addEventListener('load',beginInstall)
-    window.addEventListener('pageshow',beginInstall)
-    window.addEventListener('beforeunload',()=>{
-      clearInterval(installTimer)
-      clearInterval(visibilityTimer)
-    })
-  })()
-  </script>
+    return true
+  }
+  function beginInstall(){clearInterval(installTimer);clearInterval(visibilityTimer);const install=()=>installOperatorFullscreen()&&installStreamingControls();if(!install()){installTimer=setInterval(()=>{if(install())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}visibilityTimer=setInterval(syncControlVisibility,150);syncControlVisibility()}
+  studio.addEventListener('load',beginInstall);window.addEventListener('pageshow',beginInstall)
+  window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(visibilityTimer);clearInterval(heartbeatTimer);peer?.close()})
+})()
+</script>
 </body>
 </html>
