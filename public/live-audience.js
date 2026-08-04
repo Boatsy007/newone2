@@ -94,4 +94,11 @@
   audienceTimer = setInterval(loadAudience, 2000)
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { heartbeat(); loadAudience() } })
   window.addEventListener('beforeunload', () => { clearInterval(heartbeatTimer); clearInterval(audienceTimer) })
+
+  if (!document.querySelector('script[data-live-sponsors]')) {
+    const sponsorScript = document.createElement('script')
+    sponsorScript.src = '/live-sponsors.js'
+    sponsorScript.dataset.liveSponsors = '1'
+    document.body.appendChild(sponsorScript)
+  }
 })()
