@@ -51,7 +51,6 @@
   let exitTimer = 0
   let lastMatch = null
 
-  const scoreTotal = (goals, behinds) => Number(goals || 0) * 6 + Number(behinds || 0)
   const clock = seconds => { const value = Math.max(0, Math.floor(Number(seconds) || 0)); return String(Math.floor(value / 60)).padStart(2, '0') + ':' + String(value % 60).padStart(2, '0') }
   const clean = value => String(value || '').trim()
 
@@ -64,10 +63,7 @@
   }
 
   function renderTimeline() {
-    if (!events.length) {
-      timelineList.innerHTML = '<div class="pf-live-timeline-empty">Goals, behinds, interchanges and quarter changes will appear here as they happen.</div>'
-      return
-    }
+    if (!events.length) { timelineList.innerHTML = '<div class="pf-live-timeline-empty">Goals, behinds, interchanges and quarter changes will appear here as they happen.</div>'; return }
     timelineList.innerHTML = ''
     events.forEach(event => {
       const article = document.createElement('article')
@@ -75,117 +71,44 @@
       const typeLabel = event.type === 'GOAL' ? 'Goal' : event.type === 'BEHIND' ? 'Behind' : event.type === 'INTERCHANGE' ? 'Interchange' : event.type === 'QUARTER' ? 'Quarter update' : event.type === 'FINAL' ? 'Final siren' : 'Match update'
       article.innerHTML = '<div class="pf-live-event-time"><strong>Q' + event.quarter + '</strong>' + clock(event.elapsedSeconds) + '</div><div class="pf-live-event-copy"><b>' + typeLabel + '</b><p></p></div>'
       article.querySelector('p').textContent = event.label
-      if (event.replayUrl) {
-        const replay = document.createElement('a')
-        replay.className = 'pf-live-event-replay'
-        replay.href = event.replayUrl
-        replay.target = '_blank'
-        replay.rel = 'noopener'
-        replay.textContent = 'Watch replay'
-        article.querySelector('.pf-live-event-copy').appendChild(replay)
-      }
+      if (event.replayUrl) { const replay = document.createElement('a'); replay.className = 'pf-live-event-replay'; replay.href = event.replayUrl; replay.target = '_blank'; replay.rel = 'noopener'; replay.textContent = 'Watch replay'; article.querySelector('.pf-live-event-copy').appendChild(replay) }
       timelineList.appendChild(article)
     })
   }
 
   function processMatch(data) {
     if (!data) return
-    const current = {
-      homeGoals: Number(data.homeGoals) || 0,
-      homeBehinds: Number(data.homeBehinds) || 0,
-      awayGoals: Number(data.awayGoals) || 0,
-      awayBehinds: Number(data.awayBehinds) || 0,
-      quarter: Number(data.quarter) || 1,
-      elapsedSeconds: Number(data.elapsedSeconds) || 0,
-      lastEvent: clean(data.lastEvent),
-      homeName: clean(data.clubName) || 'Home',
-      awayName: clean(data.opponentName) || 'Away',
-      status: clean(data.status),
-    }
+    const current = { homeGoals:Number(data.homeGoals)||0, homeBehinds:Number(data.homeBehinds)||0, awayGoals:Number(data.awayGoals)||0, awayBehinds:Number(data.awayBehinds)||0, quarter:Number(data.quarter)||1, elapsedSeconds:Number(data.elapsedSeconds)||0, lastEvent:clean(data.lastEvent), homeName:clean(data.clubName)||'Home', awayName:clean(data.opponentName)||'Away', status:clean(data.status) }
     if (!lastMatch) { lastMatch = current; return }
-    const homeGoalDiff = current.homeGoals - lastMatch.homeGoals
-    const awayGoalDiff = current.awayGoals - lastMatch.awayGoals
-    const homeBehindDiff = current.homeBehinds - lastMatch.homeBehinds
-    const awayBehindDiff = current.awayBehinds - lastMatch.awayBehinds
-    if (homeGoalDiff > 0) for (let i = 0; i < homeGoalDiff; i++) addEvent('GOAL', current.lastEvent || current.homeName + ' goal', current)
-    if (awayGoalDiff > 0) for (let i = 0; i < awayGoalDiff; i++) addEvent('GOAL', current.lastEvent || current.awayName + ' goal', current)
-    if (homeBehindDiff > 0) for (let i = 0; i < homeBehindDiff; i++) addEvent('BEHIND', current.lastEvent || current.homeName + ' behind', current)
-    if (awayBehindDiff > 0) for (let i = 0; i < awayBehindDiff; i++) addEvent('BEHIND', current.lastEvent || current.awayName + ' behind', current)
-    if (current.quarter !== lastMatch.quarter) addEvent('QUARTER', 'Quarter ' + current.quarter + ' started', current)
-    if (current.lastEvent && current.lastEvent !== lastMatch.lastEvent && !homeGoalDiff && !awayGoalDiff && !homeBehindDiff && !awayBehindDiff) {
-      const type = /interchange|swapped|\boff\b.*\bon\b/i.test(current.lastEvent) ? 'INTERCHANGE' : /final siren|full time/i.test(current.lastEvent) ? 'FINAL' : /quarter|half time/i.test(current.lastEvent) ? 'QUARTER' : 'UPDATE'
-      addEvent(type, current.lastEvent, current)
-    }
-    lastMatch = current
+    const homeGoalDiff=current.homeGoals-lastMatch.homeGoals, awayGoalDiff=current.awayGoals-lastMatch.awayGoals, homeBehindDiff=current.homeBehinds-lastMatch.homeBehinds, awayBehindDiff=current.awayBehinds-lastMatch.awayBehinds
+    if (homeGoalDiff>0) for(let i=0;i<homeGoalDiff;i++) addEvent('GOAL',current.lastEvent||current.homeName+' goal',current)
+    if (awayGoalDiff>0) for(let i=0;i<awayGoalDiff;i++) addEvent('GOAL',current.lastEvent||current.awayName+' goal',current)
+    if (homeBehindDiff>0) for(let i=0;i<homeBehindDiff;i++) addEvent('BEHIND',current.lastEvent||current.homeName+' behind',current)
+    if (awayBehindDiff>0) for(let i=0;i<awayBehindDiff;i++) addEvent('BEHIND',current.lastEvent||current.awayName+' behind',current)
+    if (current.quarter!==lastMatch.quarter) addEvent('QUARTER','Quarter '+current.quarter+' started',current)
+    if (current.lastEvent&&current.lastEvent!==lastMatch.lastEvent&&!homeGoalDiff&&!awayGoalDiff&&!homeBehindDiff&&!awayBehindDiff) { const type=/interchange|swapped|\boff\b.*\bon\b/i.test(current.lastEvent)?'INTERCHANGE':/final siren|full time/i.test(current.lastEvent)?'FINAL':/quarter|half time/i.test(current.lastEvent)?'QUARTER':'UPDATE'; addEvent(type,current.lastEvent,current) }
+    lastMatch=current
   }
 
-  async function pollMatch() {
-    try {
-      const response = await fetch('/api/live-match/clubs/' + encodeURIComponent(clubId) + '?timeline=' + Date.now(), { cache: 'no-store', headers: { 'cache-control': 'no-cache' } })
-      const payload = await response.json()
-      if (response.ok) processMatch(payload.data || payload)
-    } catch {}
-  }
-
-  function isGoal(item) {
-    const text = [item?.title, item?.description, ...(Array.isArray(item?.tags) ? item.tags : [])].join(' ')
-    return /(^|\s)goal(\s|$|[·:—-])/i.test(text)
-  }
-
-  function attachReplayToLatestGoal(item) {
-    const event = events.find(entry => entry.type === 'GOAL' && !entry.replayUrl)
-    if (event) { event.replayUrl = item.fileUrl; renderTimeline() }
-  }
-
-  function enqueue(item) {
-    if (!item?.id || !item?.fileUrl || !isGoal(item)) return
-    attachReplayToLatestGoal(item)
-    queue.push(item)
-    playNext()
-  }
+  async function pollMatch() { try { const response=await fetch('/api/live-match/clubs/'+encodeURIComponent(clubId)+'?timeline='+Date.now(),{cache:'no-store',headers:{'cache-control':'no-cache'}}); const payload=await response.json(); if(response.ok)processMatch(payload.data||payload) } catch{} }
+  function isGoal(item) { const text=[item?.title,item?.description,...(Array.isArray(item?.tags)?item.tags:[])].join(' '); return /(^|\s)goal(\s|$|[·:—-])/i.test(text) }
+  function attachReplayToLatestGoal(item) { const event=events.find(entry=>entry.type==='GOAL'&&!entry.replayUrl); if(event){event.replayUrl=item.fileUrl;renderTimeline()} }
+  function enqueue(item) { if(!item?.id||!item?.fileUrl||!isGoal(item))return; attachReplayToLatestGoal(item); queue.push(item); playNext() }
 
   async function playNext() {
-    if (playing || !queue.length) return
-    playing = true
-    const item = queue.shift()
-    replayTitle.textContent = item.title || 'Goal replay'
-    replayVideo.src = item.fileUrl
-    replayVideo.currentTime = 0
-    replayVideo.muted = false
-    overlay.classList.remove('exit')
-    requestAnimationFrame(() => overlay.classList.add('show'))
-    const finish = () => {
-      replayVideo.onended = null
-      replayVideo.onerror = null
-      overlay.classList.remove('show')
-      overlay.classList.add('exit')
-      clearTimeout(exitTimer)
-      exitTimer = setTimeout(() => {
-        replayVideo.pause(); replayVideo.removeAttribute('src'); replayVideo.load(); overlay.classList.remove('exit'); playing = false; playNext()
-      }, 460)
-    }
-    replayVideo.onended = finish
-    replayVideo.onerror = finish
-    try { await replayVideo.play() } catch { replayVideo.muted = true; try { await replayVideo.play() } catch { finish() } }
+    if(playing||!queue.length)return
+    playing=true
+    const item=queue.shift()
+    replayTitle.textContent=item.title||'Goal replay'; replayVideo.src=item.fileUrl; replayVideo.currentTime=0; replayVideo.muted=false; overlay.classList.remove('exit'); requestAnimationFrame(()=>overlay.classList.add('show'))
+    const finish=()=>{ replayVideo.onended=null; replayVideo.onerror=null; overlay.classList.remove('show'); overlay.classList.add('exit'); clearTimeout(exitTimer); exitTimer=setTimeout(()=>{replayVideo.pause();replayVideo.removeAttribute('src');replayVideo.load();overlay.classList.remove('exit');playing=false;playNext()},460) }
+    replayVideo.onended=finish; replayVideo.onerror=finish
+    try{await replayVideo.play()}catch{replayVideo.muted=true;try{await replayVideo.play()}catch{finish()}}
   }
 
-  async function poll() {
-    try {
-      const response = await fetch('/api/club-portal/media/public/clubs/' + encodeURIComponent(clubId) + '/highlights?replay=' + Date.now(), { cache: 'no-store', headers: { 'cache-control': 'no-cache' } })
-      const payload = await response.json()
-      if (!response.ok) return
-      const items = Array.isArray(payload.data) ? payload.data : []
-      if (!ready) { items.forEach(item => known.add(String(item.id))); ready = true; return }
-      const arrivals = items.filter(item => !known.has(String(item.id)))
-      items.forEach(item => known.add(String(item.id)))
-      arrivals.slice().reverse().forEach(enqueue)
-    } catch {}
-  }
+  async function poll() { try { const response=await fetch('/api/club-portal/media/public/clubs/'+encodeURIComponent(clubId)+'/highlights?replay='+Date.now(),{cache:'no-store',headers:{'cache-control':'no-cache'}}); const payload=await response.json(); if(!response.ok)return; const items=Array.isArray(payload.data)?payload.data:[]; if(!ready){items.forEach(item=>known.add(String(item.id)));ready=true;return} const arrivals=items.filter(item=>!known.has(String(item.id))); items.forEach(item=>known.add(String(item.id))); arrivals.slice().reverse().forEach(enqueue) }catch{} }
 
-  poll(); pollMatch()
-  pollTimer = window.setInterval(poll, 1500)
-  matchTimer = window.setInterval(pollMatch, 1000)
-  window.addEventListener('beforeunload', () => {
-    clearInterval(pollTimer); clearInterval(matchTimer); clearTimeout(exitTimer); replayVideo.pause()
-  })
+  poll();pollMatch();pollTimer=window.setInterval(poll,1500);matchTimer=window.setInterval(pollMatch,1000)
+  window.addEventListener('beforeunload',()=>{clearInterval(pollTimer);clearInterval(matchTimer);clearTimeout(exitTimer);replayVideo.pause()})
 })()
+
+;(() => { const script=document.createElement('script'); script.src='/live-audience.js'; script.defer=true; document.body.appendChild(script) })()
