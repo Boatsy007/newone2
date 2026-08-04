@@ -1,0 +1,113 @@
+/* Club HQ iPad layout audit fixes.
+   Applies only while a section sidebar is present and preserves desktop/mobile layouts. */
+@media (min-width: 761px) and (max-width: 1180px) {
+  body:has(.club-section-sidebar) {
+    overflow-x: hidden;
+  }
+
+  /* Operations pages were not included in the shared sidebar fit layer. */
+  body:has(.club-section-sidebar) .cpv,
+  body:has(.club-section-sidebar) .cpe {
+    box-sizing: border-box !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin-left: var(--club-section-width, 210px) !important;
+    padding-left: var(--club-workspace-pad, 16px) !important;
+    padding-right: var(--club-workspace-pad, 16px) !important;
+    overflow-x: hidden !important;
+  }
+
+  body:has(.club-section-sidebar) .cpv > *,
+  body:has(.club-section-sidebar) .cpe > * {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 1180px !important;
+    min-width: 0 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  /* Keep every direct Club HQ page inside the remaining space beside the sidebar. */
+  body:has(.club-section-sidebar) #root > main {
+    min-width: 0;
+  }
+
+  body:has(.club-section-sidebar) .cpv-summary,
+  body:has(.club-section-sidebar) .cpe-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  body:has(.club-section-sidebar) .cpe-list,
+  body:has(.club-section-sidebar) .cpe-filters,
+  body:has(.club-section-sidebar) .cpv-form,
+  body:has(.club-section-sidebar) .cpe-form {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body:has(.club-section-sidebar) .cpv-roster,
+  body:has(.club-section-sidebar) .cpv-people,
+  body:has(.club-section-sidebar) .cpe-list,
+  body:has(.club-section-sidebar) .cpv-shift,
+  body:has(.club-section-sidebar) .cpe-list > article,
+  body:has(.club-section-sidebar) .cpv-modal form,
+  body:has(.club-section-sidebar) .cpe-modal form {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  body:has(.club-section-sidebar) .cpv-ops,
+  body:has(.club-section-sidebar) .cpe-ops,
+  body:has(.club-section-sidebar) .cpv-actions,
+  body:has(.club-section-sidebar) .cpe-actions,
+  body:has(.club-section-sidebar) .cpv-tabs {
+    flex-wrap: wrap;
+  }
+
+  body:has(.club-section-sidebar) .cpv-ops a,
+  body:has(.club-section-sidebar) .cpe-ops a {
+    min-width: min(220px, 100%);
+  }
+
+  body:has(.club-section-sidebar) .cpv h1,
+  body:has(.club-section-sidebar) .cpe h1 {
+    font-size: clamp(3rem, 7vw, 5rem) !important;
+    overflow-wrap: anywhere;
+  }
+
+  body:has(.club-section-sidebar) .cpv-shift > header,
+  body:has(.club-section-sidebar) .cpe-list article > header,
+  body:has(.club-section-sidebar) .cpv-people article {
+    min-width: 0;
+  }
+
+  body:has(.club-section-sidebar) .cpv input,
+  body:has(.club-section-sidebar) .cpv select,
+  body:has(.club-section-sidebar) .cpv textarea,
+  body:has(.club-section-sidebar) .cpe input,
+  body:has(.club-section-sidebar) .cpe select,
+  body:has(.club-section-sidebar) .cpe textarea {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* Narrow iPad portrait: simplify dense operation cards further. */
+@media (min-width: 761px) and (max-width: 900px) {
+  body:has(.club-section-sidebar) .cpv-summary,
+  body:has(.club-section-sidebar) .cpe-summary {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body:has(.club-section-sidebar) .cpv-ops,
+  body:has(.club-section-sidebar) .cpe-ops {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body:has(.club-section-sidebar) .cpv-actions > button,
+  body:has(.club-section-sidebar) .cpe-actions > button {
+    flex: 1 1 100%;
+  }
+}
