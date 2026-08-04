@@ -10,8 +10,7 @@
     iframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#05090d}
     .badge{position:fixed;z-index:2147483647;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(3,9,14,.9);font-size:10px;font-weight:900;text-transform:uppercase;box-shadow:0 8px 28px rgba(0,0,0,.45)}
     .badge i{width:8px;height:8px;border-radius:50%;background:#73818b}.badge.live i{background:#21d178;box-shadow:0 0 0 5px rgba(33,209,120,.16)}
-    .watch{position:fixed;z-index:2147483647;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));display:none;padding:9px 12px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(3,9,14,.9);color:#fff;text-decoration:none;font-size:10px;font-weight:900;text-transform:uppercase}
-    .watch.show{display:block}
+    .watch{position:fixed;z-index:2147483647;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));display:none;padding:9px 12px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(3,9,14,.9);color:#fff;text-decoration:none;font-size:10px;font-weight:900;text-transform:uppercase}.watch.show{display:block}
   </style>
   <script src="https://web-broadcast.live-video.net/1.37.0/amazon-ivs-web-broadcast.js"></script>
 </head>
@@ -40,6 +39,12 @@
   async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Real-time request failed');return payload}
   function setState(live,text){badge.classList.toggle('live',live);badge.querySelector('span').textContent=text;watch.classList.toggle('show',live)}
   async function heartbeat(){if(!stage||!clubId)return;try{await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/heartbeat',{method:'POST',body:'{}'})}catch{}}
+  function cleanOperatorView(doc){
+    if(!doc||doc.getElementById('pf-operator-clean-style'))return
+    const style=doc.createElement('style');style.id='pf-operator-clean-style';style.textContent='.pf-director-overlay,.pf-goal-replay,.pf-rt-event,.pf-rt-replay,.pf-presented-by,.pf-sponsor-break,.pf-sponsor-break-overlay,.viewer-only,[data-viewer-only="true"]{display:none!important;visibility:hidden!important;pointer-events:none!important}';doc.head.appendChild(style)
+    const remove=()=>doc.querySelectorAll('.pf-director-overlay,.pf-goal-replay,.pf-rt-event,.pf-rt-replay,.pf-presented-by,.pf-sponsor-break,.pf-sponsor-break-overlay,[data-viewer-only="true"]').forEach(node=>node.remove())
+    remove();new MutationObserver(remove).observe(doc.body,{childList:true,subtree:true})
+  }
 
   async function joinStage(media){
     const sdk=window.IVSBroadcastClient
@@ -53,14 +58,8 @@
     if(!videoTrack)throw new Error('No live camera track is available')
     tracks.push(new sdk.LocalStageStream(videoTrack,{maxBitrate:1800,maxFramerate:30,simulcast:{enabled:true}}))
     if(audioTrack)tracks.push(new sdk.LocalStageStream(audioTrack))
-    const strategy={
-      stageStreamsToPublish:()=>tracks,
-      shouldPublishParticipant:()=>true,
-      shouldSubscribeToParticipant:()=>sdk.SubscribeType.NONE
-    }
-    const next=new sdk.Stage(participantToken,strategy)
-    await next.join()
-    return next
+    const strategy={stageStreamsToPublish:()=>tracks,shouldPublishParticipant:()=>true,shouldSubscribeToParticipant:()=>sdk.SubscribeType.NONE}
+    const next=new sdk.Stage(participantToken,strategy);await next.join();return next
   }
   async function leaveStage(){clearInterval(heartbeatTimer);heartbeatTimer=0;if(stage){try{stage.leave()}catch{}stage=null}setState(false,'Real-time ready')}
   async function stopBroadcast(){if(ending)return;ending=true;try{await leaveStage();if(clubId)await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/stop',{method:'POST',body:'{}'});notify('Real-time broadcast ended.')}catch(error){notify(error instanceof Error?error.message:'Unable to end broadcast')}finally{ending=false}}
@@ -68,6 +67,7 @@
   function bind(){
     const doc=deepest(),start=doc?.getElementById('operatorStartRecording'),end=doc?.getElementById('operatorEndRecording'),stop=doc?.getElementById('stopBtn')
     if(!doc||!start||!end||!stop)return false
+    cleanOperatorView(doc)
     if(start.dataset.realtimeBound==='1')return true
     start.dataset.realtimeBound='1'
     start.addEventListener('click',async event=>{
