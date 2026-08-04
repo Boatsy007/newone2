@@ -67,11 +67,22 @@ function publicState(row: StreamRow | null) {
   }
 }
 
+const IVS_REGIONS = new Set([
+  'us-east-1',
+  'us-west-2',
+  'ap-south-1',
+  'ap-northeast-1',
+  'ap-northeast-2',
+  'eu-central-1',
+  'eu-west-1',
+])
+
 function awsConfig() {
   const accessKeyId = String(process.env.AWS_ACCESS_KEY_ID ?? '').trim()
   const secretAccessKey = String(process.env.AWS_SECRET_ACCESS_KEY ?? '').trim()
   const sessionToken = String(process.env.AWS_SESSION_TOKEN ?? '').trim()
-  const region = String(process.env.AWS_IVS_REGION ?? process.env.AWS_REGION ?? 'ap-southeast-2').trim()
+  const requestedRegion = String(process.env.AWS_IVS_REGION ?? process.env.AWS_REGION ?? '').trim()
+  const region = IVS_REGIONS.has(requestedRegion) ? requestedRegion : 'ap-northeast-1'
   return accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey, sessionToken, region } : null
 }
 
