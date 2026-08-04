@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#05090d" />
+  <title>PlayFooty Real-Time Camera</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;color:#fff;font-family:Inter,Arial,sans-serif}
+    iframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#05090d}
+    .badge{position:fixed;z-index:2147483647;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(3,9,14,.9);font-size:10px;font-weight:900;text-transform:uppercase;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+    .badge i{width:8px;height:8px;border-radius:50%;background:#73818b}.badge.live i{background:#21d178;box-shadow:0 0 0 5px rgba(33,209,120,.16)}
+    .watch{position:fixed;z-index:2147483647;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));display:none;padding:9px 12px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(3,9,14,.9);color:#fff;text-decoration:none;font-size:10px;font-weight:900;text-transform:uppercase}
+    .watch.show{display:block}
+  </style>
+  <script src="https://web-broadcast.live-video.net/1.37.0/amazon-ivs-web-broadcast.js"></script>
+</head>
+<body>
+  <iframe id="studio" allow="camera;microphone;fullscreen;autoplay" title="PlayFooty live studio"></iframe>
+  <div class="badge" id="badge"><i></i><span>Real-time ready</span></div>
+  <a class="watch" id="watch" target="_blank" rel="noopener">Open viewer</a>
+<script>
+(() => {
+  const SESSION_KEY='playfooty.clubPortal.session.v1'
+  const params=new URLSearchParams(location.search)
+  const clubId=params.get('clubId')||''
+  const cameraId=(params.get('cameraId')||'main').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,64)||'main'
+  const label=(params.get('cameraLabel')||'Main Camera').slice(0,60)
+  const studio=document.getElementById('studio'),badge=document.getElementById('badge'),watch=document.getElementById('watch')
+  studio.src='/live-stream-broadcast-v3.html'+location.search
+  watch.href='/live-realtime-room.html?clubId='+encodeURIComponent(clubId)
+  let stage=null,installTimer=0,ending=false
+
+  function token(){try{const raw=localStorage.getItem(SESSION_KEY);const value=raw?JSON.parse(raw):null;return typeof value?.access_token==='string'?value.access_token:''}catch{return''}}
+  function headers(){return{authorization:'Bearer '+token(),'content-type':'application/json'}}
+  function v3(){try{return studio.contentDocument||null}catch{return null}}
+  function deepest(){try{const d=v3(),v2=d?.getElementById('interchange')?.contentDocument,b=v2?.getElementById('broadcast')?.contentDocument;return b?.getElementById('studio')?.contentDocument||null}catch{return null}}
+  function stream(){const s=deepest()?.getElementById('video')?.srcObject;return s&&typeof s.getTracks==='function'?s:null}
+  function notify(message){const d=v3(),toast=d?.getElementById('toast');if(toast){toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3500)}else alert(message)}
+  async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Real-time request failed');return payload}
+  function setState(live,text){badge.classList.toggle('live',live);badge.querySelector('span').textContent=text;watch.classList.toggle('show',live)}
+
+  async function joinStage(media){
+    const sdk=window.IVSBroadcastClient
+    if(!sdk?.Stage||!sdk?.LocalStageStream)throw new Error('Amazon IVS Real-Time SDK could not load')
+    const payload=await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/publisher-token',{method:'POST',body:JSON.stringify({cameraId,label})})
+    const participantToken=payload?.data?.token
+    if(!participantToken)throw new Error('No Real-Time participant token was returned')
+    const tracks=[]
+    const videoTrack=media.getVideoTracks().find(t=>t.readyState==='live')
+    const audioTrack=media.getAudioTracks().find(t=>t.readyState==='live')
+    if(!videoTrack)throw new Error('No live camera track is available')
+    tracks.push(new sdk.LocalStageStream(videoTrack,{maxBitrate:2500000,maxFramerate:30,simulcast:{enabled:true}}))
+    if(audioTrack)tracks.push(new sdk.LocalStageStream(audioTrack))
+    const strategy={
+      stageStreamsToPublish:()=>tracks,
+      shouldPublishParticipant:()=>true,
+      shouldSubscribeToParticipant:()=>sdk.SubscribeType.NONE
+    }
+    const next=new sdk.Stage(participantToken,strategy)
+    await next.join()
+    return next
+  }
+  async function leaveStage(){if(stage){try{stage.leave()}catch{}stage=null}setState(false,'Real-time ready')}
+  async function stopBroadcast(){if(ending)return;ending=true;try{await leaveStage();if(clubId)await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/stop',{method:'POST',body:'{}'});notify('Real-time broadcast ended.')}catch(error){notify(error instanceof Error?error.message:'Unable to end broadcast')}finally{ending=false}}
+
+  function bind(){
+    const doc=deepest(),start=doc?.getElementById('operatorStartRecording'),end=doc?.getElementById('operatorEndRecording'),stop=doc?.getElementById('stopBtn')
+    if(!doc||!start||!end||!stop)return false
+    if(start.dataset.realtimeBound==='1')return true
+    start.dataset.realtimeBound='1'
+    start.addEventListener('click',async event=>{
+      if(start.dataset.realtimeBypass==='1'){start.dataset.realtimeBypass='0';return}
+      event.preventDefault();event.stopPropagation();event.stopImmediatePropagation()
+      const media=stream();if(!clubId||!media?.getVideoTracks().some(t=>t.readyState==='live'))return notify('Start the camera before going live.')
+      start.disabled=true;start.textContent='Connecting…'
+      try{stage=await joinStage(media);setState(true,'Real-time live');start.dataset.realtimeBypass='1';start.disabled=false;start.textContent='Start Recording';start.click();notify('PlayFooty Real-Time is live.')}catch(error){await leaveStage();start.disabled=false;start.textContent='Start Recording';notify(error instanceof Error?error.message:'Unable to start Real-Time broadcast')}
+    },true)
+    end.addEventListener('click',async event=>{if(end.dataset.realtimeBypass==='1'){end.dataset.realtimeBypass='0';return}event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();end.disabled=true;end.textContent='Ending…';await stopBroadcast();end.dataset.realtimeBypass='1';end.disabled=false;end.textContent='End Recording';end.click()},true)
+    stop.addEventListener('click',()=>{if(stage)stopBroadcast()},true)
+    return true
+  }
+  function install(){clearInterval(installTimer);if(!bind()){installTimer=setInterval(()=>{if(bind())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}}
+  studio.addEventListener('load',install);window.addEventListener('pageshow',install)
+  window.addEventListener('beforeunload',()=>{clearInterval(installTimer);try{stage?.leave()}catch{}})
+})()
+</script>
+</body>
+</html>
