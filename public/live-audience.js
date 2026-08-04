@@ -95,10 +95,15 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { heartbeat(); loadAudience() } })
   window.addEventListener('beforeunload', () => { clearInterval(heartbeatTimer); clearInterval(audienceTimer) })
 
-  if (!document.querySelector('script[data-live-sponsors]')) {
-    const sponsorScript = document.createElement('script')
-    sponsorScript.src = '/live-sponsors.js'
-    sponsorScript.dataset.liveSponsors = '1'
-    document.body.appendChild(sponsorScript)
+  function loadScript(src, marker, onload) {
+    if (document.querySelector(`script[${marker}]`)) { if (onload) onload(); return }
+    const script = document.createElement('script')
+    script.src = src
+    script.setAttribute(marker, '1')
+    if (onload) script.onload = onload
+    document.body.appendChild(script)
   }
+  loadScript('/live-broadcast-director.js', 'data-live-director', () => {
+    loadScript('/live-sponsors.js', 'data-live-sponsors')
+  })
 })()
