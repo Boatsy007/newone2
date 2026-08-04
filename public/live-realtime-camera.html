@@ -8,16 +8,11 @@
   <style>
     *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05090d;color:#fff;font-family:Inter,Arial,sans-serif}
     iframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#05090d}
-    .badge{position:fixed;z-index:2147483647;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(3,9,14,.9);font-size:10px;font-weight:900;text-transform:uppercase;box-shadow:0 8px 28px rgba(0,0,0,.45)}
-    .badge i{width:8px;height:8px;border-radius:50%;background:#73818b}.badge.live i{background:#21d178;box-shadow:0 0 0 5px rgba(33,209,120,.16)}
-    .watch{position:fixed;z-index:2147483647;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));display:none;padding:9px 12px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(3,9,14,.9);color:#fff;text-decoration:none;font-size:10px;font-weight:900;text-transform:uppercase}.watch.show{display:block}
   </style>
   <script src="https://web-broadcast.live-video.net/1.37.0/amazon-ivs-web-broadcast.js"></script>
 </head>
 <body>
   <iframe id="studio" allow="camera;microphone;fullscreen;autoplay" title="PlayFooty live studio"></iframe>
-  <div class="badge" id="badge"><i></i><span>Real-time ready</span></div>
-  <a class="watch" id="watch" target="_blank" rel="noopener">Open viewer</a>
 <script>
 (() => {
   const SESSION_KEY='playfooty.clubPortal.session.v1'
@@ -25,9 +20,8 @@
   const clubId=params.get('clubId')||''
   const cameraId=(params.get('cameraId')||'main').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,64)||'main'
   const label=(params.get('cameraLabel')||'Main Camera').slice(0,60)
-  const studio=document.getElementById('studio'),badge=document.getElementById('badge'),watch=document.getElementById('watch')
+  const studio=document.getElementById('studio')
   studio.src='/live-stream-broadcast-v3.html'+location.search
-  watch.href='/live-realtime-room.html?clubId='+encodeURIComponent(clubId)
   let stage=null,installTimer=0,heartbeatTimer=0,cleanTimer=0,ending=false
 
   function token(){try{const raw=localStorage.getItem(SESSION_KEY);const value=raw?JSON.parse(raw):null;return typeof value?.access_token==='string'?value.access_token:''}catch{return''}}
@@ -47,25 +41,28 @@
   function stream(){const s=deepest()?.getElementById('video')?.srcObject;return s&&typeof s.getTracks==='function'?s:null}
   function notify(message){const d=v3(),toast=d?.getElementById('toast');if(toast){toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3500)}else alert(message)}
   async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Real-time request failed');return payload}
-  function setState(live,text){badge.classList.toggle('live',live);badge.querySelector('span').textContent=text;watch.classList.toggle('show',live)}
   async function heartbeat(){if(!stage||!clubId)return;try{await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/heartbeat',{method:'POST',body:'{}'})}catch{}}
 
-  const viewerSelectors=[
-    '.overlay','.broadcast-visual','.swap-visual','.latest',
-    '.pf-director-overlay','.pf-goal-replay','.pf-rt-event','.pf-rt-replay','.pf-presented-by','.pf-sponsor-break','.pf-sponsor-break-overlay',
+  const hiddenOperatorUi=[
+    '.highlight-controls','.clips-button','.drawer',
+    '.overlay','.broadcast-visual','.swap-visual','.latest','.top-bug',
+    '.pf-director-overlay','.pf-goal-replay','.pf-rt-event','.pf-rt-replay','.pf-presented-by','.pf-presented','.pf-sponsor-break','.pf-sponsor-break-overlay',
     '.goal-animation','.goal-overlay','.behind-overlay','.interchange-overlay','.event-overlay','.event-banner','.score-event','.score-animation','.broadcast-event',
     '.player-announcement','.goal-announcement','.interchange-announcement','.replay-overlay','.replay-player','[data-viewer-only="true"]'
   ].join(',')
   function cleanDocument(doc){
     if(!doc?.head||!doc?.body)return
-    let style=doc.getElementById('pf-operator-clean-style')
-    if(!style){style=doc.createElement('style');style.id='pf-operator-clean-style';style.textContent=viewerSelectors+'{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;animation:none!important;transition:none!important}';doc.head.appendChild(style)}
-    doc.querySelectorAll(viewerSelectors).forEach(node=>node.remove())
-    const latest=doc.getElementById('latest')
-    if(latest){latest.style.display='none';latest.setAttribute('aria-hidden','true')}
-    if(!doc.documentElement.dataset.pfOperatorClean){
-      doc.documentElement.dataset.pfOperatorClean='1'
-      new MutationObserver(()=>{doc.querySelectorAll(viewerSelectors).forEach(node=>node.remove());const next=doc.getElementById('latest');if(next)next.style.display='none'}).observe(doc.body,{childList:true,subtree:true})
+    let style=doc.getElementById('pf-camera-clean-style')
+    if(!style){
+      style=doc.createElement('style')
+      style.id='pf-camera-clean-style'
+      style.textContent=hiddenOperatorUi+'{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;animation:none!important;transition:none!important}'
+      doc.head.appendChild(style)
+    }
+    doc.querySelectorAll(hiddenOperatorUi).forEach(node=>node.remove())
+    if(!doc.documentElement.dataset.pfCameraClean){
+      doc.documentElement.dataset.pfCameraClean='1'
+      new MutationObserver(()=>doc.querySelectorAll(hiddenOperatorUi).forEach(node=>node.remove())).observe(doc.body,{childList:true,subtree:true})
     }
   }
   function cleanOperatorView(){docs().forEach(cleanDocument)}
@@ -77,15 +74,17 @@
     const participantToken=payload?.data?.token
     if(!participantToken)throw new Error('No Real-Time participant token was returned')
     const tracks=[]
-    const videoTrack=media.getVideoTracks().find(t=>t.readyState==='live')
-    const audioTrack=media.getAudioTracks().find(t=>t.readyState==='live')
+    const videoTrack=media.getVideoTracks().find(track=>track.readyState==='live')
+    const audioTrack=media.getAudioTracks().find(track=>track.readyState==='live')
     if(!videoTrack)throw new Error('No live camera track is available')
     tracks.push(new sdk.LocalStageStream(videoTrack,{maxBitrate:1800,maxFramerate:30,simulcast:{enabled:true}}))
     if(audioTrack)tracks.push(new sdk.LocalStageStream(audioTrack))
     const strategy={stageStreamsToPublish:()=>tracks,shouldPublishParticipant:()=>true,shouldSubscribeToParticipant:()=>sdk.SubscribeType.NONE}
-    const next=new sdk.Stage(participantToken,strategy);await next.join();return next
+    const next=new sdk.Stage(participantToken,strategy)
+    await next.join()
+    return next
   }
-  async function leaveStage(){clearInterval(heartbeatTimer);heartbeatTimer=0;if(stage){try{stage.leave()}catch{}stage=null}setState(false,'Real-time ready')}
+  async function leaveStage(){clearInterval(heartbeatTimer);heartbeatTimer=0;if(stage){try{stage.leave()}catch{}stage=null}}
   async function stopBroadcast(){if(ending)return;ending=true;try{await leaveStage();if(clubId)await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/stop',{method:'POST',body:'{}'});notify('Real-time broadcast ended.')}catch(error){notify(error instanceof Error?error.message:'Unable to end broadcast')}finally{ending=false}}
 
   function bind(){
@@ -97,11 +96,24 @@
     start.addEventListener('click',async event=>{
       if(start.dataset.realtimeBypass==='1'){start.dataset.realtimeBypass='0';return}
       event.preventDefault();event.stopPropagation();event.stopImmediatePropagation()
-      const media=stream();if(!clubId||!media?.getVideoTracks().some(t=>t.readyState==='live'))return notify('Start the camera before going live.')
+      const media=stream()
+      if(!clubId||!media?.getVideoTracks().some(track=>track.readyState==='live'))return notify('Start the camera before going live.')
       start.disabled=true;start.textContent='Connecting…'
-      try{stage=await joinStage(media);await heartbeat();heartbeatTimer=setInterval(heartbeat,5000);setState(true,'Real-time live');start.dataset.realtimeBypass='1';start.disabled=false;start.textContent='Start Recording';start.click();notify('PlayFooty Real-Time is live.')}catch(error){await leaveStage();start.disabled=false;start.textContent='Start Recording';notify(error instanceof Error?error.message:'Unable to start Real-Time broadcast')}
+      try{
+        stage=await joinStage(media)
+        await heartbeat()
+        heartbeatTimer=setInterval(heartbeat,5000)
+        start.dataset.realtimeBypass='1';start.disabled=false;start.textContent='Start Recording';start.click()
+        notify('PlayFooty Real-Time is live.')
+      }catch(error){await leaveStage();start.disabled=false;start.textContent='Start Recording';notify(error instanceof Error?error.message:'Unable to start Real-Time broadcast')}
     },true)
-    end.addEventListener('click',async event=>{if(end.dataset.realtimeBypass==='1'){end.dataset.realtimeBypass='0';return}event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();end.disabled=true;end.textContent='Ending…';await stopBroadcast();end.dataset.realtimeBypass='1';end.disabled=false;end.textContent='End Recording';end.click()},true)
+    end.addEventListener('click',async event=>{
+      if(end.dataset.realtimeBypass==='1'){end.dataset.realtimeBypass='0';return}
+      event.preventDefault();event.stopPropagation();event.stopImmediatePropagation()
+      end.disabled=true;end.textContent='Ending…'
+      await stopBroadcast()
+      end.dataset.realtimeBypass='1';end.disabled=false;end.textContent='End Recording';end.click()
+    },true)
     stop.addEventListener('click',()=>{if(stage)stopBroadcast()},true)
     return true
   }
@@ -110,7 +122,8 @@
     cleanOperatorView();cleanTimer=setInterval(cleanOperatorView,500)
     if(!bind()){installTimer=setInterval(()=>{if(bind())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}
   }
-  studio.addEventListener('load',install);window.addEventListener('pageshow',install)
+  studio.addEventListener('load',install)
+  window.addEventListener('pageshow',install)
   window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(cleanTimer);clearInterval(heartbeatTimer);try{stage?.leave()}catch{}})
 })()
 </script>
