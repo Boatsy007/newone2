@@ -7,16 +7,33 @@ const router = Router()
 let ready: Promise<void> | null = null
 
 function ensureTable() {
-  if (!ready) ready = prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS football_live_realtime_stages (
-      club_id text PRIMARY KEY,
-      stage_arn text NOT NULL,
-      status text NOT NULL DEFAULT 'OFFLINE',
-      started_at timestamptz NULL,
-      ended_at timestamptz NULL,
-      updated_at timestamptz NOT NULL DEFAULT now()
-    )
-  `).then(() => undefined).catch(error => { ready = null; throw error })
+  if (!ready) ready = (async () => {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS football_live_realtime_stages (
+        club_id text PRIMARY KEY,
+        stage_arn text NOT NULL,
+        status text NOT NULL DEFAULT 'OFFLINE',
+        started_at timestamptz NULL,
+        ended_at timestamptz NULL,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `)
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS football_live_streams (
+        club_id text PRIMARY KEY,
+        provider text NOT NULL DEFAULT 'aws-ivs',
+        provider_input_id text NULL,
+        publish_url text NULL,
+        playback_url text NULL,
+        stream_key text NULL,
+        status text NOT NULL DEFAULT 'OFFLINE',
+        started_at timestamptz NULL,
+        ended_at timestamptz NULL,
+        last_heartbeat_at timestamptz NULL,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `)
+  })().catch(error => { ready = null; throw error })
   return ready
 }
 
@@ -76,6 +93,19 @@ async function participantToken(stageArn:string,userId:string,capabilities:Array
   return token
 }
 function canManage(res:Response){const membership=res.locals.clubMembership as {role:Parameters<typeof roleCan>[0]}|undefined;return Boolean(membership&&roleCan(membership.role,'team_selection'))}
+async function markPublicStreamLive(clubId:string,stageArn:string){
+  await ensureTable()
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO football_live_streams(club_id,provider,provider_input_id,status,started_at,ended_at,last_heartbeat_at,updated_at)
+    VALUES($1,'aws-ivs-realtime',$2,'LIVE',now(),NULL,now(),now())
+    ON CONFLICT(club_id) DO UPDATE SET provider='aws-ivs-realtime',provider_input_id=EXCLUDED.provider_input_id,
+      status='LIVE',started_at=COALESCE(football_live_streams.started_at,now()),ended_at=NULL,last_heartbeat_at=now(),updated_at=now()
+  `,clubId,stageArn)
+}
+async function markPublicStreamEnded(clubId:string){
+  await ensureTable()
+  await prisma.$executeRawUnsafe(`UPDATE football_live_streams SET status='ENDED',ended_at=now(),last_heartbeat_at=NULL,updated_at=now() WHERE club_id=$1`,clubId)
+}
 
 router.get('/clubs/:clubId/viewer-token',async(req,res)=>{
   try{
@@ -95,14 +125,26 @@ router.post('/clubs/:clubId/publisher-token',authenticateClubUser,requireActiveC
     const userId=`camera-${cameraId}-${String(req.clubUser?.id||randomUUID()).slice(0,60)}`
     const token=await participantToken(stage.stageArn,userId,['PUBLISH'],{role:'camera',cameraId,label,clubId:req.params.clubId})
     await prisma.$executeRawUnsafe(`UPDATE football_live_realtime_stages SET status='LIVE',started_at=COALESCE(started_at,now()),ended_at=NULL,updated_at=now() WHERE club_id=$1`,req.params.clubId)
+    await markPublicStreamLive(req.params.clubId,stage.stageArn)
     res.set('Cache-Control','no-store');res.json({data:{token,stageArn:stage.stageArn,cameraId,label,mode:'realtime'}})
   }catch(error){const message=error instanceof Error?error.message:'Unable to start real-time broadcast';res.status(message.includes('not configured')?503:500).json({error:message})}
+})
+
+router.post('/clubs/:clubId/heartbeat',authenticateClubUser,requireActiveClubMembership,async(req,res)=>{
+  try{
+    if(!canManage(res))return res.status(403).json({error:'Your club role cannot manage a real-time broadcast'})
+    const stage=await stageForClub(req.params.clubId)
+    if(!stage||stage.status!=='LIVE')return res.status(409).json({error:'No real-time broadcast is live'})
+    await markPublicStreamLive(req.params.clubId,stage.stageArn)
+    res.json({message:'Real-time heartbeat received'})
+  }catch(error){res.status(500).json({error:'Unable to update real-time heartbeat',detail:String(error)})}
 })
 
 router.post('/clubs/:clubId/stop',authenticateClubUser,requireActiveClubMembership,async(req,res)=>{
   try{
     if(!canManage(res))return res.status(403).json({error:'Your club role cannot end a real-time broadcast'})
     await ensureTable();await prisma.$executeRawUnsafe(`UPDATE football_live_realtime_stages SET status='ENDED',ended_at=now(),updated_at=now() WHERE club_id=$1`,req.params.clubId)
+    await markPublicStreamEnded(req.params.clubId)
     res.json({message:'Real-time broadcast ended'})
   }catch(error){res.status(500).json({error:'Unable to end real-time broadcast',detail:String(error)})}
 })
