@@ -25,73 +25,87 @@
   </aside>
 <script>
 (() => {
-  const SESSION_KEY='playfooty.clubPortal.session.v1'
+  const SESSION_KEY='playfooty.clubPortal.session.v1',PRE_ROLL_MS=12000,POST_ROLL_MS=12000,CHUNK_MS=500
   const frame=document.getElementById('interchange'),button=document.getElementById('highlightButton'),drawer=document.getElementById('drawer'),list=document.getElementById('clipList'),libraryList=document.getElementById('libraryList'),count=document.getElementById('clipCount'),toast=document.getElementById('toast')
   const query=new URLSearchParams(location.search),clubId=query.get('clubId')||''
-  let clips=[],saved=[],recording=false,toastTimer=0
+  let clips=[],saved=[],toastTimer=0,bufferRecorder=null,bufferStream=null,headerChunk=null,rollingChunks=[],pendingManual=null,lastScoreSignature='',scoreReady=false,monitorTimer=0
   frame.src='/live-stream-broadcast-v2.html'+(location.search||'')
 
   function accessToken(){try{const raw=localStorage.getItem(SESSION_KEY);const session=raw?JSON.parse(raw):null;return typeof session?.access_token==='string'?session.access_token:''}catch{return''}}
   function headers(json=false){const value={authorization:'Bearer '+accessToken()};if(json)value['content-type']='application/json';return value}
   function showToast(message){clearTimeout(toastTimer);toast.textContent=message;toast.classList.add('show');toastTimer=setTimeout(()=>toast.classList.remove('show'),3000)}
-  function studioDoc(){const v2=frame.contentDocument;const broadcast=v2?.getElementById('broadcast')?.contentDocument;return broadcast?.getElementById('studio')?.contentDocument||null}
+  function studioDoc(){try{const v2=frame.contentDocument;const broadcast=v2?.getElementById('broadcast')?.contentDocument;return broadcast?.getElementById('studio')?.contentDocument||null}catch{return null}}
   function cameraStream(){const video=studioDoc()?.getElementById('video');return video?.srcObject instanceof MediaStream?video.srcObject:null}
   function text(doc,id){return String(doc?.getElementById(id)?.textContent||'').trim()}
-  function metadata(){const doc=studioDoc();return{title:text(doc,'title')||'Match highlight',quarter:text(doc,'quarter')||'Q1',clock:text(doc,'clock')||'00:00',home:text(doc,'homeName')||'Your team',homeScore:text(doc,'homeScore')||'0.0',away:text(doc,'awayName')||'Opposition',awayScore:text(doc,'awayScore')||'0.0',event:text(doc,'latest')||'Highlight marked',capturedAt:new Date()}}
+  function metadata(eventOverride){const doc=studioDoc();return{title:text(doc,'title')||'Match highlight',quarter:text(doc,'quarter')||'Q1',clock:text(doc,'clock')||'00:00',home:text(doc,'homeName')||'Your team',homeScore:text(doc,'homeScore')||'0.0',away:text(doc,'awayName')||'Opposition',awayScore:text(doc,'awayScore')||'0.0',event:eventOverride||text(doc,'latest')||'Highlight marked',capturedAt:new Date()}}
   function mimeType(){const options=['video/mp4;codecs=h264,aac','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];return options.find(value=>window.MediaRecorder?.isTypeSupported?.(value))||''}
   function extension(type){return type.includes('mp4')?'mp4':type.includes('quicktime')?'mov':'webm'}
   function safeName(value){return String(value||'highlight').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').toLowerCase().slice(0,80)||'highlight'}
   function description(meta){return `${meta.quarter} · ${meta.clock}\n${meta.home} ${meta.homeScore} — ${meta.awayScore} ${meta.away}\n${meta.event}`}
+  function scoreParts(value){const match=String(value||'').match(/(\d+)\s*\.\s*(\d+)/);return match?{goals:Number(match[1]),behinds:Number(match[2])}:{goals:0,behinds:0}}
+  function currentScores(){const doc=studioDoc();const home=text(doc,'homeScore'),away=text(doc,'awayScore');return{home,away,signature:`${home}|${away}`,homeParts:scoreParts(home),awayParts:scoreParts(away)}}
+  function streamKey(stream){return stream?.getTracks().map(track=>track.id).sort().join('|')||''}
 
-  async function markHighlight(){
-    if(recording)return
-    const source=cameraStream();if(!source){showToast('Start the camera before marking a highlight.');return}if(!window.MediaRecorder){showToast('Highlight recording is not supported by this browser.');return}
-    const tracks=source.getTracks().filter(track=>track.readyState==='live');if(!tracks.length){showToast('The camera stream is not active.');return}
+  function stopBuffer(){if(bufferRecorder&&bufferRecorder.state!=='inactive'){try{bufferRecorder.stop()}catch{}}bufferRecorder=null;bufferStream=null;headerChunk=null;rollingChunks=[];pendingManual=null;button.disabled=false;button.classList.remove('recording');button.textContent='Mark Highlight'}
+  function startBuffer(source){
+    if(!window.MediaRecorder)return false
+    const tracks=source.getTracks().filter(track=>track.readyState==='live');if(!tracks.length)return false
     const capture=new MediaStream(tracks),type=mimeType();let recorder
-    try{recorder=type?new MediaRecorder(capture,{mimeType:type}):new MediaRecorder(capture)}catch{showToast('This camera format cannot be recorded on this device.');return}
-    const chunks=[],meta=metadata();recording=true;button.disabled=true;button.classList.add('recording');button.textContent='Capturing 12s…'
-    recorder.ondataavailable=event=>{if(event.data&&event.data.size)chunks.push(event.data)}
-    recorder.onerror=()=>{recording=false;button.disabled=false;button.classList.remove('recording');button.textContent='Mark Highlight';showToast('The highlight could not be recorded.')}
-    recorder.onstop=()=>{recording=false;button.disabled=false;button.classList.remove('recording');button.textContent='Mark Highlight';if(!chunks.length){showToast('No video data was captured.');return}const actualType=recorder.mimeType||type||'video/webm',blob=new Blob(chunks,{type:actualType}),url=URL.createObjectURL(blob);clips.unshift({id:crypto.randomUUID(),blob,url,type:actualType,meta,uploading:false,uploaded:false});while(clips.length>6){const removed=clips.pop();if(removed)URL.revokeObjectURL(removed.url)}renderClips();drawer.classList.add('open');showToast('Highlight captured and ready to save.')}
-    recorder.start(250);showToast('Capturing the next 12 seconds…');setTimeout(()=>{if(recorder.state!=='inactive')recorder.stop()},12000)
+    try{recorder=type?new MediaRecorder(capture,{mimeType:type}):new MediaRecorder(capture)}catch{return false}
+    stopBuffer();bufferStream=capture;bufferRecorder=recorder
+    recorder.ondataavailable=event=>{
+      if(!event.data||!event.data.size)return
+      const now=Date.now();if(!headerChunk){headerChunk=event.data}else rollingChunks.push({blob:event.data,at:now})
+      rollingChunks=rollingChunks.filter(chunk=>chunk.at>=now-PRE_ROLL_MS-2500)
+      if(pendingManual&&now>=pendingManual.endsAt){const pending=pendingManual;pendingManual=null;finishClip(pending.pre.concat(rollingChunks.filter(chunk=>chunk.at>pending.startedAt)),pending.meta,'manual');button.disabled=false;button.classList.remove('recording');button.textContent='Mark Highlight'}
+    }
+    recorder.onerror=()=>{stopBuffer();showToast('The rolling highlight buffer stopped. Restart the camera to restore it.')}
+    recorder.start(CHUNK_MS);return true
+  }
+  function ensureBuffer(){const source=cameraStream();if(!source){if(bufferRecorder)stopBuffer();return}if(!bufferRecorder||bufferRecorder.state==='inactive'||streamKey(bufferStream)!==streamKey(source))startBuffer(source)}
+  function preRoll(){const cutoff=Date.now()-PRE_ROLL_MS;return rollingChunks.filter(chunk=>chunk.at>=cutoff)}
+  function finishClip(chunks,meta,kind){
+    const parts=(headerChunk?[headerChunk]:[]).concat(chunks.map(chunk=>chunk.blob||chunk)).filter(Boolean);if(parts.length<2){showToast('The rolling buffer is still warming up. Try again in a few seconds.');return}
+    const type=bufferRecorder?.mimeType||mimeType()||'video/webm',blob=new Blob(parts,{type}),url=URL.createObjectURL(blob),clip={id:crypto.randomUUID(),blob,url,type,meta,kind,uploading:false,uploaded:false}
+    clips.unshift(clip);while(clips.length>8){const removed=clips.pop();if(removed)URL.revokeObjectURL(removed.url)}renderClips();void saveToLibrary(clip);showToast(kind==='goal'?'Goal highlight captured and uploading.':'Highlight captured and uploading.')
+  }
+  function markHighlight(){
+    ensureBuffer();if(!bufferRecorder||bufferRecorder.state!=='recording'){showToast('Start the camera and wait a few seconds before marking a highlight.');return}if(pendingManual)return
+    pendingManual={pre:preRoll(),startedAt:Date.now(),endsAt:Date.now()+POST_ROLL_MS,meta:metadata('Manual highlight')};button.disabled=true;button.classList.add('recording');button.textContent='Saving before + after…';showToast('Saved the previous 12 seconds. Capturing 12 seconds after the mark…')
+  }
+  function detectGoal(){
+    ensureBuffer();const scores=currentScores();if(!scores.signature||scores.signature==='|')return
+    if(!scoreReady){lastScoreSignature=scores.signature;scoreReady=true;return}
+    if(scores.signature===lastScoreSignature)return
+    const [oldHome,oldAway]=lastScoreSignature.split('|'),oldHomeParts=scoreParts(oldHome),oldAwayParts=scoreParts(oldAway)
+    const homeGoal=scores.homeParts.goals>oldHomeParts.goals,awayGoal=scores.awayParts.goals>oldAwayParts.goals
+    lastScoreSignature=scores.signature
+    if(!homeGoal&&!awayGoal)return
+    try{bufferRecorder?.requestData()}catch{}
+    setTimeout(()=>{const team=homeGoal?scores.home:scores.away;finishClip(preRoll(),metadata(`${team} goal`),'goal')},120)
   }
 
   async function shareClip(clip){const ext=extension(clip.type),file=new File([clip.blob],safeName(`${clip.meta.quarter}-${clip.meta.clock}-${clip.meta.event}`)+'.'+ext,{type:clip.type});if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({title:'PlayFooty match highlight',text:`${clip.meta.home} ${clip.meta.homeScore} — ${clip.meta.awayScore} ${clip.meta.away} · ${clip.meta.quarter} ${clip.meta.clock}`,files:[file]})}catch(error){if(error?.name!=='AbortError')showToast('Share was unavailable. Use Save Clip instead.')}}else showToast('Sharing is unavailable here. Use Save Clip instead.')}
-
   async function saveToLibrary(clip){
     if(clip.uploading||clip.uploaded)return
     if(!clubId||!accessToken()){showToast('Your Club HQ session is required to save highlights.');return}
-    clip.uploading=true;renderClips();showToast('Uploading highlight to Media Library…')
+    clip.uploading=true;renderClips()
     try{
       const prepare=await fetch(`/api/club-portal/media/clubs/${encodeURIComponent(clubId)}/signed-upload`,{method:'POST',headers:headers(true),body:JSON.stringify({contentType:clip.type,fileSize:clip.blob.size})})
       const prepared=await prepare.json();if(!prepare.ok)throw new Error(prepared.error||'Unable to prepare upload')
-      const upload=await fetch(prepared.data.uploadUrl,{method:'PUT',headers:{'content-type':clip.type,'x-upsert':'false'},body:clip.blob})
-      if(!upload.ok)throw new Error(`Video upload failed: HTTP ${upload.status}`)
+      const upload=await fetch(prepared.data.uploadUrl,{method:'PUT',headers:{'content-type':clip.type,'x-upsert':'false'},body:clip.blob});if(!upload.ok)throw new Error(`Video upload failed: HTTP ${upload.status}`)
       const meta=clip.meta,title=`${meta.event} · ${meta.quarter} ${meta.clock}`
-      const complete=await fetch(`/api/club-portal/media/clubs/${encodeURIComponent(clubId)}/complete-upload`,{method:'POST',headers:headers(true),body:JSON.stringify({id:prepared.data.id,path:prepared.data.path,contentType:clip.type,fileSize:clip.blob.size,title,description:description(meta),tags:['highlight','live-match',meta.quarter,meta.event],sourceEntityId:new URLSearchParams(location.search).get('sheetId')||null})})
+      const complete=await fetch(`/api/club-portal/media/clubs/${encodeURIComponent(clubId)}/complete-upload`,{method:'POST',headers:headers(true),body:JSON.stringify({id:prepared.data.id,path:prepared.data.path,contentType:clip.type,fileSize:clip.blob.size,title,description:description(meta),tags:['highlight','live-match',clip.kind||'manual',meta.quarter,meta.event],sourceEntityId:query.get('sheetId')||null})})
       const completed=await complete.json();if(!complete.ok)throw new Error(completed.error||'Unable to save Media Library record')
       clip.uploaded=true;clip.uploading=false;renderClips();await loadLibrary();showToast('Highlight saved to the shared Media Library.')
     }catch(error){clip.uploading=false;renderClips();showToast(error instanceof Error?error.message:'Highlight upload failed.')}
   }
+  async function loadLibrary(){if(!clubId||!accessToken()){libraryList.innerHTML='<div class="library-error">Sign in to Club HQ to load saved highlights.</div>';return}try{const response=await fetch(`/api/club-portal/media/clubs/${encodeURIComponent(clubId)}?type=HIGHLIGHT&status=READY&t=${Date.now()}`,{cache:'no-store',headers:headers()});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'Unable to load highlights');saved=Array.isArray(payload.data)?payload.data:[];renderLibrary()}catch(error){libraryList.innerHTML=`<div class="library-error">${error instanceof Error?error.message:'Unable to load saved highlights.'}</div>`}}
+  function renderClips(){count.textContent=String(clips.length+saved.length);if(!clips.length){list.innerHTML='<div class="drawer-empty">No new highlights in this session. The rolling buffer begins when the camera starts.</div>';return}list.innerHTML='';clips.forEach(clip=>{const ext=extension(clip.type),article=document.createElement('article');article.className='clip';const video=document.createElement('video');video.controls=true;video.playsInline=true;video.src=clip.url;const meta=document.createElement('div');meta.className='clip-meta';meta.innerHTML=`<strong>${clip.meta.event}</strong><span>${clip.kind==='goal'?'12 seconds before goal':'12 seconds before + 12 seconds after'}</span><span>${clip.meta.quarter} · ${clip.meta.clock}</span><span>${clip.meta.home} ${clip.meta.homeScore} — ${clip.meta.awayScore} ${clip.meta.away}</span>`;const actions=document.createElement('div');actions.className='clip-actions';const share=document.createElement('button');share.className='share';share.type='button';share.textContent='Share';share.onclick=()=>shareClip(clip);const save=document.createElement('a');save.href=clip.url;save.download=safeName(`${clip.meta.quarter}-${clip.meta.clock}-${clip.meta.event}`)+'.'+ext;save.textContent='Save Clip';const library=document.createElement('button');library.type='button';library.className='library'+(clip.uploaded?' saved':'');library.disabled=clip.uploading||clip.uploaded;library.textContent=clip.uploaded?'Saved to Library':clip.uploading?'Uploading…':'Save to Media Library';library.onclick=()=>saveToLibrary(clip);actions.append(share,save,library);article.append(video,meta,actions);list.appendChild(article)})}
+  function renderLibrary(){count.textContent=String(clips.length+saved.length);if(!saved.length){libraryList.innerHTML='<div class="drawer-empty">No highlights have been saved to the club library yet.</div>';return}libraryList.innerHTML='';saved.forEach(asset=>{const article=document.createElement('article');article.className='clip remote';const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='metadata';video.src=asset.fileUrl;const meta=document.createElement('div');meta.className='clip-meta';meta.innerHTML=`<strong>${asset.title||'Match highlight'}</strong><span>${String(asset.description||'').replaceAll('\n',' · ')}</span>`;const actions=document.createElement('div');actions.className='clip-actions';const open=document.createElement('a');open.href=asset.fileUrl;open.target='_blank';open.rel='noopener';open.textContent='Open saved highlight';actions.append(open);article.append(video,meta,actions);libraryList.appendChild(article)})}
 
-  async function loadLibrary(){
-    if(!clubId||!accessToken()){libraryList.innerHTML='<div class="library-error">Sign in to Club HQ to load saved highlights.</div>';return}
-    try{const response=await fetch(`/api/club-portal/media/clubs/${encodeURIComponent(clubId)}?type=HIGHLIGHT&status=READY&t=${Date.now()}`,{cache:'no-store',headers:headers()});const payload=await response.json();if(!response.ok)throw new Error(payload.error||'Unable to load highlights');saved=Array.isArray(payload.data)?payload.data:[];renderLibrary()}catch(error){libraryList.innerHTML=`<div class="library-error">${error instanceof Error?error.message:'Unable to load saved highlights.'}</div>`}
-  }
-
-  function renderClips(){
-    count.textContent=String(clips.length+saved.length)
-    if(!clips.length){list.innerHTML='<div class="drawer-empty">No new highlights in this session. Start the camera, then tap Mark Highlight.</div>';return}
-    list.innerHTML='';clips.forEach(clip=>{const ext=extension(clip.type),article=document.createElement('article');article.className='clip';const video=document.createElement('video');video.controls=true;video.playsInline=true;video.src=clip.url;const meta=document.createElement('div');meta.className='clip-meta';meta.innerHTML=`<strong>${clip.meta.event}</strong><span>${clip.meta.quarter} · ${clip.meta.clock}</span><span>${clip.meta.home} ${clip.meta.homeScore} — ${clip.meta.awayScore} ${clip.meta.away}</span>`;const actions=document.createElement('div');actions.className='clip-actions';const share=document.createElement('button');share.className='share';share.type='button';share.textContent='Share';share.onclick=()=>shareClip(clip);const save=document.createElement('a');save.href=clip.url;save.download=safeName(`${clip.meta.quarter}-${clip.meta.clock}-${clip.meta.event}`)+'.'+ext;save.textContent='Save Clip';const library=document.createElement('button');library.type='button';library.className='library'+(clip.uploaded?' saved':'');library.disabled=clip.uploading||clip.uploaded;library.textContent=clip.uploaded?'Saved to Library':clip.uploading?'Uploading…':'Save to Media Library';library.onclick=()=>saveToLibrary(clip);actions.append(share,save,library);article.append(video,meta,actions);list.appendChild(article)})
-  }
-
-  function renderLibrary(){
-    count.textContent=String(clips.length+saved.length)
-    if(!saved.length){libraryList.innerHTML='<div class="drawer-empty">No highlights have been saved to the club library yet.</div>';return}
-    libraryList.innerHTML='';saved.forEach(asset=>{const article=document.createElement('article');article.className='clip remote';const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='metadata';video.src=asset.fileUrl;const meta=document.createElement('div');meta.className='clip-meta';meta.innerHTML=`<strong>${asset.title||'Match highlight'}</strong><span>${String(asset.description||'').replaceAll('\n',' · ')}</span>`;const actions=document.createElement('div');actions.className='clip-actions';const open=document.createElement('a');open.href=asset.fileUrl;open.target='_blank';open.rel='noopener';open.textContent='Open saved highlight';actions.append(open);article.append(video,meta,actions);libraryList.appendChild(article)})
-  }
-
-  button.addEventListener('click',markHighlight);document.getElementById('clipsButton').addEventListener('click',()=>{drawer.classList.add('open');loadLibrary()});document.getElementById('closeDrawer').addEventListener('click',()=>drawer.classList.remove('open'));window.addEventListener('beforeunload',()=>clips.forEach(clip=>URL.revokeObjectURL(clip.url)));loadLibrary()
+  button.addEventListener('click',markHighlight);document.getElementById('clipsButton').addEventListener('click',()=>{drawer.classList.add('open');loadLibrary()});document.getElementById('closeDrawer').addEventListener('click',()=>drawer.classList.remove('open'))
+  monitorTimer=setInterval(detectGoal,250);window.addEventListener('beforeunload',()=>{clearInterval(monitorTimer);stopBuffer();clips.forEach(clip=>URL.revokeObjectURL(clip.url))});loadLibrary()
 })()
 </script>
 </body>
