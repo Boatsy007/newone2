@@ -34,15 +34,29 @@
 
   function synchronise(data) {
     if (!data) return
+
     const now = performance.now()
     const serverSeconds = Math.max(0, Math.floor(Number(data.elapsedSeconds) || 0))
     const nextRunning = Boolean(data.clockRunning)
     const nextQuarter = Math.max(1, Number(data.quarter) || 1)
     const localSeconds = displayedSeconds(now)
-    const stateChanged = !initialised || nextRunning !== running || nextQuarter !== currentQuarter
-    const meaningfulDrift = Math.abs(serverSeconds - localSeconds) > 2
+    const quarterChanged = initialised && nextQuarter !== currentQuarter
+    const started = initialised && !running && nextRunning
+    const paused = initialised && running && !nextRunning
 
-    if (stateChanged || meaningfulDrift || !nextRunning) {
+    if (!initialised || quarterChanged || started || paused) {
+      // Explicit Match Centre state changes are authoritative, including resets.
+      anchorSeconds = serverSeconds
+      anchorAt = now
+    } else if (nextRunning) {
+      // While running, never accept an older response that would move the clock backwards.
+      // Only pull forward when Match Centre is clearly ahead of the local display.
+      if (serverSeconds > localSeconds + 2) {
+        anchorSeconds = serverSeconds
+        anchorAt = now
+      }
+    } else {
+      // While paused, keep the exact Match Centre value.
       anchorSeconds = serverSeconds
       anchorAt = now
     }
