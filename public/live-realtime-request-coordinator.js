@@ -22,12 +22,21 @@
     }
   }
 
+  function publish(response) {
+    if (!response?.ok) return
+    response.clone().json().then(payload => {
+      document.dispatchEvent(new CustomEvent('pf-live-match-response', {
+        detail: payload?.data || payload,
+      }))
+    }).catch(() => {})
+  }
+
   window.fetch = async function coordinatedFetch(input, init) {
     if (!isLiveMatchRequest(input)) return originalFetch(input, init)
 
     const key = keyFor(input)
     const now = Date.now()
-    let entry = liveMatchCache.get(key)
+    const entry = liveMatchCache.get(key)
 
     if (entry?.pending) {
       const response = await entry.pending
@@ -41,6 +50,7 @@
     const pending = originalFetch(input, init).then(response => {
       const stored = response.clone()
       liveMatchCache.set(key, { response: stored, at: Date.now(), pending: null })
+      publish(stored)
       return response
     }).catch(error => {
       const current = liveMatchCache.get(key)
