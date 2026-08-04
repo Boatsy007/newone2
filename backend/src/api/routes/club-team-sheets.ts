@@ -124,4 +124,14 @@ router.put('/clubs/:clubId/sheets/:sheetId', async (req,res) => {
   } catch(error){res.status(500).json({error:'failed to update team sheet',detail:String(error)})}
 })
 
+router.delete('/clubs/:clubId/sheets/:sheetId', async (req,res) => {
+  try {
+    await ensureTables()
+    const sheet=await sheetForClub(req.params.sheetId,req.params.clubId)
+    if(!sheet)return res.status(404).json({error:'Team sheet not found for this club'})
+    await prisma.$executeRawUnsafe(`DELETE FROM football_team_sheets WHERE id::text=$1 AND club_id=$2`,req.params.sheetId,req.params.clubId)
+    res.json({data:{id:req.params.sheetId,deleted:true}})
+  } catch(error){res.status(500).json({error:'failed to delete team sheet',detail:String(error)})}
+})
+
 export { router as clubTeamSheetsRouter }
