@@ -1,7 +1,6 @@
 (() => {
-  const clubId = new URLSearchParams(location.search).get('clubId') || ''
   const networkClock = document.getElementById('clock')
-  if (!clubId || !networkClock || window.PlayFootySmoothLiveClock) return
+  if (!networkClock || window.PlayFootySmoothLiveClock) return
 
   window.PlayFootySmoothLiveClock = true
   networkClock.style.display = 'none'
@@ -16,8 +15,6 @@
   let running = false
   let initialised = false
   let currentQuarter = 1
-  let polling = false
-  let pollTimer = 0
   let renderTimer = 0
 
   const format = value => {
@@ -45,18 +42,14 @@
     const paused = initialised && running && !nextRunning
 
     if (!initialised || quarterChanged || started || paused) {
-      // Explicit Match Centre state changes are authoritative, including resets.
       anchorSeconds = serverSeconds
       anchorAt = now
     } else if (nextRunning) {
-      // While running, never accept an older response that would move the clock backwards.
-      // Only pull forward when Match Centre is clearly ahead of the local display.
       if (serverSeconds > localSeconds + 2) {
         anchorSeconds = serverSeconds
         anchorAt = now
       }
     } else {
-      // While paused, keep the exact Match Centre value.
       anchorSeconds = serverSeconds
       anchorAt = now
     }
@@ -67,29 +60,8 @@
     render()
   }
 
-  async function poll() {
-    if (polling) return
-    polling = true
-    try {
-      const response = await fetch(`/api/live-match/clubs/${encodeURIComponent(clubId)}?clock=${Date.now()}`, {
-        cache: 'no-store',
-        headers: { 'cache-control': 'no-cache', pragma: 'no-cache' },
-      })
-      const payload = await response.json()
-      if (response.ok) synchronise(payload.data || payload)
-    } catch {
-      // Keep counting locally through a temporary network interruption.
-    } finally {
-      polling = false
-    }
-  }
-
-  poll()
+  document.addEventListener('pf-live-match-response', event => synchronise(event.detail))
   renderTimer = window.setInterval(render, 200)
-  pollTimer = window.setInterval(poll, 1500)
 
-  window.addEventListener('beforeunload', () => {
-    clearInterval(renderTimer)
-    clearInterval(pollTimer)
-  })
+  window.addEventListener('beforeunload', () => clearInterval(renderTimer))
 })()
