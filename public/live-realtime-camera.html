@@ -50,7 +50,7 @@
     const videoTrack=media.getVideoTracks().find(t=>t.readyState==='live')
     const audioTrack=media.getAudioTracks().find(t=>t.readyState==='live')
     if(!videoTrack)throw new Error('No live camera track is available')
-    tracks.push(new sdk.LocalStageStream(videoTrack,{maxBitrate:2500000,maxFramerate:30,simulcast:{enabled:true}}))
+    tracks.push(new sdk.LocalStageStream(videoTrack,{maxBitrate:1800,maxFramerate:30,simulcast:{enabled:true}}))
     if(audioTrack)tracks.push(new sdk.LocalStageStream(audioTrack))
     const strategy={
       stageStreamsToPublish:()=>tracks,
