@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { ClipboardCheck, ClipboardList, Dumbbell, Home, ShieldCheck, Sparkles, Swords, Users, Wrench } from 'lucide-react'
@@ -45,7 +45,7 @@ export default function CoachingPortalTabs(){
  if(overlay)return <>{globalLayers}{createPortal(<div className="coach-workspace-layer">{mobileMenu}<div className="coach-workspace-content"><Routes><Route path="/club-portal/:clubId/coaching" element={
   home?<CoachingAppHome/>:
   teamHub?<CoachingTeamHub/>:
-  matchDay?<><ClubPortalMatchDay/><PostMatchReviewPanel clubId={clubId}/><MatchDayGamePlanPanel clubId={clubId}/><LiveMatchReportPanel clubId={clubId}/></>:
+  matchDay?<><ClubPortalMatchDay/><PostMatchReviewPanel clubId={clubId}/><MatchDayGamePlanPanel clubId={clubId}/><LiveMatchReportPanel clubId={clubId}/><MatchDayCreativeReportOption/></>:
   trainingPlan?<ClubPortalTrainingPlanner/>:
   opposition?<ClubPortalOpposition/>:
   playerDevelopment?<ClubPortalPlayerDevelopment/>:
@@ -54,6 +54,32 @@ export default function CoachingPortalTabs(){
 
  if(!visible)return globalLayers
  return <>{globalLayers}{mobileMenu&&createPortal(<div className="coach-mobile-page-menu">{mobileMenu}</div>,document.body)}<style>{workspaceStyles}</style></>
+}
+
+function MatchDayCreativeReportOption(){
+ const[host,setHost]=useState<HTMLElement|null>(null)
+ useEffect(()=>{
+  let active=true
+  const attach=()=>{
+   if(!active)return
+   const aside=document.querySelector<HTMLElement>('.md-layout>aside')
+   if(!aside)return
+   let next=document.getElementById('pf-match-day-creative-host')
+   if(!next){next=document.createElement('div');next.id='pf-match-day-creative-host';aside.appendChild(next)}
+   setHost(next)
+  }
+  attach()
+  const observer=new MutationObserver(attach)
+  observer.observe(document.body,{childList:true,subtree:true})
+  return()=>{active=false;observer.disconnect();document.getElementById('pf-match-day-creative-host')?.remove();setHost(null)}
+ },[])
+ if(!host)return null
+ return createPortal(<section className="md-creative">
+  <span>Creative</span>
+  <h2>Live match report</h2>
+  <p>Build and edit the quarter-by-quarter match story while the game is running.</p>
+  <button type="button" onClick={()=>document.querySelector<HTMLButtonElement>('.lmr-launch')?.click()}><ClipboardList size={17}/>Open match report</button>
+ </section>,host)
 }
 
 function CoachingMobileMenu({clubId,section,view}:{clubId:string;section:string;view:string|null}){
@@ -73,5 +99,5 @@ function CoachingMobileMenu({clubId,section,view}:{clubId:string;section:string;
 }
 
 const workspaceStyles=`
-.coach-workspace-layer{position:fixed;inset:0;z-index:100000;overflow:auto;background:#eef3f7}.coach-workspace-content{min-height:100%;box-sizing:border-box;padding:22px clamp(10px,3vw,34px) 70px}.coach-mobile-menu,.coach-mobile-page-menu{display:none}@media(max-width:760px){.coach-workspace-content{padding:14px 8px 105px}.coach-mobile-menu{position:sticky;top:0;z-index:100220;display:flex;gap:6px;overflow-x:auto;padding:8px 9px;border-bottom:1px solid #dfe4e8;background:rgba(250,251,252,.97);box-shadow:0 7px 18px rgba(15,23,42,.05);backdrop-filter:blur(18px);scrollbar-width:none}.coach-mobile-menu a{display:flex;flex:0 0 auto;min-height:42px;align-items:center;gap:6px;padding:0 11px;border-radius:11px;color:#7f8992;text-decoration:none;font-size:9px;font-weight:900;white-space:nowrap}.coach-mobile-menu a.active{background:#e6f5fe;color:#087bbf}.coach-mobile-page-menu{position:fixed;left:0;right:0;top:0;z-index:100250;display:block}.coach-mobile-page-menu .coach-mobile-menu{position:relative}body:has(.coach-mobile-page-menu) .club-portal-page,body:has(.coach-mobile-page-menu) .club-portal-page-wrap{padding-top:82px!important}}
+.coach-workspace-layer{position:fixed;inset:0;z-index:100000;overflow:auto;background:#eef3f7}.coach-workspace-content{min-height:100%;box-sizing:border-box;padding:22px clamp(10px,3vw,34px) 70px}.coach-workspace-layer .lmr-launch{display:none!important}#pf-match-day-creative-host{margin-top:14px}.md-creative{min-width:0;padding:15px;border:1px solid #233645;border-radius:15px;background:#0b1621;color:#edf5fb}.md-creative>span{display:block;color:#42b8ff;font-size:10px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.md-creative h2{margin:4px 0;font-family:'Bebas Neue',Impact,sans-serif;font-size:30px;text-transform:uppercase}.md-creative p{margin:0;color:#8799a7;font-size:11px;line-height:1.45}.md-creative button{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:13px;border:0;border-radius:9px;background:#147fbd;color:#fff;padding:11px 14px;font-weight:950;text-transform:uppercase;cursor:pointer}.coach-mobile-menu,.coach-mobile-page-menu{display:none}@media(max-width:760px){.coach-workspace-content{padding:14px 8px 105px}.coach-mobile-menu{position:sticky;top:0;z-index:100220;display:flex;gap:6px;overflow-x:auto;padding:8px 9px;border-bottom:1px solid #dfe4e8;background:rgba(250,251,252,.97);box-shadow:0 7px 18px rgba(15,23,42,.05);backdrop-filter:blur(18px);scrollbar-width:none}.coach-mobile-menu a{display:flex;flex:0 0 auto;min-height:42px;align-items:center;gap:6px;padding:0 11px;border-radius:11px;color:#7f8992;text-decoration:none;font-size:9px;font-weight:900;white-space:nowrap}.coach-mobile-menu a.active{background:#e6f5fe;color:#087bbf}.coach-mobile-page-menu{position:fixed;left:0;right:0;top:0;z-index:100250;display:block}.coach-mobile-page-menu .coach-mobile-menu{position:relative}body:has(.coach-mobile-page-menu) .club-portal-page,body:has(.coach-mobile-page-menu) .club-portal-page-wrap{padding-top:82px!important}}
 `
