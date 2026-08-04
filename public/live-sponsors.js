@@ -24,7 +24,7 @@
   breakOverlay.innerHTML = '<div class="pf-sponsor-break-card"><small>Quarter break presented by</small><img alt=""><strong></strong><a target="_blank" rel="noopener sponsored">Visit sponsor</a></div>'
   player.appendChild(breakOverlay)
 
-  let sponsors = [], presenting = null, replaySponsor = null, breakSponsor = null, lastQuarter = null, breakTimer = 0, replayBound = false, lastBreakKey = ''
+  let sponsors = [], presenting = null, replaySponsor = null, breakSponsor = null, breakTimer = 0, replayBound = false, lastBreakKey = '', directorState = 'LIVE'
   const text = value => String(value || '').toUpperCase()
   const placement = deal => text(`${deal.bannerPosition || ''} ${deal.package || ''} ${deal.tier || ''}`)
   const pick = words => sponsors.find(deal => words.some(word => placement(deal).includes(word))) || null
@@ -34,12 +34,7 @@
     try {
       await fetch('/api/analytics/event', {
         method:'POST', headers:{'content-type':'application/json'},
-        body:JSON.stringify({
-          eventType:eventType === 'CLICK' ? 'SPONSOR_CLICK' : 'SPONSOR_IMPRESSION',
-          entityType:'SPONSOR', entityId:String(deal.sponsor.id), sessionId:viewerId, visitorId:viewerId,
-          path:location.pathname,
-          meta:{clubId,sponsorshipId:String(deal.id),placement:place,broadcast:true},
-        }),
+        body:JSON.stringify({eventType:eventType === 'CLICK' ? 'SPONSOR_CLICK' : 'SPONSOR_IMPRESSION',entityType:'SPONSOR',entityId:String(deal.sponsor.id),sessionId:viewerId,visitorId:viewerId,path:location.pathname,meta:{clubId,sponsorshipId:String(deal.id),placement:place,broadcast:true}}),
       })
     } catch {}
   }
@@ -53,8 +48,8 @@
     const logo = sponsorLogo(presenting)
     presented.href = sponsorUrl(presenting)
     presented.innerHTML = `${logo ? `<img src="${logo.replaceAll('"','%22')}" alt="">` : ''}<span>Broadcast presented by<b>${sponsorName(presenting)}</b></span>`
-    presented.classList.add('show')
     presented.onclick = () => track(presenting, 'BROADCAST', 'CLICK')
+    if (directorState === 'LIVE' || directorState === 'REPLAY') presented.classList.add('show')
     track(presenting, 'BROADCAST', 'IMPRESSION')
   }
 
@@ -97,19 +92,17 @@
     } catch {}
   }
 
-  async function watchMatch() {
-    try {
-      const response = await fetch(`/api/live-match/clubs/${encodeURIComponent(clubId)}?sponsor=${Date.now()}`, {cache:'no-store'})
-      const payload = await response.json(); if (!response.ok) return
-      const data = payload.data || payload, quarter = Number(data?.quarter) || 1, event = String(data?.lastEvent || '')
-      if (lastQuarter === null) { lastQuarter = quarter; return }
-      if (quarter !== lastQuarter) { const previous = lastQuarter; lastQuarter = quarter; showBreak(`quarter-${previous}-${quarter}`) }
-      if (/quarter time|half time|three quarter|3\/4 time/i.test(event)) showBreak(`${quarter}-${event}`)
-    } catch {}
-  }
+  document.addEventListener('pf-director-state', event => {
+    directorState = String(event.detail?.state || 'LIVE')
+    const canShow = directorState === 'LIVE' || directorState === 'REPLAY'
+    presented.classList.toggle('show', Boolean(presenting && canShow))
+    if (directorState !== 'SPONSOR') breakOverlay.classList.remove('show')
+  })
+  document.addEventListener('pf-director-request-sponsor', event => {
+    showBreak(`director-${event.detail?.quarter || ''}-${Date.now()}`)
+  })
 
-  loadSponsors(); watchMatch()
+  loadSponsors()
   const bindTimer = setInterval(bindReplaySponsor, 500)
-  const matchTimer = setInterval(watchMatch, 1500)
-  window.addEventListener('beforeunload', () => { clearInterval(bindTimer); clearInterval(matchTimer); clearTimeout(breakTimer) })
+  window.addEventListener('beforeunload', () => { clearInterval(bindTimer); clearTimeout(breakTimer) })
 })()
