@@ -24,14 +24,24 @@
   breakOverlay.innerHTML = '<div class="pf-sponsor-break-card"><small>Quarter break presented by</small><img alt=""><strong></strong><a target="_blank" rel="noopener sponsored">Visit sponsor</a></div>'
   player.appendChild(breakOverlay)
 
-  let sponsors = [], presenting = null, replaySponsor = null, breakSponsor = null, lastQuarter = null, breakTimer = 0, replayBound = false
+  let sponsors = [], presenting = null, replaySponsor = null, breakSponsor = null, lastQuarter = null, breakTimer = 0, replayBound = false, lastBreakKey = ''
   const text = value => String(value || '').toUpperCase()
   const placement = deal => text(`${deal.bannerPosition || ''} ${deal.package || ''} ${deal.tier || ''}`)
   const pick = words => sponsors.find(deal => words.some(word => placement(deal).includes(word))) || null
 
   async function track(deal, place, eventType) {
     if (!deal?.id || !deal?.sponsor?.id) return
-    try { await fetch(`/api/clubs/${encodeURIComponent(clubId)}/sponsor-event`, {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sponsorshipId:deal.id,sponsorId:deal.sponsor.id,placement:place,eventType,viewerId})}) } catch {}
+    try {
+      await fetch('/api/analytics/event', {
+        method:'POST', headers:{'content-type':'application/json'},
+        body:JSON.stringify({
+          eventType:eventType === 'CLICK' ? 'SPONSOR_CLICK' : 'SPONSOR_IMPRESSION',
+          entityType:'SPONSOR', entityId:String(deal.sponsor.id), sessionId:viewerId, visitorId:viewerId,
+          path:location.pathname,
+          meta:{clubId,sponsorshipId:String(deal.id),placement:place,broadcast:true},
+        }),
+      })
+    } catch {}
   }
 
   function sponsorUrl(deal) { return deal?.ctaUrl || deal?.sponsor?.websiteUrl || '#' }
@@ -48,9 +58,10 @@
     track(presenting, 'BROADCAST', 'IMPRESSION')
   }
 
-  function showBreak() {
+  function showBreak(key = '') {
     const deal = breakSponsor || presenting
-    if (!deal) return
+    if (!deal || (key && key === lastBreakKey)) return
+    if (key) lastBreakKey = key
     const card = breakOverlay.querySelector('.pf-sponsor-break-card')
     const image = card.querySelector('img'), link = card.querySelector('a')
     image.src = sponsorLogo(deal); image.style.display = image.src ? 'block' : 'none'
@@ -90,10 +101,10 @@
     try {
       const response = await fetch(`/api/live-match/clubs/${encodeURIComponent(clubId)}?sponsor=${Date.now()}`, {cache:'no-store'})
       const payload = await response.json(); if (!response.ok) return
-      const data = payload.data || payload, quarter = Number(data?.quarter) || 1
+      const data = payload.data || payload, quarter = Number(data?.quarter) || 1, event = String(data?.lastEvent || '')
       if (lastQuarter === null) { lastQuarter = quarter; return }
-      if (quarter !== lastQuarter) { lastQuarter = quarter; showBreak() }
-      if (/quarter time|half time|three quarter|3\/4 time/i.test(String(data?.lastEvent || ''))) showBreak()
+      if (quarter !== lastQuarter) { const previous = lastQuarter; lastQuarter = quarter; showBreak(`quarter-${previous}-${quarter}`) }
+      if (/quarter time|half time|three quarter|3\/4 time/i.test(event)) showBreak(`${quarter}-${event}`)
     } catch {}
   }
 
