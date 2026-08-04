@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import type { ClubProfile } from '../../lib/rankings'
 import ClubLiveHub from './ClubLiveHub'
@@ -41,6 +42,7 @@ export default function ClubLiveHubDetailed({ club }: { club: ClubProfile }) {
   const [rows, setRows] = useState<MatchRow[]>([])
   const [detail, setDetail] = useState<MatchDetail | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
+  const [watchSlot, setWatchSlot] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
     let active = true
@@ -79,6 +81,57 @@ export default function ClubLiveHubDetailed({ club }: { club: ClubProfile }) {
     }
   }, [club.clubId])
 
+  useEffect(() => {
+    let observer: MutationObserver | null = null
+    let cancelled = false
+
+    const findLiveCard = () => {
+      if (cancelled) return true
+      const root = document.querySelector<HTMLElement>('.club-live-hub-detailed')
+      if (!root) return false
+      const candidates = Array.from(root.querySelectorAll<HTMLElement>('section, article, div'))
+      const liveCard = candidates.find(element => {
+        const text = (element.textContent ?? '').replace(/\s+/g, ' ').trim().toUpperCase()
+        if (!text.includes('LIVE MATCH')) return false
+        const parentText = (element.parentElement?.textContent ?? '').replace(/\s+/g, ' ').trim().toUpperCase()
+        return !Array.from(element.children).some(child => (child.textContent ?? '').toUpperCase().includes('LIVE MATCH'))
+          || parentText.includes('LIVE MATCH')
+      })?.closest<HTMLElement>('section, article')
+
+      if (!liveCard) return false
+      let slot = root.querySelector<HTMLElement>('[data-playfooty-watch-live-slot="true"]')
+      if (!slot) {
+        slot = document.createElement('div')
+        slot.dataset.playfootyWatchLiveSlot = 'true'
+        slot.className = 'club-watch-live-slot'
+        liveCard.insertAdjacentElement('afterend', slot)
+      } else if (slot.previousElementSibling !== liveCard) {
+        liveCard.insertAdjacentElement('afterend', slot)
+      }
+      setWatchSlot(slot)
+      return true
+    }
+
+    if (!findLiveCard()) {
+      const root = document.querySelector<HTMLElement>('.club-live-hub-detailed')
+      if (root) {
+        observer = new MutationObserver(findLiveCard)
+        observer.observe(root, { childList: true, subtree: true, characterData: true })
+      }
+    }
+
+    const retry = window.setInterval(() => {
+      if (findLiveCard()) window.clearInterval(retry)
+    }, 250)
+
+    return () => {
+      cancelled = true
+      observer?.disconnect()
+      window.clearInterval(retry)
+      setWatchSlot(null)
+    }
+  }, [club.clubId])
+
   const lastMatch = useMemo(() => [...rows]
     .filter(row => Number.isFinite(Number(row.homePoints ?? row.homeScore)) && Number.isFinite(Number(row.awayPoints ?? row.awayScore)))
     .sort((a, b) => dateValue(b.matchDate) - dateValue(a.matchDate))[0] ?? null, [rows])
@@ -95,17 +148,19 @@ export default function ClubLiveHubDetailed({ club }: { club: ClubProfile }) {
     return () => { active = false }
   }, [lastMatch])
 
+  const watchButton = isStreaming ? <a
+    className="club-match-centre-watch-live"
+    href={`/live-room.html?clubId=${encodeURIComponent(club.clubId)}`}
+    aria-label={`Watch ${club.clubName} live`}
+  >
+    <span className="club-watch-live-dot" aria-hidden="true" />
+    <strong>Watch Live</strong>
+    <small>Open the PlayFooty live stream</small>
+  </a> : null
+
   return <div className="club-live-hub-detailed">
     <ClubLiveHub club={club} />
-    {isStreaming && <a
-      className="club-match-centre-watch-live"
-      href={`/live-room.html?clubId=${encodeURIComponent(club.clubId)}`}
-      aria-label={`Watch ${club.clubName} live`}
-    >
-      <span className="club-watch-live-dot" aria-hidden="true" />
-      <strong>Watch Live</strong>
-      <small>Open the PlayFooty live stream</small>
-    </a>}
+    {watchButton && (watchSlot ? createPortal(watchButton, watchSlot) : watchButton)}
     <style>{styles}</style>
   </div>
 }
@@ -169,7 +224,7 @@ function dateValue(value?: string | null) {
 }
 
 const styles = `
-.club-match-centre-watch-live{display:none;position:relative;overflow:hidden;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:13px;margin-top:14px;padding:17px 20px;border:1px solid #ff4d5d;border-radius:12px;background:linear-gradient(135deg,#dc2335,#a90f21);color:#fff;text-decoration:none;box-shadow:0 12px 30px rgba(190,20,42,.28);animation:club-watch-live-fade 1.35s ease-in-out infinite}
+.club-watch-live-slot{margin-top:10px;margin-bottom:18px}.club-match-centre-watch-live{display:none;position:relative;overflow:hidden;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:13px;margin:0;padding:17px 20px;border:1px solid #ff4d5d;border-radius:12px;background:linear-gradient(135deg,#dc2335,#a90f21);color:#fff;text-decoration:none;box-shadow:0 12px 30px rgba(190,20,42,.28);animation:club-watch-live-fade 1.35s ease-in-out infinite}
 .club-tab-match-centre .club-match-centre-watch-live{display:grid}
 .club-match-centre-watch-live:before{content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent 0 36%,rgba(255,255,255,.2) 48%,transparent 60%);transform:translateX(-120%);animation:club-watch-live-sweep 2.2s ease-in-out infinite}
 .club-match-centre-watch-live>*{position:relative;z-index:1}.club-watch-live-dot{grid-row:1/3;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 0 0 7px rgba(255,255,255,.17)}
@@ -183,5 +238,5 @@ const styles = `
 .club-quarter-grid{display:grid;grid-template-columns:minmax(110px,1.5fr) repeat(4,minmax(45px,1fr));gap:8px;align-items:center;margin-top:8px}.club-quarter-grid>span{padding:9px 5px;border:1px solid #e1e6eb;border-radius:8px;background:#f8fafb;text-align:center;font-weight:850}.club-quarter-grid>strong{font-size:12px;line-height:1.2}.club-quarter-head{margin-top:0;color:#687385;font-size:9px;font-weight:900;text-transform:uppercase}.club-quarter-head>span{padding:0;border:0;background:transparent}.club-quarter-head>span:first-child{text-align:left}
 .club-player-group+.club-player-group{margin-top:12px;padding-top:12px;border-top:1px solid #e8edf1}.club-player-group>span{display:block;margin-bottom:7px;color:#687385;font-size:9px;font-weight:950;letter-spacing:.08em;text-transform:uppercase}.club-player-group p{display:flex;flex-wrap:wrap;gap:5px 11px;margin:0}.club-player-group p>span{font-size:12px;font-weight:800}.club-player-group a{color:#111318;text-decoration:none}.club-player-group a:hover{color:var(--club-primary,#b49a60)}
 @media(prefers-reduced-motion:reduce){.club-match-centre-watch-live,.club-match-centre-watch-live:before{animation:none}}
-@media(max-width:440px){.club-match-centre-watch-live{padding:15px 16px}.club-match-centre-watch-live strong{font-size:31px}.club-quarter-grid{grid-template-columns:minmax(82px,1.25fr) repeat(4,minmax(38px,1fr));gap:5px}.club-quarter-grid>span{padding:8px 3px;font-size:11px}}
+@media(max-width:440px){.club-watch-live-slot{margin-top:8px;margin-bottom:14px}.club-match-centre-watch-live{padding:15px 16px}.club-match-centre-watch-live strong{font-size:31px}.club-quarter-grid{grid-template-columns:minmax(82px,1.25fr) repeat(4,minmax(38px,1fr));gap:5px}.club-quarter-grid>span{padding:8px 3px;font-size:11px}}
 `
