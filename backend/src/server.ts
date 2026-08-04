@@ -18,6 +18,7 @@ import { mvpRouter } from './api/routes/mvp.js'
 import { teamSheetsRouter, adminTeamSheetsRouter } from './api/routes/team-sheets.js'
 import { playerAvailabilityRouter } from './api/routes/player-availability.js'
 import { liveMatchRouter } from './api/routes/live-match.js'
+import { liveAudienceRouter } from './api/routes/live-audience.js'
 import { matchDetailsRouter } from './api/routes/match-details.js'
 import { featuredGamesRouter, adminFeaturedGamesRouter } from './api/routes/featured-games.js'
 import { newsRouter } from './api/routes/news.js'
@@ -127,6 +128,7 @@ app.use('/api/mvp', mvpRouter)
 app.use('/api/team-sheets', teamSheetsRouter)
 app.use('/api/player-availability', playerAvailabilityRouter)
 app.use('/api/live-match', liveMatchRouter)
+app.use('/api/live-audience', liveAudienceRouter)
 app.use('/api/match-details', matchDetailsRouter)
 app.use('/api/featured-games', featuredGamesRouter)
 app.use('/api/news', newsRouter)
