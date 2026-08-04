@@ -38,7 +38,7 @@
   const visual=document.getElementById('swapVisual')
   const logo=document.getElementById('swapLogo')
   const clubId=new URLSearchParams(location.search).get('clubId')||''
-  let ready=false,lastEvent='',hideTimer=0,inspectTimer=0,pollInFlight=false,rawSwapObserver=null,operatorSyncTimer=0
+  let ready=false,lastEvent='',hideTimer=0,inspectTimer=0,pollInFlight=false,rawSwapObserver=null,operatorSyncTimer=0,operatorRecording=false
   broadcast.src='/live-stream-broadcast.html'+(location.search||'')
 
   function text(doc,id){return String(doc?.getElementById(id)?.textContent||'').trim()}
@@ -49,12 +49,18 @@
   }
   function operatorSource(){
     try{
-      const parentDoc=window.parent?.document
+      const parentWindow=window.parent
+      const parentDoc=parentWindow?.document
       const mark=parentDoc?.getElementById('highlightButton')
       const clips=parentDoc?.getElementById('clipsButton')
       const count=parentDoc?.getElementById('clipCount')
-      return mark&&clips&&count?{mark,clips,count}:null
+      return mark&&clips&&count?{window:parentWindow,mark,clips,count}:null
     }catch{return null}
+  }
+  function cameraStream(){
+    const doc=innerStudio()
+    const stream=doc?.getElementById('video')?.srcObject
+    return stream&&typeof stream.getTracks==='function'?stream:null
   }
   function installOperatorControls(){
     const doc=innerStudio()
@@ -68,11 +74,13 @@
         .operator-highlight-controls{display:none;position:fixed;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));z-index:2147483647;gap:8px;align-items:center;pointer-events:auto}
         .stage-fullscreen .operator-highlight-controls{display:flex!important}
         .operator-highlight-controls button{min-height:38px;border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:9px 13px;background:rgba(4,10,16,.94);color:#fff;font:900 11px/1 Inter,Arial,sans-serif;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,.55);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
-        .operator-highlight-controls .mark{background:#d42d3b;border-color:#ef6671}
-        .operator-highlight-controls .mark.recording{background:#831821}
-        .operator-highlight-controls button:disabled{opacity:.56}
+        .operator-highlight-controls .mark{background:#d42d3b;border-color:#ef6671}.operator-highlight-controls .mark.recording{background:#831821}.operator-highlight-controls button:disabled{opacity:.48}
         .operator-highlight-controls .count{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:5px;border-radius:999px;background:#2daaf5;color:#04121c;font-size:10px}
-        @media(max-width:620px){.operator-highlight-controls{top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));gap:6px}.operator-highlight-controls button{min-height:34px;padding:8px 10px;font-size:10px}}
+        .operator-record-start{display:grid;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483646;min-width:190px;min-height:58px;place-items:center;border:1px solid rgba(255,255,255,.38);border-radius:999px;padding:14px 24px;background:#d42d3b;color:#fff;font:1000 15px/1 Inter,Arial,sans-serif;text-transform:uppercase;box-shadow:0 12px 36px rgba(0,0,0,.62)}
+        .operator-record-end{display:none;position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:2147483647;min-height:38px;border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:9px 13px;background:rgba(4,10,16,.94);color:#fff;font:900 11px/1 Inter,Arial,sans-serif;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,.55)}
+        .operator-recording .operator-record-start{display:none!important}.operator-recording .operator-record-end{display:block!important}
+        .operator-recording .operator-highlight-controls .mark{opacity:1}.operator-not-recording .operator-highlight-controls .mark{opacity:.48}
+        @media(max-width:620px){.operator-highlight-controls{top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));gap:6px}.operator-highlight-controls button{min-height:34px;padding:8px 10px;font-size:10px}.operator-record-start{min-width:170px;min-height:52px;font-size:13px}.operator-record-end{left:max(8px,env(safe-area-inset-left));bottom:max(8px,env(safe-area-inset-bottom));min-height:34px;padding:8px 10px;font-size:10px}}
       `
       doc.head.appendChild(style)
     }
@@ -81,87 +89,87 @@
       controls=doc.createElement('div')
       controls.id='fullscreenOperatorHighlights'
       controls.className='operator-highlight-controls'
-      controls.setAttribute('aria-label','Operator highlight controls')
       controls.innerHTML='<button class="mark" id="fullscreenMarkHighlight" type="button">Mark Highlight</button><button id="fullscreenClips" type="button">Clips <span class="count" id="fullscreenClipCount">0</span></button>'
       doc.body.appendChild(controls)
-      doc.getElementById('fullscreenMarkHighlight').addEventListener('click',()=>source.mark.click())
-      doc.getElementById('fullscreenClips').addEventListener('click',()=>source.clips.click())
     }
+    let start=doc.getElementById('operatorStartRecording')
+    if(!start){
+      start=doc.createElement('button')
+      start.id='operatorStartRecording';start.className='operator-record-start';start.type='button';start.textContent='Start Recording';doc.body.appendChild(start)
+    }
+    let end=doc.getElementById('operatorEndRecording')
+    if(!end){
+      end=doc.createElement('button')
+      end.id='operatorEndRecording';end.className='operator-record-end';end.type='button';end.textContent='End Recording';doc.body.appendChild(end)
+    }
+    const mark=doc.getElementById('fullscreenMarkHighlight')
+    const clips=doc.getElementById('fullscreenClips')
+    if(mark.dataset.bound!=='1'){
+      mark.dataset.bound='1'
+      mark.addEventListener('click',()=>{
+        if(!operatorRecording)return
+        const cameraDoc=innerStudio()
+        const stream=cameraStream()
+        if(!stream)return
+        try{source.window.MediaStream=cameraDoc.defaultView.MediaStream}catch{}
+        source.mark.click()
+      })
+      clips.addEventListener('click',()=>source.clips.click())
+      start.addEventListener('click',()=>{
+        const stream=cameraStream()
+        const live=stream?.getTracks().some(track=>track.readyState==='live')
+        if(!live){source.mark.click();return}
+        operatorRecording=true
+        doc.body.classList.add('operator-recording');doc.body.classList.remove('operator-not-recording')
+      })
+      end.addEventListener('click',()=>{
+        operatorRecording=false
+        doc.body.classList.remove('operator-recording');doc.body.classList.add('operator-not-recording')
+      })
+    }
+    doc.body.classList.toggle('operator-recording',operatorRecording)
+    doc.body.classList.toggle('operator-not-recording',!operatorRecording)
     clearInterval(operatorSyncTimer)
     const sync=()=>{
-      const mark=doc.getElementById('fullscreenMarkHighlight')
-      const count=doc.getElementById('fullscreenClipCount')
-      if(!mark||!count)return
-      mark.textContent=source.mark.textContent||'Mark Highlight'
-      mark.disabled=Boolean(source.mark.disabled)
-      mark.classList.toggle('recording',source.mark.classList.contains('recording'))
-      count.textContent=source.count.textContent||'0'
+      const liveSource=operatorSource()
+      const markButton=doc.getElementById('fullscreenMarkHighlight')
+      const clipCount=doc.getElementById('fullscreenClipCount')
+      if(!liveSource||!markButton||!clipCount)return
+      markButton.textContent=liveSource.mark.textContent||'Mark Highlight'
+      markButton.disabled=!operatorRecording||Boolean(liveSource.mark.disabled)
+      markButton.classList.toggle('recording',liveSource.mark.classList.contains('recording'))
+      clipCount.textContent=liveSource.count.textContent||'0'
     }
-    sync()
-    operatorSyncTimer=setInterval(sync,250)
+    sync();operatorSyncTimer=setInterval(sync,250)
     return true
   }
   function assets(doc){
-    const panel=doc?.getElementById('homeTeam')
-    const image=doc?.getElementById('homeLogo')
-    return {
-      team:text(doc,'homeName')||'Your Team',
-      logo:image?.src||'',
-      cover:panel?.style.getPropertyValue('--team-cover')||'none',
-      colour:panel?.style.getPropertyValue('--team-colour')||'#2daaf5',
-    }
+    const panel=doc?.getElementById('homeTeam'),image=doc?.getElementById('homeLogo')
+    return{team:text(doc,'homeName')||'Your Team',logo:image?.src||'',cover:panel?.style.getPropertyValue('--team-cover')||'none',colour:panel?.style.getPropertyValue('--team-colour')||'#2daaf5'}
   }
-  function parseSwap(event){
-    const match=String(event||'').match(/^(.+?)\s+swapped\s+with\s+(.+)$/i)
-    return match?{off:match[1].trim(),on:match[2].trim()}:null
-  }
+  function parseSwap(event){const match=String(event||'').match(/^(.+?)\s+swapped\s+with\s+(.+)$/i);return match?{off:match[1].trim(),on:match[2].trim()}:null}
   function suppressRawSwapLabel(){
-    const latest=innerStudio()?.getElementById('latest')
-    if(!latest)return false
+    const latest=innerStudio()?.getElementById('latest');if(!latest)return false
     const clearSwap=()=>{if(parseSwap(latest.textContent))latest.textContent=''}
-    clearSwap()
-    rawSwapObserver?.disconnect()
-    rawSwapObserver=new MutationObserver(clearSwap)
-    rawSwapObserver.observe(latest,{childList:true,characterData:true,subtree:true})
-    return true
+    clearSwap();rawSwapObserver?.disconnect();rawSwapObserver=new MutationObserver(clearSwap);rawSwapObserver.observe(latest,{childList:true,characterData:true,subtree:true});return true
   }
   function showSwap(swap,brand){
-    clearTimeout(hideTimer)
-    document.getElementById('swapTeam').textContent=brand.team
-    document.getElementById('playerOff').textContent=swap.off
-    document.getElementById('playerOn').textContent=swap.on
-    visual.style.setProperty('--swap-colour',brand.colour)
-    visual.style.setProperty('--swap-cover',brand.cover||'none')
+    clearTimeout(hideTimer);document.getElementById('swapTeam').textContent=brand.team;document.getElementById('playerOff').textContent=swap.off;document.getElementById('playerOn').textContent=swap.on
+    visual.style.setProperty('--swap-colour',brand.colour);visual.style.setProperty('--swap-cover',brand.cover||'none')
     if(brand.logo){logo.src=brand.logo;logo.classList.add('show')}else{logo.removeAttribute('src');logo.classList.remove('show')}
-    requestAnimationFrame(()=>visual.classList.add('show'))
-    hideTimer=setTimeout(()=>visual.classList.remove('show'),4200)
+    requestAnimationFrame(()=>visual.classList.add('show'));hideTimer=setTimeout(()=>visual.classList.remove('show'),4200)
   }
   async function inspect(){
-    installOperatorControls()
-    suppressRawSwapLabel()
-    if(!clubId||pollInFlight)return
-    pollInFlight=true
+    installOperatorControls();suppressRawSwapLabel();if(!clubId||pollInFlight)return;pollInFlight=true
     try{
-      const response=await fetch('/api/live-match/clubs/'+encodeURIComponent(clubId)+'?eventPoll='+Date.now(),{cache:'no-store',headers:{'cache-control':'no-cache'}})
-      if(!response.ok)return
-      const payload=await response.json()
-      const event=String((payload.data||payload)?.lastEvent||'').trim()
+      const response=await fetch('/api/live-match/clubs/'+encodeURIComponent(clubId)+'?eventPoll='+Date.now(),{cache:'no-store',headers:{'cache-control':'no-cache'}});if(!response.ok)return
+      const payload=await response.json(),event=String((payload.data||payload)?.lastEvent||'').trim()
       if(!ready){lastEvent=event;ready=true;return}
-      if(event&&event!==lastEvent){
-        const swap=parseSwap(event)
-        if(swap)showSwap(swap,assets(innerStudio()))
-      }
+      if(event&&event!==lastEvent){const swap=parseSwap(event);if(swap)showSwap(swap,assets(innerStudio()))}
       lastEvent=event||lastEvent
     }catch{}finally{pollInFlight=false}
   }
-  broadcast.addEventListener('load',()=>{
-    ready=false
-    clearInterval(inspectTimer)
-    installOperatorControls()
-    suppressRawSwapLabel()
-    inspect()
-    inspectTimer=setInterval(inspect,300)
-  })
+  broadcast.addEventListener('load',()=>{ready=false;clearInterval(inspectTimer);installOperatorControls();suppressRawSwapLabel();inspect();inspectTimer=setInterval(inspect,300)})
   window.addEventListener('beforeunload',()=>{clearInterval(inspectTimer);clearInterval(operatorSyncTimer);rawSwapObserver?.disconnect()})
 })()
 </script>
