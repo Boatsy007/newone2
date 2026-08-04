@@ -24,7 +24,7 @@
   const clubId=new URLSearchParams(location.search).get('clubId')||''
   studio.src='/live-stream-broadcast-v3.html'+(location.search||'')
   if(clubId)watchLive.href='/live-room.html?clubId='+encodeURIComponent(clubId)
-  let installTimer=0,visibilityTimer=0,heartbeatTimer=0,ivsClient=null,endingBroadcast=false
+  let installTimer=0,visibilityTimer=0,autoHighlightTimer=0,heartbeatTimer=0,ivsClient=null,endingBroadcast=false
 
   function token(){try{const raw=localStorage.getItem(SESSION_KEY);const value=raw?JSON.parse(raw):null;return typeof value?.access_token==='string'?value.access_token:''}catch{return''}}
   function headers(){return{authorization:'Bearer '+token(),'content-type':'application/json'}}
@@ -63,6 +63,17 @@
     }catch(error){
       if(notifyOperator)notify(error instanceof Error?error.message:'Unable to end the broadcast')
     }finally{endingBroadcast=false}
+  }
+
+  function autoPublishHighlights(){
+    const v3=v3Document()
+    if(!v3||!clubId||!token())return
+    v3.querySelectorAll('.clip-actions .library').forEach(button=>{
+      if(!(button instanceof HTMLButtonElement)||button.disabled||button.dataset.autoPublish==='1')return
+      if(!/save to media library/i.test(button.textContent||''))return
+      button.dataset.autoPublish='1'
+      button.click()
+    })
   }
 
   function setOperatorFullscreen(doc,active){
@@ -114,9 +125,16 @@
     }
     return true
   }
-  function beginInstall(){clearInterval(installTimer);clearInterval(visibilityTimer);const install=()=>installOperatorFullscreen()&&installStreamingControls();if(!install()){installTimer=setInterval(()=>{if(install())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}visibilityTimer=setInterval(syncControlVisibility,150);syncControlVisibility()}
+  function beginInstall(){
+    clearInterval(installTimer);clearInterval(visibilityTimer);clearInterval(autoHighlightTimer)
+    const install=()=>installOperatorFullscreen()&&installStreamingControls()
+    if(!install()){installTimer=setInterval(()=>{if(install())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}
+    visibilityTimer=setInterval(syncControlVisibility,150)
+    autoHighlightTimer=setInterval(autoPublishHighlights,500)
+    syncControlVisibility();autoPublishHighlights()
+  }
   studio.addEventListener('load',beginInstall);window.addEventListener('pageshow',beginInstall)
-  window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(visibilityTimer);clearInterval(heartbeatTimer);try{ivsClient?.stopBroadcast()}catch{}})
+  window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(visibilityTimer);clearInterval(autoHighlightTimer);clearInterval(heartbeatTimer);try{ivsClient?.stopBroadcast()}catch{}})
 })()
 </script>
 </body>
