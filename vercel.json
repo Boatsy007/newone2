@@ -31,6 +31,10 @@
       "dest": "/backend/api/index.ts"
     },
     {
+      "src": "/Playfooty-logo-modern.png",
+      "dest": "/Playfooty-logo-modern-fixed.svg"
+    },
+    {
       "handle": "filesystem"
     },
     {
