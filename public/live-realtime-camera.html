@@ -28,23 +28,46 @@
   const studio=document.getElementById('studio'),badge=document.getElementById('badge'),watch=document.getElementById('watch')
   studio.src='/live-stream-broadcast-v3.html'+location.search
   watch.href='/live-realtime-room.html?clubId='+encodeURIComponent(clubId)
-  let stage=null,installTimer=0,heartbeatTimer=0,ending=false
+  let stage=null,installTimer=0,heartbeatTimer=0,cleanTimer=0,ending=false
 
   function token(){try{const raw=localStorage.getItem(SESSION_KEY);const value=raw?JSON.parse(raw):null;return typeof value?.access_token==='string'?value.access_token:''}catch{return''}}
   function headers(){return{authorization:'Bearer '+token(),'content-type':'application/json'}}
   function v3(){try{return studio.contentDocument||null}catch{return null}}
-  function deepest(){try{const d=v3(),v2=d?.getElementById('interchange')?.contentDocument,b=v2?.getElementById('broadcast')?.contentDocument;return b?.getElementById('studio')?.contentDocument||null}catch{return null}}
+  function docs(){
+    const result=[]
+    try{
+      const d3=v3();if(d3)result.push(d3)
+      const d2=d3?.getElementById('interchange')?.contentDocument;if(d2)result.push(d2)
+      const db=d2?.getElementById('broadcast')?.contentDocument;if(db)result.push(db)
+      const ds=db?.getElementById('studio')?.contentDocument;if(ds)result.push(ds)
+    }catch{}
+    return result
+  }
+  function deepest(){const all=docs();return all[all.length-1]||null}
   function stream(){const s=deepest()?.getElementById('video')?.srcObject;return s&&typeof s.getTracks==='function'?s:null}
   function notify(message){const d=v3(),toast=d?.getElementById('toast');if(toast){toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3500)}else alert(message)}
   async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Real-time request failed');return payload}
   function setState(live,text){badge.classList.toggle('live',live);badge.querySelector('span').textContent=text;watch.classList.toggle('show',live)}
   async function heartbeat(){if(!stage||!clubId)return;try{await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/heartbeat',{method:'POST',body:'{}'})}catch{}}
-  function cleanOperatorView(doc){
-    if(!doc||doc.getElementById('pf-operator-clean-style'))return
-    const style=doc.createElement('style');style.id='pf-operator-clean-style';style.textContent='.pf-director-overlay,.pf-goal-replay,.pf-rt-event,.pf-rt-replay,.pf-presented-by,.pf-sponsor-break,.pf-sponsor-break-overlay,.viewer-only,[data-viewer-only="true"]{display:none!important;visibility:hidden!important;pointer-events:none!important}';doc.head.appendChild(style)
-    const remove=()=>doc.querySelectorAll('.pf-director-overlay,.pf-goal-replay,.pf-rt-event,.pf-rt-replay,.pf-presented-by,.pf-sponsor-break,.pf-sponsor-break-overlay,[data-viewer-only="true"]').forEach(node=>node.remove())
-    remove();new MutationObserver(remove).observe(doc.body,{childList:true,subtree:true})
+
+  const viewerSelectors=[
+    '.pf-director-overlay','.pf-goal-replay','.pf-rt-event','.pf-rt-replay','.pf-presented-by','.pf-sponsor-break','.pf-sponsor-break-overlay',
+    '.goal-animation','.goal-overlay','.behind-overlay','.interchange-overlay','.event-overlay','.event-banner','.score-event','.score-animation','.broadcast-event',
+    '.player-announcement','.goal-announcement','.interchange-announcement','.replay-overlay','.replay-player','[data-viewer-only="true"]'
+  ].join(',')
+  function cleanDocument(doc){
+    if(!doc?.head||!doc?.body)return
+    let style=doc.getElementById('pf-operator-clean-style')
+    if(!style){style=doc.createElement('style');style.id='pf-operator-clean-style';style.textContent=viewerSelectors+'{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;animation:none!important;transition:none!important}';doc.head.appendChild(style)}
+    doc.querySelectorAll(viewerSelectors).forEach(node=>node.remove())
+    const latest=doc.getElementById('latest')
+    if(latest){latest.style.display='none';latest.setAttribute('aria-hidden','true')}
+    if(!doc.documentElement.dataset.pfOperatorClean){
+      doc.documentElement.dataset.pfOperatorClean='1'
+      new MutationObserver(()=>{doc.querySelectorAll(viewerSelectors).forEach(node=>node.remove());const next=doc.getElementById('latest');if(next)next.style.display='none'}).observe(doc.body,{childList:true,subtree:true})
+    }
   }
+  function cleanOperatorView(){docs().forEach(cleanDocument)}
 
   async function joinStage(media){
     const sdk=window.IVSBroadcastClient
@@ -65,9 +88,9 @@
   async function stopBroadcast(){if(ending)return;ending=true;try{await leaveStage();if(clubId)await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/stop',{method:'POST',body:'{}'});notify('Real-time broadcast ended.')}catch(error){notify(error instanceof Error?error.message:'Unable to end broadcast')}finally{ending=false}}
 
   function bind(){
+    cleanOperatorView()
     const doc=deepest(),start=doc?.getElementById('operatorStartRecording'),end=doc?.getElementById('operatorEndRecording'),stop=doc?.getElementById('stopBtn')
     if(!doc||!start||!end||!stop)return false
-    cleanOperatorView(doc)
     if(start.dataset.realtimeBound==='1')return true
     start.dataset.realtimeBound='1'
     start.addEventListener('click',async event=>{
@@ -81,9 +104,13 @@
     stop.addEventListener('click',()=>{if(stage)stopBroadcast()},true)
     return true
   }
-  function install(){clearInterval(installTimer);if(!bind()){installTimer=setInterval(()=>{if(bind())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}}
+  function install(){
+    clearInterval(installTimer);clearInterval(cleanTimer)
+    cleanOperatorView();cleanTimer=setInterval(cleanOperatorView,500)
+    if(!bind()){installTimer=setInterval(()=>{if(bind())clearInterval(installTimer)},250);setTimeout(()=>clearInterval(installTimer),20000)}
+  }
   studio.addEventListener('load',install);window.addEventListener('pageshow',install)
-  window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(heartbeatTimer);try{stage?.leave()}catch{}})
+  window.addEventListener('beforeunload',()=>{clearInterval(installTimer);clearInterval(cleanTimer);clearInterval(heartbeatTimer);try{stage?.leave()}catch{}})
 })()
 </script>
 </body>
