@@ -12,7 +12,6 @@
     .record-start.show{display:grid;place-items:center}.record-start:disabled{opacity:.62}
     .record-end{display:none;position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:2147483647;min-height:40px;padding:10px 14px;border:1px solid rgba(255,255,255,.34);border-radius:999px;background:rgba(4,10,16,.94);color:#fff;font:900 11px/1 Inter,Arial,sans-serif;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,.55)}
     .record-end.show{display:block}.record-end:disabled{opacity:.62}
-    @media(max-width:620px){.record-start{min-width:170px;min-height:52px;font-size:13px}.record-end{left:max(8px,env(safe-area-inset-left));bottom:max(8px,env(safe-area-inset-bottom));min-height:36px;padding:9px 12px;font-size:10px}}
   </style>
   <script src="https://web-broadcast.live-video.net/1.37.0/amazon-ivs-web-broadcast.js"></script>
 </head>
@@ -31,7 +30,7 @@
   const recordStart=document.getElementById('recordStart')
   const recordEnd=document.getElementById('recordEnd')
   studio.src='/live-stream-broadcast-v3.html'+location.search
-  let stage=null,heartbeatTimer=0,installTimer=0,cleanTimer=0,cameraTimer=0,connecting=false,ending=false
+  let stage=null,heartbeatTimer=0,cameraTimer=0,connecting=false,ending=false
 
   function token(){try{const raw=localStorage.getItem(SESSION_KEY);const value=raw?JSON.parse(raw):null;return typeof value?.access_token==='string'?value.access_token:''}catch{return''}}
   function headers(){return{authorization:'Bearer '+token(),'content-type':'application/json'}}
@@ -48,25 +47,18 @@
   function cameraDocument(){const all=documents();return all[all.length-1]||null}
   function cameraStream(){const value=cameraDocument()?.getElementById('video')?.srcObject;return value&&typeof value.getTracks==='function'?value:null}
   function cameraIsLive(){return Boolean(cameraStream()?.getVideoTracks().some(track=>track.readyState==='live'))}
-  function notify(message){
-    try{
-      const toast=studio.contentDocument?.getElementById('toast')
-      if(toast){toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3500);return}
-    }catch{}
-    alert(message)
-  }
+  function notify(message){try{const toast=studio.contentDocument?.getElementById('toast');if(toast){toast.textContent=message;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3500);return}}catch{}alert(message)}
   async function api(path,options={}){const response=await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}});const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Real-time request failed');return payload}
   async function heartbeat(){if(!stage||!clubId)return;try{await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/heartbeat',{method:'POST',body:'{}'})}catch{}}
 
-  const hiddenUi='.highlight-controls,.clips-button,.highlight-button,.drawer,.overlay,.broadcast-visual,.swap-visual,.latest,.top-bug,.pf-director-overlay,.pf-goal-replay,.pf-rt-event,.pf-rt-replay,.pf-presented-by,.pf-presented,.pf-sponsor-break,.pf-sponsor-break-overlay,.goal-animation,.goal-overlay,.behind-overlay,.interchange-overlay,.event-overlay,.event-banner,.score-event,.score-animation,.broadcast-event,.player-announcement,.goal-announcement,.interchange-announcement,.replay-overlay,.replay-player,[data-viewer-only="true"],#fullscreenOperatorHighlights,#operatorStartRecording,#operatorEndRecording'
-  function hideViewerUi(){
+  function hideNonCameraUi(){
     documents().forEach(doc=>{
       if(!doc?.head)return
-      let style=doc.getElementById('pf-camera-clean-style')
+      let style=doc.getElementById('pf-camera-safe-clean-style')
       if(!style){
         style=doc.createElement('style')
-        style.id='pf-camera-clean-style'
-        style.textContent=hiddenUi+'{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;animation:none!important;transition:none!important}'
+        style.id='pf-camera-safe-clean-style'
+        style.textContent='.highlight-controls,.clips-button,.highlight-button,.drawer,.latest,.top-bug,.pf-director-overlay,.pf-goal-replay,.pf-rt-event,.pf-rt-replay,.pf-presented-by,.pf-presented,.pf-sponsor-break,.pf-sponsor-break-overlay,.goal-animation,.goal-overlay,.behind-overlay,.interchange-overlay,.event-overlay,.event-banner,.score-event,.score-animation,.player-announcement,.goal-announcement,.interchange-announcement,.replay-overlay,.replay-player,[data-viewer-only="true"],#fullscreenOperatorHighlights,#operatorStartRecording,#operatorEndRecording{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}'
         doc.head.appendChild(style)
       }
     })
@@ -88,11 +80,7 @@
     await next.join()
     return next
   }
-  function renderControls(){
-    const cameraReady=cameraIsLive()
-    recordStart.classList.toggle('show',cameraReady&&!stage&&!connecting)
-    recordEnd.classList.toggle('show',Boolean(stage))
-  }
+  function renderControls(){const ready=cameraIsLive();recordStart.classList.toggle('show',ready&&!stage&&!connecting);recordEnd.classList.toggle('show',Boolean(stage))}
   async function leaveStage(){clearInterval(heartbeatTimer);heartbeatTimer=0;if(stage){try{stage.leave()}catch{}stage=null}renderControls()}
   async function startBroadcast(){
     if(connecting||stage)return
@@ -106,17 +94,10 @@
     try{await leaveStage();if(clubId)await api('/api/live-stream/realtime/clubs/'+encodeURIComponent(clubId)+'/stop',{method:'POST',body:'{}'});notify('Real-time broadcast ended.')}catch(error){notify(error instanceof Error?error.message:'Unable to end broadcast')}finally{ending=false;recordEnd.disabled=false;recordEnd.textContent='End Recording';renderControls()}
   recordStart.addEventListener('click',startBroadcast)
   recordEnd.addEventListener('click',stopBroadcast)
-
-  function install(){
-    clearInterval(installTimer);clearInterval(cleanTimer)
-    hideViewerUi();renderControls()
-    cleanTimer=setInterval(()=>{hideViewerUi();renderControls()},500)
-    if(!cameraDocument())installTimer=setInterval(()=>{hideViewerUi();renderControls();if(cameraDocument())clearInterval(installTimer)},250)
-  }
-  studio.addEventListener('load',install)
-  window.addEventListener('pageshow',install)
-  cameraTimer=setInterval(renderControls,300)
-  window.addEventListener('beforeunload',()=>{clearInterval(heartbeatTimer);clearInterval(installTimer);clearInterval(cleanTimer);clearInterval(cameraTimer);try{stage?.leave()}catch{}})
+  studio.addEventListener('load',()=>{hideNonCameraUi();renderControls()})
+  window.addEventListener('pageshow',()=>{hideNonCameraUi();renderControls()})
+  cameraTimer=setInterval(()=>{hideNonCameraUi();renderControls()},500)
+  window.addEventListener('beforeunload',()=>{clearInterval(cameraTimer);clearInterval(heartbeatTimer);try{stage?.leave()}catch{}})
 })()
 </script>
 </body>
