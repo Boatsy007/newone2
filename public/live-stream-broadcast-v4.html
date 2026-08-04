@@ -50,8 +50,17 @@
       const doc=deepestStudio()
       const original=v3?.querySelector('.highlight-controls')
       if(!original||!doc)return false
+
       const fullscreen=doc.body.classList.contains('stage-fullscreen')
       original.style.setProperty('display',fullscreen?'none':'flex','important')
+
+      const startRecording=doc.getElementById('operatorStartRecording')
+      if(startRecording){
+        const stream=doc.getElementById('video')?.srcObject
+        const cameraLive=Boolean(stream&&typeof stream.getTracks==='function'&&stream.getTracks().some(track=>track.readyState==='live'))
+        const recording=doc.body.classList.contains('operator-recording')
+        startRecording.style.setProperty('display',cameraLive&&!recording?'grid':'none','important')
+      }
       return true
     }
 
