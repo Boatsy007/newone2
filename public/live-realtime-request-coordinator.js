@@ -62,4 +62,12 @@
     const response = await pending
     return response.clone()
   }
+
+  if (!document.querySelector('script[data-pf-realtime-interchange]')) {
+    const script = document.createElement('script')
+    script.src = '/live-realtime-interchange.js'
+    script.async = true
+    script.dataset.pfRealtimeInterchange = '1'
+    document.head.appendChild(script)
+  }
 })()
