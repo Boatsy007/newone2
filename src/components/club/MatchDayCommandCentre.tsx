@@ -2,7 +2,6 @@ import { useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { Expand, Radio, ShieldCheck } from 'lucide-react'
 
-type FullscreenElement=HTMLElement&{webkitRequestFullscreen?:()=>Promise<void>|void}
 type OrientationLock={lock?:(orientation:string)=>Promise<void>}
 
 export default function MatchDayCommandCentre({children}:{children:ReactNode}){
@@ -10,15 +9,7 @@ export default function MatchDayCommandCentre({children}:{children:ReactNode}){
 
  async function launch(){
   flushSync(()=>setLaunched(true))
-  const board=document.querySelector<HTMLElement>('.md')
-  if(!board){document.body.classList.add('pf-match-day-focus');return}
-  try{
-   if(board.requestFullscreen)await board.requestFullscreen({navigationUI:'hide'}).catch(()=>board.requestFullscreen())
-   else if((board as FullscreenElement).webkitRequestFullscreen)await Promise.resolve((board as FullscreenElement).webkitRequestFullscreen?.())
-   else throw new Error('Fullscreen unavailable')
-  }catch{
-   document.body.classList.add('pf-match-day-focus')
-  }
+  document.body.classList.add('pf-match-day-focus')
   try{await(screen.orientation as OrientationLock|undefined)?.lock?.('landscape')}catch{}
  }
 
