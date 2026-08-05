@@ -1,11 +1,12 @@
-/* Fullscreen match controls: use the existing Start and Next Quarter buttons,
-   aligned in the same row as the four scoring controls. */
+/* Fullscreen match controls: keep the original Start and Next Quarter controls
+   and align them with the four existing scoring controls in one row. */
 html .md:fullscreen .md-toolbar,
 html .md:-webkit-full-screen .md-toolbar,
 html body.pf-match-day-focus .md .md-toolbar {
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
+/* Original Start / Next Quarter controls. */
 html .md:fullscreen .md-clock,
 html .md:-webkit-full-screen .md-clock,
 html body.pf-match-day-focus .md .md-clock {
@@ -15,15 +16,16 @@ html body.pf-match-day-focus .md .md-clock {
   left: calc(50vw + 12px) !important;
   width: 154px !important;
   height: 42px !important;
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  grid-template-rows: 1fr !important;
+  display: flex !important;
+  align-items: stretch !important;
+  flex-wrap: nowrap !important;
   gap: 6px !important;
   padding: 0 !important;
   margin: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
+  transform: none !important;
   visibility: visible !important;
   pointer-events: auto !important;
 }
@@ -41,13 +43,15 @@ html .md:fullscreen .md-clock button,
 html .md:-webkit-full-screen .md-clock button,
 html body.pf-match-day-focus .md .md-clock button {
   display: inline-flex !important;
+  flex: 1 1 0 !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 100% !important;
+  width: auto !important;
   min-width: 0 !important;
   min-height: 42px !important;
   height: 42px !important;
   padding: 4px !important;
+  margin: 0 !important;
   border-radius: 9px !important;
   font-size: 7px !important;
   font-weight: 950 !important;
@@ -64,13 +68,15 @@ html body.pf-match-day-focus .md .md-clock button svg {
   flex: 0 0 11px !important;
 }
 
+/* Keep an equal gap below every control before the stats panel. */
 html .md:fullscreen .md-fs-stats,
 html .md:-webkit-full-screen .md-fs-stats,
 html body.pf-match-day-focus .md .md-fs-stats {
-  top: 62px !important;
+  top: 58px !important;
   overflow: visible !important;
 }
 
+/* Existing four scoring controls, directly after Next Quarter. */
 html .md:fullscreen .md-fs-score.md-fs-score-top,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top,
 html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
@@ -80,13 +86,17 @@ html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
   left: calc(50vw + 172px) !important;
   right: 12px !important;
   width: auto !important;
-  display: grid !important;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  height: 42px !important;
+  display: flex !important;
+  align-items: stretch !important;
+  flex-wrap: nowrap !important;
   gap: 6px !important;
   margin: 0 !important;
+  padding: 0 !important;
+  transform: none !important;
 }
 
-/* Remove the two temporary proxy controls. The original controls above are used. */
+/* Hide the temporary duplicate Start / Next Quarter proxy buttons. */
 html .md:fullscreen .md-fs-score.md-fs-score-top .start,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .start,
 html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .start,
@@ -100,13 +110,15 @@ html .md:fullscreen .md-fs-score.md-fs-score-top button,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top button,
 html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top button {
   display: inline-flex !important;
+  flex: 1 1 0 !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 100% !important;
+  width: auto !important;
   min-width: 0 !important;
   min-height: 42px !important;
   height: 42px !important;
   padding: 4px !important;
+  margin: 0 !important;
   border-radius: 9px !important;
   font-size: 7px !important;
   font-weight: 950 !important;
@@ -142,7 +154,7 @@ html body.pf-match-day-focus .md .md-fullscreen-button {
   html .md:fullscreen .md-fs-stats,
   html .md:-webkit-full-screen .md-fs-stats,
   html body.pf-match-day-focus .md .md-fs-stats {
-    top: 58px !important;
+    top: 48px !important;
     overflow: visible !important;
   }
 
@@ -151,6 +163,7 @@ html body.pf-match-day-focus .md .md-fullscreen-button {
   html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
     top: 6px !important;
     left: calc(50vw + 162px) !important;
+    height: 36px !important;
   }
 
   html .md:fullscreen .md-fs-score.md-fs-score-top button,
