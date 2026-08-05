@@ -4,7 +4,8 @@ import './MatchDayFullscreenControlsOverride.css'
 const LIVE_WIDTH = 1024
 const LIVE_HEIGHT = 768
 const LOADING_STAGE_TIME = 7000
-const TOTAL_LOADING_TIME = LOADING_STAGE_TIME * 3
+const MIN_LOADING_TIME = LOADING_STAGE_TIME * 3
+const MAX_LOADING_TIME = 30000
 
 const loadingStages = [
   'LOADING LIVE TEAM',
@@ -33,8 +34,44 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
   useEffect(() => {
     let mounted = true
     let frame = 0
+    const startedAt = Date.now()
     const host = hostRef.current
     if (!host) return
+
+    const wakeLiveMatchEnhancers = () => {
+      document.dispatchEvent(new Event('fullscreenchange'))
+      document.dispatchEvent(new Event('webkitfullscreenchange'))
+      window.dispatchEvent(new Event('resize'))
+    }
+
+    const liveMatchReady = () => {
+      const board = host.querySelector<HTMLElement>('.md')
+      if (!board) return false
+
+      const stats = board.querySelector<HTMLElement>('.md-fs-stats')
+      const kpiButton = [...board.querySelectorAll<HTMLButtonElement>('button')].find(button =>
+        normalise(button.textContent || '').includes('KPI'),
+      )
+
+      return Boolean(
+        board.querySelector('.md-scoreboard') &&
+        board.querySelector('.md-ground') &&
+        board.querySelector('.md-bench') &&
+        stats &&
+        stats.childElementCount > 0 &&
+        board.querySelector('.md-ai-coach-placeholder') &&
+        kpiButton,
+      )
+    }
+
+    const checkReady = () => {
+      if (!mounted) return
+      const elapsed = Date.now() - startedAt
+
+      if ((elapsed >= MIN_LOADING_TIME && liveMatchReady()) || elapsed >= MAX_LOADING_TIME) {
+        setLoading(false)
+      }
+    }
 
     const fitCanonicalLayout = () => {
       if (!mounted) return
@@ -65,6 +102,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           board.style.removeProperty('margin')
           board.style.removeProperty('transform')
           board.style.removeProperty('transform-origin')
+          checkReady()
           return
         }
 
@@ -92,6 +130,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
         board.style.margin = '0'
         board.style.transform = `translateX(-50%) scale(${safeScale})`
         board.style.transformOrigin = 'top center'
+        checkReady()
       })
     }
 
@@ -122,10 +161,14 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
     }
 
     fitCanonicalLayout()
+    wakeLiveMatchEnhancers()
 
     const observer = new ResizeObserver(fitCanonicalLayout)
     observer.observe(host)
-    const mutationObserver = new MutationObserver(fitCanonicalLayout)
+    const mutationObserver = new MutationObserver(() => {
+      fitCanonicalLayout()
+      checkReady()
+    })
     mutationObserver.observe(host, { childList: true, subtree: true })
 
     host.addEventListener('click', handleFullscreenButton, true)
@@ -136,12 +179,24 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
     document.addEventListener('fullscreenchange', fitCanonicalLayout)
     document.addEventListener('webkitfullscreenchange', fitCanonicalLayout as EventListener)
 
-    const retryA = window.setTimeout(fitCanonicalLayout, 60)
-    const retryB = window.setTimeout(fitCanonicalLayout, 240)
-    const retryC = window.setTimeout(fitCanonicalLayout, 700)
+    const retryA = window.setTimeout(() => {
+      fitCanonicalLayout()
+      wakeLiveMatchEnhancers()
+    }, 60)
+    const retryB = window.setTimeout(() => {
+      fitCanonicalLayout()
+      wakeLiveMatchEnhancers()
+    }, 240)
+    const retryC = window.setTimeout(() => {
+      fitCanonicalLayout()
+      wakeLiveMatchEnhancers()
+    }, 700)
     const stageTwo = window.setTimeout(() => mounted && setLoadingStage(1), LOADING_STAGE_TIME)
     const stageThree = window.setTimeout(() => mounted && setLoadingStage(2), LOADING_STAGE_TIME * 2)
-    const finishLoading = window.setTimeout(() => mounted && setLoading(false), TOTAL_LOADING_TIME)
+    const readinessPoll = window.setInterval(() => {
+      wakeLiveMatchEnhancers()
+      checkReady()
+    }, 500)
 
     return () => {
       mounted = false
@@ -151,7 +206,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
       window.clearTimeout(retryC)
       window.clearTimeout(stageTwo)
       window.clearTimeout(stageThree)
-      window.clearTimeout(finishLoading)
+      window.clearInterval(readinessPoll)
       observer.disconnect()
       mutationObserver.disconnect()
       host.removeEventListener('click', handleFullscreenButton, true)
