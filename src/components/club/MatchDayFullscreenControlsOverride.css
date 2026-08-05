@@ -1,115 +1,135 @@
-.md:fullscreen .md-toolbar,
-.md:-webkit-full-screen .md-toolbar,
-body.pf-match-day-focus .md-toolbar {
+/* Fullscreen match controls: the scoring controls live inside the stats panel,
+   so position them relative to that panel rather than the viewport. */
+html .md:fullscreen .md-toolbar,
+html .md:-webkit-full-screen .md-toolbar,
+html body.pf-match-day-focus .md .md-toolbar {
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
-.md:fullscreen .md-clock,
-.md:-webkit-full-screen .md-clock,
-body.pf-match-day-focus .md-clock {
+html .md:fullscreen .md-clock,
+html .md:-webkit-full-screen .md-clock,
+html body.pf-match-day-focus .md .md-clock {
   position: fixed !important;
-  z-index: 82 !important;
-  top: 6px !important;
+  z-index: 90 !important;
+  top: 8px !important;
   left: calc(50vw + 12px) !important;
-  width: 132px !important;
+  width: 126px !important;
   height: 40px !important;
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   grid-template-rows: 1fr !important;
   gap: 6px !important;
   padding: 0 !important;
+  margin: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
 }
 
-.md:fullscreen .md-clock > span,
-.md:-webkit-full-screen .md-clock > span,
-body.pf-match-day-focus .md-clock > span,
-.md:fullscreen .md-clock > strong,
-.md:-webkit-full-screen .md-clock > strong,
-body.pf-match-day-focus .md-clock > strong {
+html .md:fullscreen .md-clock > span,
+html .md:-webkit-full-screen .md-clock > span,
+html body.pf-match-day-focus .md .md-clock > span,
+html .md:fullscreen .md-clock > strong,
+html .md:-webkit-full-screen .md-clock > strong,
+html body.pf-match-day-focus .md .md-clock > strong {
   display: none !important;
 }
 
-.md:fullscreen .md-clock button,
-.md:-webkit-full-screen .md-clock button,
-body.pf-match-day-focus .md-clock button {
+html .md:fullscreen .md-clock button,
+html .md:-webkit-full-screen .md-clock button,
+html body.pf-match-day-focus .md .md-clock button {
   width: 100% !important;
   min-width: 0 !important;
   min-height: 40px !important;
-  padding: 4px 5px !important;
+  height: 40px !important;
+  padding: 4px !important;
   border-radius: 9px !important;
   font-size: 6.5px !important;
-  line-height: 1.05 !important;
+  line-height: 1 !important;
   white-space: normal !important;
 }
 
-.md:fullscreen .md-clock button svg,
-.md:-webkit-full-screen .md-clock button svg,
-body.pf-match-day-focus .md-clock button svg {
-  width: 12px !important;
-  height: 12px !important;
-  flex: 0 0 12px !important;
+html .md:fullscreen .md-clock button svg,
+html .md:-webkit-full-screen .md-clock button svg,
+html body.pf-match-day-focus .md .md-clock button svg {
+  width: 11px !important;
+  height: 11px !important;
+  flex: 0 0 11px !important;
 }
 
-.md:fullscreen .md-fs-score,
-.md:-webkit-full-screen .md-fs-score,
-body.pf-match-day-focus .md-fs-score {
-  top: 6px !important;
-  left: calc(50vw + 150px) !important;
-  right: 12px !important;
+html .md:fullscreen .md-fs-stats,
+html .md:-webkit-full-screen .md-fs-stats,
+html body.pf-match-day-focus .md .md-fs-stats {
+  top: 58px !important;
+}
+
+html .md:fullscreen .md-fs-stats > .md-fs-score,
+html .md:-webkit-full-screen .md-fs-stats > .md-fs-score,
+html body.pf-match-day-focus .md .md-fs-stats > .md-fs-score {
+  position: absolute !important;
+  z-index: 92 !important;
+  top: -50px !important;
+  left: 138px !important;
+  right: 0 !important;
   width: auto !important;
+  display: grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: 6px !important;
+  margin: 0 !important;
+  overflow: visible !important;
 }
 
-.md:fullscreen .md-fs-score button,
-.md:-webkit-full-screen .md-fs-score button,
-body.pf-match-day-focus .md-fs-score button {
+html .md:fullscreen .md-fs-stats > .md-fs-score button,
+html .md:-webkit-full-screen .md-fs-stats > .md-fs-score button,
+html body.pf-match-day-focus .md .md-fs-stats > .md-fs-score button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   min-width: 0 !important;
   min-height: 40px !important;
-  padding: 4px 5px !important;
+  height: 40px !important;
+  padding: 4px !important;
   border-radius: 9px !important;
   font-size: 7px !important;
-  line-height: 1.05 !important;
-}
-
-.md:fullscreen .md-fs-stats,
-.md:-webkit-full-screen .md-fs-stats,
-body.pf-match-day-focus .md-fs-stats {
-  top: 52px !important;
+  line-height: 1 !important;
+  white-space: normal !important;
 }
 
 @media (max-height: 620px) {
-  .md:fullscreen .md-clock,
-  .md:-webkit-full-screen .md-clock,
-  body.pf-match-day-focus .md-clock {
-    top: 5px !important;
-    width: 124px !important;
+  html .md:fullscreen .md-clock,
+  html .md:-webkit-full-screen .md-clock,
+  html body.pf-match-day-focus .md .md-clock {
+    top: 6px !important;
+    width: 120px !important;
     height: 36px !important;
   }
 
-  .md:fullscreen .md-clock button,
-  .md:-webkit-full-screen .md-clock button,
-  body.pf-match-day-focus .md-clock button,
-  .md:fullscreen .md-fs-score button,
-  .md:-webkit-full-screen .md-fs-score button,
-  body.pf-match-day-focus .md-fs-score button {
+  html .md:fullscreen .md-clock button,
+  html .md:-webkit-full-screen .md-clock button,
+  html body.pf-match-day-focus .md .md-clock button {
     min-height: 36px !important;
+    height: 36px !important;
     font-size: 6px !important;
   }
 
-  .md:fullscreen .md-fs-score,
-  .md:-webkit-full-screen .md-fs-score,
-  body.pf-match-day-focus .md-fs-score {
-    top: 5px !important;
-    left: calc(50vw + 142px) !important;
+  html .md:fullscreen .md-fs-stats,
+  html .md:-webkit-full-screen .md-fs-stats,
+  html body.pf-match-day-focus .md .md-fs-stats {
+    top: 54px !important;
   }
 
-  .md:fullscreen .md-fs-stats,
-  .md:-webkit-full-screen .md-fs-stats,
-  body.pf-match-day-focus .md-fs-stats {
-    top: 47px !important;
+  html .md:fullscreen .md-fs-stats > .md-fs-score,
+  html .md:-webkit-full-screen .md-fs-stats > .md-fs-score,
+  html body.pf-match-day-focus .md .md-fs-stats > .md-fs-score {
+    top: -48px !important;
+    left: 132px !important;
+  }
+
+  html .md:fullscreen .md-fs-stats > .md-fs-score button,
+  html .md:-webkit-full-screen .md-fs-stats > .md-fs-score button,
+  html body.pf-match-day-focus .md .md-fs-stats > .md-fs-score button {
+    min-height: 36px !important;
+    height: 36px !important;
+    font-size: 6px !important;
   }
 }
