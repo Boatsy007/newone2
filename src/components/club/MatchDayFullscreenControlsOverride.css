@@ -1,3 +1,22 @@
-/* Match Day fullscreen controls are owned by MatchDayFullscreenControl.tsx.
-   Legacy positioning overrides were removed so there is one toolbar and one
-   layout source for native fullscreen and the iPad fallback mode. */
+/* Keep the original Match Day clock controls and remove only the duplicate
+   Start / Next Quarter buttons rendered by the fullscreen portal. */
+html .md:fullscreen .md-clock,
+html .md:-webkit-full-screen .md-clock,
+html body.pf-match-day-focus .md .md-clock {
+  display: flex !important;
+}
+
+html .md:fullscreen .md-fs-score.md-fs-score-top,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+html .md:fullscreen .md-fs-score.md-fs-score-top > .start,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > .start,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > .start,
+html .md:fullscreen .md-fs-score.md-fs-score-top > .next,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > .next,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > .next {
+  display: none !important;
+}
