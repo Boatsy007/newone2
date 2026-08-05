@@ -6,7 +6,9 @@ html body.pf-match-day-focus .md .md-toolbar {
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
-/* Original Start / Next Quarter controls. */
+/* Original Start / Next Quarter controls. The toolbar itself is transformed in
+   fullscreen, so compensate here and place the original controls on the exact
+   same visual baseline as the scoring row. */
 html .md:fullscreen .md-clock,
 html .md:-webkit-full-screen .md-clock,
 html body.pf-match-day-focus .md .md-clock {
@@ -25,7 +27,7 @@ html body.pf-match-day-focus .md .md-clock {
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
-  transform: none !important;
+  transform: translateY(50px) !important;
   visibility: visible !important;
   pointer-events: auto !important;
 }
@@ -76,7 +78,7 @@ html body.pf-match-day-focus .md .md-fs-stats {
   overflow: visible !important;
 }
 
-/* Existing four scoring controls, directly after Next Quarter. */
+/* Existing four scoring controls. */
 html .md:fullscreen .md-fs-score.md-fs-score-top,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top,
 html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
@@ -117,8 +119,7 @@ html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top button {
   white-space: normal !important;
 }
 
-/* Permanently remove the temporary duplicate proxy buttons. This rule must
-   come after the generic scoring-button rule so it cannot be overridden. */
+/* Permanently remove the temporary duplicate proxy buttons. */
 html .md:fullscreen .md-fs-score.md-fs-score-top > button.start,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button.start,
 html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button.start,
@@ -153,6 +154,7 @@ html body.pf-match-day-focus .md .md-fullscreen-button {
     top: 6px !important;
     width: 144px !important;
     height: 36px !important;
+    transform: translateY(42px) !important;
   }
 
   html .md:fullscreen .md-clock button,
