@@ -4,7 +4,21 @@ html .md:fullscreen .md-clock,
 html .md:-webkit-full-screen .md-clock,
 html body.pf-match-day-focus .md .md-clock {
   display: flex !important;
-  transform: translateY(-8px) !important;
+  transform: none !important;
+}
+
+/* Move the owning fullscreen toolbar up by approximately 2 mm. Counter the
+   scoreboard by the same amount so only Start / Next Quarter visibly move. */
+html .md:fullscreen .md-toolbar,
+html .md:-webkit-full-screen .md-toolbar,
+html body.pf-match-day-focus .md .md-toolbar {
+  top: -1px !important;
+}
+
+html .md:fullscreen .md-scoreboard,
+html .md:-webkit-full-screen .md-scoreboard,
+html body.pf-match-day-focus .md .md-scoreboard {
+  transform: translateY(8px) !important;
 }
 
 html .md:fullscreen .md-fs-score.md-fs-score-top,
