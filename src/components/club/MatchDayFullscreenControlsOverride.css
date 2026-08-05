@@ -10,8 +10,8 @@ html .md:-webkit-full-screen .md-clock,
 html body.pf-match-day-focus .md .md-clock {
   position: fixed !important;
   z-index: 90 !important;
-  top: 8px !important;
-  left: calc(50vw + 12px) !important;
+  top: 0 !important;
+  left: calc(50vw - 48px) !important;
   width: 154px !important;
   height: 42px !important;
   display: grid !important;
@@ -109,7 +109,8 @@ html body.pf-match-day-focus .md .md-fullscreen-button {
   html .md:fullscreen .md-clock,
   html .md:-webkit-full-screen .md-clock,
   html body.pf-match-day-focus .md .md-clock {
-    top: 6px !important;
+    top: 0 !important;
+    left: calc(50vw - 48px) !important;
     width: 144px !important;
     height: 36px !important;
   }
