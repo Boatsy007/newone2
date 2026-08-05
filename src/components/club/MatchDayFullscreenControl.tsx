@@ -35,11 +35,21 @@ export default function MatchDayFullscreenControl(){
    const q=Number((document.querySelector<HTMLElement>('.md-clock>span')?.textContent||'Q1').replace(/\D/g,''))
    if(q>=1&&q<=4)setQuarter(q)
   }
-  const sync=()=>{const doc=document as FullscreenDocument;setActive(Boolean(document.fullscreenElement||doc.webkitFullscreenElement||document.body.classList.contains('pf-match-day-focus')));attach()}
+  const sync=()=>{
+   const doc=document as FullscreenDocument
+   const live=document.body.classList.contains('pf-match-day-live')
+   if(live){
+    document.body.classList.add('pf-match-day-focus')
+    document.documentElement.classList.add('pf-match-day-focus-root')
+   }
+   setActive(Boolean(document.fullscreenElement||doc.webkitFullscreenElement||live||document.body.classList.contains('pf-match-day-focus')))
+   attach()
+  }
   attach()
-  const observer=new MutationObserver(attach);observer.observe(document.body,{childList:true,subtree:true,characterData:true})
-  document.addEventListener('change',attach,true);document.addEventListener('fullscreenchange',sync);document.addEventListener('webkitfullscreenchange',sync as EventListener)
-  return()=>{mounted=false;observer.disconnect();document.removeEventListener('change',attach,true);document.removeEventListener('fullscreenchange',sync);document.removeEventListener('webkitfullscreenchange',sync as EventListener);document.getElementById('pf-match-day-fullscreen-host')?.remove();document.body.classList.remove('pf-match-day-focus')}
+  sync()
+  const observer=new MutationObserver(sync);observer.observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class']})
+  document.addEventListener('change',attach,true);document.addEventListener('fullscreenchange',sync);document.addEventListener('webkitfullscreenchange',sync as EventListener);window.addEventListener('playfooty:matchday-focus',sync as EventListener)
+  return()=>{mounted=false;observer.disconnect();document.removeEventListener('change',attach,true);document.removeEventListener('fullscreenchange',sync);document.removeEventListener('webkitfullscreenchange',sync as EventListener);window.removeEventListener('playfooty:matchday-focus',sync as EventListener);document.getElementById('pf-match-day-fullscreen-host')?.remove();if(!document.body.classList.contains('pf-match-day-live'))document.body.classList.remove('pf-match-day-focus')}
  },[])
  useEffect(()=>{try{setStats(JSON.parse(localStorage.getItem(key)||'{}'))}catch{setStats({})}},[key])
 
@@ -47,18 +57,33 @@ export default function MatchDayFullscreenControl(){
   if(!board)return
   const doc=document as FullscreenDocument
   const fullscreen=Boolean(document.fullscreenElement||doc.webkitFullscreenElement)
-  if(fullscreen||document.body.classList.contains('pf-match-day-focus')){
-   if(fullscreen){if(document.exitFullscreen)await document.exitFullscreen().catch(()=>{});else await Promise.resolve(doc.webkitExitFullscreen?.()).catch(()=>{})}
+  const live=document.body.classList.contains('pf-match-day-live')
+  if(fullscreen){
+   if(document.exitFullscreen)await document.exitFullscreen().catch(()=>{})
+   else await Promise.resolve(doc.webkitExitFullscreen?.()).catch(()=>{})
+   if(live){
+    document.body.classList.add('pf-match-day-focus')
+    document.documentElement.classList.add('pf-match-day-focus-root')
+    setActive(true)
+    window.dispatchEvent(new CustomEvent('playfooty:matchday-focus',{detail:{active:true}}))
+    window.dispatchEvent(new Event('resize'))
+    return
+   }
+  }
+  if(document.body.classList.contains('pf-match-day-focus')&&!live){
    document.body.classList.remove('pf-match-day-focus')
    ;(screen.orientation as OrientationLock|undefined)?.unlock?.()
    setActive(false)
    return
   }
-
-  // Enter the locked Match Day layout immediately. Native fullscreen is a
-  // best-effort enhancement because iPad Safari can reject or exit it.
-  document.body.classList.add('pf-match-day-focus')
-  setActive(true)
+  if(live){
+   document.body.classList.add('pf-match-day-focus')
+   document.documentElement.classList.add('pf-match-day-focus-root')
+   setActive(true)
+  }else{
+   document.body.classList.add('pf-match-day-focus')
+   setActive(true)
+  }
 
   try{
    if(board.requestFullscreen)await board.requestFullscreen({navigationUI:'hide'}).catch(()=>board.requestFullscreen())
@@ -73,7 +98,7 @@ export default function MatchDayFullscreenControl(){
  const current=stats[String(quarter)]||blank()
  if(!host)return null
  return <>
-  {createPortal(<button className="md-fullscreen-button" type="button" onClick={()=>void toggle()} aria-label={active?'Exit full screen':'Open Match Day full screen'}>{active?<Minimize2 size={17}/>:<Expand size={17}/>}<span>{active?'Exit full screen':'Full screen'}</span></button>,host)}
+  {createPortal(<button className="md-fullscreen-button" type="button" onClick={()=>void toggle()} aria-label={document.fullscreenElement?'Exit full screen':'Open Match Day full screen'}>{document.fullscreenElement?<Minimize2 size={17}/>:<Expand size={17}/>}<span>{document.fullscreenElement?'Exit full screen':'Full screen'}</span></button>,host)}
   {active&&board&&createPortal(<>
    <section className="md-fs-stats">
     <div className="md-fs-tabs">{[1,2,3,4].map(q=><button key={q} className={quarter===q?'active':''} onClick={()=>setQuarter(q)}>Q{q}</button>)}</div>
