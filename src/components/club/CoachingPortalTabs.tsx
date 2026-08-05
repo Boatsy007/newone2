@@ -20,6 +20,7 @@ import MatchDayLiveSync from './MatchDayLiveSync'
 import PublicLiveMatchPortal from './PublicLiveMatchPortal'
 import MatchDayGameSummaryOverlay from './MatchDayGameSummaryOverlay'
 import MatchDayFullscreenControl from './MatchDayFullscreenControl'
+import MatchDayFullscreenFitEnhancer from './MatchDayFullscreenFitEnhancer'
 
 const COACHING_SECTIONS=new Set(['coaching','availability','team-selection','whiteboard','users'])
 
@@ -48,7 +49,7 @@ export default function CoachingPortalTabs(){
  if(overlay)return <>{globalLayers}{createPortal(<div className="coach-workspace-layer">{mobileMenu}<div className="coach-workspace-content"><Routes><Route path="/club-portal/:clubId/coaching" element={
   home?<CoachingAppHome/>:
   teamHub?<CoachingTeamHub/>:
-  matchDay?<><ClubPortalMatchDay/><PostMatchReviewPanel clubId={clubId}/><MatchDayGamePlanPanel clubId={clubId}/><LiveMatchReportPanel clubId={clubId}/><MatchDayCreativeReportOption/><MatchDayGameSummaryOverlay clubId={clubId}/><MatchDayFullscreenControl/></>:
+  matchDay?<><ClubPortalMatchDay/><PostMatchReviewPanel clubId={clubId}/><MatchDayGamePlanPanel clubId={clubId}/><LiveMatchReportPanel clubId={clubId}/><MatchDayCreativeReportOption/><MatchDayGameSummaryOverlay clubId={clubId}/><MatchDayFullscreenControl/><MatchDayFullscreenFitEnhancer/></>:
   trainingPlan?<ClubPortalTrainingPlanner/>:
   opposition?<ClubPortalOpposition/>:
   playerDevelopment?<ClubPortalPlayerDevelopment/>:
