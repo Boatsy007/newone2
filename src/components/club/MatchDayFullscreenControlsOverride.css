@@ -1,10 +1,50 @@
-/* Keep the portal's single Start / Next Quarter controls and position them
-   around the centre scoreboard timer. Keep the four scoring controls in their
-   existing row above the statistics panel. */
+/* Use the original Match Day clock controls in fullscreen. The duplicate
+   Start / Next Quarter buttons in the fullscreen score portal stay hidden. */
 html .md:fullscreen .md-clock,
 html .md:-webkit-full-screen .md-clock,
 html body.pf-match-day-focus .md .md-clock {
+  display: contents !important;
+}
+
+/* The centre scoreboard already shows the quarter timer, so keep the original
+   clock text hidden and position only its two real buttons around that timer. */
+html .md:fullscreen .md-clock > span,
+html .md:-webkit-full-screen .md-clock > span,
+html body.pf-match-day-focus .md .md-clock > span {
   display: none !important;
+}
+
+html .md:fullscreen .md-clock > button,
+html .md:-webkit-full-screen .md-clock > button,
+html body.pf-match-day-focus .md .md-clock > button {
+  position: fixed !important;
+  z-index: 110 !important;
+  left: calc(25vw - 38px) !important;
+  width: 76px !important;
+  min-width: 76px !important;
+  max-width: 76px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+  margin: 0 !important;
+  padding: 2px 5px !important;
+  border-radius: 7px !important;
+  font-size: 6px !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+  transform: none !important;
+}
+
+html .md:fullscreen .md-clock > button:nth-of-type(1),
+html .md:-webkit-full-screen .md-clock > button:nth-of-type(1),
+html body.pf-match-day-focus .md .md-clock > button:nth-of-type(1) {
+  top: 68px !important;
+}
+
+html .md:fullscreen .md-clock > button:nth-of-type(2),
+html .md:-webkit-full-screen .md-clock > button:nth-of-type(2),
+html body.pf-match-day-focus .md .md-clock > button:nth-of-type(2) {
+  top: 122px !important;
 }
 
 html body .md:fullscreen .md-toolbar,
@@ -25,45 +65,27 @@ html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > .start,
 html .md:fullscreen .md-fs-score.md-fs-score-top > .next,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > .next,
 html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > .next {
-  position: fixed !important;
-  z-index: 110 !important;
-  left: calc(25vw - 38px) !important;
-  width: 76px !important;
-  min-width: 76px !important;
-  max-width: 76px !important;
-  height: 24px !important;
-  min-height: 24px !important;
-  max-height: 24px !important;
-  margin: 0 !important;
-  padding: 2px 5px !important;
-  border-radius: 7px !important;
-  font-size: 6px !important;
-  line-height: 1 !important;
-  transform: none !important;
-}
-
-html .md:fullscreen .md-fs-score.md-fs-score-top > .start,
-html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > .start,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > .start {
-  top: 68px !important;
-}
-
-html .md:fullscreen .md-fs-score.md-fs-score-top > .next,
-html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > .next,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > .next {
-  top: 122px !important;
+  display: none !important;
 }
 
 @media (max-height: 620px) {
-  html .md:fullscreen .md-fs-score.md-fs-score-top > .start,
-  html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > .start,
-  html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > .start {
+  html .md:fullscreen .md-clock > button,
+  html .md:-webkit-full-screen .md-clock > button,
+  html body.pf-match-day-focus .md .md-clock > button {
+    height: 22px !important;
+    min-height: 22px !important;
+    max-height: 22px !important;
+  }
+
+  html .md:fullscreen .md-clock > button:nth-of-type(1),
+  html .md:-webkit-full-screen .md-clock > button:nth-of-type(1),
+  html body.pf-match-day-focus .md .md-clock > button:nth-of-type(1) {
     top: 56px !important;
   }
 
-  html .md:fullscreen .md-fs-score.md-fs-score-top > .next,
-  html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > .next,
-  html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > .next {
+  html .md:fullscreen .md-clock > button:nth-of-type(2),
+  html .md:-webkit-full-screen .md-clock > button:nth-of-type(2),
+  html body.pf-match-day-focus .md .md-clock > button:nth-of-type(2) {
     top: 104px !important;
   }
 }
