@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BrainCircuit } from 'lucide-react'
+import MatchDayAIAssistant from './MatchDayAIAssistant'
 
 type FullscreenDocument=Document&{webkitFullscreenElement?:Element|null}
 
@@ -23,7 +23,7 @@ export default function MatchDayFullscreenFitEnhancer(){
   return()=>{mounted=false;observer.disconnect();document.removeEventListener('fullscreenchange',sync);document.removeEventListener('webkitfullscreenchange',sync as EventListener)}
  },[])
  return <>
-  {active&&board&&createPortal(<section className="md-ai-coach-placeholder" aria-label="AI assistant coach coming soon"><BrainCircuit size={42}/><strong>AI Assistant Coach</strong><span>Live recommendations will appear here.</span></section>,board)}
+  {active&&board&&createPortal(<section className="md-ai-coach-placeholder" aria-label="AI assistant coach"><MatchDayAIAssistant/></section>,board)}
   <style>{styles}</style>
  </>
 }
@@ -58,6 +58,6 @@ const styles=`
 .md:fullscreen .md-fs-score,.md:-webkit-full-screen .md-fs-score,body.pf-match-day-focus .md-fs-score{top:8px!important;right:12px!important;width:calc(50vw - 76px)!important;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important;z-index:78!important}
 .md:fullscreen .md-fs-score button,.md:-webkit-full-screen .md-fs-score button,body.pf-match-day-focus .md-fs-score button{min-height:45px!important;padding:7px 9px!important;border-radius:10px!important;font-size:9px!important;box-shadow:0 6px 16px rgba(0,0,0,.25)!important}
 .md:fullscreen .md-fs-stats,.md:-webkit-full-screen .md-fs-stats,body.pf-match-day-focus .md-fs-stats{top:66px!important;height:calc(50vh - 74px)!important;min-height:0!important}
-.md-ai-coach-placeholder{position:absolute;z-index:64;right:12px;bottom:14px;width:calc(50vw - 24px);height:calc(50vh - 78px);display:grid;place-content:center;justify-items:center;gap:8px;border:1px dashed #43515c;border-radius:14px;background:rgba(5,12,19,.72);color:#667480;text-align:center;pointer-events:none}.md-ai-coach-placeholder strong{font-family:'Bebas Neue',Impact,sans-serif;font-size:27px;letter-spacing:.04em;text-transform:uppercase}.md-ai-coach-placeholder span{font-size:11px}
+.md-ai-coach-placeholder{position:absolute;z-index:64;right:12px;bottom:14px;width:calc(50vw - 24px);height:calc(50vh - 78px);display:block;border:1px solid #314654;border-radius:14px;background:rgba(5,12,19,.9);color:#667480;text-align:left;pointer-events:auto;overflow:hidden}
 @media(max-height:620px){.md:fullscreen .md-ground-wrap,.md:-webkit-full-screen .md-ground-wrap,body.pf-match-day-focus .md-ground-wrap{inset:112px 10px 126px 10px!important;transform:translateY(6px)!important}.md:fullscreen .md-ground,.md:-webkit-full-screen .md-ground,body.pf-match-day-focus .md-ground{width:min(37vw,47vh)!important;max-height:calc(100vh - 238px)!important}.md:fullscreen .md-bench-head,.md:-webkit-full-screen .md-bench-head,body.pf-match-day-focus .md-bench-head{bottom:101px!important}.md:fullscreen .md-bench,.md:-webkit-full-screen .md-bench,body.pf-match-day-focus .md-bench{bottom:17px!important;padding:6px!important}.md:fullscreen .md-toolbar,.md:-webkit-full-screen .md-toolbar,body.pf-match-day-focus .md-toolbar{min-height:94px!important;grid-template-columns:100px minmax(0,1fr)!important}.md:fullscreen .md-scoreboard strong,.md:-webkit-full-screen .md-scoreboard strong,body.pf-match-day-focus .md-scoreboard strong{font-size:48px!important}.md:fullscreen .md-fs-score,.md:-webkit-full-screen .md-fs-score,body.pf-match-day-focus .md-fs-score{top:6px!important}.md:fullscreen .md-fs-stats,.md:-webkit-full-screen .md-fs-stats,body.pf-match-day-focus .md-fs-stats{top:60px!important;height:calc(50vh - 66px)!important}.md-ai-coach-placeholder{bottom:10px;height:calc(50vh - 70px)}}
 `
