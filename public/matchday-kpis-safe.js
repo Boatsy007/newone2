@@ -59,7 +59,7 @@
     tab.textContent = "KPI's"
     tab.removeAttribute('aria-expanded')
     tab.removeAttribute('aria-controls')
-    gamePlanTab.insertAdjacentElement('beforebegin', tab)
+    gamePlanTab.insertAdjacentElement('afterend', tab)
 
     const drawer = document.createElement('aside')
     drawer.id = 'pf-kpi-drawer'
