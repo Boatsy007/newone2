@@ -26,32 +26,6 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
     const host = hostRef.current
     if (!host) return
 
-    const placeTabs = (board: HTMLElement) => {
-      const buttons = [...board.querySelectorAll<HTMLButtonElement>('button')]
-      const tabs = [
-        { match: 'KPI', top: 74 },
-        { match: 'GAMEPLAN', top: 188 },
-        { match: 'WHITEBOARD', top: 302 },
-      ]
-
-      tabs.forEach(({ match, top }) => {
-        const button = buttons.find(item => normalise(item.textContent || '').includes(match))
-        if (!button) return
-        button.style.setProperty('display', 'flex', 'important')
-        button.style.setProperty('position', 'absolute', 'important')
-        button.style.setProperty('z-index', '95', 'important')
-        button.style.setProperty('left', '8px', 'important')
-        button.style.setProperty('top', `${top}px`, 'important')
-        button.style.setProperty('width', '48px', 'important')
-        button.style.setProperty('height', '104px', 'important')
-        button.style.setProperty('min-width', '48px', 'important')
-        button.style.setProperty('min-height', '104px', 'important')
-        button.style.setProperty('margin', '0', 'important')
-        button.style.setProperty('writing-mode', 'vertical-rl', 'important')
-        button.style.setProperty('transform', 'rotate(180deg)', 'important')
-      })
-    }
-
     const fitCanonicalLayout = () => {
       if (!mounted) return
       window.cancelAnimationFrame(frame)
@@ -62,12 +36,13 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
 
         document.body.classList.add('pf-match-day-focus')
         document.documentElement.classList.add('pf-match-day-focus-root')
-        placeTabs(board)
 
         const doc = document as FullscreenDocument
         const nativeFullscreen = Boolean(document.fullscreenElement || doc.webkitFullscreenElement)
+        host.classList.toggle('native-fullscreen', nativeFullscreen)
+
         if (nativeFullscreen) {
-          host.style.height = '100dvh'
+          host.style.removeProperty('height')
           board.style.removeProperty('position')
           board.style.removeProperty('left')
           board.style.removeProperty('top')
@@ -91,7 +66,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
         const leftInset = Math.max(0, rect.left)
         const topInset = Math.max(0, rect.top - viewportTop)
         const availableWidth = Math.max(1, Math.min(rect.width || viewportWidth, viewportWidth - leftInset))
-        const availableHeight = Math.max(1, viewportHeight - topInset)
+        const availableHeight = Math.max(1, viewportHeight - topInset - 10)
         const safeScale = Math.max(0.1, Math.min(availableWidth / LIVE_WIDTH, availableHeight / LIVE_HEIGHT))
 
         host.style.height = `${availableHeight}px`
@@ -119,22 +94,25 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
       const board = host.querySelector<FullscreenElement>('.md')
       if (!board) return
       const doc = document as FullscreenDocument
+
       try {
         if (document.fullscreenElement || doc.webkitFullscreenElement) {
           if (document.exitFullscreen) await document.exitFullscreen()
           else await Promise.resolve(doc.webkitExitFullscreen?.())
         } else if (board.requestFullscreen) {
           await board.requestFullscreen({ navigationUI: 'hide' }).catch(() => board.requestFullscreen())
-        } else {
-          await Promise.resolve(board.webkitRequestFullscreen?.())
+        } else if (board.webkitRequestFullscreen) {
+          await Promise.resolve(board.webkitRequestFullscreen())
         }
       } catch {
-        // Keep the scaled canonical layout active when iPad Safari refuses native fullscreen.
+        // iPad Safari may refuse native fullscreen; the fitted live layout remains usable.
       }
-      fitCanonicalLayout()
+
+      window.setTimeout(fitCanonicalLayout, 40)
     }
 
     fitCanonicalLayout()
+
     const observer = new ResizeObserver(fitCanonicalLayout)
     observer.observe(host)
     const mutationObserver = new MutationObserver(fitCanonicalLayout)
@@ -184,35 +162,43 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           overflow: hidden;
           background: #07111c;
         }
-        .md-canonical-live-host > .md { overflow: hidden !important; }
 
-        body.pf-match-day-focus .md {
+        .md-canonical-live-host:not(.native-fullscreen) > .md {
+          overflow: hidden !important;
+        }
+
+        .md-canonical-live-host:not(.native-fullscreen) .md {
           width: 1024px !important;
           height: 768px !important;
           min-width: 1024px !important;
           min-height: 768px !important;
         }
-        body.pf-match-day-focus .md-layout { width: 1024px !important; height: 768px !important; }
-        body.pf-match-day-focus .md-field-panel,
-        body.pf-match-day-focus .md-ground-wrap { width: 512px !important; height: 768px !important; }
 
-        body.pf-match-day-focus .md-toolbar {
+        .md-canonical-live-host:not(.native-fullscreen) .md-layout {
+          width: 1024px !important;
+          height: 768px !important;
+        }
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-toolbar {
           top: 6px !important;
           left: 256px !important;
           width: 492px !important;
           max-width: 492px !important;
         }
-        body.pf-match-day-focus .md-clock {
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-clock {
           left: 524px !important;
           width: 132px !important;
         }
-        body.pf-match-day-focus .md-fs-score {
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-fs-score {
           top: 6px !important;
           left: 674px !important;
           right: 12px !important;
           width: auto !important;
         }
-        body.pf-match-day-focus .md-fs-stats {
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-fs-stats {
           display: block !important;
           visibility: visible !important;
           opacity: 1 !important;
@@ -226,7 +212,8 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           min-height: 0 !important;
           overflow: hidden !important;
         }
-        body.pf-match-day-focus .md-ai-coach-placeholder {
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-ai-coach-placeholder {
           position: absolute !important;
           left: 524px !important;
           right: auto !important;
@@ -234,21 +221,27 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           width: 488px !important;
           height: 374px !important;
         }
-        body.pf-match-day-focus .md-ground-wrap {
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-ground-wrap {
           inset: 124px 10px 142px 10px !important;
           width: auto !important;
           height: auto !important;
         }
-        body.pf-match-day-focus .md-ground {
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-ground {
           width: 399px !important;
           max-height: 498px !important;
         }
-        body.pf-match-day-focus .md-bench {
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-bench {
           left: 14px !important;
           right: 14px !important;
           bottom: 25px !important;
         }
-        body.pf-match-day-focus .md-bench-head { bottom: 116px !important; }
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-bench-head {
+          bottom: 116px !important;
+        }
       `}</style>
     </div>
   )
