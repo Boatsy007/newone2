@@ -96,16 +96,6 @@ html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
   transform: none !important;
 }
 
-/* Hide the temporary duplicate Start / Next Quarter proxy buttons. */
-html .md:fullscreen .md-fs-score.md-fs-score-top .start,
-html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .start,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .start,
-html .md:fullscreen .md-fs-score.md-fs-score-top .next,
-html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .next,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .next {
-  display: none !important;
-}
-
 html .md:fullscreen .md-fs-score.md-fs-score-top button,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top button,
 html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top button {
@@ -125,6 +115,28 @@ html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top button {
   line-height: 1 !important;
   text-transform: uppercase !important;
   white-space: normal !important;
+}
+
+/* Permanently remove the temporary duplicate proxy buttons. This rule must
+   come after the generic scoring-button rule so it cannot be overridden. */
+html .md:fullscreen .md-fs-score.md-fs-score-top > button.start,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button.start,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button.start,
+html .md:fullscreen .md-fs-score.md-fs-score-top > button.next,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button.next,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button.next {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  flex: 0 0 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
 }
 
 /* The fullscreen Live Match already has its own exit control. */
@@ -172,5 +184,21 @@ html body.pf-match-day-focus .md .md-fullscreen-button {
     min-height: 36px !important;
     height: 36px !important;
     font-size: 6px !important;
+  }
+
+  html .md:fullscreen .md-fs-score.md-fs-score-top > button.start,
+  html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button.start,
+  html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button.start,
+  html .md:fullscreen .md-fs-score.md-fs-score-top > button.next,
+  html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button.next,
+  html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button.next {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    flex: 0 0 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 }
