@@ -1,5 +1,4 @@
-/* Fullscreen match controls: the scoring controls live inside the stats panel,
-   so position them relative to that panel rather than the viewport. */
+/* Fullscreen match controls: keep every match action in one compact row above the stats. */
 html .md:fullscreen .md-toolbar,
 html .md:-webkit-full-screen .md-toolbar,
 html body.pf-match-day-focus .md .md-toolbar {
@@ -60,7 +59,8 @@ html body.pf-match-day-focus .md .md-clock button svg {
 html .md:fullscreen .md-fs-stats,
 html .md:-webkit-full-screen .md-fs-stats,
 html body.pf-match-day-focus .md .md-fs-stats {
-  top: 58px !important;
+  top: 62px !important;
+  overflow: visible !important;
 }
 
 html .md:fullscreen .md-fs-stats > .md-fs-score,
@@ -68,7 +68,7 @@ html .md:-webkit-full-screen .md-fs-stats > .md-fs-score,
 html body.pf-match-day-focus .md .md-fs-stats > .md-fs-score {
   position: absolute !important;
   z-index: 92 !important;
-  top: -50px !important;
+  top: -54px !important;
   left: 138px !important;
   right: 0 !important;
   width: auto !important;
@@ -115,13 +115,14 @@ html body.pf-match-day-focus .md .md-fs-stats > .md-fs-score button {
   html .md:fullscreen .md-fs-stats,
   html .md:-webkit-full-screen .md-fs-stats,
   html body.pf-match-day-focus .md .md-fs-stats {
-    top: 54px !important;
+    top: 58px !important;
+    overflow: visible !important;
   }
 
   html .md:fullscreen .md-fs-stats > .md-fs-score,
   html .md:-webkit-full-screen .md-fs-stats > .md-fs-score,
   html body.pf-match-day-focus .md .md-fs-stats > .md-fs-score {
-    top: -48px !important;
+    top: -52px !important;
     left: 132px !important;
   }
 
