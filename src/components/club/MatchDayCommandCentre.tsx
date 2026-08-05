@@ -3,8 +3,14 @@ import './MatchDayFullscreenControlsOverride.css'
 
 const LIVE_WIDTH = 1024
 const LIVE_HEIGHT = 768
-const MAX_LOADING_TIME = 30000
-const MIN_LOADING_TIME = 700
+const LOADING_STAGE_TIME = 7000
+const TOTAL_LOADING_TIME = LOADING_STAGE_TIME * 3
+
+const loadingStages = [
+  'LOADING LIVE TEAM',
+  'LOADING GAME PLAN',
+  'LOADING AI ASSISTANT COACH',
+]
 
 type FullscreenDocument = Document & {
   webkitFullscreenElement?: Element | null
@@ -22,39 +28,13 @@ function normalise(value: string) {
 export default function MatchDayCommandCentre({ children }: { children: ReactNode }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingStage, setLoadingStage] = useState(0)
 
   useEffect(() => {
     let mounted = true
     let frame = 0
-    let readyTimer = 0
-    const startedAt = Date.now()
     const host = hostRef.current
     if (!host) return
-
-    const checkReady = () => {
-      if (!mounted || !loading) return
-
-      const board = host.querySelector<HTMLElement>('.md')
-      const requiredElements = [
-        board,
-        board?.querySelector('.md-scoreboard'),
-        board?.querySelector('.md-ground'),
-        board?.querySelector('.md-bench'),
-        board?.querySelector('.md-fs-stats'),
-        board?.querySelector('.md-ai-coach-placeholder'),
-      ]
-
-      const allPresent = requiredElements.every(Boolean)
-      const minimumTimePassed = Date.now() - startedAt >= MIN_LOADING_TIME
-      const timedOut = Date.now() - startedAt >= MAX_LOADING_TIME
-
-      if ((allPresent && minimumTimePassed) || timedOut) {
-        window.clearTimeout(readyTimer)
-        readyTimer = window.setTimeout(() => {
-          if (mounted) setLoading(false)
-        }, allPresent ? 350 : 0)
-      }
-    }
 
     const fitCanonicalLayout = () => {
       if (!mounted) return
@@ -62,10 +42,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
       frame = window.requestAnimationFrame(() => {
         if (!mounted) return
         const board = host.querySelector<HTMLElement>('.md')
-        if (!board) {
-          checkReady()
-          return
-        }
+        if (!board) return
 
         document.body.classList.add('pf-match-day-focus')
         document.documentElement.classList.add('pf-match-day-focus-root')
@@ -88,7 +65,6 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           board.style.removeProperty('margin')
           board.style.removeProperty('transform')
           board.style.removeProperty('transform-origin')
-          checkReady()
           return
         }
 
@@ -116,7 +92,6 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
         board.style.margin = '0'
         board.style.transform = `translateX(-50%) scale(${safeScale})`
         board.style.transformOrigin = 'top center'
-        checkReady()
       })
     }
 
@@ -150,10 +125,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
 
     const observer = new ResizeObserver(fitCanonicalLayout)
     observer.observe(host)
-    const mutationObserver = new MutationObserver(() => {
-      fitCanonicalLayout()
-      checkReady()
-    })
+    const mutationObserver = new MutationObserver(fitCanonicalLayout)
     mutationObserver.observe(host, { childList: true, subtree: true })
 
     host.addEventListener('click', handleFullscreenButton, true)
@@ -167,10 +139,9 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
     const retryA = window.setTimeout(fitCanonicalLayout, 60)
     const retryB = window.setTimeout(fitCanonicalLayout, 240)
     const retryC = window.setTimeout(fitCanonicalLayout, 700)
-    const readyPoll = window.setInterval(checkReady, 250)
-    const forceReady = window.setTimeout(() => {
-      if (mounted) setLoading(false)
-    }, MAX_LOADING_TIME)
+    const stageTwo = window.setTimeout(() => mounted && setLoadingStage(1), LOADING_STAGE_TIME)
+    const stageThree = window.setTimeout(() => mounted && setLoadingStage(2), LOADING_STAGE_TIME * 2)
+    const finishLoading = window.setTimeout(() => mounted && setLoading(false), TOTAL_LOADING_TIME)
 
     return () => {
       mounted = false
@@ -178,9 +149,9 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
       window.clearTimeout(retryA)
       window.clearTimeout(retryB)
       window.clearTimeout(retryC)
-      window.clearTimeout(readyTimer)
-      window.clearTimeout(forceReady)
-      window.clearInterval(readyPoll)
+      window.clearTimeout(stageTwo)
+      window.clearTimeout(stageThree)
+      window.clearTimeout(finishLoading)
       observer.disconnect()
       mutationObserver.disconnect()
       host.removeEventListener('click', handleFullscreenButton, true)
@@ -193,7 +164,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
       document.body.classList.remove('pf-match-day-focus')
       document.documentElement.classList.remove('pf-match-day-focus-root')
     }
-  }, [loading])
+  }, [])
 
   return (
     <div ref={hostRef} className="md-canonical-live-host">
@@ -201,9 +172,9 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
       {loading && (
         <div className="md-live-loading-overlay" role="status" aria-live="polite">
           <div className="md-live-loading-card">
+            <div className="md-live-loading-ring" aria-hidden="true" />
             <span>PLAYFOOTY COACHING</span>
-            <strong>LOADING LIVE MATCH</strong>
-            <p>Preparing the team sheet, live stats and coaching tools.</p>
+            <strong key={loadingStage}>{loadingStages[loadingStage]}</strong>
             <small>Live data can take up to 30 seconds to load.</small>
           </div>
         </div>
@@ -230,7 +201,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
 
         .md-live-loading-card {
           width: min(420px, calc(100% - 40px));
-          padding: 42px 34px;
+          padding: 38px 34px 42px;
           border-radius: 22px;
           background: #f7f7f4;
           color: #0b1118;
@@ -238,9 +209,23 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           box-shadow: 0 24px 60px rgba(0, 0, 0, .34);
         }
 
+        .md-live-loading-ring {
+          width: 46px;
+          height: 46px;
+          margin: 0 auto 22px;
+          border: 5px solid rgba(22, 142, 212, .2);
+          border-top-color: #168ed4;
+          border-radius: 50%;
+          animation: md-live-loading-spin .8s linear infinite;
+        }
+
+        @keyframes md-live-loading-spin {
+          to { transform: rotate(360deg); }
+        }
+
         .md-live-loading-card span {
           display: block;
-          margin-bottom: 8px;
+          margin-bottom: 9px;
           color: #168ed4;
           font-size: 11px;
           font-weight: 900;
@@ -249,20 +234,21 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
 
         .md-live-loading-card strong {
           display: block;
-          font-size: clamp(30px, 5vw, 48px);
-          line-height: .95;
+          min-height: 92px;
+          font-size: clamp(29px, 5vw, 46px);
+          line-height: .98;
           letter-spacing: -.035em;
+          animation: md-live-stage-in .28s ease-out;
         }
 
-        .md-live-loading-card p {
-          margin: 20px auto 8px;
-          max-width: 330px;
-          color: #343b43;
-          font-size: 15px;
-          line-height: 1.45;
+        @keyframes md-live-stage-in {
+          from { opacity: 0; transform: translateY(5px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
         .md-live-loading-card small {
+          display: block;
+          margin-top: 16px;
           color: #6f7780;
           font-size: 12px;
         }
