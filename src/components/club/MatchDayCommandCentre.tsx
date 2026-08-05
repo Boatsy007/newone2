@@ -11,16 +11,36 @@ export default function MatchDayCommandCentre({children}:{children:ReactNode}){
 
  useEffect(()=>{
   if(!launched)return
+  let restoring=false
   const applyLiveLayout=()=>{
+   if(restoring)return
+   restoring=true
    document.body.classList.add('pf-match-day-live','pf-match-day-focus')
    document.documentElement.classList.add('pf-match-day-focus-root')
+   window.requestAnimationFrame(()=>{
+    document.dispatchEvent(new Event('fullscreenchange'))
+    window.dispatchEvent(new CustomEvent('playfooty:matchday-focus',{detail:{active:true}}))
+    window.dispatchEvent(new Event('resize'))
+    restoring=false
+   })
+  }
+  const restoreAfterFullscreenChange=()=>{
+   applyLiveLayout()
+   window.setTimeout(applyLiveLayout,40)
+   window.setTimeout(applyLiveLayout,160)
   }
   applyLiveLayout()
-  document.addEventListener('fullscreenchange',applyLiveLayout)
-  document.addEventListener('webkitfullscreenchange',applyLiveLayout as EventListener)
+  const classObserver=new MutationObserver(()=>{
+   if(!document.body.classList.contains('pf-match-day-focus')||!document.documentElement.classList.contains('pf-match-day-focus-root'))applyLiveLayout()
+  })
+  classObserver.observe(document.body,{attributes:true,attributeFilter:['class']})
+  classObserver.observe(document.documentElement,{attributes:true,attributeFilter:['class']})
+  document.addEventListener('fullscreenchange',restoreAfterFullscreenChange)
+  document.addEventListener('webkitfullscreenchange',restoreAfterFullscreenChange as EventListener)
   return()=>{
-   document.removeEventListener('fullscreenchange',applyLiveLayout)
-   document.removeEventListener('webkitfullscreenchange',applyLiveLayout as EventListener)
+   classObserver.disconnect()
+   document.removeEventListener('fullscreenchange',restoreAfterFullscreenChange)
+   document.removeEventListener('webkitfullscreenchange',restoreAfterFullscreenChange as EventListener)
   }
  },[launched])
 
@@ -30,11 +50,14 @@ export default function MatchDayCommandCentre({children}:{children:ReactNode}){
  },[])
 
  async function launch(){
-  // Open the canonical Live Match layout first. Fullscreen is only a larger
-  // presentation of this same layout, never a separate arrangement.
+  // Open the one canonical Live Match layout first. Native fullscreen only
+  // enlarges this same layout; leaving native fullscreen must not restore the
+  // old Match Day arrangement.
   flushSync(()=>setLaunched(true))
   document.body.classList.add('pf-match-day-live','pf-match-day-focus')
   document.documentElement.classList.add('pf-match-day-focus-root')
+  document.dispatchEvent(new Event('fullscreenchange'))
+  window.dispatchEvent(new CustomEvent('playfooty:matchday-focus',{detail:{active:true}}))
 
   const board=document.querySelector<HTMLElement>('.md')
   let nativeFullscreen=false
@@ -50,6 +73,8 @@ export default function MatchDayCommandCentre({children}:{children:ReactNode}){
    }catch{}
   }
 
+  document.body.classList.add('pf-match-day-live','pf-match-day-focus')
+  document.documentElement.classList.add('pf-match-day-focus-root')
   document.dispatchEvent(new Event('fullscreenchange'))
   window.dispatchEvent(new CustomEvent('playfooty:matchday-focus',{detail:{active:true,nativeFullscreen}}))
   window.requestAnimationFrame(()=>{
@@ -58,6 +83,8 @@ export default function MatchDayCommandCentre({children}:{children:ReactNode}){
    window.scrollTo(0,0)
   })
   window.setTimeout(()=>{
+   document.body.classList.add('pf-match-day-live','pf-match-day-focus')
+   document.documentElement.classList.add('pf-match-day-focus-root')
    document.dispatchEvent(new Event('fullscreenchange'))
    window.dispatchEvent(new Event('resize'))
   },120)
