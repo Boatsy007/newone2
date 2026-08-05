@@ -9,14 +9,33 @@ type FullscreenElement=HTMLElement&{webkitRequestFullscreen?:()=>Promise<void>|v
 export default function MatchDayCommandCentre({children}:{children:ReactNode}){
  const[launched,setLaunched]=useState(false)
 
+ useEffect(()=>{
+  if(!launched)return
+  const applyLiveLayout=()=>{
+   document.body.classList.add('pf-match-day-live','pf-match-day-focus')
+   document.documentElement.classList.add('pf-match-day-focus-root')
+  }
+  applyLiveLayout()
+  document.addEventListener('fullscreenchange',applyLiveLayout)
+  document.addEventListener('webkitfullscreenchange',applyLiveLayout as EventListener)
+  return()=>{
+   document.removeEventListener('fullscreenchange',applyLiveLayout)
+   document.removeEventListener('webkitfullscreenchange',applyLiveLayout as EventListener)
+  }
+ },[launched])
+
  useEffect(()=>()=>{
   document.body.classList.remove('pf-match-day-live','pf-match-day-focus')
   document.documentElement.classList.remove('pf-match-day-focus-root')
  },[])
 
  async function launch(){
-  // The live workspace is already mounted behind the command centre. This lets
-  // iPad Safari receive the fullscreen request during the original button tap.
+  // Open the canonical Live Match layout first. Fullscreen is only a larger
+  // presentation of this same layout, never a separate arrangement.
+  flushSync(()=>setLaunched(true))
+  document.body.classList.add('pf-match-day-live','pf-match-day-focus')
+  document.documentElement.classList.add('pf-match-day-focus-root')
+
   const board=document.querySelector<HTMLElement>('.md')
   let nativeFullscreen=false
   if(board){
@@ -30,14 +49,6 @@ export default function MatchDayCommandCentre({children}:{children:ReactNode}){
     }
    }catch{}
   }
-
-  flushSync(()=>setLaunched(true))
-
-  // Live Match always uses the same locked, proportional layout. Native
-  // fullscreen is only an enhancement; the browser-sized view uses the same
-  // layout and removes the Club HQ navigation from the live workspace.
-  document.body.classList.add('pf-match-day-live','pf-match-day-focus')
-  document.documentElement.classList.add('pf-match-day-focus-root')
 
   document.dispatchEvent(new Event('fullscreenchange'))
   window.dispatchEvent(new CustomEvent('playfooty:matchday-focus',{detail:{active:true,nativeFullscreen}}))
