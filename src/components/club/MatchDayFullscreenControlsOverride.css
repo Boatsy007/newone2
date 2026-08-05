@@ -1,17 +1,67 @@
-/* Fullscreen match controls: all six actions share one row and one button style. */
+/* Fullscreen match controls: use the existing Start and Next Quarter buttons,
+   aligned in the same row as the four scoring controls. */
 html .md:fullscreen .md-toolbar,
 html .md:-webkit-full-screen .md-toolbar,
 html body.pf-match-day-focus .md .md-toolbar {
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
-/* Hide the original Start / Next Quarter controls. Their live proxy buttons
-   are rendered inside the same row as the four scoring controls. */
 html .md:fullscreen .md-clock,
 html .md:-webkit-full-screen .md-clock,
 html body.pf-match-day-focus .md .md-clock {
-  visibility: hidden !important;
-  pointer-events: none !important;
+  position: fixed !important;
+  z-index: 96 !important;
+  top: 8px !important;
+  left: calc(50vw + 12px) !important;
+  width: 154px !important;
+  height: 42px !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-template-rows: 1fr !important;
+  gap: 6px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+html .md:fullscreen .md-clock > span,
+html .md:-webkit-full-screen .md-clock > span,
+html body.pf-match-day-focus .md .md-clock > span,
+html .md:fullscreen .md-clock > strong,
+html .md:-webkit-full-screen .md-clock > strong,
+html body.pf-match-day-focus .md .md-clock > strong {
+  display: none !important;
+}
+
+html .md:fullscreen .md-clock button,
+html .md:-webkit-full-screen .md-clock button,
+html body.pf-match-day-focus .md .md-clock button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  height: 42px !important;
+  padding: 4px !important;
+  border-radius: 9px !important;
+  font-size: 7px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+  white-space: normal !important;
+}
+
+html .md:fullscreen .md-clock button svg,
+html .md:-webkit-full-screen .md-clock button svg,
+html body.pf-match-day-focus .md .md-clock button svg {
+  width: 11px !important;
+  height: 11px !important;
+  flex: 0 0 11px !important;
 }
 
 html .md:fullscreen .md-fs-stats,
@@ -27,13 +77,23 @@ html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
   position: fixed !important;
   z-index: 95 !important;
   top: 8px !important;
-  left: calc(50vw + 12px) !important;
+  left: calc(50vw + 172px) !important;
   right: 12px !important;
   width: auto !important;
   display: grid !important;
-  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: 6px !important;
   margin: 0 !important;
+}
+
+/* Remove the two temporary proxy controls. The original controls above are used. */
+html .md:fullscreen .md-fs-score.md-fs-score-top .start,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .start,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .start,
+html .md:fullscreen .md-fs-score.md-fs-score-top .next,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .next,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .next {
+  display: none !important;
 }
 
 html .md:fullscreen .md-fs-score.md-fs-score-top button,
@@ -63,6 +123,22 @@ html body.pf-match-day-focus .md .md-fullscreen-button {
 }
 
 @media (max-height: 620px) {
+  html .md:fullscreen .md-clock,
+  html .md:-webkit-full-screen .md-clock,
+  html body.pf-match-day-focus .md .md-clock {
+    top: 6px !important;
+    width: 144px !important;
+    height: 36px !important;
+  }
+
+  html .md:fullscreen .md-clock button,
+  html .md:-webkit-full-screen .md-clock button,
+  html body.pf-match-day-focus .md .md-clock button {
+    min-height: 36px !important;
+    height: 36px !important;
+    font-size: 6px !important;
+  }
+
   html .md:fullscreen .md-fs-stats,
   html .md:-webkit-full-screen .md-fs-stats,
   html body.pf-match-day-focus .md .md-fs-stats {
@@ -74,7 +150,7 @@ html body.pf-match-day-focus .md .md-fullscreen-button {
   html .md:-webkit-full-screen .md-fs-score.md-fs-score-top,
   html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
     top: 6px !important;
-    left: calc(50vw + 12px) !important;
+    left: calc(50vw + 162px) !important;
   }
 
   html .md:fullscreen .md-fs-score.md-fs-score-top button,
