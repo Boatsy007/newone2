@@ -17,6 +17,8 @@
   let tab = null
   let drawer = null
   let observer = null
+  let holdTimer = 0
+  let repeatTimer = 0
 
   function loadTargets() {
     try {
@@ -59,13 +61,47 @@
     tab?.setAttribute('aria-expanded', 'false')
   }
 
-  function saveTargets() {
-    drawer?.querySelectorAll('input[data-stat]').forEach((input) => {
-      targets[input.dataset.stat] = Math.max(0, Number(input.value || 0))
-    })
+  function persistTargets() {
     localStorage.setItem(storageKey(), JSON.stringify(targets))
     applyColours()
-    closeDrawer()
+  }
+
+  function setTarget(stat, delta) {
+    targets[stat] = Math.max(0, Number(targets[stat] || 0) + delta)
+    const value = drawer?.querySelector(`[data-kpi-value="${stat}"]`)
+    if (value) value.textContent = String(targets[stat])
+    persistTargets()
+  }
+
+  function stopHold() {
+    window.clearTimeout(holdTimer)
+    window.clearInterval(repeatTimer)
+    holdTimer = 0
+    repeatTimer = 0
+  }
+
+  function bindStepButton(button) {
+    const stat = button.dataset.stat
+    const delta = Number(button.dataset.delta || 0)
+    if (!stat || !delta) return
+
+    button.addEventListener('click', (event) => {
+      event.preventDefault()
+      setTarget(stat, delta)
+    })
+
+    const beginHold = (event) => {
+      event.preventDefault()
+      stopHold()
+      holdTimer = window.setTimeout(() => {
+        repeatTimer = window.setInterval(() => setTarget(stat, delta), 110)
+      }, 420)
+    }
+
+    button.addEventListener('pointerdown', beginHold)
+    button.addEventListener('pointerup', stopHold)
+    button.addEventListener('pointercancel', stopHold)
+    button.addEventListener('pointerleave', stopHold)
   }
 
   function createUi(board) {
@@ -79,15 +115,18 @@
       .pf-kpi-drawer.open{transform:translateX(0)}
       .pf-kpi-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
       .pf-kpi-head h2{margin:0;font-size:24px;font-weight:950;letter-spacing:.3px}
-      .pf-kpi-close{width:34px;height:34px;border:1px solid #354753;border-radius:9px;background:#111f2a;color:#fff;font-size:20px;font-weight:900}
+      .pf-kpi-close{width:42px;height:42px;border:1px solid #354753;border-radius:9px;background:#111f2a;color:#fff;font-size:24px;font-weight:900;touch-action:manipulation}
       .pf-kpi-copy{margin:0 0 14px;color:#94a4af;font-size:12px}
       .pf-kpi-list{display:grid;gap:8px}
-      .pf-kpi-row{display:grid;grid-template-columns:1fr 88px;align-items:center;gap:12px;padding:10px 12px;border:1px solid #263946;border-radius:10px;background:#0e1b25}
-      .pf-kpi-row strong{display:block;font-size:13px}
-      .pf-kpi-row small{display:block;margin-top:2px;color:#8798a4;font-size:10px}
-      .pf-kpi-row input{width:100%;height:38px;box-sizing:border-box;border:1px solid #3a4d59;border-radius:8px;background:#07111c;color:#fff;font-size:18px;font-weight:900;text-align:center}
-      .pf-kpi-save{width:100%;height:42px;margin-top:14px;border:0;border-radius:9px;background:#d5a112;color:#101820;font-size:13px;font-weight:950;text-transform:uppercase}
-      @media(max-height:620px){.pf-kpi-tab{top:190px;height:82px}.pf-kpi-drawer{padding:12px 16px}.pf-kpi-head{margin-bottom:8px}.pf-kpi-copy{margin-bottom:8px}.pf-kpi-list{gap:5px}.pf-kpi-row{padding:6px 10px}.pf-kpi-row input{height:32px}.pf-kpi-save{height:36px;margin-top:8px}}
+      .pf-kpi-row{display:grid;grid-template-columns:minmax(0,1fr) 48px 62px 48px;align-items:center;gap:8px;padding:9px 10px;border:1px solid #263946;border-radius:10px;background:#0e1b25}
+      .pf-kpi-label strong{display:block;font-size:13px}
+      .pf-kpi-label small{display:block;margin-top:2px;color:#8798a4;font-size:10px}
+      .pf-kpi-step{display:grid;place-items:center;width:48px;height:48px;padding:0;border:0;border-radius:10px;color:#fff;font-size:27px;font-weight:950;line-height:1;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+      .pf-kpi-step.minus{background:#d52c35}
+      .pf-kpi-step.plus{background:#0caf68}
+      .pf-kpi-value{display:grid;place-items:center;height:48px;border:1px solid #3a4d59;border-radius:9px;background:#07111c;color:#fff;font-size:22px;font-weight:950;font-variant-numeric:tabular-nums}
+      .pf-kpi-save{width:100%;height:42px;margin-top:14px;border:0;border-radius:9px;background:#d5a112;color:#101820;font-size:13px;font-weight:950;text-transform:uppercase;touch-action:manipulation}
+      @media(max-height:620px){.pf-kpi-tab{top:190px;height:82px}.pf-kpi-drawer{padding:12px 16px}.pf-kpi-head{margin-bottom:8px}.pf-kpi-copy{margin-bottom:8px}.pf-kpi-list{gap:5px}.pf-kpi-row{padding:5px 8px;grid-template-columns:minmax(0,1fr) 42px 54px 42px}.pf-kpi-step{width:42px;height:38px;font-size:23px}.pf-kpi-value{height:38px;font-size:19px}.pf-kpi-save{height:36px;margin-top:8px}}
     `
 
     tab = document.createElement('button')
@@ -105,19 +144,21 @@
     drawer.className = 'pf-kpi-drawer'
     drawer.innerHTML = `
       <div class="pf-kpi-head"><h2>Match KPIs</h2><button class="pf-kpi-close" type="button" aria-label="Close KPI drawer">×</button></div>
-      <p class="pf-kpi-copy">Set the target for each match stat, then save.</p>
+      <p class="pf-kpi-copy">Use the − and + buttons to set each target. Changes save automatically.</p>
       <div class="pf-kpi-list">
-        ${STATS.map(([key, short, name]) => `<label class="pf-kpi-row"><span><strong>${short}</strong><small>${name}</small></span><input data-stat="${key}" type="number" min="0" step="1" inputmode="numeric" value="${Number(targets[key] || 0)}" /></label>`).join('')}
+        ${STATS.map(([key, short, name]) => `<div class="pf-kpi-row"><span class="pf-kpi-label"><strong>${short}</strong><small>${name}</small></span><button class="pf-kpi-step minus" type="button" data-stat="${key}" data-delta="-1" aria-label="Decrease ${name} KPI">−</button><strong class="pf-kpi-value" data-kpi-value="${key}">${Number(targets[key] || 0)}</strong><button class="pf-kpi-step plus" type="button" data-stat="${key}" data-delta="1" aria-label="Increase ${name} KPI">+</button></div>`).join('')}
       </div>
-      <button class="pf-kpi-save" type="button">Save KPIs</button>
+      <button class="pf-kpi-save" type="button">Done</button>
     `
     drawer.querySelector('.pf-kpi-close')?.addEventListener('click', closeDrawer)
-    drawer.querySelector('.pf-kpi-save')?.addEventListener('click', saveTargets)
+    drawer.querySelector('.pf-kpi-save')?.addEventListener('click', closeDrawer)
+    drawer.querySelectorAll('.pf-kpi-step').forEach(bindStepButton)
 
     board.append(style, tab, drawer)
   }
 
   function removeUi() {
+    stopHold()
     closeDrawer()
     tab?.remove()
     drawer?.remove()
