@@ -1,29 +1,32 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import { Expand, Radio, ShieldCheck } from 'lucide-react'
+
+type FullscreenElement=HTMLElement&{webkitRequestFullscreen?:()=>Promise<void>|void}
+type OrientationLock={lock?:(orientation:string)=>Promise<void>}
 
 export default function MatchDayCommandCentre({children}:{children:ReactNode}){
  const[launched,setLaunched]=useState(false)
- const pendingLaunch=useRef(false)
 
- useEffect(()=>{
-  if(!launched||!pendingLaunch.current)return
-  let attempts=0
-  const open=()=>{
-   const button=document.querySelector<HTMLButtonElement>('.md-fullscreen-button')
-   if(button){pendingLaunch.current=false;button.click();return}
-   attempts+=1
-   if(attempts<30)window.setTimeout(open,50)
+ async function launch(){
+  flushSync(()=>setLaunched(true))
+  const board=document.querySelector<HTMLElement>('.md')
+  if(!board){document.body.classList.add('pf-match-day-focus');return}
+  try{
+   if(board.requestFullscreen)await board.requestFullscreen({navigationUI:'hide'}).catch(()=>board.requestFullscreen())
+   else if((board as FullscreenElement).webkitRequestFullscreen)await Promise.resolve((board as FullscreenElement).webkitRequestFullscreen?.())
+   else throw new Error('Fullscreen unavailable')
+  }catch{
+   document.body.classList.add('pf-match-day-focus')
   }
-  window.setTimeout(open,0)
- },[launched])
-
- function launch(){pendingLaunch.current=true;setLaunched(true)}
+  try{await(screen.orientation as OrientationLock|undefined)?.lock?.('landscape')}catch{}
+ }
 
  if(launched)return <>{children}</>
  return <main className="md-command-centre">
   <header><span>Match Day</span><h1>Command Centre</h1><p>Open the live match workspace when you are ready to begin.</p></header>
   <section className="md-command-grid">
-   <button className="md-command-live" type="button" onClick={launch}>
+   <button className="md-command-live" type="button" onClick={()=>void launch()}>
     <div className="md-command-icon"><Radio size={31}/></div>
     <div><span>Live Match</span><strong>Open full-screen match centre</strong><p>Field, score, timer, rotations, statistics, Game Plan, Whiteboard and AI Assistant Coach.</p></div>
     <Expand size={23}/>
