@@ -1,30 +1,10 @@
-/* Fullscreen Live Match controls.
-   The toolbar is promoted to a viewport-sized, non-transformed layer so the
-   original Start / Next Quarter controls and the scoring controls share one
-   reliable horizontal row on iPad. */
-html .md:fullscreen .md-toolbar,
-html .md:-webkit-full-screen .md-toolbar,
-html body.pf-match-day-focus .md .md-toolbar {
-  position: fixed !important;
-  z-index: 94 !important;
-  inset: 0 0 auto 0 !important;
-  width: 100vw !important;
-  max-width: none !important;
-  height: 50px !important;
-  display: block !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  transform: none !important;
-  pointer-events: none !important;
-}
-
-html .md:fullscreen .md-toolbar > *,
-html .md:-webkit-full-screen .md-toolbar > *,
-html body.pf-match-day-focus .md .md-toolbar > * {
-  pointer-events: auto !important;
+/* Fullscreen Live Match control row.
+   Use the portal controls only. The original toolbar Start / Next Quarter
+   controls are hidden so there is exactly one set of match controls. */
+html .md:fullscreen .md-clock,
+html .md:-webkit-full-screen .md-clock,
+html body.pf-match-day-focus .md .md-clock {
+  display: none !important;
 }
 
 /* Preserve the scoreboard over the centre of the left half. */
@@ -39,83 +19,21 @@ html body.pf-match-day-focus .md .md-scoreboard {
   margin: 0 !important;
 }
 
-/* Use only the original Start / Next Quarter controls. */
-html .md:fullscreen .md-clock,
-html .md:-webkit-full-screen .md-clock,
-html body.pf-match-day-focus .md .md-clock {
-  position: fixed !important;
-  z-index: 96 !important;
-  top: 8px !important;
-  left: calc(50vw + 12px) !important;
-  width: 154px !important;
-  height: 42px !important;
-  display: flex !important;
-  align-items: stretch !important;
-  flex-wrap: nowrap !important;
-  gap: 6px !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  transform: none !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
-
-html .md:fullscreen .md-clock > span,
-html .md:-webkit-full-screen .md-clock > span,
-html body.pf-match-day-focus .md .md-clock > span,
-html .md:fullscreen .md-clock > strong,
-html .md:-webkit-full-screen .md-clock > strong,
-html body.pf-match-day-focus .md .md-clock > strong {
-  display: none !important;
-}
-
-html .md:fullscreen .md-clock button,
-html .md:-webkit-full-screen .md-clock button,
-html body.pf-match-day-focus .md .md-clock button {
-  position: static !important;
-  display: inline-flex !important;
-  flex: 1 1 0 !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: auto !important;
-  min-width: 0 !important;
-  min-height: 42px !important;
-  height: 42px !important;
-  padding: 4px !important;
-  margin: 0 !important;
-  border-radius: 9px !important;
-  font-size: 7px !important;
-  font-weight: 950 !important;
-  line-height: 1 !important;
-  text-transform: uppercase !important;
-  white-space: normal !important;
-  transform: none !important;
-}
-
-html .md:fullscreen .md-clock button svg,
-html .md:-webkit-full-screen .md-clock button svg,
-html body.pf-match-day-focus .md .md-clock button svg {
-  width: 11px !important;
-  height: 11px !important;
-  flex: 0 0 11px !important;
-}
-
-/* Existing scoring controls continue directly after Next Quarter. */
+/* One six-button row: Start, Next Quarter, Rushed Behind, Opp Goal,
+   Opp Behind and Undo. */
 html .md:fullscreen .md-fs-score.md-fs-score-top,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top,
 html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
   position: fixed !important;
   z-index: 95 !important;
   top: 8px !important;
-  left: calc(50vw + 172px) !important;
+  left: calc(50vw + 12px) !important;
   right: 12px !important;
   width: auto !important;
   height: 42px !important;
-  display: flex !important;
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
   align-items: stretch !important;
-  flex-wrap: nowrap !important;
   gap: 6px !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -126,16 +44,17 @@ html .md:fullscreen .md-fs-score.md-fs-score-top button,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top button,
 html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top button {
   display: inline-flex !important;
-  flex: 1 1 0 !important;
   align-items: center !important;
   justify-content: center !important;
-  width: auto !important;
+  width: 100% !important;
   min-width: 0 !important;
   min-height: 42px !important;
   height: 42px !important;
   padding: 4px !important;
   margin: 0 !important;
+  border: 0 !important;
   border-radius: 9px !important;
+  color: #fff !important;
   font-size: 7px !important;
   font-weight: 950 !important;
   line-height: 1 !important;
@@ -143,14 +62,41 @@ html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top button {
   white-space: normal !important;
 }
 
-/* Remove the temporary duplicate proxy controls completely. */
-html .md:fullscreen .md-fs-score.md-fs-score-top > button.start,
-html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button.start,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button.start,
-html .md:fullscreen .md-fs-score.md-fs-score-top > button.next,
-html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button.next,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button.next {
-  display: none !important;
+/* Match the colours of the original controls. */
+html .md:fullscreen .md-fs-score.md-fs-score-top .start,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .start,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .start {
+  background: #08c98b !important;
+}
+
+html .md:fullscreen .md-fs-score.md-fs-score-top .next,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .next,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .next {
+  background: #173043 !important;
+}
+
+html .md:fullscreen .md-fs-score.md-fs-score-top .rushed,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .rushed,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .rushed {
+  background: #3e4850 !important;
+}
+
+html .md:fullscreen .md-fs-score.md-fs-score-top .goal,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .goal,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .goal {
+  background: #c92e36 !important;
+}
+
+html .md:fullscreen .md-fs-score.md-fs-score-top .behind,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .behind,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .behind {
+  background: #b88608 !important;
+}
+
+html .md:fullscreen .md-fs-score.md-fs-score-top .undo,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .undo,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .undo {
+  background: #17232d !important;
 }
 
 html .md:fullscreen .md-fs-stats,
@@ -167,44 +113,25 @@ html body.pf-match-day-focus .md .md-fullscreen-button {
 }
 
 @media (max-height: 620px) {
-  html .md:fullscreen .md-toolbar,
-  html .md:-webkit-full-screen .md-toolbar,
-  html body.pf-match-day-focus .md .md-toolbar {
-    height: 44px !important;
-  }
-
   html .md:fullscreen .md-scoreboard,
   html .md:-webkit-full-screen .md-scoreboard,
   html body.pf-match-day-focus .md .md-scoreboard {
     top: 6px !important;
   }
 
-  html .md:fullscreen .md-clock,
-  html .md:-webkit-full-screen .md-clock,
-  html body.pf-match-day-focus .md .md-clock {
+  html .md:fullscreen .md-fs-score.md-fs-score-top,
+  html .md:-webkit-full-screen .md-fs-score.md-fs-score-top,
+  html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
     top: 6px !important;
-    left: calc(50vw + 12px) !important;
-    width: 144px !important;
     height: 36px !important;
   }
 
-  html .md:fullscreen .md-clock button,
-  html .md:-webkit-full-screen .md-clock button,
-  html body.pf-match-day-focus .md .md-clock button,
   html .md:fullscreen .md-fs-score.md-fs-score-top button,
   html .md:-webkit-full-screen .md-fs-score.md-fs-score-top button,
   html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top button {
     min-height: 36px !important;
     height: 36px !important;
     font-size: 6px !important;
-  }
-
-  html .md:fullscreen .md-fs-score.md-fs-score-top,
-  html .md:-webkit-full-screen .md-fs-score.md-fs-score-top,
-  html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
-    top: 6px !important;
-    left: calc(50vw + 162px) !important;
-    height: 36px !important;
   }
 
   html .md:fullscreen .md-fs-stats,
