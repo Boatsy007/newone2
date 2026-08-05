@@ -95,6 +95,13 @@ html body.pf-match-day-focus .md .md-fs-stats > .md-fs-score button {
   white-space: normal !important;
 }
 
+/* The fullscreen Live Match already has its own exit control. */
+html .md:fullscreen .md-fullscreen-button,
+html .md:-webkit-full-screen .md-fullscreen-button,
+html body.pf-match-day-focus .md .md-fullscreen-button {
+  display: none !important;
+}
+
 @media (max-height: 620px) {
   html .md:fullscreen .md-clock,
   html .md:-webkit-full-screen .md-clock,
