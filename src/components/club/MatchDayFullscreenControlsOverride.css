@@ -4,6 +4,7 @@ html .md:fullscreen .md-clock,
 html .md:-webkit-full-screen .md-clock,
 html body.pf-match-day-focus .md .md-clock {
   display: flex !important;
+  transform: translateY(-8px) !important;
 }
 
 html .md:fullscreen .md-fs-score.md-fs-score-top,
