@@ -19,8 +19,8 @@ html body.pf-match-day-focus .md .md-scoreboard {
   margin: 0 !important;
 }
 
-/* One six-button row: Start, Next Quarter, Rushed Behind, Opp Goal,
-   Opp Behind and Undo. */
+/* Absolute six-slot row. Each button is pinned to one slot so no inherited
+   grid/flex/position rule can wrap or stack the controls on iPad Safari. */
 html .md:fullscreen .md-fs-score.md-fs-score-top,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top,
 html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
@@ -31,25 +31,27 @@ html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
   right: 12px !important;
   width: auto !important;
   height: 42px !important;
-  display: grid !important;
-  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-  align-items: stretch !important;
-  gap: 6px !important;
+  display: block !important;
   margin: 0 !important;
   padding: 0 !important;
+  overflow: visible !important;
   transform: none !important;
 }
 
-html .md:fullscreen .md-fs-score.md-fs-score-top button,
-html .md:-webkit-full-screen .md-fs-score.md-fs-score-top button,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top button {
+html .md:fullscreen .md-fs-score.md-fs-score-top > button,
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button,
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button {
+  position: absolute !important;
+  top: 0 !important;
+  bottom: auto !important;
+  width: calc((100% - 30px) / 6) !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 42px !important;
+  height: 42px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  min-height: 42px !important;
-  height: 42px !important;
   padding: 4px !important;
   margin: 0 !important;
   border: 0 !important;
@@ -60,44 +62,47 @@ html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top button {
   line-height: 1 !important;
   text-transform: uppercase !important;
   white-space: normal !important;
+  writing-mode: horizontal-tb !important;
+  transform: none !important;
 }
 
-/* Match the colours of the original controls. */
+html .md:fullscreen .md-fs-score.md-fs-score-top > button:nth-child(1),
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button:nth-child(1),
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button:nth-child(1) { left: 0 !important; }
+html .md:fullscreen .md-fs-score.md-fs-score-top > button:nth-child(2),
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button:nth-child(2),
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button:nth-child(2) { left: calc((100% - 30px) / 6 + 6px) !important; }
+html .md:fullscreen .md-fs-score.md-fs-score-top > button:nth-child(3),
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button:nth-child(3),
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button:nth-child(3) { left: calc(((100% - 30px) / 6 + 6px) * 2) !important; }
+html .md:fullscreen .md-fs-score.md-fs-score-top > button:nth-child(4),
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button:nth-child(4),
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button:nth-child(4) { left: calc(((100% - 30px) / 6 + 6px) * 3) !important; }
+html .md:fullscreen .md-fs-score.md-fs-score-top > button:nth-child(5),
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button:nth-child(5),
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button:nth-child(5) { left: calc(((100% - 30px) / 6 + 6px) * 4) !important; }
+html .md:fullscreen .md-fs-score.md-fs-score-top > button:nth-child(6),
+html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button:nth-child(6),
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button:nth-child(6) { left: calc(((100% - 30px) / 6 + 6px) * 5) !important; }
+
 html .md:fullscreen .md-fs-score.md-fs-score-top .start,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .start,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .start {
-  background: #08c98b !important;
-}
-
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .start { background: #08c98b !important; }
 html .md:fullscreen .md-fs-score.md-fs-score-top .next,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .next,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .next {
-  background: #173043 !important;
-}
-
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .next { background: #173043 !important; }
 html .md:fullscreen .md-fs-score.md-fs-score-top .rushed,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .rushed,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .rushed {
-  background: #3e4850 !important;
-}
-
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .rushed { background: #3e4850 !important; }
 html .md:fullscreen .md-fs-score.md-fs-score-top .goal,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .goal,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .goal {
-  background: #c92e36 !important;
-}
-
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .goal { background: #c92e36 !important; }
 html .md:fullscreen .md-fs-score.md-fs-score-top .behind,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .behind,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .behind {
-  background: #b88608 !important;
-}
-
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .behind { background: #b88608 !important; }
 html .md:fullscreen .md-fs-score.md-fs-score-top .undo,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top .undo,
-html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .undo {
-  background: #17232d !important;
-}
+html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top .undo { background: #17232d !important; }
 
 html .md:fullscreen .md-fs-stats,
 html .md:-webkit-full-screen .md-fs-stats,
@@ -115,28 +120,21 @@ html body.pf-match-day-focus .md .md-fullscreen-button {
 @media (max-height: 620px) {
   html .md:fullscreen .md-scoreboard,
   html .md:-webkit-full-screen .md-scoreboard,
-  html body.pf-match-day-focus .md .md-scoreboard {
-    top: 6px !important;
-  }
-
+  html body.pf-match-day-focus .md .md-scoreboard { top: 6px !important; }
   html .md:fullscreen .md-fs-score.md-fs-score-top,
   html .md:-webkit-full-screen .md-fs-score.md-fs-score-top,
   html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top {
     top: 6px !important;
     height: 36px !important;
   }
-
-  html .md:fullscreen .md-fs-score.md-fs-score-top button,
-  html .md:-webkit-full-screen .md-fs-score.md-fs-score-top button,
-  html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top button {
+  html .md:fullscreen .md-fs-score.md-fs-score-top > button,
+  html .md:-webkit-full-screen .md-fs-score.md-fs-score-top > button,
+  html body.pf-match-day-focus .md .md-fs-score.md-fs-score-top > button {
     min-height: 36px !important;
     height: 36px !important;
     font-size: 6px !important;
   }
-
   html .md:fullscreen .md-fs-stats,
   html .md:-webkit-full-screen .md-fs-stats,
-  html body.pf-match-day-focus .md .md-fs-stats {
-    top: 48px !important;
-  }
+  html body.pf-match-day-focus .md .md-fs-stats { top: 48px !important; }
 }
