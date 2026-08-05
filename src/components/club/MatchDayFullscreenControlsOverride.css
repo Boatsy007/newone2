@@ -25,7 +25,7 @@ html body.pf-match-day-focus .md .md-clock {
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
-  transform: translateX(-160px) !important;
+  transform: translateX(-270px) !important;
   visibility: visible !important;
   pointer-events: auto !important;
 }
@@ -152,7 +152,7 @@ html body.pf-match-day-focus .md .md-fullscreen-button {
     top: 6px !important;
     width: 144px !important;
     height: 36px !important;
-    transform: translateX(-150px) !important;
+    transform: translateX(-255px) !important;
   }
 
   html .md:fullscreen .md-clock button,
