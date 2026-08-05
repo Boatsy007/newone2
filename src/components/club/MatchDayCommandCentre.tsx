@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { Expand, Radio, ShieldCheck } from 'lucide-react'
+import './MatchDayFullscreenControlsOverride.css'
 
 type OrientationLock={lock?:(orientation:string)=>Promise<void>}
 type FullscreenElement=HTMLElement&{webkitRequestFullscreen?:()=>Promise<void>|void}
