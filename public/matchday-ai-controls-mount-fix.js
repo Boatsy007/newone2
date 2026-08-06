@@ -7,27 +7,27 @@
   }
 
   function findAiPanel() {
-    const candidates = [...document.querySelectorAll('.md *')].filter(element =>
-      normalise(element.textContent).includes('AI ASSISTANT COACH'),
+    const headings = [...document.querySelectorAll('.md *')].filter(element =>
+      normalise(element.textContent) === 'AI ASSISTANT COACH',
     )
 
-    const heading = candidates.sort((a, b) => a.children.length - b.children.length)[0]
+    const heading = headings.sort((a, b) => a.children.length - b.children.length)[0]
     if (!(heading instanceof HTMLElement)) return null
 
     let panel = heading
     while (panel.parentElement && panel.parentElement.closest('.md')) {
-      const text = normalise(panel.textContent)
-      const hasAnalyse = [...panel.querySelectorAll('button')].some(button => normalise(button.textContent) === 'ANALYSE')
-      const hasReport = [...panel.querySelectorAll('button')].some(button => normalise(button.textContent).includes('QTR REPORT'))
+      const buttons = [...panel.querySelectorAll('button')].filter(button => !button.closest('.pf-ai-actions'))
+      const hasAnalyse = buttons.some(button => normalise(button.textContent) === 'ANALYSE')
+      const hasReport = buttons.some(button => normalise(button.textContent).includes('QTR REPORT'))
       if (hasAnalyse && hasReport) return panel
       panel = panel.parentElement
     }
 
-    return heading.closest('.md-ai, .md-panel, section, article, div')
+    return null
   }
 
-  function findExistingActionRow(panel) {
-    const buttons = [...panel.querySelectorAll('button')]
+  function findOriginalActionRow(panel) {
+    const buttons = [...panel.querySelectorAll('button')].filter(button => !button.closest('.pf-ai-actions'))
     const analyse = buttons.find(button => normalise(button.textContent) === 'ANALYSE')
     const report = buttons.find(button => normalise(button.textContent).includes('QTR REPORT'))
     if (!analyse || !report) return null
@@ -40,24 +40,42 @@
     return null
   }
 
+  function cleanupWrongMounts(panel, keep) {
+    document.querySelectorAll('.md-ai-coach-placeholder').forEach(element => {
+      if (element !== panel) element.classList.remove('md-ai-coach-placeholder')
+    })
+
+    panel.querySelectorAll('.pf-ai-actions').forEach(actions => {
+      if (actions !== keep) actions.remove()
+    })
+  }
+
   function reconcile() {
     const panel = findAiPanel()
     if (!(panel instanceof HTMLElement)) return
+
+    const originalRow = findOriginalActionRow(panel)
+    if (!(originalRow instanceof HTMLElement)) return
 
     panel.classList.add('md-ai-coach-placeholder')
 
     const actions = panel.querySelector('.pf-ai-actions')
     if (!(actions instanceof HTMLElement)) return
 
-    const oldRow = findExistingActionRow(panel)
-    if (oldRow && oldRow !== actions) {
-      oldRow.replaceWith(actions)
+    cleanupWrongMounts(panel, actions)
+
+    if (originalRow !== actions && originalRow.isConnected) {
+      originalRow.replaceWith(actions)
     }
 
     actions.style.setProperty('display', 'grid', 'important')
     actions.style.setProperty('grid-template-columns', '1fr 1fr 1.15fr', 'important')
     actions.style.setProperty('width', 'auto', 'important')
     actions.style.setProperty('margin', '8px 10px 10px', 'important')
+    actions.style.setProperty('position', 'static', 'important')
+    actions.style.setProperty('inset', 'auto', 'important')
+    actions.style.setProperty('transform', 'none', 'important')
+    actions.style.setProperty('z-index', 'auto', 'important')
   }
 
   const observer = new MutationObserver(reconcile)
