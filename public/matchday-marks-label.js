@@ -58,13 +58,11 @@
     if (!(kpiTab instanceof HTMLButtonElement)) return
 
     ensureMatchTabStyle()
-
     const expectedClassName = `${kpiTab.className} md-match-control-tab`.trim()
     if (matchTab.className !== expectedClassName) matchTab.className = expectedClassName
 
-    const currentStructure = matchTab.dataset.pfMatchStructureSource
     const sourceStructure = kpiTab.innerHTML
-    if (currentStructure !== sourceStructure) {
+    if (matchTab.dataset.pfMatchStructureSource !== sourceStructure) {
       matchTab.innerHTML = sourceStructure
       replaceKpiText(matchTab)
       const icon = document.createElement('span')
@@ -99,6 +97,7 @@
     const style = document.createElement('style')
     style.id = ENTRY_LOADER_STYLE_ID
     style.textContent = `
+      html.${ENTRY_ACTIVE_CLASS}, html.${ENTRY_ACTIVE_CLASS} body { overflow: hidden !important; }
       html.${ENTRY_ACTIVE_CLASS} .club-page-loading,
       html.${ENTRY_ACTIVE_CLASS} body .club-page-loading {
         display: none !important;
@@ -106,6 +105,54 @@
         opacity: 0 !important;
         pointer-events: none !important;
       }
+      #${ENTRY_LOADER_ID} {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 2147483647 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        display: grid !important;
+        place-items: center !important;
+        overflow: hidden !important;
+        background: #071018 !important;
+        font-family: Arial, sans-serif !important;
+        transform: none !important;
+        contain: strict !important;
+        isolation: isolate !important;
+      }
+      #${ENTRY_LOADER_ID}, #${ENTRY_LOADER_ID} * { box-sizing: border-box !important; }
+      #${ENTRY_LOADER_ID} .pf-md-entry-card {
+        width: min(360px, calc(100vw - 36px)) !important;
+        min-height: 270px !important;
+        margin: 0 !important;
+        padding: 34px 28px !important;
+        border-radius: 22px !important;
+        background: #f4f6f7 !important;
+        box-shadow: 0 24px 70px rgba(0,0,0,.38) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+      }
+      #${ENTRY_LOADER_ID} .pf-md-entry-ring {
+        width: 47px !important;
+        height: 47px !important;
+        flex: 0 0 47px !important;
+        margin: 0 0 19px !important;
+        border: 5px solid #c9e9f8 !important;
+        border-top-color: #119fda !important;
+        border-radius: 50% !important;
+        animation: pfMdEntrySpin .85s linear infinite !important;
+      }
+      #${ENTRY_LOADER_ID} span { display:block !important; font-size:11px !important; font-weight:900 !important; letter-spacing:.18em !important; color:#138cc5 !important; }
+      #${ENTRY_LOADER_ID} strong { display:block !important; max-width:290px !important; margin:8px 0 13px !important; font-family:'Bebas Neue',Impact,sans-serif !important; font-size:43px !important; line-height:.95 !important; letter-spacing:.01em !important; color:#111820 !important; white-space:normal !important; }
+      #${ENTRY_LOADER_ID} small { display:block !important; font-size:13px !important; line-height:1.45 !important; color:#64717b !important; }
+      @keyframes pfMdEntrySpin { to { transform: rotate(360deg); } }
     `
     document.head.appendChild(style)
   }
@@ -119,9 +166,7 @@
   }
 
   function removeEntryLoader() {
-    const loader = document.getElementById(ENTRY_LOADER_ID)
-    if (loader instanceof HTMLDialogElement && loader.open) loader.close()
-    loader?.remove()
+    document.getElementById(ENTRY_LOADER_ID)?.remove()
     document.documentElement.classList.remove(ENTRY_ACTIVE_CLASS)
   }
 
@@ -129,41 +174,21 @@
     suppressGenericCoachingLoader()
     if (document.getElementById(ENTRY_LOADER_ID)) return
 
-    const dialog = document.createElement('dialog')
-    dialog.id = ENTRY_LOADER_ID
-    dialog.setAttribute('role', 'status')
-    dialog.setAttribute('aria-live', 'polite')
-    dialog.innerHTML = `
-      <style>
-        #${ENTRY_LOADER_ID}{all:initial;box-sizing:border-box;position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;background:#071018!important;color:#071018!important;overflow:hidden!important}
-        #${ENTRY_LOADER_ID}::backdrop{background:#071018!important}
-        #${ENTRY_LOADER_ID},#${ENTRY_LOADER_ID} *{box-sizing:border-box}
-        #${ENTRY_LOADER_ID} .pf-md-entry-overlay{position:absolute;inset:0;width:100%;height:100%;display:grid;place-items:center;padding:18px;background:#071018;font-family:Arial,sans-serif;overflow:hidden}
-        #${ENTRY_LOADER_ID} .pf-md-entry-card{width:min(360px,calc(100vw - 36px));min-height:270px;padding:34px 28px;border-radius:22px;background:#f4f6f7;box-shadow:0 24px 70px rgba(0,0,0,.38);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow:visible}
-        #${ENTRY_LOADER_ID} .pf-md-entry-ring{width:47px;height:47px;flex:0 0 47px;margin:0 0 19px;border:5px solid #c9e9f8;border-top-color:#119fda;border-radius:50%;animation:pfMdEntrySpin .85s linear infinite}
-        #${ENTRY_LOADER_ID} span{display:block;font-size:11px;font-weight:900;letter-spacing:.18em;color:#138cc5}
-        #${ENTRY_LOADER_ID} strong{display:block;max-width:290px;margin:8px 0 13px;font-family:'Bebas Neue',Impact,sans-serif;font-size:43px;line-height:.95;letter-spacing:.01em;color:#111820;white-space:normal}
-        #${ENTRY_LOADER_ID} small{display:block;font-size:13px;line-height:1.45;color:#64717b}
-        @keyframes pfMdEntrySpin{to{transform:rotate(360deg)}}
-      </style>
-      <div class="pf-md-entry-overlay">
-        <div class="pf-md-entry-card">
-          <div class="pf-md-entry-ring" aria-hidden="true"></div>
-          <span>PLAYFOOTY COACHING</span>
-          <strong>LOADING LIVE TEAM</strong>
-          <small>Live data can take up to 30 seconds to load.</small>
-        </div>
+    const overlay = document.createElement('div')
+    overlay.id = ENTRY_LOADER_ID
+    overlay.setAttribute('role', 'status')
+    overlay.setAttribute('aria-live', 'polite')
+    overlay.innerHTML = `
+      <div class="pf-md-entry-card">
+        <div class="pf-md-entry-ring" aria-hidden="true"></div>
+        <span>PLAYFOOTY COACHING</span>
+        <strong>LOADING LIVE TEAM</strong>
+        <small>Live data can take up to 30 seconds to load.</small>
       </div>
     `
 
-    document.body.appendChild(dialog)
-    try {
-      dialog.showModal()
-    } catch {
-      dialog.setAttribute('open', '')
-    }
-
-    const heading = dialog.querySelector('strong')
+    document.documentElement.appendChild(overlay)
+    const heading = overlay.querySelector('strong')
     const timers = [
       window.setTimeout(() => { if (heading) heading.textContent = entryStages[1] }, ENTRY_STAGE_TIME),
       window.setTimeout(() => { if (heading) heading.textContent = entryStages[2] }, ENTRY_STAGE_TIME * 2),
