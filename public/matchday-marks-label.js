@@ -1,6 +1,5 @@
 (() => {
   const ENTRY_LOADER_ID = 'pf-matchday-entry-loader'
-  const ENTRY_LOADER_STYLE_ID = 'pf-matchday-entry-loader-style'
   const ENTRY_STAGE_TIME = 7000
   const entryStages = ['LOADING LIVE TEAM', 'LOADING GAME PLAN', 'LOADING AI ASSISTANT COACH']
 
@@ -24,34 +23,52 @@
     document.getElementById(ENTRY_LOADER_ID)?.remove()
   }
 
-  function ensureEntryLoaderStyles() {
-    if (document.getElementById(ENTRY_LOADER_STYLE_ID)) return
-    const style = document.createElement('style')
-    style.id = ENTRY_LOADER_STYLE_ID
-    style.textContent = `
-      #${ENTRY_LOADER_ID}{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:#071018;color:#071018;font-family:Arial,sans-serif}
-      #${ENTRY_LOADER_ID} .pf-md-entry-card{width:min(360px,calc(100vw - 36px));min-height:270px;padding:34px 28px;border-radius:22px;background:#f4f6f7;box-shadow:0 24px 70px rgba(0,0,0,.38);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-      #${ENTRY_LOADER_ID} .pf-md-entry-ring{width:47px;height:47px;margin-bottom:19px;border:5px solid #c9e9f8;border-top-color:#119fda;border-radius:50%;animation:pfMdEntrySpin .85s linear infinite}
-      #${ENTRY_LOADER_ID} span{font-size:11px;font-weight:900;letter-spacing:.18em;color:#138cc5}
-      #${ENTRY_LOADER_ID} strong{max-width:290px;margin:8px 0 13px;font-family:'Bebas Neue',Impact,sans-serif;font-size:43px;line-height:.95;letter-spacing:.01em;color:#111820}
-      #${ENTRY_LOADER_ID} small{font-size:13px;line-height:1.45;color:#64717b}
-      @keyframes pfMdEntrySpin{to{transform:rotate(360deg)}}
-    `
-    document.head.appendChild(style)
-  }
-
   function showEntryLoader() {
     if (document.getElementById(ENTRY_LOADER_ID)) return
-    ensureEntryLoaderStyles()
 
-    const overlay = document.createElement('div')
-    overlay.id = ENTRY_LOADER_ID
-    overlay.setAttribute('role', 'status')
-    overlay.setAttribute('aria-live', 'polite')
-    overlay.innerHTML = '<div class="pf-md-entry-card"><div class="pf-md-entry-ring" aria-hidden="true"></div><span>PLAYFOOTY COACHING</span><strong>LOADING LIVE TEAM</strong><small>Live data can take up to 30 seconds to load.</small></div>'
-    document.body.appendChild(overlay)
+    const host = document.createElement('div')
+    host.id = ENTRY_LOADER_ID
+    host.setAttribute('role', 'status')
+    host.setAttribute('aria-live', 'polite')
+    host.style.setProperty('position', 'fixed', 'important')
+    host.style.setProperty('inset', '0', 'important')
+    host.style.setProperty('width', '100vw', 'important')
+    host.style.setProperty('height', '100dvh', 'important')
+    host.style.setProperty('min-width', '100vw', 'important')
+    host.style.setProperty('min-height', '100dvh', 'important')
+    host.style.setProperty('margin', '0', 'important')
+    host.style.setProperty('padding', '0', 'important')
+    host.style.setProperty('z-index', '2147483647', 'important')
+    host.style.setProperty('transform', 'none', 'important')
+    host.style.setProperty('overflow', 'hidden', 'important')
+    host.style.setProperty('pointer-events', 'auto', 'important')
 
-    const heading = overlay.querySelector('strong')
+    const shadow = host.attachShadow({ mode: 'open' })
+    shadow.innerHTML = `
+      <style>
+        :host{all:initial;position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;z-index:2147483647!important;display:block!important}
+        *,*::before,*::after{box-sizing:border-box}
+        .overlay{position:absolute;inset:0;width:100%;height:100%;display:grid;place-items:center;padding:18px;background:#071018;color:#071018;font-family:Arial,sans-serif;overflow:hidden}
+        .card{width:min(360px,calc(100vw - 36px));min-height:270px;padding:34px 28px;border-radius:22px;background:#f4f6f7;box-shadow:0 24px 70px rgba(0,0,0,.38);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+        .ring{width:47px;height:47px;margin-bottom:19px;border:5px solid #c9e9f8;border-top-color:#119fda;border-radius:50%;animation:spin .85s linear infinite}
+        span{font-size:11px;font-weight:900;letter-spacing:.18em;color:#138cc5}
+        strong{max-width:290px;margin:8px 0 13px;font-family:'Bebas Neue',Impact,sans-serif;font-size:43px;line-height:.95;letter-spacing:.01em;color:#111820}
+        small{font-size:13px;line-height:1.45;color:#64717b}
+        @keyframes spin{to{transform:rotate(360deg)}}
+      </style>
+      <div class="overlay">
+        <div class="card">
+          <div class="ring" aria-hidden="true"></div>
+          <span>PLAYFOOTY COACHING</span>
+          <strong>LOADING LIVE TEAM</strong>
+          <small>Live data can take up to 30 seconds to load.</small>
+        </div>
+      </div>
+    `
+
+    document.documentElement.appendChild(host)
+
+    const heading = shadow.querySelector('strong')
     const timers = [
       window.setTimeout(() => { if (heading) heading.textContent = entryStages[1] }, ENTRY_STAGE_TIME),
       window.setTimeout(() => { if (heading) heading.textContent = entryStages[2] }, ENTRY_STAGE_TIME * 2),
