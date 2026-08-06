@@ -37,7 +37,7 @@ function matchesControl(button: HTMLButtonElement, label: string) {
   if (wanted === 'START') return ['START', 'STARTMATCH', 'RESUME', 'RESUMEMATCH'].includes(text)
   if (wanted === 'NEXTQUARTER') return ['NEXTQUARTER', 'ENDQUARTER'].includes(text)
   if (wanted === 'FINISHMATCH') return ['FINISHMATCH', 'ENDMATCH'].includes(text)
-  if (wanted === 'RESTART') return ['RESTART', 'RESTARTMATCH', 'RESETMATCH'].includes(text)
+  if (wanted === 'RESTART') return ['RESTART', 'RESTARTMATCH', 'RESET', 'RESETMATCH'].includes(text)
   return text === wanted
 }
 
