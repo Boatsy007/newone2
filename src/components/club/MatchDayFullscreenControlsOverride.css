@@ -14,6 +14,14 @@ html body.pf-match-day-focus .md .md-toolbar {
   top: 7px !important;
 }
 
+/* Match Day owns its loading experience. Remove the generic Club HQ loader as
+   soon as the Match Day workspace begins mounting so the staged Match Day
+   loading card is the only loading screen shown. */
+body:has(.md-canonical-live-host) .club-page-loading,
+body.pf-match-day-focus .club-page-loading {
+  display: none !important;
+}
+
 /* Leave the four scoring controls in their existing row. */
 html .md:fullscreen .md-fs-score.md-fs-score-top,
 html .md:-webkit-full-screen .md-fs-score.md-fs-score-top,
