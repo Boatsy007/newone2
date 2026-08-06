@@ -26,19 +26,18 @@
     const style = document.createElement('style')
     style.id = 'pf-inline-ai-style'
     style.textContent = `
-      .pf-inline-ai-shell{display:flex!important;flex-direction:column!important;gap:6px!important;margin:8px 10px 10px!important;padding:0!important}
+      .pf-inline-ai-shell{display:flex!important;flex-direction:column!important;gap:6px!important;width:100%!important;margin:0!important;padding:0!important}
       .pf-inline-ai-primary{display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important}
       .pf-inline-ai-chat{display:grid!important;grid-template-columns:44px minmax(0,1fr)!important;gap:7px!important;align-items:center!important}
       .pf-inline-ai-shell button{height:34px!important;border:1px solid rgba(255,255,255,.2)!important;border-radius:8px!important;color:#fff!important;font:inherit!important;font-size:8px!important;font-weight:900!important;letter-spacing:.04em!important;text-transform:uppercase!important;white-space:nowrap!important;padding:0 8px!important}
       .pf-inline-ai-ask{background:#1099df!important}
       .pf-inline-ai-report{background:#132638!important}
       .pf-inline-ai-mic{background:#173147!important;font-size:17px!important;padding:0!important}
-      .pf-inline-ai-input{min-width:0!important;width:100%!important;height:34px!important;border:1px solid rgba(120,210,255,.42)!important;border-radius:8px!important;background:rgba(4,18,30,.86)!important;color:#fff!important;padding:0 10px!important;font:inherit!important;font-size:9px!important;outline:none!important}
+      .pf-inline-ai-input{min-width:0!important;width:100%!important;height:34px!important;border:1px solid rgba(120,210,255,.42)!important;border-radius:8px!important;background:rgba(4,18,30,.86)!important;color:#fff!important;padding:0 10px!important;font:inherit!important;font-size:9px!important;outline:none!important;box-sizing:border-box!important}
       .pf-inline-ai-input::placeholder{color:rgba(255,255,255,.58)!important}
-      .pf-inline-ai-answer{margin:0 10px 8px!important;padding:9px 11px!important;border:1px solid rgba(120,210,255,.28)!important;border-radius:8px!important;background:rgba(7,20,31,.78)!important;color:#fff!important;font-size:9px!important;line-height:1.35!important}
+      .pf-inline-ai-answer{margin:0 0 8px!important;padding:9px 11px!important;border:1px solid rgba(120,210,255,.28)!important;border-radius:8px!important;background:rgba(7,20,31,.78)!important;color:#fff!important;font-size:9px!important;line-height:1.35!important}
       .pf-inline-ai-answer[hidden]{display:none!important}
       .pf-inline-ai-working{opacity:.72!important}
-      .pf-inline-ai-hidden{display:none!important}
       @media(max-width:760px){.pf-inline-ai-chat{grid-template-columns:40px minmax(0,1fr)!important;gap:5px!important}.pf-inline-ai-shell button{font-size:7px!important}.pf-inline-ai-input{font-size:8px!important}}
     `
     document.head.appendChild(style)
@@ -59,26 +58,27 @@
     return heading.closest('section,article,div')
   }
 
-  function hideOldControls(panel) {
-    panel.querySelectorAll('.pf-ai-actions').forEach(node => node.classList.add('pf-inline-ai-hidden'))
+  function findOldActionRow(panel) {
+    const buttons = [...panel.querySelectorAll('button')].filter(button => !button.closest('.pf-inline-ai-shell'))
+    return buttons.map(button => button.parentElement).find(row => {
+      if (!(row instanceof HTMLElement)) return false
+      const labels = [...row.querySelectorAll('button')].map(button => normalise(button.textContent).toUpperCase())
+      return labels.includes('ANALYSE') && labels.includes('QTR REPORT')
+    }) || null
+  }
 
-    const buttons = [...panel.querySelectorAll('button')]
-    buttons.forEach(button => {
+  function removeLegacyControls(panel) {
+    panel.querySelectorAll('.pf-ai-actions').forEach(node => {
+      if (!node.closest('.pf-inline-ai-shell')) node.remove()
+    })
+
+    const oldRow = findOldActionRow(panel)
+    if (oldRow) oldRow.remove()
+
+    ;[...panel.querySelectorAll('button')].forEach(button => {
       if (button.closest('.pf-inline-ai-shell')) return
       const text = normalise(button.textContent).toUpperCase()
-      if (!['ANALYSE', 'QTR REPORT', 'ASK COACH'].includes(text)) return
-
-      const row = button.parentElement
-      if (row && [...row.querySelectorAll('button')].some(item => {
-        const label = normalise(item.textContent).toUpperCase()
-        return label === 'ANALYSE' || label === 'QTR REPORT'
-      })) {
-        row.classList.add('pf-inline-ai-hidden')
-        row.style.setProperty('display', 'none', 'important')
-      } else {
-        button.classList.add('pf-inline-ai-hidden')
-        button.style.setProperty('display', 'none', 'important')
-      }
+      if (text === 'ANALYSE' || text === 'QTR REPORT' || text === 'ASK COACH') button.remove()
     })
   }
 
@@ -152,47 +152,58 @@
     recognition.start()
   }
 
+  function buildShell(panel) {
+    const shell = document.createElement('div')
+    shell.className = 'pf-inline-ai-shell'
+    shell.innerHTML = `
+      <div class="pf-inline-ai-primary">
+        <button type="button" class="pf-inline-ai-ask">Ask Coach</button>
+        <button type="button" class="pf-inline-ai-report">QTR Report</button>
+      </div>
+      <div class="pf-inline-ai-chat">
+        <button type="button" class="pf-inline-ai-mic" aria-label="Speak to Assistant Coach">🎙</button>
+        <input class="pf-inline-ai-input" type="text" placeholder="Ask Assistant Coach…" aria-label="Ask Assistant Coach">
+      </div>
+    `
+
+    const input = shell.querySelector('.pf-inline-ai-input')
+    const submit = () => {
+      const question = normalise(input?.value)
+      if (question) ask(panel, question, 'manual')
+    }
+
+    shell.querySelector('.pf-inline-ai-mic')?.addEventListener('click', () => startVoice(panel))
+    shell.querySelector('.pf-inline-ai-ask')?.addEventListener('click', submit)
+    shell.querySelector('.pf-inline-ai-report')?.addEventListener('click', () => ask(panel, 'Generate the quarter report using all available match information.', 'quarter_report'))
+    input?.addEventListener('keydown', event => { if (event.key === 'Enter') submit() })
+    return shell
+  }
+
   function mount() {
     ensureStyle()
     const panel = findPanel()
     if (!(panel instanceof HTMLElement)) return
-    hideOldControls(panel)
 
+    const oldRow = findOldActionRow(panel)
     let shell = panel.querySelector('.pf-inline-ai-shell')
+
     if (!(shell instanceof HTMLElement)) {
-      shell = document.createElement('div')
-      shell.className = 'pf-inline-ai-shell'
-      shell.innerHTML = `
-        <div class="pf-inline-ai-primary">
-          <button type="button" class="pf-inline-ai-ask">Ask Coach</button>
-          <button type="button" class="pf-inline-ai-report">QTR Report</button>
-        </div>
-        <div class="pf-inline-ai-chat">
-          <button type="button" class="pf-inline-ai-mic" aria-label="Speak to Assistant Coach">🎙</button>
-          <input class="pf-inline-ai-input" type="text" placeholder="Ask Assistant Coach…" aria-label="Ask Assistant Coach">
-        </div>
-      `
-
-      const answer = document.createElement('div')
-      answer.className = 'pf-inline-ai-answer'
-      answer.hidden = true
-
-      panel.appendChild(answer)
-      panel.appendChild(shell)
-
-      const input = shell.querySelector('.pf-inline-ai-input')
-      const submit = () => {
-        const question = normalise(input?.value)
-        if (question) ask(panel, question, 'manual')
-      }
-
-      shell.querySelector('.pf-inline-ai-mic')?.addEventListener('click', () => startVoice(panel))
-      shell.querySelector('.pf-inline-ai-ask')?.addEventListener('click', submit)
-      shell.querySelector('.pf-inline-ai-report')?.addEventListener('click', () => ask(panel, 'Generate the quarter report using all available match information.', 'quarter_report'))
-      input?.addEventListener('keydown', event => { if (event.key === 'Enter') submit() })
+      shell = buildShell(panel)
+      if (oldRow?.parentElement) oldRow.replaceWith(shell)
+      else panel.appendChild(shell)
+    } else if (oldRow?.parentElement) {
+      oldRow.replaceWith(shell)
     }
 
-    hideOldControls(panel)
+    let answer = panel.querySelector('.pf-inline-ai-answer')
+    if (!(answer instanceof HTMLElement)) {
+      answer = document.createElement('div')
+      answer.className = 'pf-inline-ai-answer'
+      answer.hidden = true
+      panel.insertBefore(answer, shell)
+    }
+
+    removeLegacyControls(panel)
   }
 
   const observer = new MutationObserver(mount)
