@@ -6,7 +6,7 @@
   let syncing = false
 
   function isMatchDay() {
-    return /\/club-portal\/[^/]+\/match-day\/?$/.test(location.pathname)
+    return Boolean(document.querySelector('.md'))
   }
 
   function installStyles() {
@@ -59,7 +59,6 @@
   function benchCards(bench) {
     return [...bench.querySelectorAll('.md-player')]
       .filter(card => card instanceof HTMLElement)
-      .filter(card => !card.classList.contains('on-field'))
   }
 
   function playerKey(card) {
@@ -137,10 +136,6 @@
         current.forEach((_, key) => states.set(key, { enteredAt: null }))
         initialised = true
       } else {
-        document.querySelectorAll('.md-player[data-pf-interchange-card="true"]').forEach(card => {
-          const key = playerKey(card)
-          if (!current.has(key)) clearDecoration(card)
-        })
         current.forEach((_, key) => {
           if (!states.has(key)) states.set(key, { enteredAt: now })
         })
@@ -148,6 +143,10 @@
           if (!current.has(key)) states.delete(key)
         }
       }
+
+      document.querySelectorAll('.md-player[data-pf-interchange-card="true"]').forEach(card => {
+        if (!bench.contains(card)) clearDecoration(card)
+      })
 
       current.forEach((card, key) => {
         const state = states.get(key)
@@ -166,7 +165,6 @@
   }
 
   document.addEventListener('click', event => {
-    if (!isMatchDay()) return
     const button = event.target instanceof Element ? event.target.closest('button') : null
     if (!button) return
     const text = String(button.textContent || '').toUpperCase().replace(/[^A-Z]/g, '')
@@ -175,11 +173,12 @@
     } else {
       window.setTimeout(syncBench, 80)
       window.setTimeout(syncBench, 300)
+      window.setTimeout(syncBench, 700)
     }
   }, true)
 
   const observer = new MutationObserver(() => window.requestAnimationFrame(syncBench))
-  observer.observe(document.documentElement, { childList: true, subtree: true })
+  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true })
   window.setInterval(syncBench, 1000)
   window.addEventListener('pageshow', syncBench)
   window.addEventListener('resize', syncBench)
