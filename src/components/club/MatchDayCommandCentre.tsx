@@ -34,11 +34,24 @@ function matchesControl(button: HTMLButtonElement, label: string) {
   if (button.dataset.mdMatchControls === 'true') return false
   const text = normalise(button.textContent || '')
   const wanted = normalise(label)
-  if (wanted === 'START') return text === 'START' || text === 'STARTMATCH'
-  if (wanted === 'NEXTQUARTER') return text === 'NEXTQUARTER' || text === 'ENDQUARTER'
-  if (wanted === 'FINISHMATCH') return text === 'FINISHMATCH' || text === 'ENDMATCH'
-  if (wanted === 'RESTART') return text === 'RESTART' || text === 'RESTARTMATCH'
+  if (wanted === 'START') return ['START', 'STARTMATCH', 'RESUME', 'RESUMEMATCH'].includes(text)
+  if (wanted === 'NEXTQUARTER') return ['NEXTQUARTER', 'ENDQUARTER'].includes(text)
+  if (wanted === 'FINISHMATCH') return ['FINISHMATCH', 'ENDMATCH'].includes(text)
+  if (wanted === 'RESTART') return ['RESTART', 'RESTARTMATCH', 'RESETMATCH'].includes(text)
   return text === wanted
+}
+
+function replaceKpiText(root: HTMLElement) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  let node = walker.nextNode()
+  while (node) {
+    if (normalise(node.textContent || '').includes('KPI')) {
+      node.textContent = (node.textContent || '').replace(/KPI'?S?/i, 'MATCH')
+      return
+    }
+    node = walker.nextNode()
+  }
+  root.textContent = 'MATCH'
 }
 
 export default function MatchDayCommandCentre({ children }: { children: ReactNode }) {
@@ -83,6 +96,14 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
     const findOriginalControl = (board: HTMLElement, label: string) =>
       [...board.querySelectorAll<HTMLButtonElement>('button')].find(button => matchesControl(button, label))
 
+    const activateOriginalControl = (source: HTMLButtonElement) => {
+      source.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'touch' }))
+      source.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+      source.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }))
+      source.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }))
+      source.click()
+    }
+
     const reconcileMatchControls = () => {
       if (!mounted || reconcilingControls) return
       const board = host.querySelector<HTMLElement>('.md')
@@ -98,11 +119,15 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
         matchControlLabels.forEach(label => {
           const source = findOriginalControl(board, label)
           if (!source) return
-          if (!source.dataset.mdOriginalDisplay) {
-            source.dataset.mdOriginalDisplay = source.style.display || '__empty__'
-          }
+          if (!source.dataset.mdOriginalStyle) source.dataset.mdOriginalStyle = source.getAttribute('style') || '__empty__'
           source.dataset.mdConsolidatedControl = 'true'
-          source.style.setProperty('display', 'none', 'important')
+          source.style.setProperty('position', 'absolute', 'important')
+          source.style.setProperty('left', '-10000px', 'important')
+          source.style.setProperty('top', '-10000px', 'important')
+          source.style.setProperty('width', '1px', 'important')
+          source.style.setProperty('height', '1px', 'important')
+          source.style.setProperty('opacity', '0', 'important')
+          source.style.setProperty('pointer-events', 'none', 'important')
         })
 
         const tabParent = kpiButton.parentElement
@@ -113,19 +138,30 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
 
         let tab = tabParent.querySelector<HTMLButtonElement>('[data-md-control-tab="true"]')
         if (!tab) {
-          tab = document.createElement('button')
+          tab = kpiButton.cloneNode(true) as HTMLButtonElement
+          tab.removeAttribute('id')
           tab.type = 'button'
-          tab.className = kpiButton.className
-          tab.style.cssText = kpiButton.style.cssText
           tab.dataset.mdMatchControls = 'true'
           tab.dataset.mdControlTab = 'true'
           tab.setAttribute('aria-controls', 'md-match-control-panel')
           tab.setAttribute('aria-expanded', 'false')
           tab.setAttribute('aria-label', 'Open match controls')
-          tab.textContent = 'MATCH'
-          tabParent.insertBefore(tab, kpiButton)
+          replaceKpiText(tab)
+          tabParent.appendChild(tab)
         }
         tab.classList.add('md-match-control-tab')
+        tab.style.setProperty('position', 'absolute', 'important')
+        tab.style.setProperty('left', `${kpiButton.offsetLeft}px`, 'important')
+        tab.style.setProperty('top', `${Math.max(0, kpiButton.offsetTop - kpiButton.offsetHeight - 6)}px`, 'important')
+        tab.style.setProperty('width', `${kpiButton.offsetWidth}px`, 'important')
+        tab.style.setProperty('height', `${kpiButton.offsetHeight}px`, 'important')
+        tab.style.setProperty('margin', '0', 'important')
+        tab.style.setProperty('z-index', '9401', 'important')
+        tab.style.setProperty('background', '#d92d20', 'important')
+        tab.style.setProperty('background-color', '#d92d20', 'important')
+        tab.style.setProperty('background-image', 'none', 'important')
+        tab.style.setProperty('border-color', '#ef5a50', 'important')
+        tab.style.setProperty('color', '#fff', 'important')
 
         let panel = tabParent.querySelector<HTMLDivElement>('#md-match-control-panel')
         if (!panel) {
@@ -147,11 +183,11 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
               event.preventDefault()
               event.stopPropagation()
               const source = findOriginalControl(board, label)
-              if (!source || source.disabled) return
-              source.click()
+              if (!source) return
+              activateOriginalControl(source)
               panel!.hidden = true
               tab?.setAttribute('aria-expanded', 'false')
-              window.setTimeout(reconcileMatchControls, 30)
+              window.setTimeout(reconcileMatchControls, 50)
             })
             panel!.appendChild(action)
           })
@@ -160,10 +196,11 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
 
         const syncPanel = () => {
           if (!tab || !panel) return
+          panel.style.left = `${tab.offsetLeft + tab.offsetWidth + 8}px`
           panel.style.top = `${tab.offsetTop}px`
           panel.querySelectorAll<HTMLButtonElement>('[data-md-control-action]').forEach(action => {
             const source = findOriginalControl(board, action.textContent || '')
-            action.disabled = !source || source.disabled
+            action.disabled = !source
           })
         }
         syncPanel()
@@ -358,10 +395,10 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
       document.removeEventListener('webkitfullscreenchange', fitCanonicalLayout as EventListener)
 
       host.querySelectorAll<HTMLElement>('[data-md-consolidated-control="true"]').forEach(control => {
-        const original = control.dataset.mdOriginalDisplay
-        if (original === '__empty__') control.style.removeProperty('display')
-        else if (original) control.style.display = original
-        delete control.dataset.mdOriginalDisplay
+        const original = control.dataset.mdOriginalStyle
+        if (original === '__empty__') control.removeAttribute('style')
+        else if (original !== undefined) control.setAttribute('style', original)
+        delete control.dataset.mdOriginalStyle
         delete control.dataset.mdConsolidatedControl
       })
       host.querySelectorAll<HTMLElement>('[data-md-match-controls="true"]').forEach(element => element.remove())
