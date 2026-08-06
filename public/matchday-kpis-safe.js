@@ -1,7 +1,7 @@
 (() => {
   const STATS = [
     ['i50', 'I50', 'Inside 50s'], ['clr', 'CLR', 'Clearances'], ['r50', 'R50', 'Rebound 50s'],
-    ['one', '1%', 'One percenters'], ['tkl', 'TKL', 'Tackles'], ['opm', 'OPM', 'Opposition marks'], ['fa', 'FA', 'Frees against']
+    ['one', '1%', 'One percenters'], ['tkl', 'TKL', 'Tackles'], ['opm', 'MRK', 'Marks'], ['fa', 'FA', 'Frees against']
   ]
   const EMPTY = () => Object.fromEntries(STATS.map(([key]) => [key, 0]))
   let lastPath = ''
