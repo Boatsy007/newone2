@@ -1,5 +1,4 @@
 (() => {
-  const RED_AFTER_MS = 0
   const ORANGE_AFTER_MS = 150000
   const GREEN_AFTER_MS = 300000
   const states = new Map()
@@ -7,7 +6,7 @@
   let syncing = false
 
   function isMatchDay() {
-    return /\/club-portal\/[^/]+\/match-day\/?$/.test(location.pathname)
+    return location.pathname.includes('/match-day') || Boolean(document.querySelector('.md-bench'))
   }
 
   function installStyles() {
@@ -15,22 +14,22 @@
     const style = document.createElement('style')
     style.id = 'pf-interchange-timer-styles'
     style.textContent = `
-      .md-bench [data-pf-interchange-card="true"] {
+      [data-pf-interchange-card="true"] {
         position: relative !important;
         box-sizing: border-box !important;
         transition: box-shadow .2s ease, outline-color .2s ease !important;
       }
-      .md-bench [data-pf-interchange-status="red"] {
+      [data-pf-interchange-status="red"] {
         outline: 3px solid #ef233c !important;
         outline-offset: -3px !important;
         box-shadow: 0 0 0 1px rgba(239,35,60,.35), 0 0 14px rgba(239,35,60,.28) !important;
       }
-      .md-bench [data-pf-interchange-status="orange"] {
+      [data-pf-interchange-status="orange"] {
         outline: 3px solid #ff9f1c !important;
         outline-offset: -3px !important;
         box-shadow: 0 0 0 1px rgba(255,159,28,.35), 0 0 14px rgba(255,159,28,.28) !important;
       }
-      .md-bench [data-pf-interchange-status="green"] {
+      [data-pf-interchange-status="green"] {
         outline: 3px solid #16c784 !important;
         outline-offset: -3px !important;
         box-shadow: 0 0 0 1px rgba(22,199,132,.35), 0 0 14px rgba(22,199,132,.24) !important;
@@ -39,16 +38,15 @@
         position: absolute;
         top: 3px;
         right: 3px;
-        z-index: 8;
-        min-width: 39px;
+        z-index: 20;
+        min-width: 38px;
         padding: 3px 5px;
         border-radius: 7px;
-        background: rgba(5,13,22,.92);
+        background: rgba(5,13,22,.94);
         color: #fff;
         font-size: 9px;
         font-weight: 900;
         line-height: 1;
-        letter-spacing: .02em;
         text-align: center;
         pointer-events: none;
         box-shadow: 0 2px 7px rgba(0,0,0,.35);
@@ -57,20 +55,29 @@
     document.head.appendChild(style)
   }
 
-  function cardCandidates(bench) {
-    const all = [...bench.querySelectorAll('div,button,article,li')]
-      .filter(element => element instanceof HTMLElement)
-      .filter(element => !element.classList.contains('pf-interchange-timer'))
-      .filter(element => {
-        const text = String(element.textContent || '').replace(/\s+/g, ' ').trim()
-        if (!text || /ADD\s*\/\s*EDIT\s+INTERCHANGE/i.test(text)) return false
-        const buttons = element.querySelectorAll('button').length
-        const hasGoal = /\bG\s*\d+\b/i.test(text)
-        const hasBehind = /\bB\s*\d+\b/i.test(text)
-        return buttons >= 2 || (hasGoal && hasBehind)
-      })
+  function cleanText(element) {
+    return String(element.textContent || '').replace(/\s+/g, ' ').trim()
+  }
 
-    return all.filter(element => !all.some(other => other !== element && element.contains(other)))
+  function looksLikePlayerCard(element) {
+    if (!(element instanceof HTMLElement)) return false
+    if (element.classList.contains('pf-interchange-timer')) return false
+    const text = cleanText(element)
+    if (!text || text.length > 160) return false
+    const hasInt = /\bINT\b/i.test(text)
+    const hasGoal = /\bG\s*\d+\b/i.test(text)
+    const hasBehind = /\bB\s*\d+\b/i.test(text)
+    return hasInt && hasGoal && hasBehind
+  }
+
+  function cardCandidates(bench) {
+    const nodes = [...bench.querySelectorAll('div,button,article,li')].filter(looksLikePlayerCard)
+    const cards = nodes.filter(element => !nodes.some(other => other !== element && element.contains(other)))
+    if (cards.length) return cards
+
+    return [...bench.children]
+      .flatMap(child => child instanceof HTMLElement ? [child, ...child.querySelectorAll(':scope > *')] : [])
+      .filter(looksLikePlayerCard)
   }
 
   function playerKey(card) {
@@ -79,14 +86,13 @@
 
     const clone = card.cloneNode(true)
     clone.querySelectorAll?.('.pf-interchange-timer').forEach(node => node.remove())
-    let text = String(clone.textContent || '')
+    const text = String(clone.textContent || '')
       .replace(/\bG\s*\d+\b/gi, ' ')
       .replace(/\bB\s*\d+\b/gi, ' ')
       .replace(/\bINT\b/gi, ' ')
       .replace(/\b\d{1,2}:\d{2}\b/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
-
     const words = text.split(' ').filter(Boolean)
     const nameWords = words.filter(word => !/^\d+$/.test(word)).slice(0, 4)
     return `text:${nameWords.join('-').toLowerCase()}`
@@ -94,9 +100,7 @@
 
   function formatElapsed(milliseconds) {
     const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000))
-    const minutes = Math.floor(totalSeconds / 60)
-    const seconds = totalSeconds % 60
-    return `${minutes}:${String(seconds).padStart(2, '0')}`
+    return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`
   }
 
   function statusFor(elapsed) {
@@ -140,8 +144,7 @@
       const current = new Map()
       cards.forEach(card => {
         const key = playerKey(card)
-        if (!key || key === 'text:') return
-        current.set(key, card)
+        if (key && key !== 'text:') current.set(key, card)
       })
       if (!current.size) return
 
@@ -175,7 +178,7 @@
       card.removeAttribute('data-pf-interchange-status')
       card.querySelector('.pf-interchange-timer')?.remove()
     })
-    window.setTimeout(syncBench, 200)
+    window.setTimeout(syncBench, 250)
   }
 
   document.addEventListener('click', event => {
@@ -184,7 +187,9 @@
     if (!button) return
     const text = String(button.textContent || '').toUpperCase().replace(/[^A-Z]/g, '')
     if (['RESET', 'RESETMATCH', 'RESTART', 'RESTARTMATCH'].includes(text)) {
-      window.setTimeout(resetBenchTimers, 80)
+      window.setTimeout(resetBenchTimers, 100)
+    } else {
+      window.setTimeout(syncBench, 100)
     }
   }, true)
 
@@ -193,5 +198,7 @@
   window.setInterval(syncBench, 1000)
   window.addEventListener('pageshow', syncBench)
   window.addEventListener('resize', syncBench)
+  document.addEventListener('fullscreenchange', syncBench)
+  document.addEventListener('webkitfullscreenchange', syncBench)
   syncBench()
 })()
