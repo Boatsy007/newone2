@@ -6,6 +6,7 @@ const LIVE_HEIGHT = 768
 const LOADING_STAGE_TIME = 7000
 const MIN_LOADING_TIME = LOADING_STAGE_TIME * 3
 const MAX_LOADING_TIME = 30000
+const FULLSCREEN_PROMPT_SESSION_KEY = 'pf-match-day-fullscreen-choice'
 
 const loadingStages = [
   'LOADING LIVE TEAM',
@@ -30,6 +31,33 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
   const hostRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [loadingStage, setLoadingStage] = useState(0)
+  const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return window.sessionStorage.getItem(FULLSCREEN_PROMPT_SESSION_KEY) !== 'done'
+  })
+
+  const dismissFullscreenPrompt = () => {
+    window.sessionStorage.setItem(FULLSCREEN_PROMPT_SESSION_KEY, 'done')
+    setShowFullscreenPrompt(false)
+  }
+
+  const enterFullscreenFromPrompt = async () => {
+    const board = hostRef.current?.querySelector<FullscreenElement>('.md')
+    if (!board) return
+
+    try {
+      if (board.requestFullscreen) {
+        await board.requestFullscreen({ navigationUI: 'hide' }).catch(() => board.requestFullscreen())
+      } else if (board.webkitRequestFullscreen) {
+        await Promise.resolve(board.webkitRequestFullscreen())
+      }
+    } catch {
+      // iPad Safari may refuse native fullscreen. The standard fitted view remains available.
+    } finally {
+      dismissFullscreenPrompt()
+      window.setTimeout(() => window.dispatchEvent(new Event('resize')), 40)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -233,6 +261,21 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           </div>
         </div>
       )}
+      {!loading && showFullscreenPrompt && (
+        <div className="md-fullscreen-prompt-overlay" role="dialog" aria-modal="true" aria-labelledby="md-fullscreen-prompt-title">
+          <div className="md-fullscreen-prompt-card">
+            <span>PLAYFOOTY MATCH DAY</span>
+            <strong id="md-fullscreen-prompt-title">Match Day works best in Full Screen</strong>
+            <p>For the best coaching experience, open Match Day in full screen.</p>
+            <button type="button" className="md-fullscreen-prompt-primary" onClick={enterFullscreenFromPrompt}>
+              Enter Full Screen
+            </button>
+            <button type="button" className="md-fullscreen-prompt-secondary" onClick={dismissFullscreenPrompt}>
+              Continue Anyway
+            </button>
+          </div>
+        </div>
+      )}
       <style>{`
         .md-canonical-live-host {
           position: relative;
@@ -243,7 +286,8 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           background: #07111c;
         }
 
-        .md-live-loading-overlay {
+        .md-live-loading-overlay,
+        .md-fullscreen-prompt-overlay {
           position: absolute;
           inset: 0;
           z-index: 10000;
@@ -253,7 +297,15 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           background: #07111c;
         }
 
-        .md-live-loading-card {
+        .md-fullscreen-prompt-overlay {
+          z-index: 9999;
+          background: rgba(7, 17, 28, .94);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+        }
+
+        .md-live-loading-card,
+        .md-fullscreen-prompt-card {
           width: min(420px, calc(100% - 40px));
           padding: 38px 34px 42px;
           border-radius: 22px;
@@ -261,6 +313,54 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           color: #0b1118;
           text-align: center;
           box-shadow: 0 24px 60px rgba(0, 0, 0, .34);
+        }
+
+        .md-fullscreen-prompt-card span {
+          display: block;
+          margin-bottom: 12px;
+          color: #168ed4;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: .2em;
+        }
+
+        .md-fullscreen-prompt-card strong {
+          display: block;
+          font-size: clamp(28px, 4.5vw, 42px);
+          line-height: 1;
+          letter-spacing: -.035em;
+        }
+
+        .md-fullscreen-prompt-card p {
+          max-width: 330px;
+          margin: 18px auto 26px;
+          color: #68717a;
+          font-size: 15px;
+          line-height: 1.45;
+        }
+
+        .md-fullscreen-prompt-card button {
+          width: 100%;
+          min-height: 52px;
+          border-radius: 12px;
+          font: inherit;
+          font-size: 14px;
+          font-weight: 900;
+          letter-spacing: .02em;
+          cursor: pointer;
+        }
+
+        .md-fullscreen-prompt-primary {
+          border: 1px solid #00bd69;
+          background: #00bd69;
+          color: #04140d;
+        }
+
+        .md-fullscreen-prompt-secondary {
+          margin-top: 10px;
+          border: 1px solid #ccd2d7;
+          background: transparent;
+          color: #26313a;
         }
 
         .md-live-loading-ring {
