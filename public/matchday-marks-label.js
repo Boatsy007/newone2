@@ -2,6 +2,7 @@
   const ENTRY_LOADER_STYLE_ID = 'pf-matchday-entry-loader-guard'
   const ENTRY_ACTIVE_CLASS = 'pf-matchday-entry-active'
   const MATCH_TAB_STYLE_ID = 'pf-matchday-match-tab-style'
+  const TAB_LAYER_STYLE_ID = 'pf-matchday-tab-layer-style'
 
   function normalise(value) {
     return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -43,6 +44,41 @@
       }
     `
     document.head.appendChild(style)
+  }
+
+  function ensureTabLayerStyle() {
+    if (document.getElementById(TAB_LAYER_STYLE_ID)) return
+    const style = document.createElement('style')
+    style.id = TAB_LAYER_STYLE_ID
+    style.textContent = `
+      .pf-md-whiteboard-tab {
+        z-index: 1 !important;
+      }
+      .pf-md-kpi-tab {
+        z-index: 50 !important;
+      }
+      .pf-md-kpi-tab[aria-expanded="true"],
+      .pf-md-kpi-panel:not([hidden]) {
+        z-index: 10050 !important;
+      }
+    `
+    document.head.appendChild(style)
+  }
+
+  function syncTabLayering() {
+    ensureTabLayerStyle()
+    const buttons = [...document.querySelectorAll('.md button')]
+    const whiteboardTab = buttons.find(button => normalise(button.textContent).includes('WHITEBOARD'))
+    const kpiTab = buttons.find(button => normalise(button.textContent).includes('KPI'))
+
+    if (whiteboardTab instanceof HTMLElement) whiteboardTab.classList.add('pf-md-whiteboard-tab')
+    if (!(kpiTab instanceof HTMLElement)) return
+
+    kpiTab.classList.add('pf-md-kpi-tab')
+    const panelId = kpiTab.getAttribute('aria-controls')
+    if (!panelId) return
+    const panel = document.getElementById(panelId)
+    if (panel instanceof HTMLElement) panel.classList.add('pf-md-kpi-panel')
   }
 
   function syncMatchTab() {
@@ -87,6 +123,7 @@
     })
 
     syncMatchTab()
+    syncTabLayering()
   }
 
   function ensureEntryGuard() {
