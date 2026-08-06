@@ -1,10 +1,19 @@
 (() => {
   const ORANGE_AFTER_MS = 150000
   const GREEN_AFTER_MS = 300000
+  const INJURY_HOLD_MS = 750
   const states = new Map()
+  const injuredPlayers = new Set()
   let initialised = false
   let syncing = false
   let scheduledSync = 0
+  let holdTimer = 0
+  let holdCard = null
+  let holdKey = ''
+  let holdStartX = 0
+  let holdStartY = 0
+  let holdTriggered = false
+  let suppressClickUntil = 0
 
   function installStyles() {
     if (document.getElementById('pf-interchange-timer-styles')) return
@@ -14,7 +23,9 @@
       .md-bench .md-player[data-pf-interchange-card="true"] {
         position: relative !important;
         box-sizing: border-box !important;
-        transition: box-shadow .2s ease, outline-color .2s ease !important;
+        transition: box-shadow .2s ease, outline-color .2s ease, transform .15s ease !important;
+        -webkit-touch-callout: none !important;
+        user-select: none !important;
       }
       .md-bench .md-player[data-pf-interchange-status="red"] {
         outline: 3px solid #ef233c !important;
@@ -36,7 +47,7 @@
         position: absolute !important;
         top: 3px !important;
         right: 3px !important;
-        z-index: 20 !important;
+        z-index: 22 !important;
         min-width: 39px !important;
         padding: 3px 5px !important;
         border-radius: 7px !important;
@@ -50,6 +61,31 @@
         pointer-events: none !important;
         box-shadow: 0 2px 7px rgba(0,0,0,.4) !important;
       }
+      .md-bench .md-player[data-pf-injured="true"]::before {
+        content: 'INJURED';
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 21 !important;
+        display: grid !important;
+        place-items: center !important;
+        border: 3px solid #ff2438 !important;
+        border-radius: inherit !important;
+        background: rgba(220, 20, 45, .46) !important;
+        color: #fff !important;
+        font-size: 10px !important;
+        font-weight: 950 !important;
+        letter-spacing: .08em !important;
+        text-shadow: 0 1px 4px rgba(0,0,0,.8) !important;
+        pointer-events: none !important;
+        box-sizing: border-box !important;
+      }
+      .md-bench .md-player[data-pf-injured="true"] {
+        cursor: not-allowed !important;
+      }
+      .md-bench .md-player[data-pf-holding="true"] {
+        transform: scale(.97) !important;
+        filter: brightness(.88) !important;
+      }
     `
     document.head.appendChild(style)
   }
@@ -61,6 +97,12 @@
     const number = card.querySelector('.number')?.textContent?.trim() || ''
     const name = card.querySelector('.md-player-main strong')?.textContent?.replace(/\s+/g, ' ').trim() || ''
     return name ? `player:${number}:${name.toLowerCase()}` : ''
+  }
+
+  function benchCardFromTarget(target) {
+    if (!(target instanceof Element)) return null
+    const card = target.closest('.md-bench .md-player')
+    return card instanceof HTMLElement ? card : null
   }
 
   function formatElapsed(milliseconds) {
@@ -82,10 +124,15 @@
     card.removeAttribute('data-pf-interchange-card')
     card.removeAttribute('data-pf-interchange-status')
     card.removeAttribute('data-pf-interchange-time')
+    card.removeAttribute('data-pf-injured')
+    card.removeAttribute('data-pf-holding')
   }
 
-  function decorate(card, state, now) {
+  function decorate(card, key, state, now) {
     setAttributeIfChanged(card, 'data-pf-interchange-card', 'true')
+    if (injuredPlayers.has(key)) setAttributeIfChanged(card, 'data-pf-injured', 'true')
+    else card.removeAttribute('data-pf-injured')
+
     if (state.enteredAt === null) {
       setAttributeIfChanged(card, 'data-pf-interchange-status', 'green')
       card.removeAttribute('data-pf-interchange-time')
@@ -136,7 +183,7 @@
 
       current.forEach((card, key) => {
         const state = states.get(key)
-        if (state) decorate(card, state, now)
+        if (state) decorate(card, key, state, now)
       })
     } finally {
       syncing = false
@@ -150,12 +197,93 @@
 
   function resetBenchTimers() {
     states.clear()
+    injuredPlayers.clear()
     initialised = false
     document.querySelectorAll('.md-player[data-pf-interchange-card="true"]').forEach(clearDecoration)
     scheduleSync(250)
   }
 
+  function cancelHold() {
+    window.clearTimeout(holdTimer)
+    holdTimer = 0
+    holdCard?.removeAttribute('data-pf-holding')
+    holdCard = null
+    holdKey = ''
+    holdTriggered = false
+  }
+
+  document.addEventListener('pointerdown', event => {
+    const card = benchCardFromTarget(event.target)
+    if (!card) return
+    const key = playerKey(card)
+    if (!key) return
+
+    cancelHold()
+    holdCard = card
+    holdKey = key
+    holdStartX = event.clientX
+    holdStartY = event.clientY
+    holdTriggered = false
+    card.setAttribute('data-pf-holding', 'true')
+
+    if (injuredPlayers.has(key)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    holdTimer = window.setTimeout(() => {
+      if (!holdCard || holdKey !== key) return
+      holdTriggered = true
+      suppressClickUntil = Date.now() + 900
+      if (injuredPlayers.has(key)) injuredPlayers.delete(key)
+      else injuredPlayers.add(key)
+      holdCard.removeAttribute('data-pf-holding')
+      if (navigator.vibrate) navigator.vibrate(40)
+      syncBench()
+    }, INJURY_HOLD_MS)
+  }, true)
+
+  document.addEventListener('pointermove', event => {
+    if (!holdCard) return
+    if (Math.abs(event.clientX - holdStartX) > 12 || Math.abs(event.clientY - holdStartY) > 12) cancelHold()
+  }, true)
+
+  document.addEventListener('pointerup', event => {
+    if (!holdCard) return
+    const card = holdCard
+    const key = holdKey
+    const wasTriggered = holdTriggered
+    window.clearTimeout(holdTimer)
+    holdTimer = 0
+    card.removeAttribute('data-pf-holding')
+    holdCard = null
+    holdKey = ''
+    holdTriggered = false
+
+    if (wasTriggered || injuredPlayers.has(key)) {
+      event.preventDefault()
+      event.stopPropagation()
+      suppressClickUntil = Date.now() + 700
+    }
+  }, true)
+
+  document.addEventListener('pointercancel', cancelHold, true)
+
+  document.addEventListener('contextmenu', event => {
+    if (benchCardFromTarget(event.target)) event.preventDefault()
+  }, true)
+
   document.addEventListener('click', event => {
+    const card = benchCardFromTarget(event.target)
+    if (card) {
+      const key = playerKey(card)
+      if (Date.now() < suppressClickUntil || (key && injuredPlayers.has(key))) {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        return
+      }
+    }
+
     const button = event.target instanceof Element ? event.target.closest('button') : null
     if (!button || !document.querySelector('.md')) return
     const text = String(button.textContent || '').toUpperCase().replace(/[^A-Z]/g, '')
