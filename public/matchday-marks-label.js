@@ -2,8 +2,79 @@
   const ENTRY_LOADER_ID = 'pf-matchday-entry-loader'
   const ENTRY_LOADER_STYLE_ID = 'pf-matchday-entry-loader-guard'
   const ENTRY_ACTIVE_CLASS = 'pf-matchday-entry-active'
+  const MATCH_TAB_STYLE_ID = 'pf-matchday-match-tab-style'
   const ENTRY_STAGE_TIME = 7000
   const entryStages = ['LOADING LIVE TEAM', 'LOADING GAME PLAN', 'LOADING AI ASSISTANT COACH']
+
+  function normalise(value) {
+    return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  }
+
+  function replaceKpiText(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    let node = walker.nextNode()
+    while (node) {
+      if (normalise(node.textContent).includes('KPI')) {
+        node.textContent = String(node.textContent || '').replace(/KPI'?S?/i, 'MATCH')
+        return
+      }
+      node = walker.nextNode()
+    }
+  }
+
+  function ensureMatchTabStyle() {
+    if (document.getElementById(MATCH_TAB_STYLE_ID)) return
+    const style = document.createElement('style')
+    style.id = MATCH_TAB_STYLE_ID
+    style.textContent = `
+      .md-match-control-tab::before { content: none !important; }
+      .md-match-control-tab .pf-match-play-icon {
+        position: absolute !important;
+        top: 10px !important;
+        left: 50% !important;
+        z-index: 2 !important;
+        display: block !important;
+        width: auto !important;
+        height: auto !important;
+        margin: 0 !important;
+        color: #fff !important;
+        font: inherit !important;
+        font-size: .78em !important;
+        line-height: 1 !important;
+        transform: translateX(-50%) !important;
+        pointer-events: none !important;
+      }
+    `
+    document.head.appendChild(style)
+  }
+
+  function syncMatchTab() {
+    const matchTab = document.querySelector('.md-match-control-tab')
+    if (!(matchTab instanceof HTMLButtonElement)) return
+
+    const kpiTab = [...document.querySelectorAll('.md button')].find(button =>
+      button !== matchTab && button.dataset.mdMatchControls !== 'true' && normalise(button.textContent).includes('KPI'),
+    )
+    if (!(kpiTab instanceof HTMLButtonElement)) return
+
+    ensureMatchTabStyle()
+
+    const expectedClassName = `${kpiTab.className} md-match-control-tab`.trim()
+    if (matchTab.className !== expectedClassName) matchTab.className = expectedClassName
+
+    const currentStructure = matchTab.dataset.pfMatchStructureSource
+    const sourceStructure = kpiTab.innerHTML
+    if (currentStructure !== sourceStructure) {
+      matchTab.innerHTML = sourceStructure
+      replaceKpiText(matchTab)
+      const icon = document.createElement('span')
+      icon.className = 'pf-match-play-icon'
+      icon.setAttribute('aria-hidden', 'true')
+      icon.textContent = '▶'
+      matchTab.appendChild(icon)
+      matchTab.dataset.pfMatchStructureSource = sourceStructure
+    }
+  }
 
   function replaceLabels() {
     document.querySelectorAll('.md-fs-name').forEach(label => {
@@ -19,6 +90,8 @@
       if (short?.textContent?.trim() === 'OPM') short.textContent = 'MRK'
       if (name?.textContent?.trim().toLowerCase() === 'opposition marks') name.textContent = 'Marks'
     })
+
+    syncMatchTab()
   }
 
   function ensureEntryGuard() {
