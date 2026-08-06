@@ -153,7 +153,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
               tab?.setAttribute('aria-expanded', 'false')
               window.setTimeout(reconcileMatchControls, 30)
             })
-            panel.appendChild(action)
+            panel!.appendChild(action)
           })
           tabParent.appendChild(panel)
         }
