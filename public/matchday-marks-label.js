@@ -1,10 +1,7 @@
 (() => {
-  const ENTRY_LOADER_ID = 'pf-matchday-entry-loader'
   const ENTRY_LOADER_STYLE_ID = 'pf-matchday-entry-loader-guard'
   const ENTRY_ACTIVE_CLASS = 'pf-matchday-entry-active'
   const MATCH_TAB_STYLE_ID = 'pf-matchday-match-tab-style'
-  const ENTRY_STAGE_TIME = 7000
-  const entryStages = ['LOADING LIVE TEAM', 'LOADING GAME PLAN', 'LOADING AI ASSISTANT COACH']
 
   function normalise(value) {
     return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -97,7 +94,6 @@
     const style = document.createElement('style')
     style.id = ENTRY_LOADER_STYLE_ID
     style.textContent = `
-      html.${ENTRY_ACTIVE_CLASS}, html.${ENTRY_ACTIVE_CLASS} body { overflow: hidden !important; }
       html.${ENTRY_ACTIVE_CLASS} .club-page-loading,
       html.${ENTRY_ACTIVE_CLASS} body .club-page-loading {
         display: none !important;
@@ -105,54 +101,6 @@
         opacity: 0 !important;
         pointer-events: none !important;
       }
-      #${ENTRY_LOADER_ID} {
-        position: fixed !important;
-        inset: 0 !important;
-        z-index: 2147483647 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        height: 100dvh !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border: 0 !important;
-        display: grid !important;
-        place-items: center !important;
-        overflow: hidden !important;
-        background: #071018 !important;
-        font-family: Arial, sans-serif !important;
-        transform: none !important;
-        contain: strict !important;
-        isolation: isolate !important;
-      }
-      #${ENTRY_LOADER_ID}, #${ENTRY_LOADER_ID} * { box-sizing: border-box !important; }
-      #${ENTRY_LOADER_ID} .pf-md-entry-card {
-        width: min(360px, calc(100vw - 36px)) !important;
-        min-height: 270px !important;
-        margin: 0 !important;
-        padding: 34px 28px !important;
-        border-radius: 22px !important;
-        background: #f4f6f7 !important;
-        box-shadow: 0 24px 70px rgba(0,0,0,.38) !important;
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-align: center !important;
-      }
-      #${ENTRY_LOADER_ID} .pf-md-entry-ring {
-        width: 47px !important;
-        height: 47px !important;
-        flex: 0 0 47px !important;
-        margin: 0 0 19px !important;
-        border: 5px solid #c9e9f8 !important;
-        border-top-color: #119fda !important;
-        border-radius: 50% !important;
-        animation: pfMdEntrySpin .85s linear infinite !important;
-      }
-      #${ENTRY_LOADER_ID} span { display:block !important; font-size:11px !important; font-weight:900 !important; letter-spacing:.18em !important; color:#138cc5 !important; }
-      #${ENTRY_LOADER_ID} strong { display:block !important; max-width:290px !important; margin:8px 0 13px !important; font-family:'Bebas Neue',Impact,sans-serif !important; font-size:43px !important; line-height:.95 !important; letter-spacing:.01em !important; color:#111820 !important; white-space:normal !important; }
-      #${ENTRY_LOADER_ID} small { display:block !important; font-size:13px !important; line-height:1.45 !important; color:#64717b !important; }
-      @keyframes pfMdEntrySpin { to { transform: rotate(360deg); } }
     `
     document.head.appendChild(style)
   }
@@ -165,45 +113,27 @@
     })
   }
 
-  function removeEntryLoader() {
-    document.getElementById(ENTRY_LOADER_ID)?.remove()
-    document.documentElement.classList.remove(ENTRY_ACTIVE_CLASS)
-  }
-
-  function showEntryLoader() {
+  function beginMatchDayEntry() {
     suppressGenericCoachingLoader()
-    if (document.getElementById(ENTRY_LOADER_ID)) return
 
-    const overlay = document.createElement('div')
-    overlay.id = ENTRY_LOADER_ID
-    overlay.setAttribute('role', 'status')
-    overlay.setAttribute('aria-live', 'polite')
-    overlay.innerHTML = `
-      <div class="pf-md-entry-card">
-        <div class="pf-md-entry-ring" aria-hidden="true"></div>
-        <span>PLAYFOOTY COACHING</span>
-        <strong>LOADING LIVE TEAM</strong>
-        <small>Live data can take up to 30 seconds to load.</small>
-      </div>
-    `
+    const releaseGuard = () => {
+      if (!document.querySelector('.md-canonical-live-host')) return false
+      document.documentElement.classList.remove(ENTRY_ACTIVE_CLASS)
+      return true
+    }
 
-    document.documentElement.appendChild(overlay)
-    const heading = overlay.querySelector('strong')
-    const timers = [
-      window.setTimeout(() => { if (heading) heading.textContent = entryStages[1] }, ENTRY_STAGE_TIME),
-      window.setTimeout(() => { if (heading) heading.textContent = entryStages[2] }, ENTRY_STAGE_TIME * 2),
-      window.setTimeout(removeEntryLoader, 35000),
-    ]
+    if (releaseGuard()) return
 
-    const handoff = new MutationObserver(() => {
+    const observer = new MutationObserver(() => {
       suppressGenericCoachingLoader()
-      const realLoader = document.querySelector('.md-canonical-live-host .md-live-loading-overlay')
-      if (!realLoader) return
-      timers.forEach(timer => window.clearTimeout(timer))
-      handoff.disconnect()
-      removeEntryLoader()
+      if (!releaseGuard()) return
+      observer.disconnect()
     })
-    handoff.observe(document.documentElement, { childList: true, subtree: true })
+    observer.observe(document.documentElement, { childList: true, subtree: true })
+    window.setTimeout(() => {
+      observer.disconnect()
+      document.documentElement.classList.remove(ENTRY_ACTIVE_CLASS)
+    }, 35000)
   }
 
   function isMatchDaySidebarTrigger(target) {
@@ -237,10 +167,10 @@
   }
 
   document.addEventListener('pointerdown', event => {
-    if (isMatchDaySidebarTrigger(event.target)) showEntryLoader()
+    if (isMatchDaySidebarTrigger(event.target)) beginMatchDayEntry()
   }, true)
   document.addEventListener('click', event => {
-    if (isMatchDaySidebarTrigger(event.target)) showEntryLoader()
+    if (isMatchDaySidebarTrigger(event.target)) beginMatchDayEntry()
     window.setTimeout(replaceLabels, 50)
   }, true)
   document.addEventListener('fullscreenchange', () => window.setTimeout(replaceLabels, 50))
