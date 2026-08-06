@@ -149,7 +149,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
               const source = findOriginalControl(board, label)
               if (!source || source.disabled) return
               source.click()
-              if (panel) panel.hidden = true
+              panel!.hidden = true
               tab?.setAttribute('aria-expanded', 'false')
               window.setTimeout(reconcileMatchControls, 30)
             })
