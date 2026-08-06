@@ -376,9 +376,12 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           position: absolute !important;
           left: 524px !important;
           right: auto !important;
-          bottom: 34px !important;
+          top: 382px !important;
+          bottom: auto !important;
           width: 488px !important;
-          height: 294px !important;
+          height: 250px !important;
+          min-height: 0 !important;
+          overflow: hidden !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-ground-wrap {
