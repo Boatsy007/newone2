@@ -6,7 +6,7 @@
   let syncing = false
 
   function isMatchDay() {
-    return location.pathname.includes('/match-day') || Boolean(document.querySelector('.md-bench'))
+    return /\/club-portal\/[^/]+\/match-day\/?$/.test(location.pathname)
   }
 
   function installStyles() {
@@ -14,88 +14,66 @@
     const style = document.createElement('style')
     style.id = 'pf-interchange-timer-styles'
     style.textContent = `
-      [data-pf-interchange-card="true"] {
+      .md-bench .md-player[data-pf-interchange-card="true"] {
         position: relative !important;
         box-sizing: border-box !important;
         transition: box-shadow .2s ease, outline-color .2s ease !important;
       }
-      [data-pf-interchange-status="red"] {
+      .md-bench .md-player[data-pf-interchange-status="red"] {
         outline: 3px solid #ef233c !important;
         outline-offset: -3px !important;
-        box-shadow: 0 0 0 1px rgba(239,35,60,.35), 0 0 14px rgba(239,35,60,.28) !important;
+        box-shadow: 0 0 0 1px rgba(239,35,60,.38), 0 0 14px rgba(239,35,60,.34) !important;
       }
-      [data-pf-interchange-status="orange"] {
+      .md-bench .md-player[data-pf-interchange-status="orange"] {
         outline: 3px solid #ff9f1c !important;
         outline-offset: -3px !important;
-        box-shadow: 0 0 0 1px rgba(255,159,28,.35), 0 0 14px rgba(255,159,28,.28) !important;
+        box-shadow: 0 0 0 1px rgba(255,159,28,.38), 0 0 14px rgba(255,159,28,.34) !important;
       }
-      [data-pf-interchange-status="green"] {
+      .md-bench .md-player[data-pf-interchange-status="green"] {
         outline: 3px solid #16c784 !important;
         outline-offset: -3px !important;
-        box-shadow: 0 0 0 1px rgba(22,199,132,.35), 0 0 14px rgba(22,199,132,.24) !important;
+        box-shadow: 0 0 0 1px rgba(22,199,132,.38), 0 0 14px rgba(22,199,132,.30) !important;
       }
-      .pf-interchange-timer {
-        position: absolute;
-        top: 3px;
-        right: 3px;
-        z-index: 20;
-        min-width: 38px;
-        padding: 3px 5px;
-        border-radius: 7px;
-        background: rgba(5,13,22,.94);
-        color: #fff;
-        font-size: 9px;
-        font-weight: 900;
-        line-height: 1;
-        text-align: center;
-        pointer-events: none;
-        box-shadow: 0 2px 7px rgba(0,0,0,.35);
+      .md-bench .md-player .pf-interchange-timer {
+        position: absolute !important;
+        top: 3px !important;
+        right: 3px !important;
+        z-index: 20 !important;
+        min-width: 39px !important;
+        padding: 3px 5px !important;
+        border-radius: 7px !important;
+        background: rgba(5,13,22,.95) !important;
+        color: #fff !important;
+        font-size: 9px !important;
+        font-weight: 900 !important;
+        line-height: 1 !important;
+        letter-spacing: .02em !important;
+        text-align: center !important;
+        pointer-events: none !important;
+        box-shadow: 0 2px 7px rgba(0,0,0,.4) !important;
       }
     `
     document.head.appendChild(style)
   }
 
-  function cleanText(element) {
-    return String(element.textContent || '').replace(/\s+/g, ' ').trim()
-  }
-
-  function looksLikePlayerCard(element) {
-    if (!(element instanceof HTMLElement)) return false
-    if (element.classList.contains('pf-interchange-timer')) return false
-    const text = cleanText(element)
-    if (!text || text.length > 160) return false
-    const hasInt = /\bINT\b/i.test(text)
-    const hasGoal = /\bG\s*\d+\b/i.test(text)
-    const hasBehind = /\bB\s*\d+\b/i.test(text)
-    return hasInt && hasGoal && hasBehind
-  }
-
-  function cardCandidates(bench) {
-    const nodes = [...bench.querySelectorAll('div,button,article,li')].filter(looksLikePlayerCard)
-    const cards = nodes.filter(element => !nodes.some(other => other !== element && element.contains(other)))
-    if (cards.length) return cards
-
-    return [...bench.children]
-      .flatMap(child => child instanceof HTMLElement ? [child, ...child.querySelectorAll(':scope > *')] : [])
-      .filter(looksLikePlayerCard)
+  function benchCards(bench) {
+    return [...bench.querySelectorAll('.md-player')]
+      .filter(card => card instanceof HTMLElement)
+      .filter(card => !card.classList.contains('on-field'))
   }
 
   function playerKey(card) {
-    const directId = card.dataset.playerId || card.dataset.id || card.getAttribute('data-player') || card.id
+    const directId = card.dataset.playerId || card.dataset.id || card.getAttribute('data-player-id') || card.getAttribute('data-player')
     if (directId) return `id:${directId}`
 
+    const number = card.querySelector('.number')?.textContent?.trim() || ''
+    const name = card.querySelector('.md-player-main strong')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+    if (name) return `player:${number}:${name.toLowerCase()}`
+
     const clone = card.cloneNode(true)
-    clone.querySelectorAll?.('.pf-interchange-timer').forEach(node => node.remove())
-    const text = String(clone.textContent || '')
-      .replace(/\bG\s*\d+\b/gi, ' ')
-      .replace(/\bB\s*\d+\b/gi, ' ')
-      .replace(/\bINT\b/gi, ' ')
-      .replace(/\b\d{1,2}:\d{2}\b/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-    const words = text.split(' ').filter(Boolean)
-    const nameWords = words.filter(word => !/^\d+$/.test(word)).slice(0, 4)
-    return `text:${nameWords.join('-').toLowerCase()}`
+    clone.querySelectorAll?.('.pf-interchange-timer,.md-player-score').forEach(node => node.remove())
+    const text = String(clone.textContent || '').replace(/\s+/g, ' ').trim()
+    return text ? `text:${text.toLowerCase()}` : ''
   }
 
   function formatElapsed(milliseconds) {
@@ -107,6 +85,12 @@
     if (elapsed >= GREEN_AFTER_MS) return 'green'
     if (elapsed >= ORANGE_AFTER_MS) return 'orange'
     return 'red'
+  }
+
+  function clearDecoration(card) {
+    card.removeAttribute('data-pf-interchange-card')
+    card.removeAttribute('data-pf-interchange-status')
+    card.querySelector('.pf-interchange-timer')?.remove()
   }
 
   function decorate(card, state, now) {
@@ -138,13 +122,13 @@
     try {
       installStyles()
       const now = Date.now()
-      const cards = cardCandidates(bench)
+      const cards = benchCards(bench)
       if (!cards.length) return
 
       const current = new Map()
       cards.forEach(card => {
         const key = playerKey(card)
-        if (key && key !== 'text:') current.set(key, card)
+        if (key) current.set(key, card)
       })
       if (!current.size) return
 
@@ -153,12 +137,16 @@
         current.forEach((_, key) => states.set(key, { enteredAt: null }))
         initialised = true
       } else {
-        for (const key of [...states.keys()]) {
-          if (!current.has(key)) states.delete(key)
-        }
+        document.querySelectorAll('.md-player[data-pf-interchange-card="true"]').forEach(card => {
+          const key = playerKey(card)
+          if (!current.has(key)) clearDecoration(card)
+        })
         current.forEach((_, key) => {
           if (!states.has(key)) states.set(key, { enteredAt: now })
         })
+        for (const key of [...states.keys()]) {
+          if (!current.has(key)) states.delete(key)
+        }
       }
 
       current.forEach((card, key) => {
@@ -173,11 +161,7 @@
   function resetBenchTimers() {
     states.clear()
     initialised = false
-    document.querySelectorAll('[data-pf-interchange-card="true"]').forEach(card => {
-      card.removeAttribute('data-pf-interchange-card')
-      card.removeAttribute('data-pf-interchange-status')
-      card.querySelector('.pf-interchange-timer')?.remove()
-    })
+    document.querySelectorAll('.md-player[data-pf-interchange-card="true"]').forEach(clearDecoration)
     window.setTimeout(syncBench, 250)
   }
 
@@ -189,7 +173,8 @@
     if (['RESET', 'RESETMATCH', 'RESTART', 'RESTARTMATCH'].includes(text)) {
       window.setTimeout(resetBenchTimers, 100)
     } else {
-      window.setTimeout(syncBench, 100)
+      window.setTimeout(syncBench, 80)
+      window.setTimeout(syncBench, 300)
     }
   }, true)
 
@@ -198,7 +183,5 @@
   window.setInterval(syncBench, 1000)
   window.addEventListener('pageshow', syncBench)
   window.addEventListener('resize', syncBench)
-  document.addEventListener('fullscreenchange', syncBench)
-  document.addEventListener('webkitfullscreenchange', syncBench)
-  syncBench()
+  window.setTimeout(syncBench, 250)
 })()
