@@ -4,10 +4,7 @@
   const states = new Map()
   let initialised = false
   let syncing = false
-
-  function isMatchDay() {
-    return Boolean(document.querySelector('.md'))
-  }
+  let scheduledSync = 0
 
   function installStyles() {
     if (document.getElementById('pf-interchange-timer-styles')) return
@@ -34,7 +31,8 @@
         outline-offset: -3px !important;
         box-shadow: 0 0 0 1px rgba(22,199,132,.38), 0 0 14px rgba(22,199,132,.30) !important;
       }
-      .md-bench .md-player .pf-interchange-timer {
+      .md-bench .md-player[data-pf-interchange-time]::after {
+        content: attr(data-pf-interchange-time);
         position: absolute !important;
         top: 3px !important;
         right: 3px !important;
@@ -56,23 +54,13 @@
     document.head.appendChild(style)
   }
 
-  function benchCards(bench) {
-    return [...bench.querySelectorAll('.md-player')]
-      .filter(card => card instanceof HTMLElement)
-  }
-
   function playerKey(card) {
     const directId = card.dataset.playerId || card.dataset.id || card.getAttribute('data-player-id') || card.getAttribute('data-player')
     if (directId) return `id:${directId}`
 
     const number = card.querySelector('.number')?.textContent?.trim() || ''
     const name = card.querySelector('.md-player-main strong')?.textContent?.replace(/\s+/g, ' ').trim() || ''
-    if (name) return `player:${number}:${name.toLowerCase()}`
-
-    const clone = card.cloneNode(true)
-    clone.querySelectorAll?.('.pf-interchange-timer,.md-player-score').forEach(node => node.remove())
-    const text = String(clone.textContent || '').replace(/\s+/g, ' ').trim()
-    return text ? `text:${text.toLowerCase()}` : ''
+    return name ? `player:${number}:${name.toLowerCase()}` : ''
   }
 
   function formatElapsed(milliseconds) {
@@ -86,42 +74,40 @@
     return 'red'
   }
 
+  function setAttributeIfChanged(element, name, value) {
+    if (element.getAttribute(name) !== value) element.setAttribute(name, value)
+  }
+
   function clearDecoration(card) {
     card.removeAttribute('data-pf-interchange-card')
     card.removeAttribute('data-pf-interchange-status')
-    card.querySelector('.pf-interchange-timer')?.remove()
+    card.removeAttribute('data-pf-interchange-time')
   }
 
   function decorate(card, state, now) {
-    card.dataset.pfInterchangeCard = 'true'
+    setAttributeIfChanged(card, 'data-pf-interchange-card', 'true')
     if (state.enteredAt === null) {
-      card.dataset.pfInterchangeStatus = 'green'
-      card.querySelector('.pf-interchange-timer')?.remove()
+      setAttributeIfChanged(card, 'data-pf-interchange-status', 'green')
+      card.removeAttribute('data-pf-interchange-time')
       return
     }
 
     const elapsed = now - state.enteredAt
-    card.dataset.pfInterchangeStatus = statusFor(elapsed)
-    let badge = card.querySelector('.pf-interchange-timer')
-    if (!badge) {
-      badge = document.createElement('span')
-      badge.className = 'pf-interchange-timer'
-      badge.setAttribute('aria-label', 'Time on interchange')
-      card.appendChild(badge)
-    }
-    badge.textContent = formatElapsed(elapsed)
+    setAttributeIfChanged(card, 'data-pf-interchange-status', statusFor(elapsed))
+    setAttributeIfChanged(card, 'data-pf-interchange-time', formatElapsed(elapsed))
   }
 
   function syncBench() {
-    if (!isMatchDay() || syncing) return
-    const bench = document.querySelector('.md-bench')
+    if (syncing) return
+    const board = document.querySelector('.md')
+    const bench = board?.querySelector('.md-bench')
     if (!(bench instanceof HTMLElement)) return
 
     syncing = true
     try {
       installStyles()
       const now = Date.now()
-      const cards = benchCards(bench)
+      const cards = [...bench.querySelectorAll('.md-player')].filter(card => card instanceof HTMLElement)
       if (!cards.length) return
 
       const current = new Map()
@@ -144,7 +130,7 @@
         }
       }
 
-      document.querySelectorAll('.md-player[data-pf-interchange-card="true"]').forEach(card => {
+      board.querySelectorAll('.md-player[data-pf-interchange-card="true"]').forEach(card => {
         if (!bench.contains(card)) clearDecoration(card)
       })
 
@@ -157,30 +143,32 @@
     }
   }
 
+  function scheduleSync(delay = 100) {
+    window.clearTimeout(scheduledSync)
+    scheduledSync = window.setTimeout(syncBench, delay)
+  }
+
   function resetBenchTimers() {
     states.clear()
     initialised = false
     document.querySelectorAll('.md-player[data-pf-interchange-card="true"]').forEach(clearDecoration)
-    window.setTimeout(syncBench, 250)
+    scheduleSync(250)
   }
 
   document.addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest('button') : null
-    if (!button) return
+    if (!button || !document.querySelector('.md')) return
     const text = String(button.textContent || '').toUpperCase().replace(/[^A-Z]/g, '')
     if (['RESET', 'RESETMATCH', 'RESTART', 'RESTARTMATCH'].includes(text)) {
-      window.setTimeout(resetBenchTimers, 100)
-    } else {
-      window.setTimeout(syncBench, 80)
-      window.setTimeout(syncBench, 300)
-      window.setTimeout(syncBench, 700)
+      window.setTimeout(resetBenchTimers, 150)
+      return
     }
+    scheduleSync(180)
+    window.setTimeout(syncBench, 650)
   }, true)
 
-  const observer = new MutationObserver(() => window.requestAnimationFrame(syncBench))
-  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true })
   window.setInterval(syncBench, 1000)
-  window.addEventListener('pageshow', syncBench)
-  window.addEventListener('resize', syncBench)
-  window.setTimeout(syncBench, 250)
+  window.addEventListener('pageshow', () => scheduleSync(100))
+  window.addEventListener('resize', () => scheduleSync(150))
+  window.setTimeout(syncBench, 300)
 })()
