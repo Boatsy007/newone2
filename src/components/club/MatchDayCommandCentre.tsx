@@ -331,23 +331,32 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-clock {
-          left: 524px !important;
+          top: 8px !important;
+          left: 446px !important;
           width: 132px !important;
+          height: 50px !important;
+          z-index: 85 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-scoreboard {
-          height: 70px !important;
-          padding-top: 2px !important;
-          padding-bottom: 2px !important;
+          top: 0 !important;
+          height: 60px !important;
+          padding-top: 1px !important;
+          padding-bottom: 1px !important;
+          overflow: hidden !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-scoreboard strong {
-          font-size: 43px !important;
-          line-height: .8 !important;
+          font-size: 36px !important;
+          line-height: .82 !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-scoreboard small {
-          font-size: 8px !important;
+          font-size: 7px !important;
+          line-height: 1 !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-fs-score {
