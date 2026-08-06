@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import './MatchDayFullscreenControlsOverride.css'
+import './MatchDayCommandCentre.css'
 
 const LIVE_WIDTH = 1024
 const LIVE_HEIGHT = 768
@@ -14,6 +15,8 @@ const loadingStages = [
   'LOADING AI ASSISTANT COACH',
 ]
 
+const matchControlLabels = ['START', 'NEXT QUARTER', 'FINISH MATCH', 'RESTART'] as const
+
 type FullscreenDocument = Document & {
   webkitFullscreenElement?: Element | null
   webkitExitFullscreen?: () => Promise<void> | void
@@ -25,6 +28,17 @@ type FullscreenElement = HTMLElement & {
 
 function normalise(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+function matchesControl(button: HTMLButtonElement, label: string) {
+  if (button.dataset.mdMatchControls === 'true') return false
+  const text = normalise(button.textContent || '')
+  const wanted = normalise(label)
+  if (wanted === 'START') return text === 'START' || text === 'STARTMATCH'
+  if (wanted === 'NEXTQUARTER') return text === 'NEXTQUARTER' || text === 'ENDQUARTER'
+  if (wanted === 'FINISHMATCH') return text === 'FINISHMATCH' || text === 'ENDMATCH'
+  if (wanted === 'RESTART') return text === 'RESTART' || text === 'RESTARTMATCH'
+  return text === wanted
 }
 
 export default function MatchDayCommandCentre({ children }: { children: ReactNode }) {
@@ -44,7 +58,6 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
   const enterFullscreenFromPrompt = async () => {
     const board = hostRef.current?.querySelector<FullscreenElement>('.md')
     if (!board) return
-
     try {
       if (board.requestFullscreen) {
         await board.requestFullscreen({ navigationUI: 'hide' }).catch(() => board.requestFullscreen())
@@ -52,7 +65,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
         await Promise.resolve(board.webkitRequestFullscreen())
       }
     } catch {
-      // iPad Safari may refuse native fullscreen. The standard fitted view remains available.
+      // iPad Safari may refuse native fullscreen. The fitted view remains available.
     } finally {
       dismissFullscreenPrompt()
       window.setTimeout(() => window.dispatchEvent(new Event('resize')), 40)
@@ -62,9 +75,133 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
   useEffect(() => {
     let mounted = true
     let frame = 0
+    let reconcilingControls = false
     const startedAt = Date.now()
     const host = hostRef.current
     if (!host) return
+
+    const findOriginalControl = (board: HTMLElement, label: string) =>
+      [...board.querySelectorAll<HTMLButtonElement>('button')].find(button => matchesControl(button, label))
+
+    const reconcileMatchControls = () => {
+      if (!mounted || reconcilingControls) return
+      const board = host.querySelector<HTMLElement>('.md')
+      if (!board) return
+
+      const kpiButton = [...board.querySelectorAll<HTMLButtonElement>('button')].find(button =>
+        button.dataset.mdMatchControls !== 'true' && normalise(button.textContent || '').includes('KPI'),
+      )
+      if (!kpiButton?.parentElement) return
+
+      reconcilingControls = true
+      try {
+        matchControlLabels.forEach(label => {
+          const source = findOriginalControl(board, label)
+          if (!source) return
+          if (!source.dataset.mdOriginalDisplay) {
+            source.dataset.mdOriginalDisplay = source.style.display || '__empty__'
+          }
+          source.dataset.mdConsolidatedControl = 'true'
+          source.style.setProperty('display', 'none', 'important')
+        })
+
+        const tabParent = kpiButton.parentElement
+        if (window.getComputedStyle(tabParent).position === 'static') {
+          tabParent.dataset.mdOriginalPosition = tabParent.style.position || '__empty__'
+          tabParent.style.position = 'relative'
+        }
+
+        let tab = tabParent.querySelector<HTMLButtonElement>('[data-md-control-tab="true"]')
+        if (!tab) {
+          tab = document.createElement('button')
+          tab.type = 'button'
+          tab.className = kpiButton.className
+          tab.style.cssText = kpiButton.style.cssText
+          tab.dataset.mdMatchControls = 'true'
+          tab.dataset.mdControlTab = 'true'
+          tab.setAttribute('aria-controls', 'md-match-control-panel')
+          tab.setAttribute('aria-expanded', 'false')
+          tab.setAttribute('aria-label', 'Open match controls')
+          tab.textContent = 'MATCH'
+          tabParent.insertBefore(tab, kpiButton)
+        }
+        tab.classList.add('md-match-control-tab')
+
+        let panel = tabParent.querySelector<HTMLDivElement>('#md-match-control-panel')
+        if (!panel) {
+          panel = document.createElement('div')
+          panel.id = 'md-match-control-panel'
+          panel.dataset.mdMatchControls = 'true'
+          panel.className = 'md-match-control-panel'
+          panel.hidden = true
+          panel.setAttribute('role', 'dialog')
+          panel.setAttribute('aria-label', 'Match controls')
+
+          matchControlLabels.forEach(label => {
+            const action = document.createElement('button')
+            action.type = 'button'
+            action.dataset.mdMatchControls = 'true'
+            action.dataset.mdControlAction = normalise(label)
+            action.textContent = label
+            action.addEventListener('click', event => {
+              event.preventDefault()
+              event.stopPropagation()
+              const source = findOriginalControl(board, label)
+              if (!source || source.disabled) return
+              source.click()
+              if (panel) panel.hidden = true
+              tab?.setAttribute('aria-expanded', 'false')
+              window.setTimeout(reconcileMatchControls, 30)
+            })
+            panel.appendChild(action)
+          })
+          tabParent.appendChild(panel)
+        }
+
+        const syncPanel = () => {
+          if (!tab || !panel) return
+          panel.style.top = `${tab.offsetTop}px`
+          panel.querySelectorAll<HTMLButtonElement>('[data-md-control-action]').forEach(action => {
+            const source = findOriginalControl(board, action.textContent || '')
+            action.disabled = !source || source.disabled
+          })
+        }
+        syncPanel()
+
+        if (tab.dataset.mdToggleBound !== 'true') {
+          tab.dataset.mdToggleBound = 'true'
+          tab.addEventListener('click', event => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (!panel) return
+            panel.hidden = !panel.hidden
+            tab?.setAttribute('aria-expanded', String(!panel.hidden))
+            syncPanel()
+          })
+        }
+      } finally {
+        reconcilingControls = false
+      }
+    }
+
+    const closeMatchControls = (event: Event) => {
+      const target = event.target as Node | null
+      const panel = host.querySelector<HTMLDivElement>('#md-match-control-panel')
+      const tab = host.querySelector<HTMLButtonElement>('[data-md-control-tab="true"]')
+      if (!panel || panel.hidden || !target || panel.contains(target) || tab?.contains(target)) return
+      panel.hidden = true
+      tab?.setAttribute('aria-expanded', 'false')
+    }
+
+    const closeMatchControlsOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      const panel = host.querySelector<HTMLDivElement>('#md-match-control-panel')
+      const tab = host.querySelector<HTMLButtonElement>('[data-md-control-tab="true"]')
+      if (!panel || panel.hidden) return
+      panel.hidden = true
+      tab?.setAttribute('aria-expanded', 'false')
+      tab?.focus()
+    }
 
     const wakeLiveMatchEnhancers = () => {
       document.dispatchEvent(new Event('fullscreenchange'))
@@ -75,18 +212,15 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
     const liveMatchReady = () => {
       const board = host.querySelector<HTMLElement>('.md')
       if (!board) return false
-
       const stats = board.querySelector<HTMLElement>('.md-fs-stats')
       const kpiButton = [...board.querySelectorAll<HTMLButtonElement>('button')].find(button =>
         normalise(button.textContent || '').includes('KPI'),
       )
-
       return Boolean(
         board.querySelector('.md-scoreboard') &&
         board.querySelector('.md-ground') &&
         board.querySelector('.md-bench') &&
-        stats &&
-        stats.childElementCount > 0 &&
+        stats && stats.childElementCount > 0 &&
         board.querySelector('.md-ai-coach-placeholder') &&
         kpiButton,
       )
@@ -95,9 +229,7 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
     const checkReady = () => {
       if (!mounted) return
       const elapsed = Date.now() - startedAt
-      if ((elapsed >= MIN_LOADING_TIME && liveMatchReady()) || elapsed >= MAX_LOADING_TIME) {
-        setLoading(false)
-      }
+      if ((elapsed >= MIN_LOADING_TIME && liveMatchReady()) || elapsed >= MAX_LOADING_TIME) setLoading(false)
     }
 
     const fitCanonicalLayout = () => {
@@ -117,18 +249,9 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
 
         if (nativeFullscreen) {
           host.style.removeProperty('height')
-          board.style.removeProperty('position')
-          board.style.removeProperty('left')
-          board.style.removeProperty('top')
-          board.style.removeProperty('width')
-          board.style.removeProperty('height')
-          board.style.removeProperty('min-width')
-          board.style.removeProperty('min-height')
-          board.style.removeProperty('max-width')
-          board.style.removeProperty('max-height')
-          board.style.removeProperty('margin')
-          board.style.removeProperty('transform')
-          board.style.removeProperty('transform-origin')
+          ;['position','left','top','width','height','min-width','min-height','max-width','max-height','margin','transform','transform-origin']
+            .forEach(property => board.style.removeProperty(property))
+          reconcileMatchControls()
           checkReady()
           return
         }
@@ -145,18 +268,13 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
         const safeScale = Math.max(0.1, Math.min(availableWidth / LIVE_WIDTH, availableHeight / LIVE_HEIGHT))
 
         host.style.height = `${availableHeight}px`
-        board.style.position = 'absolute'
-        board.style.left = '50%'
-        board.style.top = '0'
-        board.style.width = `${LIVE_WIDTH}px`
-        board.style.height = `${LIVE_HEIGHT}px`
-        board.style.minWidth = `${LIVE_WIDTH}px`
-        board.style.minHeight = `${LIVE_HEIGHT}px`
-        board.style.maxWidth = `${LIVE_WIDTH}px`
-        board.style.maxHeight = `${LIVE_HEIGHT}px`
-        board.style.margin = '0'
-        board.style.transform = `translateX(-50%) scale(${safeScale})`
-        board.style.transformOrigin = 'top center'
+        Object.assign(board.style, {
+          position: 'absolute', left: '50%', top: '0', width: `${LIVE_WIDTH}px`, height: `${LIVE_HEIGHT}px`,
+          minWidth: `${LIVE_WIDTH}px`, minHeight: `${LIVE_HEIGHT}px`, maxWidth: `${LIVE_WIDTH}px`,
+          maxHeight: `${LIVE_HEIGHT}px`, margin: '0', transform: `translateX(-50%) scale(${safeScale})`,
+          transformOrigin: 'top center',
+        })
+        reconcileMatchControls()
         checkReady()
       })
     }
@@ -166,11 +284,9 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
       if (!target || !normalise(target.textContent || '').includes('FULLSCREEN')) return
       event.preventDefault()
       event.stopPropagation()
-
       const board = host.querySelector<FullscreenElement>('.md')
       if (!board) return
       const doc = document as FullscreenDocument
-
       try {
         if (document.fullscreenElement || doc.webkitFullscreenElement) {
           if (document.exitFullscreen) await document.exitFullscreen()
@@ -181,24 +297,27 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           await Promise.resolve(board.webkitRequestFullscreen())
         }
       } catch {
-        // iPad Safari may refuse native fullscreen; the fitted live layout remains usable.
+        // The fitted layout remains available if native fullscreen is refused.
       }
-
       window.setTimeout(fitCanonicalLayout, 40)
     }
 
     fitCanonicalLayout()
     wakeLiveMatchEnhancers()
+    reconcileMatchControls()
 
     const observer = new ResizeObserver(fitCanonicalLayout)
     observer.observe(host)
     const mutationObserver = new MutationObserver(() => {
       fitCanonicalLayout()
+      reconcileMatchControls()
       checkReady()
     })
     mutationObserver.observe(host, { childList: true, subtree: true })
 
     host.addEventListener('click', handleFullscreenButton, true)
+    document.addEventListener('pointerdown', closeMatchControls)
+    document.addEventListener('keydown', closeMatchControlsOnEscape)
     window.addEventListener('resize', fitCanonicalLayout)
     window.addEventListener('orientationchange', fitCanonicalLayout)
     window.visualViewport?.addEventListener('resize', fitCanonicalLayout)
@@ -206,43 +325,52 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
     document.addEventListener('fullscreenchange', fitCanonicalLayout)
     document.addEventListener('webkitfullscreenchange', fitCanonicalLayout as EventListener)
 
-    const retryA = window.setTimeout(() => {
+    const retries = [60, 240, 700].map(delay => window.setTimeout(() => {
       fitCanonicalLayout()
       wakeLiveMatchEnhancers()
-    }, 60)
-    const retryB = window.setTimeout(() => {
-      fitCanonicalLayout()
-      wakeLiveMatchEnhancers()
-    }, 240)
-    const retryC = window.setTimeout(() => {
-      fitCanonicalLayout()
-      wakeLiveMatchEnhancers()
-    }, 700)
+      reconcileMatchControls()
+    }, delay))
     const stageTwo = window.setTimeout(() => mounted && setLoadingStage(1), LOADING_STAGE_TIME)
     const stageThree = window.setTimeout(() => mounted && setLoadingStage(2), LOADING_STAGE_TIME * 2)
     const readinessPoll = window.setInterval(() => {
       wakeLiveMatchEnhancers()
+      reconcileMatchControls()
       checkReady()
     }, 500)
 
     return () => {
       mounted = false
       window.cancelAnimationFrame(frame)
-      window.clearTimeout(retryA)
-      window.clearTimeout(retryB)
-      window.clearTimeout(retryC)
+      retries.forEach(timer => window.clearTimeout(timer))
       window.clearTimeout(stageTwo)
       window.clearTimeout(stageThree)
       window.clearInterval(readinessPoll)
       observer.disconnect()
       mutationObserver.disconnect()
       host.removeEventListener('click', handleFullscreenButton, true)
+      document.removeEventListener('pointerdown', closeMatchControls)
+      document.removeEventListener('keydown', closeMatchControlsOnEscape)
       window.removeEventListener('resize', fitCanonicalLayout)
       window.removeEventListener('orientationchange', fitCanonicalLayout)
       window.visualViewport?.removeEventListener('resize', fitCanonicalLayout)
       window.visualViewport?.removeEventListener('scroll', fitCanonicalLayout)
       document.removeEventListener('fullscreenchange', fitCanonicalLayout)
       document.removeEventListener('webkitfullscreenchange', fitCanonicalLayout as EventListener)
+
+      host.querySelectorAll<HTMLElement>('[data-md-consolidated-control="true"]').forEach(control => {
+        const original = control.dataset.mdOriginalDisplay
+        if (original === '__empty__') control.style.removeProperty('display')
+        else if (original) control.style.display = original
+        delete control.dataset.mdOriginalDisplay
+        delete control.dataset.mdConsolidatedControl
+      })
+      host.querySelectorAll<HTMLElement>('[data-md-match-controls="true"]').forEach(element => element.remove())
+      host.querySelectorAll<HTMLElement>('[data-md-original-position]').forEach(element => {
+        const original = element.dataset.mdOriginalPosition
+        if (original === '__empty__') element.style.removeProperty('position')
+        else if (original) element.style.position = original
+        delete element.dataset.mdOriginalPosition
+      })
       document.body.classList.remove('pf-match-day-focus')
       document.documentElement.classList.remove('pf-match-day-focus-root')
     }
@@ -267,253 +395,11 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
             <span>PLAYFOOTY MATCH DAY</span>
             <strong id="md-fullscreen-prompt-title">Match Day works best in Full Screen</strong>
             <p>For the best coaching experience, open Match Day in full screen.</p>
-            <button type="button" className="md-fullscreen-prompt-primary" onClick={enterFullscreenFromPrompt}>
-              Enter Full Screen
-            </button>
-            <button type="button" className="md-fullscreen-prompt-secondary" onClick={dismissFullscreenPrompt}>
-              Continue Anyway
-            </button>
+            <button type="button" className="md-fullscreen-prompt-primary" onClick={enterFullscreenFromPrompt}>Enter Full Screen</button>
+            <button type="button" className="md-fullscreen-prompt-secondary" onClick={dismissFullscreenPrompt}>Continue Anyway</button>
           </div>
         </div>
       )}
-      <style>{`
-        .md-canonical-live-host {
-          position: relative;
-          width: 100%;
-          min-width: 0;
-          min-height: 1px;
-          overflow: hidden;
-          background: #07111c;
-        }
-
-        .md-live-loading-overlay,
-        .md-fullscreen-prompt-overlay {
-          position: absolute;
-          inset: 0;
-          z-index: 10000;
-          display: grid;
-          place-items: center;
-          padding: 24px;
-          background: #07111c;
-        }
-
-        .md-fullscreen-prompt-overlay {
-          z-index: 9999;
-          background: rgba(7, 17, 28, .94);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-        }
-
-        .md-live-loading-card,
-        .md-fullscreen-prompt-card {
-          width: min(420px, calc(100% - 40px));
-          padding: 38px 34px 42px;
-          border-radius: 22px;
-          background: #f7f7f4;
-          color: #0b1118;
-          text-align: center;
-          box-shadow: 0 24px 60px rgba(0, 0, 0, .34);
-        }
-
-        .md-fullscreen-prompt-card span {
-          display: block;
-          margin-bottom: 12px;
-          color: #168ed4;
-          font-size: 11px;
-          font-weight: 900;
-          letter-spacing: .2em;
-        }
-
-        .md-fullscreen-prompt-card strong {
-          display: block;
-          font-size: clamp(28px, 4.5vw, 42px);
-          line-height: 1;
-          letter-spacing: -.035em;
-        }
-
-        .md-fullscreen-prompt-card p {
-          max-width: 330px;
-          margin: 18px auto 26px;
-          color: #68717a;
-          font-size: 15px;
-          line-height: 1.45;
-        }
-
-        .md-fullscreen-prompt-card button {
-          width: 100%;
-          min-height: 52px;
-          border-radius: 12px;
-          font: inherit;
-          font-size: 14px;
-          font-weight: 900;
-          letter-spacing: .02em;
-          cursor: pointer;
-        }
-
-        .md-fullscreen-prompt-primary {
-          border: 1px solid #00bd69;
-          background: #00bd69;
-          color: #04140d;
-        }
-
-        .md-fullscreen-prompt-secondary {
-          margin-top: 10px;
-          border: 1px solid #ccd2d7;
-          background: transparent;
-          color: #26313a;
-        }
-
-        .md-live-loading-ring {
-          width: 46px;
-          height: 46px;
-          margin: 0 auto 22px;
-          border: 5px solid rgba(22, 142, 212, .2);
-          border-top-color: #168ed4;
-          border-radius: 50%;
-          animation: md-live-loading-spin .8s linear infinite;
-        }
-
-        @keyframes md-live-loading-spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .md-live-loading-card span {
-          display: block;
-          margin-bottom: 9px;
-          color: #168ed4;
-          font-size: 11px;
-          font-weight: 900;
-          letter-spacing: .2em;
-        }
-
-        .md-live-loading-card strong {
-          display: block;
-          min-height: 92px;
-          font-size: clamp(29px, 5vw, 46px);
-          line-height: .98;
-          letter-spacing: -.035em;
-          animation: md-live-stage-in .28s ease-out;
-        }
-
-        @keyframes md-live-stage-in {
-          from { opacity: 0; transform: translateY(5px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .md-live-loading-card small {
-          display: block;
-          margin-top: 16px;
-          color: #6f7780;
-          font-size: 12px;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) > .md {
-          overflow: hidden !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md {
-          width: 1024px !important;
-          height: 768px !important;
-          min-width: 1024px !important;
-          min-height: 768px !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-layout {
-          width: 1024px !important;
-          height: 768px !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-toolbar {
-          top: 6px !important;
-          left: 256px !important;
-          width: 492px !important;
-          max-width: 492px !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-clock {
-          top: 8px !important;
-          left: 446px !important;
-          width: 132px !important;
-          height: 50px !important;
-          z-index: 85 !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-scoreboard {
-          top: 0 !important;
-          height: 60px !important;
-          padding-top: 1px !important;
-          padding-bottom: 1px !important;
-          overflow: hidden !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-scoreboard strong {
-          font-size: 36px !important;
-          line-height: .82 !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-scoreboard small {
-          font-size: 7px !important;
-          line-height: 1 !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-fs-score {
-          top: 6px !important;
-          left: 674px !important;
-          right: 12px !important;
-          width: auto !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-fs-stats {
-          display: block !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-          position: absolute !important;
-          z-index: 70 !important;
-          top: 52px !important;
-          left: 524px !important;
-          right: auto !important;
-          width: 488px !important;
-          height: 318px !important;
-          min-height: 0 !important;
-          overflow: hidden !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-ai-coach-placeholder {
-          position: absolute !important;
-          left: 524px !important;
-          right: auto !important;
-          top: 382px !important;
-          bottom: auto !important;
-          width: 488px !important;
-          height: 250px !important;
-          min-height: 0 !important;
-          overflow: hidden !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-ground-wrap {
-          inset: 68px 10px 146px 10px !important;
-          width: auto !important;
-          height: auto !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-ground {
-          width: 399px !important;
-          max-height: 520px !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-bench {
-          left: 14px !important;
-          right: 14px !important;
-          bottom: 52px !important;
-        }
-
-        .md-canonical-live-host:not(.native-fullscreen) .md-bench-head {
-          bottom: 143px !important;
-        }
-      `}</style>
     </div>
   )
 }
