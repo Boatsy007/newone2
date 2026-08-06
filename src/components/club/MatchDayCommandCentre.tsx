@@ -36,8 +36,8 @@ function matchesControl(button: HTMLButtonElement, label: string) {
   const wanted = normalise(label)
   if (wanted === 'START') return ['START', 'STARTMATCH', 'RESUME', 'RESUMEMATCH'].includes(text)
   if (wanted === 'NEXTQUARTER') return ['NEXTQUARTER', 'ENDQUARTER'].includes(text)
-  if (wanted === 'FINISHMATCH') return ['FINISHMATCH', 'FINISH', 'FINISHGAME', 'ENDMATCH', 'END', 'ENDGAME', 'COMPLETEMATCH', 'COMPLETEGAME', 'FULLTIME'].includes(text)
-  if (wanted === 'RESTART') return ['RESTART', 'RESTARTMATCH', 'RESET', 'RESETMATCH'].includes(text)
+  if (wanted === 'FINISHMATCH') return ['ENDMATCH', 'FINISHMATCH', 'FINISH', 'FINISHGAME', 'END', 'ENDGAME', 'COMPLETEMATCH', 'COMPLETEGAME', 'FULLTIME'].includes(text)
+  if (wanted === 'RESTART') return ['RESETMATCH', 'RESET', 'RESTARTMATCH', 'RESTART'].includes(text)
   return text === wanted
 }
 
@@ -93,8 +93,27 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
     const host = hostRef.current
     if (!host) return
 
-    const findOriginalControl = (board: HTMLElement, label: string) =>
-      [...board.querySelectorAll<HTMLButtonElement>('button')].find(button => matchesControl(button, label))
+    const findOriginalControl = (board: HTMLElement, label: string) => {
+      const buttons = [...board.querySelectorAll<HTMLButtonElement>('button')].filter(button =>
+        button.dataset.mdMatchControls !== 'true',
+      )
+      const wanted = normalise(label)
+      const priority = wanted === 'FINISHMATCH'
+        ? ['ENDMATCH', 'FINISHMATCH', 'FINISH', 'FINISHGAME', 'ENDGAME', 'COMPLETEMATCH', 'COMPLETEGAME', 'FULLTIME', 'END']
+        : wanted === 'RESTART'
+          ? ['RESETMATCH', 'RESET', 'RESTARTMATCH', 'RESTART']
+          : wanted === 'START'
+            ? ['START', 'STARTMATCH', 'RESUME', 'RESUMEMATCH']
+            : wanted === 'NEXTQUARTER'
+              ? ['NEXTQUARTER', 'ENDQUARTER']
+              : [wanted]
+
+      for (const controlText of priority) {
+        const match = buttons.find(button => normalise(button.textContent || '') === controlText)
+        if (match) return match
+      }
+      return buttons.find(button => matchesControl(button, label))
+    }
 
     const activateOriginalControl = (source: HTMLButtonElement) => {
       source.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'touch' }))
