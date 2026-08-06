@@ -1,5 +1,7 @@
 (() => {
   const ENTRY_LOADER_ID = 'pf-matchday-entry-loader'
+  const ENTRY_LOADER_STYLE_ID = 'pf-matchday-entry-loader-guard'
+  const ENTRY_ACTIVE_CLASS = 'pf-matchday-entry-active'
   const ENTRY_STAGE_TIME = 7000
   const entryStages = ['LOADING LIVE TEAM', 'LOADING GAME PLAN', 'LOADING AI ASSISTANT COACH']
 
@@ -19,14 +21,39 @@
     })
   }
 
+  function ensureEntryGuard() {
+    if (document.getElementById(ENTRY_LOADER_STYLE_ID)) return
+    const style = document.createElement('style')
+    style.id = ENTRY_LOADER_STYLE_ID
+    style.textContent = `
+      html.${ENTRY_ACTIVE_CLASS} .club-page-loading,
+      html.${ENTRY_ACTIVE_CLASS} body .club-page-loading {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+    `
+    document.head.appendChild(style)
+  }
+
+  function suppressGenericCoachingLoader() {
+    ensureEntryGuard()
+    document.documentElement.classList.add(ENTRY_ACTIVE_CLASS)
+    document.querySelectorAll('.club-page-loading').forEach(loader => {
+      if (loader instanceof HTMLElement) loader.style.setProperty('display', 'none', 'important')
+    })
+  }
+
   function removeEntryLoader() {
     const loader = document.getElementById(ENTRY_LOADER_ID)
-    if (!loader) return
     if (loader instanceof HTMLDialogElement && loader.open) loader.close()
-    loader.remove()
+    loader?.remove()
+    document.documentElement.classList.remove(ENTRY_ACTIVE_CLASS)
   }
 
   function showEntryLoader() {
+    suppressGenericCoachingLoader()
     if (document.getElementById(ENTRY_LOADER_ID)) return
 
     const dialog = document.createElement('dialog')
@@ -71,6 +98,7 @@
     ]
 
     const handoff = new MutationObserver(() => {
+      suppressGenericCoachingLoader()
       const realLoader = document.querySelector('.md-canonical-live-host .md-live-loading-overlay')
       if (!realLoader) return
       timers.forEach(timer => window.clearTimeout(timer))
