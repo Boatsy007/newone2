@@ -20,45 +20,35 @@
   }
 
   function removeEntryLoader() {
-    document.getElementById(ENTRY_LOADER_ID)?.remove()
+    const loader = document.getElementById(ENTRY_LOADER_ID)
+    if (!loader) return
+    if (loader instanceof HTMLDialogElement && loader.open) loader.close()
+    loader.remove()
   }
 
   function showEntryLoader() {
     if (document.getElementById(ENTRY_LOADER_ID)) return
 
-    const host = document.createElement('div')
-    host.id = ENTRY_LOADER_ID
-    host.setAttribute('role', 'status')
-    host.setAttribute('aria-live', 'polite')
-    host.style.setProperty('position', 'fixed', 'important')
-    host.style.setProperty('inset', '0', 'important')
-    host.style.setProperty('width', '100vw', 'important')
-    host.style.setProperty('height', '100dvh', 'important')
-    host.style.setProperty('min-width', '100vw', 'important')
-    host.style.setProperty('min-height', '100dvh', 'important')
-    host.style.setProperty('margin', '0', 'important')
-    host.style.setProperty('padding', '0', 'important')
-    host.style.setProperty('z-index', '2147483647', 'important')
-    host.style.setProperty('transform', 'none', 'important')
-    host.style.setProperty('overflow', 'hidden', 'important')
-    host.style.setProperty('pointer-events', 'auto', 'important')
-
-    const shadow = host.attachShadow({ mode: 'open' })
-    shadow.innerHTML = `
+    const dialog = document.createElement('dialog')
+    dialog.id = ENTRY_LOADER_ID
+    dialog.setAttribute('role', 'status')
+    dialog.setAttribute('aria-live', 'polite')
+    dialog.innerHTML = `
       <style>
-        :host{all:initial;position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;z-index:2147483647!important;display:block!important}
-        *,*::before,*::after{box-sizing:border-box}
-        .overlay{position:absolute;inset:0;width:100%;height:100%;display:grid;place-items:center;padding:18px;background:#071018;color:#071018;font-family:Arial,sans-serif;overflow:hidden}
-        .card{width:min(360px,calc(100vw - 36px));min-height:270px;padding:34px 28px;border-radius:22px;background:#f4f6f7;box-shadow:0 24px 70px rgba(0,0,0,.38);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-        .ring{width:47px;height:47px;margin-bottom:19px;border:5px solid #c9e9f8;border-top-color:#119fda;border-radius:50%;animation:spin .85s linear infinite}
-        span{font-size:11px;font-weight:900;letter-spacing:.18em;color:#138cc5}
-        strong{max-width:290px;margin:8px 0 13px;font-family:'Bebas Neue',Impact,sans-serif;font-size:43px;line-height:.95;letter-spacing:.01em;color:#111820}
-        small{font-size:13px;line-height:1.45;color:#64717b}
-        @keyframes spin{to{transform:rotate(360deg)}}
+        #${ENTRY_LOADER_ID}{all:initial;box-sizing:border-box;position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;background:#071018!important;color:#071018!important;overflow:hidden!important}
+        #${ENTRY_LOADER_ID}::backdrop{background:#071018!important}
+        #${ENTRY_LOADER_ID},#${ENTRY_LOADER_ID} *{box-sizing:border-box}
+        #${ENTRY_LOADER_ID} .pf-md-entry-overlay{position:absolute;inset:0;width:100%;height:100%;display:grid;place-items:center;padding:18px;background:#071018;font-family:Arial,sans-serif;overflow:hidden}
+        #${ENTRY_LOADER_ID} .pf-md-entry-card{width:min(360px,calc(100vw - 36px));min-height:270px;padding:34px 28px;border-radius:22px;background:#f4f6f7;box-shadow:0 24px 70px rgba(0,0,0,.38);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow:visible}
+        #${ENTRY_LOADER_ID} .pf-md-entry-ring{width:47px;height:47px;flex:0 0 47px;margin:0 0 19px;border:5px solid #c9e9f8;border-top-color:#119fda;border-radius:50%;animation:pfMdEntrySpin .85s linear infinite}
+        #${ENTRY_LOADER_ID} span{display:block;font-size:11px;font-weight:900;letter-spacing:.18em;color:#138cc5}
+        #${ENTRY_LOADER_ID} strong{display:block;max-width:290px;margin:8px 0 13px;font-family:'Bebas Neue',Impact,sans-serif;font-size:43px;line-height:.95;letter-spacing:.01em;color:#111820;white-space:normal}
+        #${ENTRY_LOADER_ID} small{display:block;font-size:13px;line-height:1.45;color:#64717b}
+        @keyframes pfMdEntrySpin{to{transform:rotate(360deg)}}
       </style>
-      <div class="overlay">
-        <div class="card">
-          <div class="ring" aria-hidden="true"></div>
+      <div class="pf-md-entry-overlay">
+        <div class="pf-md-entry-card">
+          <div class="pf-md-entry-ring" aria-hidden="true"></div>
           <span>PLAYFOOTY COACHING</span>
           <strong>LOADING LIVE TEAM</strong>
           <small>Live data can take up to 30 seconds to load.</small>
@@ -66,9 +56,14 @@
       </div>
     `
 
-    document.documentElement.appendChild(host)
+    document.body.appendChild(dialog)
+    try {
+      dialog.showModal()
+    } catch {
+      dialog.setAttribute('open', '')
+    }
 
-    const heading = shadow.querySelector('strong')
+    const heading = dialog.querySelector('strong')
     const timers = [
       window.setTimeout(() => { if (heading) heading.textContent = entryStages[1] }, ENTRY_STAGE_TIME),
       window.setTimeout(() => { if (heading) heading.textContent = entryStages[2] }, ENTRY_STAGE_TIME * 2),
