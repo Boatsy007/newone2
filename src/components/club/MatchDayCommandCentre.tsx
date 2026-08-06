@@ -398,11 +398,11 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
         .md-canonical-live-host:not(.native-fullscreen) .md-bench {
           left: 14px !important;
           right: 14px !important;
-          bottom: 30px !important;
+          bottom: 52px !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-bench-head {
-          bottom: 121px !important;
+          bottom: 143px !important;
         }
       `}</style>
     </div>
