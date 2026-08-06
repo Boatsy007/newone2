@@ -2,7 +2,7 @@
   const ENTRY_LOADER_STYLE_ID = 'pf-matchday-entry-loader-guard'
   const ENTRY_ACTIVE_CLASS = 'pf-matchday-entry-active'
   const MATCH_TAB_STYLE_ID = 'pf-matchday-match-tab-style'
-  const TAB_LAYER_STYLE_ID = 'pf-matchday-tab-layer-style'
+  const DRAWER_CLOSE_STYLE_ID = 'pf-matchday-drawer-close-style'
 
   function normalise(value) {
     return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -46,39 +46,78 @@
     document.head.appendChild(style)
   }
 
-  function ensureTabLayerStyle() {
-    if (document.getElementById(TAB_LAYER_STYLE_ID)) return
+  function ensureDrawerCloseStyle() {
+    if (document.getElementById(DRAWER_CLOSE_STYLE_ID)) return
     const style = document.createElement('style')
-    style.id = TAB_LAYER_STYLE_ID
+    style.id = DRAWER_CLOSE_STYLE_ID
     style.textContent = `
-      .pf-md-whiteboard-tab {
-        z-index: 1 !important;
+      .pf-md-drawer-close {
+        position: absolute !important;
+        top: 50% !important;
+        right: -22px !important;
+        left: auto !important;
+        z-index: 2147482000 !important;
+        width: 44px !important;
+        height: 72px !important;
+        min-width: 44px !important;
+        min-height: 72px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 1px solid rgba(255,255,255,.22) !important;
+        border-left: 0 !important;
+        border-radius: 0 14px 14px 0 !important;
+        display: grid !important;
+        place-items: center !important;
+        background: rgba(18,34,48,.98) !important;
+        color: #fff !important;
+        box-shadow: 8px 0 18px rgba(0,0,0,.28) !important;
+        font-family: Arial,sans-serif !important;
+        font-size: 38px !important;
+        font-weight: 400 !important;
+        line-height: 1 !important;
+        transform: translateY(-50%) !important;
+        cursor: pointer !important;
       }
-      .pf-md-kpi-tab {
-        z-index: 50 !important;
-      }
-      .pf-md-kpi-tab[aria-expanded="true"],
-      .pf-md-kpi-panel:not([hidden]) {
-        z-index: 10050 !important;
+      .pf-md-drawer-close:hover,
+      .pf-md-drawer-close:focus-visible {
+        background: rgba(28,50,68,.99) !important;
+        outline: 2px solid #fff !important;
+        outline-offset: 1px !important;
       }
     `
     document.head.appendChild(style)
   }
 
-  function syncTabLayering() {
-    ensureTabLayerStyle()
-    const buttons = [...document.querySelectorAll('.md button')]
-    const whiteboardTab = buttons.find(button => normalise(button.textContent).includes('WHITEBOARD'))
-    const kpiTab = buttons.find(button => normalise(button.textContent).includes('KPI'))
+  function syncDrawerCloseButtons() {
+    const board = document.querySelector('.md')
+    if (!(board instanceof HTMLElement)) return
+    ensureDrawerCloseStyle()
+    const boardRect = board.getBoundingClientRect()
 
-    if (whiteboardTab instanceof HTMLElement) whiteboardTab.classList.add('pf-md-whiteboard-tab')
-    if (!(kpiTab instanceof HTMLElement)) return
+    board.querySelectorAll('button').forEach(button => {
+      if (!(button instanceof HTMLButtonElement)) return
+      const label = normalise(`${button.textContent || ''} ${button.getAttribute('aria-label') || ''} ${button.title || ''}`)
+      const isClose = label === 'X' || label === 'CLOSE' || label.includes('CLOSEPANEL') || label.includes('CLOSEDRAWER') || label.includes('CLOSEWHITEBOARD') || label.includes('CLOSEGAMEPLAN') || label.includes('CLOSEKPI')
+      if (!isClose) return
 
-    kpiTab.classList.add('pf-md-kpi-tab')
-    const panelId = kpiTab.getAttribute('aria-controls')
-    if (!panelId) return
-    const panel = document.getElementById(panelId)
-    if (panel instanceof HTMLElement) panel.classList.add('pf-md-kpi-panel')
+      const rect = button.getBoundingClientRect()
+      const isMainMatchExit = rect.left < boardRect.left + 130 && rect.top < boardRect.top + 130
+      if (isMainMatchExit) return
+
+      let panel = button.parentElement
+      while (panel && panel !== board) {
+        const panelRect = panel.getBoundingClientRect()
+        if (panelRect.width >= 240 && panelRect.height >= 180) break
+        panel = panel.parentElement
+      }
+      if (!panel || panel === board) return
+
+      if (window.getComputedStyle(panel).position === 'static') panel.style.position = 'relative'
+      button.classList.add('pf-md-drawer-close')
+      button.textContent = '‹'
+      button.setAttribute('aria-label', 'Close drawer')
+      button.title = 'Close drawer'
+    })
   }
 
   function syncMatchTab() {
@@ -123,7 +162,7 @@
     })
 
     syncMatchTab()
-    syncTabLayering()
+    syncDrawerCloseButtons()
   }
 
   function ensureEntryGuard() {
