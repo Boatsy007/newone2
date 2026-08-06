@@ -376,13 +376,13 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           position: absolute !important;
           left: 524px !important;
           right: auto !important;
-          bottom: 10px !important;
+          bottom: 34px !important;
           width: 488px !important;
-          height: 318px !important;
+          height: 294px !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-ground-wrap {
-          inset: 96px 10px 118px 10px !important;
+          inset: 68px 10px 146px 10px !important;
           width: auto !important;
           height: auto !important;
         }
@@ -395,11 +395,11 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
         .md-canonical-live-host:not(.native-fullscreen) .md-bench {
           left: 14px !important;
           right: 14px !important;
-          bottom: 8px !important;
+          bottom: 30px !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-bench-head {
-          bottom: 99px !important;
+          bottom: 121px !important;
         }
       `}</style>
     </div>
