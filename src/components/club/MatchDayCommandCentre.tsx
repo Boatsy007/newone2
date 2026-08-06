@@ -67,7 +67,6 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
     const checkReady = () => {
       if (!mounted) return
       const elapsed = Date.now() - startedAt
-
       if ((elapsed >= MIN_LOADING_TIME && liveMatchReady()) || elapsed >= MAX_LOADING_TIME) {
         setLoading(false)
       }
@@ -336,6 +335,21 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           width: 132px !important;
         }
 
+        .md-canonical-live-host:not(.native-fullscreen) .md-scoreboard {
+          height: 70px !important;
+          padding-top: 2px !important;
+          padding-bottom: 2px !important;
+        }
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-scoreboard strong {
+          font-size: 43px !important;
+          line-height: .8 !important;
+        }
+
+        .md-canonical-live-host:not(.native-fullscreen) .md-scoreboard small {
+          font-size: 8px !important;
+        }
+
         .md-canonical-live-host:not(.native-fullscreen) .md-fs-score {
           top: 6px !important;
           left: 674px !important;
@@ -362,30 +376,30 @@ export default function MatchDayCommandCentre({ children }: { children: ReactNod
           position: absolute !important;
           left: 524px !important;
           right: auto !important;
-          bottom: 14px !important;
+          bottom: 10px !important;
           width: 488px !important;
-          height: 374px !important;
+          height: 318px !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-ground-wrap {
-          inset: 124px 10px 142px 10px !important;
+          inset: 96px 10px 118px 10px !important;
           width: auto !important;
           height: auto !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-ground {
           width: 399px !important;
-          max-height: 498px !important;
+          max-height: 520px !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-bench {
           left: 14px !important;
           right: 14px !important;
-          bottom: 25px !important;
+          bottom: 8px !important;
         }
 
         .md-canonical-live-host:not(.native-fullscreen) .md-bench-head {
-          bottom: 116px !important;
+          bottom: 99px !important;
         }
       `}</style>
     </div>
