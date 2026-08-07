@@ -1,4 +1,4 @@
-name: Connect Coach App Fixtures Results
+name: Connect Coach Tools Fixtures Results Card
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Connect fixtures and results
-        run: python scripts/connect-coach-fixtures-results.py
+      - name: Add fixtures and results card
+        run: python scripts/connect-coach-app-fixtures-results-card.py
       - name: Install frontend
         run: npm ci
       - name: Install backend
@@ -28,5 +28,5 @@ jobs:
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
           git add src/pages/CoachApp.tsx
-          git commit -m 'Connect fixtures and results to Coach Tools' || exit 0
+          git commit -m 'Add fixtures and results to Coach Tools dashboard' || exit 0
           git push origin HEAD:newone1
