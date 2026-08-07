@@ -36,32 +36,26 @@ function dateKey(value: unknown) {
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0,10)
 }
 
-async function loadFixture(fixtureId: string, clubId: string) {
-  const rows = await prisma.$queryRawUnsafe<Fixture[]>(`
-    SELECT id::text AS id,league_id AS "leagueId",season,grade,round,
-      home_club_id AS "homeClubId",away_club_id AS "awayClubId",home_name AS "homeName",away_name AS "awayName",
-      match_date AS "matchDate",venue
-    FROM football_fixtures
-    WHERE id::text=$1 AND (home_club_id=$2 OR away_club_id=$2)
-    LIMIT 1
-  `, fixtureId, clubId)
-  return rows[0] ?? null
+async function loadFixture(fixtureId: string, clubId: string): Promise<Fixture | null> {
+  return prisma.footballFixture.findFirst({
+    where:{ id:fixtureId,OR:[{ homeClubId:clubId },{ awayClubId:clubId }] },
+    select:{ id:true,leagueId:true,season:true,grade:true,round:true,homeClubId:true,awayClubId:true,homeName:true,awayName:true,matchDate:true,venue:true },
+  })
 }
 
-async function loadActiveFixture(clubId: string, season: string | null, grade: string | null) {
-  const rows = await prisma.$queryRawUnsafe<Fixture[]>(`
-    SELECT id::text AS id,league_id AS "leagueId",season,grade,round,
-      home_club_id AS "homeClubId",away_club_id AS "awayClubId",home_name AS "homeName",away_name AS "awayName",
-      match_date AS "matchDate",venue
-    FROM football_fixtures
-    WHERE (home_club_id=$1 OR away_club_id=$1)
-      AND ($2::text IS NULL OR season=$2)
-      AND ($3::text IS NULL OR grade=$3)
-      AND (match_date IS NULL OR match_date >= NOW() - INTERVAL '6 hours')
-    ORDER BY match_date ASC NULLS LAST, updated_at DESC
-    LIMIT 1
-  `, clubId, season, grade)
-  return rows[0] ?? null
+async function loadActiveFixture(clubId: string, season: string | null, grade: string | null): Promise<Fixture | null> {
+  const fixtures = await prisma.footballFixture.findMany({
+    where:{
+      OR:[{ homeClubId:clubId },{ awayClubId:clubId }],
+      ...(season ? { season } : {}),
+      ...(grade ? { grade } : {}),
+      AND:[{ OR:[{ matchDate:{ gte:new Date(Date.now()-6*60*60*1000) } },{ matchDate:null }] }],
+    },
+    select:{ id:true,leagueId:true,season:true,grade:true,round:true,homeClubId:true,awayClubId:true,homeName:true,awayName:true,matchDate:true,venue:true },
+    orderBy:{ updatedAt:'desc' },
+    take:25,
+  })
+  return fixtures.sort((a,b)=>(a.matchDate?.getTime()??Number.MAX_SAFE_INTEGER)-(b.matchDate?.getTime()??Number.MAX_SAFE_INTEGER))[0] ?? null
 }
 
 async function loadSheetForFixture(clubId: string, fixture: Fixture | null) {
@@ -113,7 +107,7 @@ router.get('/context', async (req, res) => {
     if (!club) return res.status(404).json({ error: 'Authorised club not found' })
     const team = await prisma.clubLeagueSeason.findFirst({
       where:{ clubId:club.id,isActive:true,league:{ sport:'FOOTBALL',archivedAt:null,isActive:true } },
-      orderBy:[{ season:'desc' },{ updatedAt:'desc' }],
+      orderBy:{ season:'desc' },
       select:{ leagueId:true,season:true,grade:true,league:{ select:{ name:true } } },
     })
 
