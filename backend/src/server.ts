@@ -69,6 +69,8 @@ import { notificationsRouter } from './api/routes/notifications.js'
 import { analyticsRouter } from './api/routes/analytics.js'
 import { claimsRouter } from './api/routes/claims.js'
 import { portalRouter } from './api/routes/portal.js'
+import { clubTrainingAttendanceRouter } from './api/routes/club-training-attendance.js'
+import { clubTrainingPlansRouter } from './api/routes/club-training-plans.js'
 import { getFootballRecords, type RecordPeriod } from './results/records.service.js'
 import { logger } from './utils/logger.js'
 
@@ -128,6 +130,8 @@ app.use('/api/mvp', mvpRouter)
 app.use('/api/team-sheets', teamSheetsRouter)
 app.use('/api/player-availability', playerAvailabilityRouter)
 app.use('/api/club-portal/player-availability', clubPlayerAvailabilityRouter)
+app.use('/api/club-portal/training-attendance', clubTrainingAttendanceRouter)
+app.use('/api/club-portal/training-plans', clubTrainingPlansRouter)
 app.use('/api/live-match', liveMatchRouter)
 app.use('/api/live-audience', liveAudienceRouter)
 app.use('/api/match-details', matchDetailsRouter)
