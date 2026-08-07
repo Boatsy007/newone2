@@ -16,7 +16,7 @@ import { goalKickersRouter } from './api/routes/goal-kickers.js'
 import { playerProfileDetailsRouter } from './api/routes/player-profile-details.js'
 import { mvpRouter } from './api/routes/mvp.js'
 import { teamSheetsRouter, adminTeamSheetsRouter } from './api/routes/team-sheets.js'
-import { playerAvailabilityRouter } from './api/routes/player-availability.js'
+import { clubPlayerAvailabilityRouter, playerAvailabilityRouter } from './api/routes/player-availability.js'
 import { liveMatchRouter } from './api/routes/live-match.js'
 import { liveAudienceRouter } from './api/routes/live-audience.js'
 import { matchDetailsRouter } from './api/routes/match-details.js'
@@ -127,6 +127,7 @@ app.use('/api/player-profile-details', playerProfileDetailsRouter)
 app.use('/api/mvp', mvpRouter)
 app.use('/api/team-sheets', teamSheetsRouter)
 app.use('/api/player-availability', playerAvailabilityRouter)
+app.use('/api/club-portal/player-availability', clubPlayerAvailabilityRouter)
 app.use('/api/live-match', liveMatchRouter)
 app.use('/api/live-audience', liveAudienceRouter)
 app.use('/api/match-details', matchDetailsRouter)
