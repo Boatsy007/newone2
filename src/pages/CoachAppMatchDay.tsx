@@ -139,4 +139,31 @@ const styles=`
 @media(max-width:620px){.camd-page-grid{grid-template-columns:150px minmax(0,1fr)!important}.camd-squad-spacer{width:150px!important}.camd-board .cas-field-wrap{padding:10px 8px!important;min-height:570px!important}.camd-board .cas-position-card.camd-player{height:54px!important;min-height:54px!important}}
 @media(orientation:landscape) and (max-height:760px){.camd-page-grid{grid-template-columns:210px minmax(0,1fr)!important}.camd-squad-spacer{width:210px!important}.camd-board .cas-field-wrap{height:calc(100vh - 205px)!important;min-height:410px!important;max-height:540px!important;padding:12px 32px!important}.camd-board .cas-position-card.camd-player{height:47px!important;min-height:47px!important}.camd-board .cas-row.row-0 .cas-position-card:nth-child(2){transform:translateY(-9px)!important}.camd-board .cas-row.row-5 .cas-position-card:nth-child(2){transform:translateY(9px)!important}.camd-board .cas-bench>div{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
 
+/* Match Day full-width proportional field */
+.camd-ground{width:100%!important;padding-bottom:0!important}
+.camd-page-grid{display:block!important;width:100%!important;max-width:none!important;margin:0!important}
+.camd-squad-spacer{display:none!important}
+.camd-board{display:grid!important;width:100%!important;max-width:none!important;margin:0!important;gap:8px!important}
+.camd-board .cas-field-wrap{width:100%!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:850 / 650!important;margin:0!important;padding:clamp(10px,2.1vw,24px) clamp(12px,4.2vw,44px)!important}
+.camd-board .cas-field{height:100%!important}
+.camd-board .cas-bench{width:100%!important;margin:0!important}
+@media(max-width:900px){
+  .camd-page-grid{display:block!important;width:100%!important}
+  .camd-squad-spacer{display:none!important}
+  .camd-board .cas-field-wrap{width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:850 / 650!important;padding:clamp(10px,2vw,18px) clamp(10px,3vw,28px)!important}
+}
+@media(orientation:portrait) and (max-width:800px){
+  .camd-page-grid{display:block!important;width:100%!important}
+  .camd-board .cas-field-wrap{width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:850 / 650!important;padding:12px 18px!important}
+  .camd-board .cas-field-markings{inset:8px 2%!important}
+}
+@media(max-width:620px){
+  .camd-page-grid{display:block!important;width:100%!important}
+  .camd-board .cas-field-wrap{width:100%!important;height:auto!important;min-height:0!important;aspect-ratio:850 / 650!important;padding:9px 10px!important}
+}
+@media(orientation:landscape) and (max-height:760px){
+  .camd-page-grid{display:block!important;width:100%!important}
+  .camd-board .cas-field-wrap{width:min(100%,calc((100dvh - 205px) * 850 / 650))!important;height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:850 / 650!important;margin:0 auto!important;padding:10px 28px!important}
+}
+
 `
