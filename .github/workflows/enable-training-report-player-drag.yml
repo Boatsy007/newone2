@@ -15,41 +15,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Add mouse and touchscreen player dragging
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('src/pages/CoachAppTrainingReport.tsx')
-          s=p.read_text()
-          s=s.replace("import { useEffect, useMemo, useState } from 'react'", "import { useEffect, useMemo, useRef, useState } from 'react'")
-          s=s.replace(" const[dragPlayer,setDragPlayer]=useState('')\n", " const[dragPlayer,setDragPlayer]=useState('')\n const playerPointerDrag=useRef<{id:string;pointerId:number;startX:number;startY:number;dragging:boolean}|null>(null)\n")
-          old=""" function dropPlayer(performance:Performance){const id=dragPlayer||selectedPlayer;if(id)movePlayer(id,performance);setDragPlayer('')}\n function setAttendance"""
-          new=""" function dropPlayer(performance:Performance,idOverride=''){const id=idOverride||dragPlayer||selectedPlayer;if(id)movePlayer(id,performance);setDragPlayer('')}\n function startPlayerPointer(event:any,id:string){\n  if(event.pointerType==='mouse')return\n  playerPointerDrag.current={id,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,dragging:false}\n  event.currentTarget.setPointerCapture?.(event.pointerId)\n }\n function movePlayerPointer(event:any){\n  const active=playerPointerDrag.current\n  if(!active||active.pointerId!==event.pointerId)return\n  if(!active.dragging&&Math.hypot(event.clientX-active.startX,event.clientY-active.startY)>8){active.dragging=true;setDragPlayer(active.id)}\n  if(active.dragging)event.preventDefault()\n }\n function finishPlayerPointer(event:any){\n  const active=playerPointerDrag.current\n  if(!active||active.pointerId!==event.pointerId)return\n  if(active.dragging){\n   event.preventDefault()\n   const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-performance-group]') as HTMLElement|null\n   const performance=target?.dataset.performanceGroup as Performance|undefined\n   if(performance)dropPlayer(performance,active.id)\n  }\n  event.currentTarget.releasePointerCapture?.(event.pointerId)\n  playerPointerDrag.current=null\n  setDragPlayer('')\n }\n function cancelPlayerPointer(){playerPointerDrag.current=null;setDragPlayer('')}\n function setAttendance"""
-          if old not in s: raise SystemExit('function anchor not found')
-          s=s.replace(old,new)
-          old2="""return <section key={group.key} className={`catr-group ${group.key.toLowerCase()}`} onDragOver={event=>event.preventDefault()} onDrop={()=>dropPlayer(group.key)} onClick={()=>{if(selectedPlayer)dropPlayer(group.key)}}>"""
-          new2="""return <section key={group.key} data-performance-group={group.key} className={`catr-group ${group.key.toLowerCase()} ${dragPlayer?'drop-ready':''}`} onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move'}} onDrop={event=>{event.preventDefault();dropPlayer(group.key,event.dataTransfer.getData('text/player-id'))}} onClick={()=>{if(selectedPlayer)dropPlayer(group.key)}}>"""
-          if old2 not in s: raise SystemExit('group anchor not found')
-          s=s.replace(old2,new2)
-          old3="""return <button key={player.id} draggable onDragStart={()=>setDragPlayer(player.id)} onClick={event=>{event.stopPropagation();setSelectedPlayer(current=>current===player.id?'':player.id)}} className={`${selectedPlayer===player.id?'selected':''} ${entry.status==='INJURED'?'injured':''}`}>"""
-          new3="""return <button key={player.id} draggable onDragStart={event=>{event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/player-id',player.id);setDragPlayer(player.id)}} onDragEnd={()=>setDragPlayer('')} onPointerDown={event=>startPlayerPointer(event,player.id)} onPointerMove={movePlayerPointer} onPointerUp={finishPlayerPointer} onPointerCancel={cancelPlayerPointer} onClick={event=>{event.stopPropagation();if(playerPointerDrag.current?.dragging)return;setSelectedPlayer(current=>current===player.id?'':player.id)}} className={`${selectedPlayer===player.id?'selected':''} ${dragPlayer===player.id?'dragging':''} ${entry.status==='INJURED'?'injured':''}`}>"""
-          if old3 not in s: raise SystemExit('player card anchor not found')
-          s=s.replace(old3,new3)
-          marker=".catr-group>div>button{"
-          if marker not in s: raise SystemExit('style anchor not found')
-          s=s.replace(marker,".catr-group.drop-ready{transition:border-color .15s,background .15s}.catr-group.drop-ready:hover{border-color:#39b8ff}.catr-group>div>button.dragging{opacity:.55;transform:scale(.98);box-shadow:0 0 0 3px rgba(57,184,255,.28)}\n"+marker,1)
-          s=s.replace("touch-action:manipulation", "touch-action:none", 1) if "touch-action:manipulation" in s else s
-          p.write_text(s)
-          PY
-      - name: Install and build
-        run: |
-          npm ci
-          npm --prefix backend ci
-          npm run build
+      - name: Apply simplified training focus
+        run: python scripts/apply-training-focus-options.py
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm --prefix backend ci
+      - name: Build
+        run: npm run build
       - name: Commit
         run: |
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
-          git add src/pages/CoachAppTrainingReport.tsx
-          git commit -m 'Enable player card drag and drop on touchscreens' || exit 0
+          git add src/pages/CoachAppTrainingPlan.tsx
+          git commit -m 'Simplify training plan with multi-select focus options' || exit 0
           git push origin HEAD:newone1
