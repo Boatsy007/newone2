@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Apply simplified training focus
-        run: python scripts/apply-training-focus-options.py
+      - name: Apply compact training focus accordion
+        run: python scripts/apply-training-focus-accordion.py
       - name: Install frontend
         run: npm ci
       - name: Install backend
@@ -28,5 +28,5 @@ jobs:
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
           git add src/pages/CoachAppTrainingPlan.tsx
-          git commit -m 'Simplify training plan with multi-select focus options' || exit 0
+          git commit -m 'Collapse training focus options into expandable cards' || exit 0
           git push origin HEAD:newone1
