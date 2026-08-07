@@ -45,6 +45,16 @@ async function ensureTable() {
   return ready
 }
 
+async function sheetBelongsToClub(clubId: string, sheetId: string) {
+  const rows = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(`
+    SELECT EXISTS(
+      SELECT 1 FROM football_team_sheets
+      WHERE club_id = $1 AND id::text = $2
+    ) AS "exists"
+  `, clubId, sheetId)
+  return rows[0]?.exists === true
+}
+
 function validState(value: unknown, sheetId: string) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const state = value as Record<string, unknown>
@@ -128,6 +138,7 @@ router.get('/clubs/:clubId/history', async (req, res) => {
 router.get('/clubs/:clubId/sheets/:sheetId', async (req, res) => {
   try {
     await ensureTable()
+    if (!await sheetBelongsToClub(req.params.clubId, req.params.sheetId)) return res.status(404).json({ error: 'Team sheet not found for this club' })
     const rows = await prisma.$queryRawUnsafe<Array<{state: unknown; version: number; updatedAt: Date; updatedBy: string | null}>>(`
       SELECT state, version, updated_at AS "updatedAt", updated_by AS "updatedBy"
       FROM club_match_day_state
@@ -150,6 +161,7 @@ router.put('/clubs/:clubId/sheets/:sheetId', async (req, res) => {
     const state = req.body?.state
     if (!validState(state, req.params.sheetId)) return res.status(400).json({ error: 'A valid Match Day state is required' })
     await ensureTable()
+    if (!await sheetBelongsToClub(req.params.clubId, req.params.sheetId)) return res.status(404).json({ error: 'Team sheet not found for this club' })
 
     const canonicalState = state as Record<string, unknown>
     const live = publicLiveState(canonicalState)
@@ -201,6 +213,7 @@ router.put('/clubs/:clubId/sheets/:sheetId', async (req, res) => {
 router.delete('/clubs/:clubId/sheets/:sheetId', async (req, res) => {
   try {
     await ensureTable()
+    if (!await sheetBelongsToClub(req.params.clubId, req.params.sheetId)) return res.status(404).json({ error: 'Team sheet not found for this club' })
     await prisma.$transaction([
       prisma.$executeRawUnsafe(`DELETE FROM club_match_day_state WHERE club_id = $1 AND sheet_id = $2`, req.params.clubId, req.params.sheetId),
       prisma.$executeRawUnsafe(`UPDATE football_live_matches SET status='HIDDEN',clock_running=false,updated_at=NOW() WHERE club_id=$1 AND team_sheet_id::text=$2`, req.params.clubId, req.params.sheetId),
