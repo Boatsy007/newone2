@@ -1,0 +1,36 @@
+name: Commit unavailable Select Team cards
+
+on:
+  push:
+    paths:
+      - '.github/workflows/commit-unavailable-select-team.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Extract and apply availability patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source=Path('.github/workflows/apply-unavailable-select-team.yml').read_text()
+          block=source.split("cat > /tmp/patch.py <<'PY'\n",1)[1].split("\n          PY",1)[0]
+          lines=[line[10:] if line.startswith('          ') else line for line in block.splitlines()]
+          Path('/tmp/patch.py').write_text('\n'.join(lines)+'\n')
+          PY
+          python /tmp/patch.py
+      - name: Commit changes
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add backend/src/api/routes/club-team-sheets.ts src/pages/CoachAppSelectSide.tsx
+          git commit -m "Show unavailable players in Select Team"
+          git pull --rebase origin newone1
+          git push origin HEAD:newone1
