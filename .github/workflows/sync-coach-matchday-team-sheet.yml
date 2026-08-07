@@ -1,0 +1,38 @@
+name: Sync Coach Match Day team sheet
+
+on:
+  push:
+    paths:
+      - '.github/workflows/sync-coach-matchday-team-sheet.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Reconcile Match Day with selected side
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/pages/CoachAppMatchDay.tsx')
+          text = path.read_text()
+          old = "const existing=statePayload.data?.state as MatchState|undefined;const next=existing?normalise(existing):{sheetId,quarter:1,elapsed:0,runningSince:null,homeGoals:0,homeBehinds:0,awayGoals:0,awayBehinds:0,slots:current.players.map(player=>({...player,onGround:isOnGround(player.positionCode),plusMinus:0,goals:0,behinds:0,onGroundSeconds:0,benchEnteredAt:null,injured:false})),events:[],totalTrackedSeconds:0,trackingUpdatedAt:null};if(live){setSheet(current);setState(next)}"
+          new = "const existing=statePayload.data?.state as MatchState|undefined;const previous=existing?normalise(existing):null;const slots=current.players.map(player=>{const saved=previous?.slots.find(slot=>slot.clubPlayerId===player.clubPlayerId);const onGround=isOnGround(player.positionCode);return {...player,onGround,plusMinus:saved?.plusMinus??0,goals:saved?.goals??0,behinds:saved?.behinds??0,onGroundSeconds:saved?.onGroundSeconds??0,benchEnteredAt:onGround?null:(saved?.positionCode===player.positionCode?saved.benchEnteredAt:null),injured:saved?.injured??false}});const next=previous?{...previous,sheetId,slots}:{sheetId,quarter:1,elapsed:0,runningSince:null,homeGoals:0,homeBehinds:0,awayGoals:0,awayBehinds:0,slots,events:[],totalTrackedSeconds:0,trackingUpdatedAt:null};if(live){setSheet(current);setState(next)}"
+          if old not in text:
+            raise SystemExit('Expected Match Day load block was not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit Match Day selection sync
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add src/pages/CoachAppMatchDay.tsx
+          git commit -m "Sync Match Day players with saved team selection"
+          git push origin HEAD:newone1
