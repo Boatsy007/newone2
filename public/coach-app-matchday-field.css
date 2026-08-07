@@ -61,12 +61,12 @@
   transform: none !important;
 }
 
-/* Full forward sits at the top end while both pockets remain on their row. */
+/* Mirror the full-back arrangement: FF and FB sit the same distance from
+   their pocket row, in opposite directions. */
 .camd .camd-oval > .camd-row.edge-row:nth-of-type(2) .camd-player:nth-child(2) {
-  transform: translateY(-52px) !important;
+  transform: translateY(-30px) !important;
 }
 
-/* Full back positioning was already correct and is intentionally unchanged. */
 .camd .camd-oval > .camd-row.edge-row:last-child .camd-player:nth-child(2) {
   transform: translateY(30px) !important;
 }
@@ -105,7 +105,7 @@
   }
 
   .camd .camd-oval > .camd-row.edge-row:nth-of-type(2) .camd-player:nth-child(2) {
-    transform: translateY(-82px) !important;
+    transform: translateY(-42px) !important;
   }
 
   .camd .camd-oval > .camd-row.edge-row:last-child .camd-player:nth-child(2) {
@@ -163,7 +163,7 @@
   }
 
   .camd .camd-oval > .camd-row.edge-row:nth-of-type(2) .camd-player:nth-child(2) {
-    transform: translateY(-42px) !important;
+    transform: translateY(-24px) !important;
   }
 
   .camd .camd-oval > .camd-row.edge-row:last-child .camd-player:nth-child(2) {
