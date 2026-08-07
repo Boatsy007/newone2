@@ -6,27 +6,93 @@
   let matchHeaders = null
   let latestState = null
   let directoryPromise = null
+  let applyingUndo = false
   const nativeFetch = window.fetch.bind(window)
+
+  const cloneState = state => {
+    try { return JSON.parse(JSON.stringify(state)) } catch { return state }
+  }
+
+  function undoStorageKey() {
+    return matchEndpoint ? `playfooty.coachApp.undo.v1:${matchEndpoint}` : ''
+  }
+
+  function readUndoStack() {
+    const key = undoStorageKey()
+    if (!key) return []
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem(key) || '[]')
+      return Array.isArray(parsed) ? parsed : []
+    } catch { return [] }
+  }
+
+  function writeUndoStack(stack) {
+    const key = undoStorageKey()
+    if (!key) return
+    try { sessionStorage.setItem(key, JSON.stringify(stack.slice(-30))) } catch {}
+  }
+
+  function meaningfulState(state) {
+    if (!state || typeof state !== 'object') return state
+    const copy = cloneState(state)
+    delete copy.elapsed
+    delete copy.runningSince
+    delete copy.trackingUpdatedAt
+    delete copy.totalTrackedSeconds
+    if (Array.isArray(copy.slots)) {
+      copy.slots = copy.slots.map(slot => {
+        const next = { ...slot }
+        delete next.onGroundSeconds
+        return next
+      })
+    }
+    return copy
+  }
+
+  function meaningfulSignature(state) {
+    try { return JSON.stringify(meaningfulState(state)) } catch { return '' }
+  }
+
+  function rememberPreviousState(nextState) {
+    if (applyingUndo || !latestState || !nextState) return
+    if (meaningfulSignature(latestState) === meaningfulSignature(nextState)) return
+    const stack = readUndoStack()
+    const previous = cloneState(latestState)
+    const previousSignature = meaningfulSignature(previous)
+    if (meaningfulSignature(stack[stack.length - 1]) !== previousSignature) stack.push(previous)
+    writeUndoStack(stack)
+    updateUndoButtons()
+  }
 
   window.fetch = async (...args) => {
     const [input, init] = args
     const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input)
     const isMatchState = /\/api\/club-portal\/match-day\/clubs\/[^/]+\/sheets\/[^/?]+/.test(url)
+    let outgoingState = null
     if (isMatchState) {
       matchEndpoint = url
       if (init?.headers) matchHeaders = init.headers
       if (init?.body) {
         try {
           const parsed = JSON.parse(String(init.body))
-          if (parsed?.state) latestState = parsed.state
+          if (parsed?.state) {
+            outgoingState = parsed.state
+            rememberPreviousState(outgoingState)
+          }
         } catch {}
       }
     }
     const response = await nativeFetch(...args)
     if (isMatchState && (!init?.method || String(init.method).toUpperCase() === 'GET')) {
       response.clone().json().then(payload => {
-        if (payload?.data?.state) latestState = payload.data.state
+        if (payload?.data?.state) {
+          latestState = payload.data.state
+          updateUndoButtons()
+        }
       }).catch(() => undefined)
+    } else if (isMatchState && response.ok && outgoingState) {
+      latestState = outgoingState
+      updateUndoButtons()
     }
     return response
   }
@@ -125,6 +191,69 @@
     team.appendChild(wrapper)
   }
 
+  function updateUndoButtons() {
+    const available = readUndoStack().length > 0 && Boolean(matchEndpoint && matchHeaders)
+    document.querySelectorAll('.pf-field-undo').forEach(button => {
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = !available
+        button.title = available ? 'Undo the last Match Day change' : 'No change to undo'
+      }
+    })
+  }
+
+  async function undoLastChange(event) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    if (!matchEndpoint || !matchHeaders) {
+      window.alert('Match Day is still connecting. Try Undo again in a moment.')
+      return
+    }
+    const stack = readUndoStack()
+    const previousState = stack.pop()
+    if (!previousState) {
+      updateUndoButtons()
+      return
+    }
+    const button = event.currentTarget
+    if (button instanceof HTMLButtonElement) {
+      button.disabled = true
+      button.textContent = 'Undoing…'
+    }
+    applyingUndo = true
+    try {
+      const response = await nativeFetch(matchEndpoint, {
+        method: 'PUT',
+        headers: matchHeaders,
+        body: JSON.stringify({ state: previousState }),
+      })
+      if (!response.ok) throw new Error('undo failed')
+      writeUndoStack(stack)
+      latestState = previousState
+      window.location.reload()
+    } catch {
+      stack.push(previousState)
+      writeUndoStack(stack)
+      applyingUndo = false
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = false
+        button.textContent = '↶ Undo'
+      }
+      window.alert('The last change could not be undone. Check the connection and try again.')
+    }
+  }
+
+  function installUndoButton() {
+    const fieldCard = document.querySelector('.camd .camd-ground')
+    if (!(fieldCard instanceof HTMLElement) || fieldCard.querySelector('.pf-field-undo')) return
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'pf-field-undo'
+    button.textContent = '↶ Undo'
+    button.addEventListener('click', undoLastChange, true)
+    fieldCard.appendChild(button)
+    updateUndoButtons()
+  }
+
   async function resetMatch(event) {
     event.preventDefault()
     event.stopImmediatePropagation()
@@ -140,6 +269,7 @@
       events:[], totalTrackedSeconds:0, trackingUpdatedAt:null, gameEnded:false,
       slots:Array.isArray(latestState.slots) ? latestState.slots.map(slot => ({...slot,goals:0,behinds:0,plusMinus:0,onGroundSeconds:0,benchEnteredAt:null,injured:false})) : [],
     }
+    rememberPreviousState(state)
     try {
       const response = await nativeFetch(matchEndpoint,{method:'PUT',headers:matchHeaders,body:JSON.stringify({state})})
       if (!response.ok) throw new Error('reset failed')
@@ -162,7 +292,11 @@
       .camd .score-team.away .pf-quick-score{grid-column:1}
       .camd .pf-quick-score button{min-height:28px;border:1px solid rgba(255,255,255,.38);border-radius:7px;background:rgba(0,0,0,.5);color:#fff;font-family:'Bebas Neue',Impact,sans-serif;font-size:18px;font-weight:950;box-shadow:0 2px 0 rgba(0,0,0,.35)}
       .camd .pf-quick-score button:active{transform:translateY(2px) scale(.96);box-shadow:none}
-      @media(max-width:900px) and (orientation:portrait){.camd .pf-quick-score{gap:3px;padding:3px 4px 5px}.camd .pf-quick-score button{min-height:23px;font-size:15px}}
+      .camd .camd-ground{position:relative!important}
+      .camd .pf-field-undo{position:absolute;z-index:80;top:8px;right:8px;min-width:62px;min-height:28px;padding:5px 9px;border:1px solid rgba(255,255,255,.32);border-radius:7px;background:rgba(5,13,22,.88);color:#fff;font-size:10px;font-weight:900;line-height:1;box-shadow:0 2px 7px rgba(0,0,0,.35);backdrop-filter:blur(5px)}
+      .camd .pf-field-undo:active:not(:disabled){transform:translateY(1px) scale(.97)}
+      .camd .pf-field-undo:disabled{opacity:.38;cursor:not-allowed}
+      @media(max-width:900px) and (orientation:portrait){.camd .pf-quick-score{gap:3px;padding:3px 4px 5px}.camd .pf-quick-score button{min-height:23px;font-size:15px}.camd .pf-field-undo{top:6px;right:6px;min-width:56px;min-height:25px;padding:4px 7px;font-size:9px}}
     `
     document.head.appendChild(style)
   }
@@ -171,6 +305,7 @@
     const scoreboard = document.querySelector('.camd .camd-scoreboard')
     if (!(scoreboard instanceof HTMLElement)) return
     installStyles()
+    installUndoButton()
     const teams = scoreboard.querySelectorAll('.score-team')
     if (teams[0]) { installQuickScore(teams[0]); void applyBrand(teams[0], true) }
     if (teams[1]) { installQuickScore(teams[1]); void applyBrand(teams[1], false) }
@@ -179,6 +314,7 @@
       reset.dataset.pfResetFixed = '1'
       reset.addEventListener('click', resetMatch, true)
     }
+    updateUndoButtons()
   }
 
   window.setInterval(enhance, 500)
