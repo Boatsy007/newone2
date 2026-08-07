@@ -1,0 +1,44 @@
+name: Add Coach App availability screen
+
+on:
+  push:
+    paths:
+      - '.github/workflows/add-coach-app-availability.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Integrate availability screen
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('src/pages/CoachApp.tsx')
+          text=path.read_text()
+          replacements=[
+            ("import CoachAppSelectSide from './CoachAppSelectSide'\n", "import CoachAppAvailability from './CoachAppAvailability'\nimport CoachAppSelectSide from './CoachAppSelectSide'\n"),
+            ("type Screen = 'DASHBOARD' | 'SELECT_SIDE' | 'MATCH_DAY'", "type Screen = 'DASHBOARD' | 'AVAILABILITY' | 'SELECT_SIDE' | 'MATCH_DAY'"),
+            ("if(key==='availability'){navigate(`/club-portal/${id}/availability?source=coach-app`);return}", "if(key==='availability'){setScreen('AVAILABILITY');return}"),
+            ("const pageLabel=screen==='DASHBOARD'?'Dashboard':screen==='SELECT_SIDE'?'Select Side':'Match Day'", "const pageLabel=screen==='DASHBOARD'?'Dashboard':screen==='AVAILABILITY'?'Player Availability':screen==='SELECT_SIDE'?'Select Side':'Match Day'"),
+            ("    {screen==='SELECT_SIDE'&&context.teamSheet?<CoachAppSelectSide", "    {screen==='AVAILABILITY'&&context.teamSheet?<CoachAppAvailability clubId={context.club.id} sheetId={context.teamSheet.id} token={session.access_token} onContinue={()=>setScreen('SELECT_SIDE')} onExit={()=>setScreen('DASHBOARD')}/>:screen==='SELECT_SIDE'&&context.teamSheet?<CoachAppSelectSide")
+          ]
+          for old,new in replacements:
+            if old not in text:
+              raise SystemExit('Expected CoachApp block not found: '+old[:100])
+            text=text.replace(old,new,1)
+          path.write_text(text)
+          PY
+      - name: Commit integration
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add src/pages/CoachApp.tsx
+          git commit -m "Open simple availability inside Coach App"
+          git push origin HEAD:newone1
