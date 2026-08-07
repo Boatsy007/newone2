@@ -1,0 +1,92 @@
+name: Show unavailable players in Select Team
+
+on:
+  push:
+    paths:
+      - '.github/workflows/show-unavailable-select-team.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Connect availability to Select Team cards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          backend = Path('backend/src/api/routes/club-team-sheets.ts')
+          text = backend.read_text()
+          old = '''router.get('/clubs/:clubId/players', async (req,res) => {
+  try { await ensureTables(); const rows=await prisma.$queryRawUnsafe(`SELECT id::text AS id,player_id AS "playerId",player_name AS "playerName",jumper_number AS "jumperNumber",preferred_position AS "preferredPosition",active FROM football_club_players WHERE club_id=$1 ORDER BY active DESC,player_name`,req.params.clubId); res.json({data:rows,positions:POSITIONS}) }
+  catch(error){res.status(500).json({error:'failed to load club players',detail:String(error)})}
+})'''
+          new = '''router.get('/clubs/:clubId/players', async (req,res) => {
+  try {
+    await ensureTables(); await ensureAvailabilityTables()
+    const sheetId=String(req.query.sheetId??'').trim()
+    if(sheetId){const sheet=await sheetForClub(sheetId,req.params.clubId);if(!sheet)return res.status(404).json({error:'Team sheet not found for this club'})}
+    const rows=await prisma.$queryRawUnsafe(`SELECT cp.id::text AS id,cp.player_id AS "playerId",cp.player_name AS "playerName",cp.jumper_number AS "jumperNumber",cp.preferred_position AS "preferredPosition",cp.active,a.status AS "availabilityStatus",a.reason AS "availabilityReason" FROM football_club_players cp LEFT JOIN football_player_availability a ON a.club_player_id=cp.id AND a.team_sheet_id::text=$2 WHERE cp.club_id=$1 ORDER BY cp.active DESC,cp.player_name`,req.params.clubId,sheetId)
+    res.json({data:rows,positions:POSITIONS})
+  }
+  catch(error){res.status(500).json({error:'failed to load club players',detail:String(error)})}
+})'''
+          if old not in text:
+            raise SystemExit('Expected club players route was not found')
+          backend.write_text(text.replace(old,new,1))
+
+          frontend = Path('src/pages/CoachAppSelectSide.tsx')
+          text = frontend.read_text()
+          replacements = [
+            ("type Player = { id:string; playerName:string; jumperNumber:number|null; active:boolean }", "type Player = { id:string; playerName:string; jumperNumber:number|null; active:boolean; availabilityStatus:string|null; availabilityReason:string|null }"),
+            ("fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/players`,{headers})", "fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/players?sheetId=${encodeURIComponent(sheetId)}`,{headers})"),
+            ("  function player(id:string){return players.find(item=>item.id===id)}\n", "  function player(id:string){return players.find(item=>item.id===id)}\n  function isUnavailable(item:Player|undefined){return item?.availabilityStatus==='UNAVAILABLE'}\n"),
+            ('''        <div className="cas-player-list">{players.map(item=>{
+          const position=positionByPlayer.get(item.id)
+          return <button key={item.id} type="button" draggable onDragStart={event=>dragStart(event,item.id)} onPointerDown={event=>startPointerDrag(event,item.id)} onClick={()=>clickPlayer(item.id)} className={`cas-player-bank ${activePlayer===item.id?'active':''} ${position?'selected':''}`}>
+            <GripVertical/><b>{item.jumperNumber??'—'}</b><span>{item.playerName}<small>{position?LABELS[position]:'Not selected'}</small></span>{position&&<i onClick={event=>{event.stopPropagation();removeFromSide(item.id)}} aria-label={`Remove ${item.playerName}`}>×</i>}
+          </button>
+        })}</div>''', '''        <div className="cas-player-list">{players.map(item=>{
+          const position=positionByPlayer.get(item.id)
+          const unavailable=isUnavailable(item)
+          return <button key={item.id} type="button" draggable onDragStart={event=>dragStart(event,item.id)} onPointerDown={event=>startPointerDrag(event,item.id)} onClick={()=>clickPlayer(item.id)} className={`cas-player-bank ${activePlayer===item.id?'active':''} ${position?'selected':''} ${unavailable?'unavailable':''}`} title={unavailable&&item.availabilityReason?item.availabilityReason:undefined}>
+            <GripVertical/><b>{item.jumperNumber??'—'}</b><span>{item.playerName}<small>{unavailable?'Unavailable':position?LABELS[position]:'Not selected'}</small></span>{position&&<i onClick={event=>{event.stopPropagation();removeFromSide(item.id)}} aria-label={`Remove ${item.playerName}`}>×</i>}
+          </button>
+        })}</div>'''),
+            ('''function PositionCard({code,player,active,onClick,onDrop}:{code:string;player:Player|undefined;active:boolean;onClick:()=>void;onDrop:(event:React.DragEvent)=>void}){
+  return <button type="button" data-position={code} onClick={onClick} onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move'}} onDrop={onDrop} className={`cas-position-card ${active?'active':''} ${player?'filled':'empty'}`}>
+    <span>{LABELS[code]}</span>{player?<><b>{player.playerName}</b><i>{player.jumperNumber??'—'}</i></>:<b>Drop player</b>}
+  </button>
+}''', '''function PositionCard({code,player,active,onClick,onDrop}:{code:string;player:Player|undefined;active:boolean;onClick:()=>void;onDrop:(event:React.DragEvent)=>void}){
+  const unavailable=player?.availabilityStatus==='UNAVAILABLE'
+  return <button type="button" data-position={code} onClick={onClick} onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move'}} onDrop={onDrop} className={`cas-position-card ${active?'active':''} ${player?'filled':'empty'} ${unavailable?'unavailable':''}`} title={unavailable&&player?.availabilityReason?player.availabilityReason:undefined}>
+    <span>{LABELS[code]}</span>{player?<><b>{player.playerName}</b><i>{player.jumperNumber??'—'}</i>{unavailable&&<em>Unavailable</em>}</>:<b>Drop player</b>}
+  </button>
+}''')
+          ]
+          for old,new in replacements:
+            if old not in text:
+              raise SystemExit('Expected Select Team block was not found: '+old[:80])
+            text=text.replace(old,new,1)
+          css = ".cas-player-bank.unavailable{border-color:#ff4d57;background:linear-gradient(rgba(154,24,32,.82),rgba(91,10,16,.88)),#142630;box-shadow:inset 0 0 0 1px rgba(255,170,170,.25)}.cas-player-bank.unavailable small{color:#ffd5d8;font-weight:950}.cas-player-bank.unavailable>svg{color:#ffc0c3}.cas-position-card.unavailable{border-color:#ff4d57;background:linear-gradient(rgba(198,34,43,.76),rgba(135,15,23,.82)),#f7f6f1;color:#fff}.cas-position-card.unavailable>span{background:#891018}.cas-position-card.unavailable>em{position:absolute;right:5px;bottom:4px;padding:2px 5px;border-radius:999px;background:#891018;color:#fff;font-size:7px;font-style:normal;font-weight:950;letter-spacing:.04em;text-transform:uppercase}\n"
+          marker='@media(max-width:900px)'
+          if marker not in text:
+            raise SystemExit('Expected Select Team media marker was not found')
+          text=text.replace(marker,css+marker,1)
+          frontend.write_text(text)
+          PY
+      - name: Verify build
+        run: npm run build
+      - name: Commit unavailable player cards
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add backend/src/api/routes/club-team-sheets.ts src/pages/CoachAppSelectSide.tsx
+          git commit -m "Show unavailable players in Select Team"
+          git push origin HEAD:newone1
