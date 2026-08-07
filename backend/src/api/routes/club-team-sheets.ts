@@ -81,7 +81,13 @@ router.use(authenticateClubUser)
 router.use('/clubs/:clubId', requireActiveClubMembership, allowTeamSelection)
 
 router.get('/clubs/:clubId/players', async (req,res) => {
-  try { await ensureTables(); const rows=await prisma.$queryRawUnsafe(`SELECT id::text AS id,player_id AS "playerId",player_name AS "playerName",jumper_number AS "jumperNumber",preferred_position AS "preferredPosition",active FROM football_club_players WHERE club_id=$1 ORDER BY active DESC,player_name`,req.params.clubId); res.json({data:rows,positions:POSITIONS}) }
+  try {
+    await ensureTables(); await ensureAvailabilityTables()
+    const sheetId=String(req.query.sheetId??'').trim()
+    if(sheetId){const sheet=await sheetForClub(sheetId,req.params.clubId);if(!sheet)return res.status(404).json({error:'Team sheet not found for this club'})}
+    const rows=await prisma.$queryRawUnsafe(`SELECT cp.id::text AS id,cp.player_id AS "playerId",cp.player_name AS "playerName",cp.jumper_number AS "jumperNumber",cp.preferred_position AS "preferredPosition",cp.active,a.status AS "availabilityStatus",a.reason AS "availabilityReason" FROM football_club_players cp LEFT JOIN football_player_availability a ON a.club_player_id=cp.id AND a.team_sheet_id::text=$2 WHERE cp.club_id=$1 ORDER BY cp.active DESC,cp.player_name`,req.params.clubId,sheetId)
+    res.json({data:rows,positions:POSITIONS})
+  }
   catch(error){res.status(500).json({error:'failed to load club players',detail:String(error)})}
 })
 
