@@ -6,6 +6,7 @@ import CoachAppSelectSide from './CoachAppSelectSide'
 import CoachAppMatchDay from './CoachAppMatchDay'
 import CoachAppTrainingPlan from './CoachAppTrainingPlan'
 import CoachAppTrainingReport from './CoachAppTrainingReport'
+import CoachAppFixturesResults from './CoachAppFixturesResults'
 
 type Session = { access_token: string }
 type ClubChoice = { id: string; name: string; logoUrl: string | null; role: string }
@@ -16,8 +17,8 @@ type ContextPayload = {
   matchDay: { started: boolean }
   nextStep: 'SELECT_SIDE' | 'MATCH_DAY'
 }
-type Screen = 'DASHBOARD' | 'TRAINING_PLAN' | 'TRAINING_REPORT' | 'AVAILABILITY' | 'SELECT_SIDE' | 'MATCH_DAY'
-type ToolKey = 'training-plan' | 'training-summary' | 'availability' | 'select-team' | 'game-plan' | 'match-day'
+type Screen = 'DASHBOARD' | 'TRAINING_PLAN' | 'TRAINING_REPORT' | 'AVAILABILITY' | 'SELECT_SIDE' | 'MATCH_DAY' | 'FIXTURES_RESULTS'
+type ToolKey = 'training-plan' | 'training-summary' | 'availability' | 'select-team' | 'game-plan' | 'match-day' | 'fixtures-results'
 
 const SESSION_KEY = 'playfooty.clubPortal.session.v1'
 const CLUB_KEY = 'playfooty.coachApp.club.v1'
@@ -94,6 +95,7 @@ export default function CoachApp(){
     if(key==='match-day'){setScreen(context.nextStep==='MATCH_DAY'?'MATCH_DAY':'SELECT_SIDE');return}
     if(key==='select-team'){setScreen('SELECT_SIDE');return}
     if(key==='availability'){setScreen('AVAILABILITY');return}
+    if(key==='fixtures-results'){setScreen('FIXTURES_RESULTS');return}
     if(key==='game-plan'){navigate(`/club-portal/${id}/whiteboard?source=coach-app&mode=game-plan`);return}
     navigate(`/club-portal/${id}/coaching?source=coach-app&section=${key}${sessionNumber?`&session=${sessionNumber}`:''}`)
   }
@@ -105,7 +107,7 @@ export default function CoachApp(){
   if(!context)return null
 
   const fixtureLabel=context.fixture?`${context.fixture.round||'Upcoming match'} · ${context.fixture.homeName} v ${context.fixture.awayName}`:'No active fixture found'
-  const pageLabel=screen==='DASHBOARD'?'Dashboard':screen==='TRAINING_PLAN'?`Training Plan ${trainingSession}`:screen==='TRAINING_REPORT'?`Training Report ${trainingSession}`:screen==='AVAILABILITY'?'Player Availability':screen==='SELECT_SIDE'?'Select Side':'Match Day'
+  const pageLabel=screen==='DASHBOARD'?'Dashboard':screen==='TRAINING_PLAN'?`Training Plan ${trainingSession}`:screen==='TRAINING_REPORT'?`Training Report ${trainingSession}`:screen==='AVAILABILITY'?'Player Availability':screen==='FIXTURES_RESULTS'?'Fixtures & Results':screen==='SELECT_SIDE'?'Select Side':'Match Day'
   return <main className="coach-app-root"><style>{styles}</style>
     {!online&&<div className="coach-offline">Internet connection lost. Changes cannot sync until you reconnect.</div>}
     <header className="coach-shell"><button className="coach-club" onClick={()=>setScreen('DASHBOARD')}>{context.club.logoUrl?<img src={context.club.logoUrl} alt=""/>:<div>PF</div>}<span><b>{context.club.name}</b><small>{fixtureLabel}</small></span></button><div className="coach-step"><b>PlayFooty Coach</b><span>{pageLabel}</span></div><div className="coach-menu"><button onClick={changeClub}>Change club</button><button onClick={logout}>Log out</button></div></header>
@@ -118,10 +120,11 @@ export default function CoachApp(){
         <button onClick={()=>openTool('availability')}><CalendarCheck/><span><b>This Week Availability</b><small>See who is available for selection.</small></span></button>
         <button onClick={()=>openTool('select-team')}><Gamepad2/><span><b>Select Team</b><small>Open the current team selection.</small></span></button>
         <button onClick={()=>openTool('game-plan')}><FileText/><span><b>Game Plan</b><small>Prepare the plan for this fixture.</small></span></button>
+        <button onClick={()=>openTool('fixtures-results')}><CalendarCheck/><span><b>Fixtures & Results</b><small>View upcoming matches, recent results and Match Centre.</small></span></button>
         <button className="match" onClick={()=>openTool('match-day')}><Trophy/><span><b>Match Day</b><small>Select the side and run the live game.</small></span></button>
       </div></section>
     </section>}
-    {screen==='TRAINING_PLAN'?<CoachAppTrainingPlan clubId={context.club.id} token={session.access_token} sessionNumber={trainingSession} fixtureDate={context.fixture?.matchDate} onExit={()=>setScreen('DASHBOARD')} onContinue={()=>setScreen('TRAINING_REPORT')}/>:
+    {screen==='FIXTURES_RESULTS'?<CoachAppFixturesResults clubId={context.club.id} clubName={context.club.name} onExit={()=>setScreen('DASHBOARD')}/>:screen==='TRAINING_PLAN'?<CoachAppTrainingPlan clubId={context.club.id} token={session.access_token} sessionNumber={trainingSession} fixtureDate={context.fixture?.matchDate} onExit={()=>setScreen('DASHBOARD')} onContinue={()=>setScreen('TRAINING_REPORT')}/>:
       screen==='TRAINING_REPORT'?<CoachAppTrainingReport clubId={context.club.id} token={session.access_token} sessionNumber={trainingSession} fixtureDate={context.fixture?.matchDate} onExit={()=>setScreen('DASHBOARD')} onContinue={()=>setScreen(trainingSession===1?'AVAILABILITY':'SELECT_SIDE')}/>:
       screen==='AVAILABILITY'&&context.teamSheet?<CoachAppAvailability clubId={context.club.id} sheetId={context.teamSheet.id} token={session.access_token} onContinue={()=>setScreen('SELECT_SIDE')} onExit={()=>setScreen('DASHBOARD')}/>:screen==='SELECT_SIDE'&&context.teamSheet?<CoachAppSelectSide clubId={context.club.id} sheetId={context.teamSheet.id} token={session.access_token} onContinue={()=>setScreen('MATCH_DAY')} onExit={()=>setScreen('DASHBOARD')}/>:
       screen==='MATCH_DAY'&&context.teamSheet?<CoachAppMatchDay clubId={context.club.id} sheetId={context.teamSheet.id} token={session.access_token} onBack={()=>setScreen('SELECT_SIDE')}/>:screen!=='DASHBOARD'?<section className="coach-loading"><strong>No active team sheet is available.</strong><button onClick={()=>setScreen('DASHBOARD')}>Back to dashboard</button></section>:null}
