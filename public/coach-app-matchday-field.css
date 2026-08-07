@@ -46,29 +46,26 @@
   font-size: 8px !important;
 }
 
-/* Keep every card the same size. Shape the formation by staggering the
-   full forward/full back vertically relative to the pockets. */
+/* Keep the pocket cards on the normal three-column spacing used by every
+   other line. Only the central FF and FB cards travel to the field ends. */
+.camd .camd-row.edge-row {
+  width: 100% !important;
+  margin-left: 0 !important;
+}
+
 .camd .camd-row:first-of-type .camd-player:nth-child(1),
-.camd .camd-row:first-of-type .camd-player:nth-child(3) {
-  transform: translateY(13px);
+.camd .camd-row:first-of-type .camd-player:nth-child(3),
+.camd .camd-row:last-child .camd-player:nth-child(1),
+.camd .camd-row:last-child .camd-player:nth-child(3) {
+  transform: none;
 }
 
 .camd .camd-row:first-of-type .camd-player:nth-child(2) {
-  transform: translateY(-13px);
-}
-
-.camd .camd-row:last-child .camd-player:nth-child(1),
-.camd .camd-row:last-child .camd-player:nth-child(3) {
-  transform: translateY(-13px);
+  transform: translateY(-30px);
 }
 
 .camd .camd-row:last-child .camd-player:nth-child(2) {
-  transform: translateY(13px);
-}
-
-.camd .camd-row:first-of-type .camd-player:active,
-.camd .camd-row:last-child .camd-player:active {
-  filter: brightness(.94);
+  transform: translateY(30px);
 }
 
 /* Portrait uses the tall coaches-board AFL oval shape. */
@@ -81,7 +78,7 @@
     width: 78% !important;
     min-height: 675px !important;
     margin-top: 7px !important;
-    padding: 38px 4px !important;
+    padding: 48px 4px !important;
     overflow: visible !important;
     border-radius: 50% / 24% !important;
   }
@@ -96,30 +93,20 @@
   }
 
   .camd .camd-row.edge-row {
-    width: 112% !important;
-    margin-left: -6% !important;
+    width: 100% !important;
+    margin-left: 0 !important;
   }
 
   .camd .camd-player {
     min-height: 68px !important;
   }
 
-  .camd .camd-row:first-of-type .camd-player:nth-child(1),
-  .camd .camd-row:first-of-type .camd-player:nth-child(3) {
-    transform: translateY(17px);
-  }
-
   .camd .camd-row:first-of-type .camd-player:nth-child(2) {
-    transform: translateY(-17px);
-  }
-
-  .camd .camd-row:last-child .camd-player:nth-child(1),
-  .camd .camd-row:last-child .camd-player:nth-child(3) {
-    transform: translateY(-17px);
+    transform: translateY(-42px);
   }
 
   .camd .camd-row:last-child .camd-player:nth-child(2) {
-    transform: translateY(17px);
+    transform: translateY(42px);
   }
 
   .camd .camd-bench {
@@ -139,7 +126,7 @@
     height: calc(100% - 89px) !important;
     min-height: 410px !important;
     max-height: 500px !important;
-    padding: 14px 58px !important;
+    padding: 23px 58px !important;
     overflow: visible !important;
     border-radius: 50% / 34% !important;
   }
@@ -154,8 +141,8 @@
   }
 
   .camd .camd-row.edge-row {
-    width: 106% !important;
-    margin-left: -3% !important;
+    width: 100% !important;
+    margin-left: 0 !important;
   }
 
   .camd .camd-player {
@@ -172,22 +159,12 @@
     font-size: 7px !important;
   }
 
-  .camd .camd-row:first-of-type .camd-player:nth-child(1),
-  .camd .camd-row:first-of-type .camd-player:nth-child(3) {
-    transform: translateY(9px);
-  }
-
   .camd .camd-row:first-of-type .camd-player:nth-child(2) {
-    transform: translateY(-9px);
-  }
-
-  .camd .camd-row:last-child .camd-player:nth-child(1),
-  .camd .camd-row:last-child .camd-player:nth-child(3) {
-    transform: translateY(-9px);
+    transform: translateY(-24px);
   }
 
   .camd .camd-row:last-child .camd-player:nth-child(2) {
-    transform: translateY(9px);
+    transform: translateY(24px);
   }
 
   .camd .camd-interchange {
