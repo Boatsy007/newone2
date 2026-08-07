@@ -46,7 +46,10 @@ export default function CoachApp() {
   const [error, setError] = useState('')
   const [online, setOnline] = useState(navigator.onLine)
 
-  const headers = useMemo(() => session ? { authorization: `Bearer ${session.access_token}` } : {}, [session])
+  const headers = useMemo<Record<string, string>>(
+    () => session ? { authorization: `Bearer ${session.access_token}` } : {},
+    [session],
+  )
 
   async function loadContext() {
     if (!session) return
