@@ -1,0 +1,83 @@
+name: Update coach dashboard match flow
+
+on:
+  push:
+    paths:
+      - '.github/workflows/update-coach-dashboard-flow.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch coach dashboard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/pages/CoachApp.tsx')
+          text = path.read_text()
+
+          replacements = [
+            (
+              "type ToolKey = 'training-plan' | 'training-summary' | 'availability' | 'game-plan' | 'match-day'",
+              "type ToolKey = 'training-plan' | 'training-summary' | 'availability' | 'select-team' | 'game-plan' | 'match-day'"
+            ),
+            (
+              "  {key:'training-summary',label:'Training Summary',eyebrow:'Session 1'},",
+              "  {key:'training-summary',label:'Training Report',eyebrow:'Session 1'},"
+            ),
+            (
+              "  {key:'training-summary',label:'Training Summary',eyebrow:'Session 2'},\n  {key:'game-plan',label:'Game Plan',eyebrow:'Prepare'},",
+              "  {key:'training-summary',label:'Training Report',eyebrow:'Session 2'},\n  {key:'select-team',label:'Select Team',eyebrow:'Selection'},\n  {key:'game-plan',label:'Game Plan',eyebrow:'Prepare'},"
+            ),
+            (
+              "    if(key==='match-day'){setScreen(context.nextStep==='MATCH_DAY'?'MATCH_DAY':'SELECT_SIDE');return}\n    if(key==='availability')",
+              "    if(key==='match-day'){setScreen(context.nextStep==='MATCH_DAY'?'MATCH_DAY':'SELECT_SIDE');return}\n    if(key==='select-team'){setScreen('SELECT_SIDE');return}\n    if(key==='availability')"
+            ),
+            (
+              "{flow.map((item,index)=>{const sessionNumber=index<2?1:index>2&&index<5?2:undefined;return",
+              "{flow.map((item,index)=>{const sessionNumber=item.eyebrow==='Session 1'?1:item.eyebrow==='Session 2'?2:undefined;return"
+            ),
+            (
+              "<button onClick={()=>openTool('training-summary')}><ClipboardCheck/><span><b>Training Summary</b><small>Complete the report after training.</small></span></button>",
+              "<button onClick={()=>openTool('training-summary')}><ClipboardCheck/><span><b>Training Report</b><small>Complete the report after training.</small></span></button>"
+            ),
+            (
+              "<button onClick={()=>openTool('availability')}><CalendarCheck/><span><b>This Week Availability</b><small>See who is available for selection.</small></span></button>\n        <button onClick={()=>openTool('game-plan')}",
+              "<button onClick={()=>openTool('availability')}><CalendarCheck/><span><b>This Week Availability</b><small>See who is available for selection.</small></span></button>\n        <button onClick={()=>openTool('select-team')}><Gamepad2/><span><b>Select Team</b><small>Open the current team selection.</small></span></button>\n        <button onClick={()=>openTool('game-plan')}"
+            ),
+            (
+              ".flow-track{display:grid;grid-template-columns:repeat(7,minmax(130px,1fr));gap:10px}",
+              ".flow-track{display:grid;grid-template-columns:repeat(8,minmax(125px,1fr));gap:10px}"
+            ),
+            (
+              ".tool-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}",
+              ".tool-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}"
+            ),
+          ]
+
+          for old, new in replacements:
+            if old not in text:
+              raise SystemExit(f'Missing expected source fragment: {old[:120]}')
+            text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+      - name: Commit dashboard update
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add src/pages/CoachApp.tsx
+          git rm .github/workflows/update-coach-dashboard-flow.yml
+          git commit -m "Add Select Team to coach match flow and rename reports"
+          git push origin HEAD:newone1
