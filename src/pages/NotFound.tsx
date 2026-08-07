@@ -9,16 +9,18 @@ import ClubPortalTeamGraphic from './ClubPortalTeamGraphic'
 import ClubPortalMatchGraphic from './ClubPortalMatchGraphic'
 import ClubPortalMilestones from './ClubPortalMilestones'
 import ClubPortalMediaPublish from './ClubPortalMediaPublish'
+import CoachApp from './CoachApp'
 
 export default function NotFound() {
   const location = useLocation()
+  const isCoachApp = /^\/coach-app\/?$/.test(location.pathname)
   const isClubAnalytics = /^\/club-portal\/[^/]+\/analytics\/?$/.test(location.pathname)
   const isClubMedia = /^\/club-portal\/[^/]+\/media\/?$/.test(location.pathname)
   const isTeamGraphic = /^\/club-portal\/[^/]+\/team-selection-graphic\/?$/.test(location.pathname)
   const isMatchGraphic = /^\/club-portal\/[^/]+\/match-graphic\/?$/.test(location.pathname)
   const isMilestones = /^\/club-portal\/[^/]+\/milestones\/?$/.test(location.pathname)
   const isMediaPublish = /^\/club-portal\/[^/]+\/media-publish\/?$/.test(location.pathname)
-  const isMountedPortalPage = isClubAnalytics || isClubMedia || isTeamGraphic || isMatchGraphic || isMilestones || isMediaPublish
+  const isMountedPortalPage = isCoachApp || isClubAnalytics || isClubMedia || isTeamGraphic || isMatchGraphic || isMilestones || isMediaPublish
   useEffect(() => {
     if (isMountedPortalPage) return
     document.title = 'Page not found | PlayFooty'
@@ -27,6 +29,7 @@ export default function NotFound() {
     return () => { robots.content = previous }
   }, [isMountedPortalPage])
 
+  if (isCoachApp) return <CoachApp/>
   if (isClubAnalytics) return <ClubPortalAnalytics/>
   if (isClubMedia) return <ClubPortalMedia/>
   if (isTeamGraphic) return <ClubPortalTeamGraphic/>
