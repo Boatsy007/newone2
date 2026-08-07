@@ -99,10 +99,27 @@ router.get('/context', async (req, res) => {
   try {
     await ensureCoachAppColumns()
     const memberships = (await membershipsForUser(req.clubUser!.id)).filter(item => item.status === 'ACTIVE' && roleCan(item.role, 'team_selection'))
-    if (!memberships.length) return res.status(403).json({ error: 'This account does not have an authorised coaching team' })
-    if (memberships.length > 1) return res.status(409).json({ error: 'This pilot requires one authorised team. Ask an administrator to nominate the pilot club.', data: { clubs: memberships.map(item => ({ clubId:item.clubId, role:item.role })) } })
+    if (!memberships.length) return res.status(403).json({ error: 'This account does not have access to team selection' })
 
-    const membership = memberships[0]
+    const requestedClubId = typeof req.query.clubId === 'string' ? req.query.clubId.trim() : ''
+    let membership = requestedClubId ? memberships.find(item => item.clubId === requestedClubId) : memberships[0]
+    if (requestedClubId && !membership) return res.status(403).json({ error: 'You are not authorised to manage this club' })
+
+    if (!requestedClubId && memberships.length > 1) {
+      const clubIds = memberships.map(item => item.clubId)
+      const clubs = await prisma.club.findMany({
+        where:{ id:{ in:clubIds } },
+        select:{ id:true,name:true,logoUrl:true },
+        orderBy:{ name:'asc' },
+      })
+      return res.status(409).json({
+        error:'Choose the club you want to open',
+        code:'CLUB_SELECTION_REQUIRED',
+        data:{ clubs:clubs.map(club => ({ ...club, role:memberships.find(item => item.clubId === club.id)?.role ?? 'TEAM_MANAGER' })) },
+      })
+    }
+
+    membership = membership ?? memberships[0]
     const club = await prisma.club.findUnique({ where:{ id:membership.clubId }, select:{ id:true,name:true,logoUrl:true,primaryColour:true,secondaryColour:true } })
     if (!club) return res.status(404).json({ error: 'Authorised club not found' })
     const team = await prisma.clubLeagueSeason.findFirst({
