@@ -13,6 +13,26 @@
     try { return JSON.parse(JSON.stringify(state)) } catch { return state }
   }
 
+  function applyStateToMatchDay(nextState) {
+    const root = document.querySelector('.camd')
+    if (!(root instanceof HTMLElement)) return false
+    const fiberKey = Object.keys(root).find(key => key.startsWith('__reactFiber$'))
+    let fiber = fiberKey ? root[fiberKey] : null
+    while (fiber) {
+      let hook = fiber.memoizedState
+      while (hook) {
+        const value = hook.memoizedState
+        if (value && typeof value === 'object' && value.sheetId && Array.isArray(value.slots) && hook.queue?.dispatch) {
+          hook.queue.dispatch(cloneState(nextState))
+          return true
+        }
+        hook = hook.next
+      }
+      fiber = fiber.return
+    }
+    return false
+  }
+
   function undoStorageKey() {
     return matchEndpoint ? `playfooty.coachApp.undo.v1:${matchEndpoint}` : ''
   }
@@ -229,7 +249,10 @@
       if (!response.ok) throw new Error('undo failed')
       writeUndoStack(stack)
       latestState = previousState
-      window.location.reload()
+      if (!applyStateToMatchDay(previousState)) throw new Error('Match Day screen was not ready')
+      if (button instanceof HTMLButtonElement) button.textContent = '↶ Undo'
+      applyingUndo = false
+      updateUndoButtons()
     } catch {
       stack.push(previousState)
       writeUndoStack(stack)
@@ -274,7 +297,9 @@
       const response = await nativeFetch(matchEndpoint,{method:'PUT',headers:matchHeaders,body:JSON.stringify({state})})
       if (!response.ok) throw new Error('reset failed')
       latestState = state
-      window.location.reload()
+      if (!applyStateToMatchDay(state)) throw new Error('Match Day screen was not ready')
+      if (button instanceof HTMLButtonElement) { button.disabled = false; button.textContent = 'Reset' }
+      updateUndoButtons()
     } catch {
       if (button instanceof HTMLButtonElement) { button.disabled = false; button.textContent = 'Reset' }
       window.alert('The match could not be reset. Check the connection and try again.')
