@@ -6,55 +6,35 @@
   let matchHeaders = null
   let latestState = null
   let directoryPromise = null
-  let applyingUndo = false
+  let applyingExternalState = false
   const nativeFetch = window.fetch.bind(window)
 
-  const cloneState = state => {
-    try { return JSON.parse(JSON.stringify(state)) } catch { return state }
+  const clone = value => {
+    try { return JSON.parse(JSON.stringify(value)) } catch { return value }
   }
 
-  function applyStateToMatchDay(nextState) {
-    const root = document.querySelector('.camd')
-    if (!(root instanceof HTMLElement)) return false
-    const fiberKey = Object.keys(root).find(key => key.startsWith('__reactFiber$'))
-    let fiber = fiberKey ? root[fiberKey] : null
-    while (fiber) {
-      let hook = fiber.memoizedState
-      while (hook) {
-        const value = hook.memoizedState
-        if (value && typeof value === 'object' && value.sheetId && Array.isArray(value.slots) && hook.queue?.dispatch) {
-          hook.queue.dispatch(cloneState(nextState))
-          return true
-        }
-        hook = hook.next
-      }
-      fiber = fiber.return
-    }
-    return false
+  function endpointKey() {
+    return matchEndpoint ? `playfooty.coachApp.undo.v2:${matchEndpoint}` : ''
   }
 
-  function undoStorageKey() {
-    return matchEndpoint ? `playfooty.coachApp.undo.v1:${matchEndpoint}` : ''
-  }
-
-  function readUndoStack() {
-    const key = undoStorageKey()
+  function readUndo() {
+    const key = endpointKey()
     if (!key) return []
     try {
-      const parsed = JSON.parse(sessionStorage.getItem(key) || '[]')
-      return Array.isArray(parsed) ? parsed : []
+      const value = JSON.parse(sessionStorage.getItem(key) || '[]')
+      return Array.isArray(value) ? value : []
     } catch { return [] }
   }
 
-  function writeUndoStack(stack) {
-    const key = undoStorageKey()
+  function writeUndo(stack) {
+    const key = endpointKey()
     if (!key) return
     try { sessionStorage.setItem(key, JSON.stringify(stack.slice(-30))) } catch {}
   }
 
-  function meaningfulState(state) {
-    if (!state || typeof state !== 'object') return state
-    const copy = cloneState(state)
+  function meaningful(value) {
+    if (!value || typeof value !== 'object') return value
+    const copy = clone(value)
     delete copy.elapsed
     delete copy.runningSince
     delete copy.trackingUpdatedAt
@@ -69,19 +49,18 @@
     return copy
   }
 
-  function meaningfulSignature(state) {
-    try { return JSON.stringify(meaningfulState(state)) } catch { return '' }
+  function signature(value) {
+    try { return JSON.stringify(meaningful(value)) } catch { return '' }
   }
 
-  function rememberPreviousState(nextState) {
-    if (applyingUndo || !latestState || !nextState) return
-    if (meaningfulSignature(latestState) === meaningfulSignature(nextState)) return
-    const stack = readUndoStack()
-    const previous = cloneState(latestState)
-    const previousSignature = meaningfulSignature(previous)
-    if (meaningfulSignature(stack[stack.length - 1]) !== previousSignature) stack.push(previous)
-    writeUndoStack(stack)
-    updateUndoButtons()
+  function remember(nextState) {
+    if (applyingExternalState || !latestState || !nextState) return
+    if (signature(latestState) === signature(nextState)) return
+    const stack = readUndo()
+    const previous = clone(latestState)
+    if (signature(stack[stack.length - 1]) !== signature(previous)) stack.push(previous)
+    writeUndo(stack)
+    updateUndoButton()
   }
 
   window.fetch = async (...args) => {
@@ -89,6 +68,7 @@
     const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input)
     const isMatchState = /\/api\/club-portal\/match-day\/clubs\/[^/]+\/sheets\/[^/?]+/.test(url)
     let outgoingState = null
+
     if (isMatchState) {
       matchEndpoint = url
       if (init?.headers) matchHeaders = init.headers
@@ -97,38 +77,91 @@
           const parsed = JSON.parse(String(init.body))
           if (parsed?.state) {
             outgoingState = parsed.state
-            rememberPreviousState(outgoingState)
+            remember(outgoingState)
           }
         } catch {}
       }
     }
+
     const response = await nativeFetch(...args)
     if (isMatchState && (!init?.method || String(init.method).toUpperCase() === 'GET')) {
       response.clone().json().then(payload => {
         if (payload?.data?.state) {
           latestState = payload.data.state
-          updateUndoButtons()
+          updateUndoButton()
         }
       }).catch(() => undefined)
     } else if (isMatchState && response.ok && outgoingState) {
       latestState = outgoingState
-      updateUndoButtons()
+      updateUndoButton()
     }
     return response
+  }
+
+  function stateDispatch() {
+    const nodes = [document.getElementById('root'), document.querySelector('.camd'), ...document.querySelectorAll('.camd *')].filter(Boolean)
+    const checked = new Set()
+
+    for (const node of nodes) {
+      const key = Object.keys(node).find(item => item.startsWith('__reactFiber$'))
+      let fiber = key ? node[key] : null
+      while (fiber && !checked.has(fiber)) {
+        checked.add(fiber)
+        let hook = fiber.memoizedState
+        while (hook) {
+          const value = hook.memoizedState
+          if (value && typeof value === 'object' && typeof value.sheetId === 'string' && Array.isArray(value.slots) && typeof hook.queue?.dispatch === 'function') {
+            return hook.queue.dispatch
+          }
+          hook = hook.next
+        }
+        fiber = fiber.return
+      }
+    }
+    return null
+  }
+
+  function applyToScreen(nextState) {
+    const dispatch = stateDispatch()
+    if (!dispatch) return false
+    dispatch(clone(nextState))
+    return true
+  }
+
+  async function persistAndApply(nextState) {
+    if (!matchEndpoint || !matchHeaders) throw new Error('Match Day is not connected')
+    const dispatch = stateDispatch()
+    if (!dispatch) throw new Error('Match Day state is unavailable')
+
+    applyingExternalState = true
+    dispatch(clone(nextState))
+    latestState = clone(nextState)
+
+    const response = await nativeFetch(matchEndpoint, {
+      method: 'PUT',
+      headers: matchHeaders,
+      body: JSON.stringify({ state: nextState }),
+    })
+    if (!response.ok) throw new Error('Unable to save Match Day')
+
+    window.setTimeout(() => { applyingExternalState = false }, 500)
   }
 
   const normalise = value => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ')
   const initials = value => String(value || 'PF').split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase()
 
   function currentClubId() {
-    const matched = matchEndpoint.match(/\/clubs\/([^/]+)\/sheets\//)
-    if (matched?.[1]) return decodeURIComponent(matched[1])
+    const match = matchEndpoint.match(/\/clubs\/([^/]+)\/sheets\//)
+    if (match?.[1]) return decodeURIComponent(match[1])
     try { return localStorage.getItem('playfooty.coachApp.club.v1') || '' } catch { return '' }
   }
 
   async function clubs() {
     if (!directoryPromise) {
-      directoryPromise = nativeFetch('/api/clubs').then(response => response.ok ? response.json() : null).then(payload => Array.isArray(payload?.data) ? payload.data : []).catch(() => [])
+      directoryPromise = nativeFetch('/api/clubs')
+        .then(response => response.ok ? response.json() : null)
+        .then(payload => Array.isArray(payload?.data) ? payload.data : [])
+        .catch(() => [])
     }
     return directoryPromise
   }
@@ -185,7 +218,9 @@
       logo.appendChild(image)
     } else logo.textContent = initials(name)
     team.style.backgroundColor = '#c8102e'
-    team.style.backgroundImage = brand.coverPhotoUrl ? `linear-gradient(90deg,rgba(60,0,8,.72),rgba(12,7,10,.5)),url("${brand.coverPhotoUrl.replace(/"/g, '%22')}")` : 'linear-gradient(110deg,#b60818,#ef1b30)'
+    team.style.backgroundImage = brand.coverPhotoUrl
+      ? `linear-gradient(90deg,rgba(60,0,8,.72),rgba(12,7,10,.5)),url("${brand.coverPhotoUrl.replace(/"/g, '%22')}")`
+      : 'linear-gradient(110deg,#b60818,#ef1b30)'
     team.style.backgroundSize = 'cover'
     team.style.backgroundPosition = 'center'
     team.dataset.pfBrandReady = '1'
@@ -211,8 +246,8 @@
     team.appendChild(wrapper)
   }
 
-  function updateUndoButtons() {
-    const available = readUndoStack().length > 0 && Boolean(matchEndpoint && matchHeaders)
+  function updateUndoButton() {
+    const available = readUndo().length > 0 && Boolean(matchEndpoint && matchHeaders)
     document.querySelectorAll('.pf-field-undo').forEach(button => {
       if (button instanceof HTMLButtonElement) {
         button.disabled = !available
@@ -224,39 +259,23 @@
   async function undoLastChange(event) {
     event.preventDefault()
     event.stopImmediatePropagation()
-    if (!matchEndpoint || !matchHeaders) {
-      window.alert('Match Day is still connecting. Try Undo again in a moment.')
-      return
-    }
-    const stack = readUndoStack()
-    const previousState = stack.pop()
-    if (!previousState) {
-      updateUndoButtons()
-      return
-    }
+    const stack = readUndo()
+    const previous = stack.pop()
+    if (!previous) return updateUndoButton()
     const button = event.currentTarget
     if (button instanceof HTMLButtonElement) {
       button.disabled = true
       button.textContent = 'Undoing…'
     }
-    applyingUndo = true
     try {
-      const response = await nativeFetch(matchEndpoint, {
-        method: 'PUT',
-        headers: matchHeaders,
-        body: JSON.stringify({ state: previousState }),
-      })
-      if (!response.ok) throw new Error('undo failed')
-      writeUndoStack(stack)
-      latestState = previousState
-      if (!applyStateToMatchDay(previousState)) throw new Error('Match Day screen was not ready')
+      await persistAndApply(previous)
+      writeUndo(stack)
       if (button instanceof HTMLButtonElement) button.textContent = '↶ Undo'
-      applyingUndo = false
-      updateUndoButtons()
+      updateUndoButton()
     } catch {
-      stack.push(previousState)
-      writeUndoStack(stack)
-      applyingUndo = false
+      stack.push(previous)
+      writeUndo(stack)
+      applyingExternalState = false
       if (button instanceof HTMLButtonElement) {
         button.disabled = false
         button.textContent = '↶ Undo'
@@ -266,43 +285,78 @@
   }
 
   function installUndoButton() {
-    const fieldCard = document.querySelector('.camd .camd-ground')
-    if (!(fieldCard instanceof HTMLElement) || fieldCard.querySelector('.pf-field-undo')) return
+    const field = document.querySelector('.camd .camd-ground')
+    if (!(field instanceof HTMLElement) || field.querySelector('.pf-field-undo')) return
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'pf-field-undo'
     button.textContent = '↶ Undo'
     button.addEventListener('click', undoLastChange, true)
-    fieldCard.appendChild(button)
-    updateUndoButtons()
+    field.appendChild(button)
+    updateUndoButton()
+  }
+
+  function buildResetState() {
+    if (!latestState) return null
+    return {
+      ...latestState,
+      quarter: 1,
+      elapsed: 0,
+      runningSince: null,
+      homeGoals: 0,
+      homeBehinds: 0,
+      awayGoals: 0,
+      awayBehinds: 0,
+      events: [],
+      totalTrackedSeconds: 0,
+      trackingUpdatedAt: null,
+      gameEnded: false,
+      slots: Array.isArray(latestState.slots) ? latestState.slots.map(slot => ({
+        ...slot,
+        goals: 0,
+        behinds: 0,
+        plusMinus: 0,
+        onGroundSeconds: 0,
+        benchEnteredAt: null,
+        injured: false,
+      })) : [],
+    }
   }
 
   async function resetMatch(event) {
     event.preventDefault()
     event.stopImmediatePropagation()
-    if (!latestState || !matchEndpoint || !matchHeaders) {
+    const resetState = buildResetState()
+    if (!resetState || !matchEndpoint || !matchHeaders) {
       window.alert('Match Day is still connecting. Wait a moment and try Reset again.')
       return
     }
-    if (!window.confirm('Reset the entire match? This clears the score, timer, player scoring, plus/minus, time on ground, injuries and interchange timers.')) return
+    if (!window.confirm('Reset the entire game to zero? This clears both scores, the clock, every player goal and behind, every player plus/minus, time on ground, injuries and interchange timers.')) return
+
     const button = event.currentTarget
-    if (button instanceof HTMLButtonElement) { button.disabled = true; button.textContent = 'Resetting…' }
-    const state = {
-      ...latestState, quarter:1, elapsed:0, runningSince:null, homeGoals:0, homeBehinds:0, awayGoals:0, awayBehinds:0,
-      events:[], totalTrackedSeconds:0, trackingUpdatedAt:null, gameEnded:false,
-      slots:Array.isArray(latestState.slots) ? latestState.slots.map(slot => ({...slot,goals:0,behinds:0,plusMinus:0,onGroundSeconds:0,benchEnteredAt:null,injured:false})) : [],
+    if (button instanceof HTMLButtonElement) {
+      button.disabled = true
+      button.textContent = 'Resetting…'
     }
-    rememberPreviousState(state)
+
+    const previous = clone(latestState)
     try {
-      const response = await nativeFetch(matchEndpoint,{method:'PUT',headers:matchHeaders,body:JSON.stringify({state})})
-      if (!response.ok) throw new Error('reset failed')
-      latestState = state
-      if (!applyStateToMatchDay(state)) throw new Error('Match Day screen was not ready')
-      if (button instanceof HTMLButtonElement) { button.disabled = false; button.textContent = 'Reset' }
-      updateUndoButtons()
+      await persistAndApply(resetState)
+      const stack = readUndo()
+      stack.push(previous)
+      writeUndo(stack)
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = false
+        button.textContent = 'Reset'
+      }
+      updateUndoButton()
     } catch {
-      if (button instanceof HTMLButtonElement) { button.disabled = false; button.textContent = 'Reset' }
-      window.alert('The match could not be reset. Check the connection and try again.')
+      applyingExternalState = false
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = false
+        button.textContent = 'Reset'
+      }
+      window.alert('The game could not be reset. Check the connection and try again.')
     }
   }
 
@@ -335,11 +389,11 @@
     if (teams[0]) { installQuickScore(teams[0]); void applyBrand(teams[0], true) }
     if (teams[1]) { installQuickScore(teams[1]); void applyBrand(teams[1], false) }
     const reset = scoreboard.querySelector('.afl-reset')
-    if (reset instanceof HTMLButtonElement && !reset.dataset.pfResetFixed) {
-      reset.dataset.pfResetFixed = '1'
+    if (reset instanceof HTMLButtonElement && !reset.dataset.pfResetFixedV2) {
+      reset.dataset.pfResetFixedV2 = '1'
       reset.addEventListener('click', resetMatch, true)
     }
-    updateUndoButtons()
+    updateUndoButton()
   }
 
   window.setInterval(enhance, 500)
