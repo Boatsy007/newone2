@@ -20,7 +20,9 @@ function ensureTables() {
       season text NOT NULL, grade text NOT NULL DEFAULT 'Senior Football', round_label text NOT NULL,
       opponent_name text NULL, match_date date NULL, status text NOT NULL DEFAULT 'DRAFT',
       published_at timestamptz NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`)
+    await prisma.$executeRawUnsafe(`ALTER TABLE football_team_sheets ADD COLUMN IF NOT EXISTS fixture_id text NULL`)
     await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS football_team_sheets_identity ON football_team_sheets (club_id, season, grade, round_label)`)
+    await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS football_team_sheets_fixture_identity ON football_team_sheets (club_id, fixture_id) WHERE fixture_id IS NOT NULL`)
     await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS football_team_sheet_players (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(), team_sheet_id uuid NOT NULL REFERENCES football_team_sheets(id) ON DELETE CASCADE,
       club_player_id uuid NOT NULL REFERENCES football_club_players(id) ON DELETE CASCADE, position_code text NOT NULL,
@@ -40,7 +42,8 @@ function normaliseRound(value: unknown) {
 
 type Membership = { role: Parameters<typeof roleCan>[0] }
 type ClubPlayer = { id:string; playerId:string|null; playerName:string; jumperNumber:number|null; preferredPosition:string|null; active:boolean }
-type Sheet = { id:string; clubId:string; clubName:string|null; leagueId:string|null; leagueName:string|null; season:string; grade:string; roundLabel:string; opponentName:string|null; matchDate:string|null; status:string; publishedAt:string|null }
+type Sheet = { id:string; clubId:string; clubName:string|null; leagueId:string|null; leagueName:string|null; fixtureId:string|null; season:string; grade:string; roundLabel:string; opponentName:string|null; matchDate:string|null; status:string; publishedAt:string|null }
+type Fixture = { id:string; leagueId:string; season:string; grade:string; round:string|null; homeClubId:string|null; awayClubId:string|null; homeName:string; awayName:string; matchDate:Date|null }
 
 function allowTeamSelection(req: any, res: any, next: any) {
   const membership = res.locals.clubMembership as Membership | undefined
@@ -48,8 +51,13 @@ function allowTeamSelection(req: any, res: any, next: any) {
   next()
 }
 
+async function fixtureForClub(fixtureId: string, clubId: string) {
+  const rows = await prisma.$queryRawUnsafe<Fixture[]>(`SELECT id::text AS id,league_id AS "leagueId",season,grade,round,home_club_id AS "homeClubId",away_club_id AS "awayClubId",home_name AS "homeName",away_name AS "awayName",match_date AS "matchDate" FROM football_fixtures WHERE id::text=$1 AND (home_club_id=$2 OR away_club_id=$2) LIMIT 1`, fixtureId, clubId)
+  return rows[0] ?? null
+}
+
 async function loadSheet(sheetId: string): Promise<(Sheet & { players:Array<ClubPlayer & {clubPlayerId:string;positionCode:string}> }) | null> {
-  const rows = await prisma.$queryRawUnsafe<Sheet[]>(`SELECT s.id::text AS id,s.club_id AS "clubId",c.name AS "clubName",s.league_id AS "leagueId",l.name AS "leagueName",s.season,s.grade,s.round_label AS "roundLabel",s.opponent_name AS "opponentName",s.match_date AS "matchDate",s.status,s.published_at AS "publishedAt" FROM football_team_sheets s LEFT JOIN clubs c ON c.id::text=s.club_id LEFT JOIN leagues l ON l.id::text=s.league_id WHERE s.id::text=$1`, sheetId)
+  const rows = await prisma.$queryRawUnsafe<Sheet[]>(`SELECT s.id::text AS id,s.club_id AS "clubId",c.name AS "clubName",s.league_id AS "leagueId",l.name AS "leagueName",s.fixture_id AS "fixtureId",s.season,s.grade,s.round_label AS "roundLabel",s.opponent_name AS "opponentName",s.match_date AS "matchDate",s.status,s.published_at AS "publishedAt" FROM football_team_sheets s LEFT JOIN clubs c ON c.id::text=s.club_id LEFT JOIN leagues l ON l.id::text=s.league_id WHERE s.id::text=$1`, sheetId)
   const sheet = rows[0]
   if (!sheet) return null
   const players = await prisma.$queryRawUnsafe<Array<ClubPlayer & {clubPlayerId:string;positionCode:string}>>(`SELECT cp.id::text AS "clubPlayerId",cp.id::text AS id,cp.player_id AS "playerId",cp.player_name AS "playerName",cp.jumper_number AS "jumperNumber",cp.preferred_position AS "preferredPosition",cp.active,tsp.position_code AS "positionCode" FROM football_team_sheet_players tsp JOIN football_club_players cp ON cp.id=tsp.club_player_id WHERE tsp.team_sheet_id::text=$1 ORDER BY tsp.position_code`, sheetId)
@@ -93,9 +101,21 @@ router.get('/clubs/:clubId/sheets', async (req,res) => {
 
 router.post('/clubs/:clubId/sheets', async (req,res) => {
   try {
-    await ensureTables(); const season=String(req.body?.season??new Date().getFullYear()),grade=String(req.body?.grade??'Senior Football').trim(),roundLabel=normaliseRound(req.body?.roundLabel)
+    await ensureTables()
+    const requestedFixtureId=req.body?.fixtureId?String(req.body.fixtureId).trim():''
+    const fixture=requestedFixtureId?await fixtureForClub(requestedFixtureId,req.params.clubId):null
+    if(requestedFixtureId&&!fixture)return res.status(400).json({error:'Fixture not found for this club'})
+    const season=String(fixture?.season??req.body?.season??new Date().getFullYear())
+    const grade=String(fixture?.grade??req.body?.grade??'Senior Football').trim()
+    const roundLabel=normaliseRound(fixture?.round??req.body?.roundLabel)
     if(!roundLabel)return res.status(400).json({error:'roundLabel is required'})
-    const rows=await prisma.$queryRawUnsafe<Array<{id:string}>>(`INSERT INTO football_team_sheets (club_id,league_id,season,grade,round_label,opponent_name,match_date) VALUES ($1,$2,$3,$4,$5,$6,$7::date) ON CONFLICT (club_id,season,grade,round_label) DO UPDATE SET league_id=EXCLUDED.league_id,opponent_name=EXCLUDED.opponent_name,match_date=EXCLUDED.match_date,updated_at=now() RETURNING id::text AS id`,req.params.clubId,req.body?.leagueId?String(req.body.leagueId):null,season,grade,roundLabel,req.body?.opponentName?String(req.body.opponentName):null,req.body?.matchDate?String(req.body.matchDate).slice(0,10):null)
+    const isHome=fixture?.homeClubId===req.params.clubId
+    const opponentName=fixture?(isHome?fixture.awayName:fixture.homeName):(req.body?.opponentName?String(req.body.opponentName):null)
+    const matchDate=fixture?.matchDate?fixture.matchDate.toISOString().slice(0,10):(req.body?.matchDate?String(req.body.matchDate).slice(0,10):null)
+    const leagueId=fixture?.leagueId??(req.body?.leagueId?String(req.body.leagueId):null)
+    const rows=requestedFixtureId
+      ? await prisma.$queryRawUnsafe<Array<{id:string}>>(`INSERT INTO football_team_sheets (club_id,league_id,fixture_id,season,grade,round_label,opponent_name,match_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date) ON CONFLICT (club_id,fixture_id) WHERE fixture_id IS NOT NULL DO UPDATE SET league_id=EXCLUDED.league_id,season=EXCLUDED.season,grade=EXCLUDED.grade,round_label=EXCLUDED.round_label,opponent_name=EXCLUDED.opponent_name,match_date=EXCLUDED.match_date,updated_at=now() RETURNING id::text AS id`,req.params.clubId,leagueId,requestedFixtureId,season,grade,roundLabel,opponentName,matchDate)
+      : await prisma.$queryRawUnsafe<Array<{id:string}>>(`INSERT INTO football_team_sheets (club_id,league_id,season,grade,round_label,opponent_name,match_date) VALUES ($1,$2,$3,$4,$5,$6,$7::date) ON CONFLICT (club_id,season,grade,round_label) DO UPDATE SET league_id=EXCLUDED.league_id,opponent_name=EXCLUDED.opponent_name,match_date=EXCLUDED.match_date,updated_at=now() RETURNING id::text AS id`,req.params.clubId,leagueId,season,grade,roundLabel,opponentName,matchDate)
     res.status(201).json({data:await loadSheet(rows[0].id)})
   } catch(error){res.status(500).json({error:'failed to create team sheet',detail:String(error)})}
 })
@@ -117,9 +137,11 @@ router.put('/clubs/:clubId/sheets/:sheetId/positions', async (req,res) => {
 router.put('/clubs/:clubId/sheets/:sheetId', async (req,res) => {
   try {
     await ensureTables(); const sheet=await sheetForClub(req.params.sheetId,req.params.clubId); if(!sheet)return res.status(404).json({error:'Team sheet not found for this club'})
+    const requestedFixtureId=req.body?.fixtureId?String(req.body.fixtureId).trim():''
+    if(requestedFixtureId&&requestedFixtureId!==sheet.fixtureId){const fixture=await fixtureForClub(requestedFixtureId,req.params.clubId);if(!fixture)return res.status(400).json({error:'Fixture not found for this club'})}
     const status=String(req.body?.status??'DRAFT').toUpperCase()==='PUBLISHED'?'PUBLISHED':'DRAFT'
     if(status==='PUBLISHED'){const counts=await prisma.$queryRawUnsafe<Array<{count:number}>>(`SELECT COUNT(*)::int AS count FROM football_team_sheet_players WHERE team_sheet_id=$1::uuid`,req.params.sheetId);if(!counts[0]?.count)return res.status(400).json({error:'Save at least one player position before publishing the team'})}
-    await prisma.$executeRawUnsafe(`UPDATE football_team_sheets SET status=$2,published_at=CASE WHEN $2='PUBLISHED' THEN now() ELSE NULL END,opponent_name=COALESCE($3,opponent_name),match_date=COALESCE($4::date,match_date),updated_at=now() WHERE id::text=$1`,req.params.sheetId,status,req.body?.opponentName??null,req.body?.matchDate?String(req.body.matchDate).slice(0,10):null)
+    await prisma.$executeRawUnsafe(`UPDATE football_team_sheets SET status=$2,published_at=CASE WHEN $2='PUBLISHED' THEN now() ELSE NULL END,opponent_name=COALESCE($3,opponent_name),match_date=COALESCE($4::date,match_date),fixture_id=COALESCE($5,fixture_id),updated_at=now() WHERE id::text=$1`,req.params.sheetId,status,req.body?.opponentName??null,req.body?.matchDate?String(req.body.matchDate).slice(0,10):null,requestedFixtureId||null)
     res.json({data:await loadSheet(req.params.sheetId)})
   } catch(error){res.status(500).json({error:'failed to update team sheet',detail:String(error)})}
 })
