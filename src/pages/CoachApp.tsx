@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { LogIn, RefreshCw, ShieldCheck } from 'lucide-react'
 import CoachAppSelectSide from './CoachAppSelectSide'
 import CoachAppMatchDay from './CoachAppMatchDay'
@@ -52,7 +52,7 @@ export default function CoachApp(){
   useEffect(()=>{const update=()=>setOnline(navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);const visibility=()=>{if(!document.hidden)setSession(readSession())};document.addEventListener('visibilitychange',visibility);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update);document.removeEventListener('visibilitychange',visibility)}},[])
 
   function logout(){localStorage.removeItem(SESSION_KEY);setSession(null);setContext(null)}
-  if(!session)return <main className="coach-login"><style>{styles}</style><section><div className="coach-mark">PF</div><span>PlayFooty Coach</span><h1>Match Day</h1><p>Sign in with the existing PlayFooty Club Portal account assigned to your team.</p><Link to="/club-portal?returnTo=%2Fcoach-app"><LogIn size={19}/> Sign in</Link><small>Existing password reset and sign-in behaviour is unchanged.</small></section></main>
+  if(!session)return <main className="coach-login"><style>{styles}</style><section><div className="coach-mark">PF</div><span>PlayFooty Coach</span><h1>Match Day</h1><p>Sign in with the existing PlayFooty Club Portal account assigned to your team.</p><a href="/club-portal?returnTo=%2Fcoach-app"><LogIn size={19}/> Sign in</a><small>Existing password reset and sign-in behaviour is unchanged.</small></section></main>
   if(loading)return <main className="coach-loading"><style>{styles}</style><RefreshCw className="spin"/><strong>Opening your team…</strong></main>
   if(error&&!context)return <main className="coach-loading"><style>{styles}</style><ShieldCheck/><strong>{error}</strong><button onClick={()=>void loadContext()}>Try again</button><button onClick={logout}>Log out</button></main>
   if(!context)return null
