@@ -61,7 +61,7 @@
 }
 
 .camd .camd-row:first-of-type .camd-player:nth-child(2) {
-  transform: translateY(-30px);
+  transform: translateY(-52px);
 }
 
 .camd .camd-row:last-child .camd-player:nth-child(2) {
@@ -102,7 +102,7 @@
   }
 
   .camd .camd-row:first-of-type .camd-player:nth-child(2) {
-    transform: translateY(-42px);
+    transform: translateY(-82px);
   }
 
   .camd .camd-row:last-child .camd-player:nth-child(2) {
@@ -160,7 +160,7 @@
   }
 
   .camd .camd-row:first-of-type .camd-player:nth-child(2) {
-    transform: translateY(-24px);
+    transform: translateY(-42px);
   }
 
   .camd .camd-row:last-child .camd-player:nth-child(2) {
