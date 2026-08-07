@@ -8,7 +8,8 @@ import { portalSessionFromLocation, requestPortalPasswordReset, signInPortal, si
 const SESSION_KEY='playfooty.clubPortal.session.v1'
 function readSession():PortalAuthSession|null{try{const raw=localStorage.getItem(SESSION_KEY);return raw?JSON.parse(raw) as PortalAuthSession:null}catch{return null}}
 function saveSession(session:PortalAuthSession|null){if(session)localStorage.setItem(SESSION_KEY,JSON.stringify(session));else localStorage.removeItem(SESSION_KEY)}
-function openClub(clubId:string){window.location.assign(`/club-portal/${encodeURIComponent(clubId)}`)}
+function safeReturnTo(){const value=new URLSearchParams(window.location.search).get('returnTo');return value==='/coach-app'?value:null}
+function openClub(clubId:string){window.location.assign(safeReturnTo()??`/club-portal/${encodeURIComponent(clubId)}`)}
 
 export default function ClubPortal(){
  const[session,setSession]=useState<PortalAuthSession|null>(null),[accounts,setAccounts]=useState<PortalClubAccount[]>([]),[mode,setMode]=useState<'signin'|'signup'>('signin'),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[loading,setLoading]=useState(false),[openingClub,setOpeningClub]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('')
