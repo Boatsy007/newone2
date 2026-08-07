@@ -1,0 +1,40 @@
+name: Mount Coach availability router
+on:
+  push:
+    branches: [newone1]
+    paths: ['.github/workflows/mount-coach-availability-router.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Patch server router mount
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('backend/src/server.ts')
+          s=p.read_text()
+          old="import { playerAvailabilityRouter } from './api/routes/player-availability.js'"
+          new="import { clubPlayerAvailabilityRouter, playerAvailabilityRouter } from './api/routes/player-availability.js'"
+          if old in s:
+              s=s.replace(old,new,1)
+          elif new not in s:
+              raise SystemExit('player availability import not found')
+          mount="app.use('/api/club-portal/player-availability', clubPlayerAvailabilityRouter)"
+          anchor="app.use('/api/player-availability', playerAvailabilityRouter)"
+          if mount not in s:
+              if anchor not in s: raise SystemExit('player availability mount not found')
+              s=s.replace(anchor,anchor+'\n'+mount,1)
+          p.write_text(s)
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "PlayFooty Automation"
+          git config user.email "actions@playfooty.com.au"
+          git add backend/src/server.ts
+          git commit -m "Mount Coach App player availability API"
+          git push origin newone1
