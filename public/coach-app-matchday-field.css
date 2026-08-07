@@ -71,6 +71,68 @@
   transform: translateY(30px) !important;
 }
 
+/* Interchange timer presentation mirrors the existing website Match Day.
+   The timer state itself remains in CoachAppMatchDay and is saved with the
+   existing Match Day record. */
+.camd .camd-bench .camd-player {
+  position: relative !important;
+  overflow: visible !important;
+  padding-bottom: 22px !important;
+  transition: box-shadow .2s ease, border-color .2s ease, transform .15s ease !important;
+}
+
+.camd .camd-bench .camd-player.bench-red {
+  border-color: #ef233c !important;
+  outline: 3px solid #ef233c !important;
+  outline-offset: -3px !important;
+  box-shadow: 0 0 0 1px rgba(239,35,60,.38), 0 0 14px rgba(239,35,60,.34) !important;
+}
+
+.camd .camd-bench .camd-player.bench-orange {
+  border-color: #ff9f1c !important;
+  outline: 3px solid #ff9f1c !important;
+  outline-offset: -3px !important;
+  box-shadow: 0 0 0 1px rgba(255,159,28,.38), 0 0 14px rgba(255,159,28,.34) !important;
+}
+
+.camd .camd-bench .camd-player.bench-green {
+  border-color: #16c784 !important;
+  outline: 3px solid #16c784 !important;
+  outline-offset: -3px !important;
+  box-shadow: 0 0 0 1px rgba(22,199,132,.38), 0 0 14px rgba(22,199,132,.30) !important;
+}
+
+.camd .camd-bench .bench-timer {
+  position: absolute !important;
+  z-index: 22 !important;
+  right: 4px !important;
+  bottom: 3px !important;
+  top: auto !important;
+  min-width: 46px !important;
+  padding: 4px 6px !important;
+  border-radius: 7px !important;
+  background: rgba(5,13,22,.96) !important;
+  color: #fff !important;
+  font-size: 10px !important;
+  font-style: normal !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  letter-spacing: .02em !important;
+  text-align: center !important;
+  pointer-events: none !important;
+  box-shadow: 0 2px 7px rgba(0,0,0,.4) !important;
+}
+
+.camd .camd-bench .bench-red .bench-timer { color: #ff5668 !important; }
+.camd .camd-bench .bench-orange .bench-timer { color: #ffb13b !important; }
+.camd .camd-bench .bench-green .bench-timer { color: #39e69b !important; }
+
+.camd .camd-interchange {
+  position: relative !important;
+  z-index: 3 !important;
+  padding-bottom: 4px !important;
+}
+
 /* Portrait uses the tall coaches-board AFL oval shape. */
 @media (orientation: portrait) and (max-width: 900px) {
   .camd .camd-ground {
@@ -114,6 +176,16 @@
 
   .camd .camd-bench {
     gap: 4px !important;
+  }
+
+  .camd .camd-bench .camd-player {
+    min-height: 76px !important;
+    padding-bottom: 22px !important;
+  }
+
+  .camd .camd-bench .bench-timer {
+    min-width: 42px !important;
+    font-size: 9px !important;
   }
 }
 
@@ -171,7 +243,18 @@
   }
 
   .camd .camd-interchange {
-    height: 72px !important;
+    height: 82px !important;
     margin-top: 2px !important;
+  }
+
+  .camd .camd-bench .camd-player {
+    min-height: 68px !important;
+    padding-bottom: 20px !important;
+  }
+
+  .camd .camd-bench .bench-timer {
+    min-width: 42px !important;
+    padding: 3px 5px !important;
+    font-size: 9px !important;
   }
 }
