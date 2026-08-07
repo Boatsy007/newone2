@@ -1,8 +1,8 @@
-import { useContext, useEffect, useMemo, useState } from 'react'
-import { Link, UNSAFE_RouteContext, useNavigate } from 'react-router-dom'
-import { ArrowLeft, LogIn, RefreshCw, ShieldCheck } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { LogIn, RefreshCw, ShieldCheck } from 'lucide-react'
 import CoachAppSelectSide from './CoachAppSelectSide'
-import ClubPortalMatchDay from './ClubPortalMatchDay'
+import CoachAppMatchDay from './CoachAppMatchDay'
 
 type Session = { access_token: string }
 type ContextPayload = {
@@ -15,12 +15,6 @@ type ContextPayload = {
 
 const SESSION_KEY = 'playfooty.clubPortal.session.v1'
 function readSession(): Session | null { try { const raw=localStorage.getItem(SESSION_KEY); return raw?JSON.parse(raw) as Session:null } catch { return null } }
-
-function ParamBridge({ clubId, children }: { clubId: string; children: React.ReactNode }) {
-  const routeContext = useContext(UNSAFE_RouteContext)
-  const value = useMemo(() => ({ ...routeContext, matches:[...routeContext.matches,{params:{clubId},pathname:'/coach-app',pathnameBase:'/coach-app',route:{id:'coach-app-club-bridge'}}] }), [clubId,routeContext])
-  return <UNSAFE_RouteContext.Provider value={value as never}>{children}</UNSAFE_RouteContext.Provider>
-}
 
 export default function CoachApp(){
   const navigate=useNavigate()
@@ -57,13 +51,6 @@ export default function CoachApp(){
   useEffect(()=>{void loadContext()},[session])
   useEffect(()=>{const update=()=>setOnline(navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);const visibility=()=>{if(!document.hidden)setSession(readSession())};document.addEventListener('visibilitychange',visibility);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update);document.removeEventListener('visibilitychange',visibility)}},[])
 
-  useEffect(()=>{
-    if(step!=='MATCH_DAY'||!context?.teamSheet)return
-    const wanted=context.teamSheet.id
-    const apply=()=>{const root=document.querySelector('.coach-matchday');if(!root)return;for(const select of Array.from(root.querySelectorAll<HTMLSelectElement>('select'))){if(Array.from(select.options).some(option=>option.value===wanted)&&select.value!==wanted){select.value=wanted;select.dispatchEvent(new Event('change',{bubbles:true}))}}}
-    apply();const observer=new MutationObserver(apply);observer.observe(document.body,{childList:true,subtree:true});return()=>observer.disconnect()
-  },[step,context?.teamSheet?.id])
-
   function logout(){localStorage.removeItem(SESSION_KEY);setSession(null);setContext(null)}
   if(!session)return <main className="coach-login"><style>{styles}</style><section><div className="coach-mark">PF</div><span>PlayFooty Coach</span><h1>Match Day</h1><p>Sign in with the existing PlayFooty Club Portal account assigned to your team.</p><Link to="/club-portal?returnTo=%2Fcoach-app"><LogIn size={19}/> Sign in</Link><small>Existing password reset and sign-in behaviour is unchanged.</small></section></main>
   if(loading)return <main className="coach-loading"><style>{styles}</style><RefreshCw className="spin"/><strong>Opening your team…</strong></main>
@@ -75,12 +62,12 @@ export default function CoachApp(){
     {!online&&<div className="coach-offline">Internet connection lost. Changes cannot sync until you reconnect.</div>}
     <header className="coach-shell"><div className="coach-club">{context.club.logoUrl?<img src={context.club.logoUrl} alt=""/>:<div>PF</div>}<span><b>{context.club.name}</b><small>{fixtureLabel}</small></span></div><div className="coach-step"><b>Step {step==='SELECT_SIDE'?'1':'2'} of 2</b><span>{step==='SELECT_SIDE'?'Select Side':'Match Day'}</span></div><button onClick={logout}>Log out</button></header>
     {step==='SELECT_SIDE'&&context.teamSheet?<CoachAppSelectSide clubId={context.club.id} sheetId={context.teamSheet.id} token={session.access_token} onContinue={()=>setStep('MATCH_DAY')} onExit={()=>navigate(`/club-portal/${encodeURIComponent(context.club.id)}`)}/>:
-      <section className="coach-matchday"><ParamBridge clubId={context.club.id}><ClubPortalMatchDay/></ParamBridge><nav className="coach-return"><button onClick={()=>setStep('SELECT_SIDE')}><ArrowLeft size={17}/> Return to Team Selection</button></nav></section>}
+      context.teamSheet?<CoachAppMatchDay clubId={context.club.id} sheetId={context.teamSheet.id} token={session.access_token} onBack={()=>setStep('SELECT_SIDE')}/>:<section className="coach-loading"><strong>No active team sheet is available.</strong></section>}
   </main>
 }
 
 const styles=`
 .coach-login,.coach-loading{min-height:100vh;display:grid;place-items:center;padding:24px;background:#07121b;color:#fff;font-family:Barlow,Inter,Arial,sans-serif}.coach-login section{width:min(430px,100%);box-sizing:border-box;padding:38px;border:1px solid #21313e;border-radius:24px;background:#0d1b26;box-shadow:0 24px 70px rgba(0,0,0,.35)}.coach-mark{width:58px;height:58px;display:grid;place-items:center;border-radius:16px;background:#39b8ff;color:#051019;font-weight:1000}.coach-login span{display:block;margin-top:22px;color:#39b8ff;font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.coach-login h1{margin:7px 0 14px;font-family:'Bebas Neue',Impact,sans-serif;font-size:64px;line-height:.9;text-transform:uppercase}.coach-login p{color:#bdc9d2;line-height:1.55}.coach-login a,.coach-loading button{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:22px;padding:15px;border:0;border-radius:12px;background:#39b8ff;color:#051019;text-decoration:none;font-weight:950;text-transform:uppercase}.coach-login small{display:block;margin-top:14px;color:#7f909c}.coach-loading{align-content:center;gap:14px;text-align:center}.coach-loading svg{width:38px;height:38px;color:#39b8ff}.spin{animation:coach-spin 1s linear infinite}@keyframes coach-spin{to{transform:rotate(360deg)}}
-.coach-app-root{min-height:100vh;background:#eef3f7;color:#111318}.coach-shell{position:sticky;z-index:1300;top:0;display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:18px;padding:max(12px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) 12px max(18px,env(safe-area-inset-left));background:#07121b;color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.22)}.coach-club{display:flex;align-items:center;gap:11px;min-width:0}.coach-club>img,.coach-club>div{width:42px;height:42px;object-fit:contain;display:grid;place-items:center;border-radius:11px;background:#fff;color:#07121b;font-weight:1000}.coach-club span{min-width:0}.coach-club b,.coach-club small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.coach-club small{margin-top:2px;color:#9fb0bc}.coach-step{text-align:center}.coach-step b{display:block;color:#39b8ff;font-size:11px;text-transform:uppercase}.coach-step span{font-family:'Bebas Neue',Impact,sans-serif;font-size:28px;text-transform:uppercase}.coach-shell>button{border:1px solid #314451;border-radius:9px;background:transparent;padding:10px 13px;color:#fff;font-weight:900}.coach-offline{position:fixed;z-index:1500;right:12px;bottom:90px;left:12px;padding:12px;border-radius:10px;background:#a82920;color:#fff;text-align:center;font-weight:900}.coach-matchday>nav,.coach-matchday>footer{display:none!important}.coach-return{position:fixed!important;z-index:1400;right:0;bottom:0;left:0;display:flex!important;padding:12px max(18px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));border-top:1px solid #d5dde4;background:rgba(255,255,255,.97);backdrop-filter:blur(12px)}.coach-return button{display:inline-flex;align-items:center;gap:7px;min-height:46px;border:0;border-radius:10px;background:#e7edf2;padding:10px 15px;font-weight:950;text-transform:uppercase}
+.coach-app-root{min-height:100vh;background:#eef3f7;color:#111318}.coach-shell{position:sticky;z-index:1300;top:0;display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:18px;padding:max(12px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) 12px max(18px,env(safe-area-inset-left));background:#07121b;color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.22)}.coach-club{display:flex;align-items:center;gap:11px;min-width:0}.coach-club>img,.coach-club>div{width:42px;height:42px;object-fit:contain;display:grid;place-items:center;border-radius:11px;background:#fff;color:#07121b;font-weight:1000}.coach-club span{min-width:0}.coach-club b,.coach-club small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.coach-club small{margin-top:2px;color:#9fb0bc}.coach-step{text-align:center}.coach-step b{display:block;color:#39b8ff;font-size:11px;text-transform:uppercase}.coach-step span{font-family:'Bebas Neue',Impact,sans-serif;font-size:28px;text-transform:uppercase}.coach-shell>button{border:1px solid #314451;border-radius:9px;background:transparent;padding:10px 13px;color:#fff;font-weight:900}.coach-offline{position:fixed;z-index:1500;right:12px;bottom:90px;left:12px;padding:12px;border-radius:10px;background:#a82920;color:#fff;text-align:center;font-weight:900}
 @media(max-width:760px){.coach-shell{grid-template-columns:1fr auto}.coach-step{grid-column:1/-1;grid-row:2}.coach-shell>button{grid-column:2;grid-row:1}}@media(orientation:landscape) and (max-height:700px){.coach-shell{position:relative}.coach-step span{font-size:23px}}
 `
