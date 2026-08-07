@@ -46,6 +46,31 @@
   font-size: 8px !important;
 }
 
+/* Keep every card the same size. Shape the formation by staggering the
+   full forward/full back vertically relative to the pockets. */
+.camd .camd-row:first-of-type .camd-player:nth-child(1),
+.camd .camd-row:first-of-type .camd-player:nth-child(3) {
+  transform: translateY(13px);
+}
+
+.camd .camd-row:first-of-type .camd-player:nth-child(2) {
+  transform: translateY(-13px);
+}
+
+.camd .camd-row:last-child .camd-player:nth-child(1),
+.camd .camd-row:last-child .camd-player:nth-child(3) {
+  transform: translateY(-13px);
+}
+
+.camd .camd-row:last-child .camd-player:nth-child(2) {
+  transform: translateY(13px);
+}
+
+.camd .camd-row:first-of-type .camd-player:active,
+.camd .camd-row:last-child .camd-player:active {
+  filter: brightness(.94);
+}
+
 /* Portrait uses the tall coaches-board AFL oval shape. */
 @media (orientation: portrait) and (max-width: 900px) {
   .camd .camd-ground {
@@ -71,12 +96,30 @@
   }
 
   .camd .camd-row.edge-row {
-    width: 124% !important;
-    margin-left: -12% !important;
+    width: 112% !important;
+    margin-left: -6% !important;
   }
 
   .camd .camd-player {
     min-height: 68px !important;
+  }
+
+  .camd .camd-row:first-of-type .camd-player:nth-child(1),
+  .camd .camd-row:first-of-type .camd-player:nth-child(3) {
+    transform: translateY(17px);
+  }
+
+  .camd .camd-row:first-of-type .camd-player:nth-child(2) {
+    transform: translateY(-17px);
+  }
+
+  .camd .camd-row:last-child .camd-player:nth-child(1),
+  .camd .camd-row:last-child .camd-player:nth-child(3) {
+    transform: translateY(-17px);
+  }
+
+  .camd .camd-row:last-child .camd-player:nth-child(2) {
+    transform: translateY(17px);
   }
 
   .camd .camd-bench {
@@ -111,8 +154,8 @@
   }
 
   .camd .camd-row.edge-row {
-    width: 116% !important;
-    margin-left: -8% !important;
+    width: 106% !important;
+    margin-left: -3% !important;
   }
 
   .camd .camd-player {
@@ -127,6 +170,24 @@
   .camd .player-score button {
     min-height: 15px !important;
     font-size: 7px !important;
+  }
+
+  .camd .camd-row:first-of-type .camd-player:nth-child(1),
+  .camd .camd-row:first-of-type .camd-player:nth-child(3) {
+    transform: translateY(9px);
+  }
+
+  .camd .camd-row:first-of-type .camd-player:nth-child(2) {
+    transform: translateY(-9px);
+  }
+
+  .camd .camd-row:last-child .camd-player:nth-child(1),
+  .camd .camd-row:last-child .camd-player:nth-child(3) {
+    transform: translateY(-9px);
+  }
+
+  .camd .camd-row:last-child .camd-player:nth-child(2) {
+    transform: translateY(9px);
   }
 
   .camd .camd-interchange {
