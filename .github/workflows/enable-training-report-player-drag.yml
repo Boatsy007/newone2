@@ -1,4 +1,4 @@
-name: Connect Coach Tools League Ladder Card
+name: Connect Coach App Game Plan
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Add league ladder card
-        run: python scripts/connect-coach-app-league-ladder-card.py
+      - name: Connect tap-first game plan
+        run: python scripts/connect-coach-app-game-plan.py
       - name: Install frontend
         run: npm ci
       - name: Install backend
@@ -28,5 +28,5 @@ jobs:
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
           git add src/pages/CoachApp.tsx
-          git commit -m 'Add league ladder to Coach Tools dashboard' || exit 0
+          git commit -m 'Connect tap-first game plan to Coach App' || exit 0
           git push origin HEAD:newone1
