@@ -33,7 +33,12 @@ new = """    {screen==='TRAINING_PLAN'?<CoachAppTrainingPlan clubId={context.clu
 if old not in text:
     raise SystemExit('Coach App screen renderer not found')
 text = text.replace(old, new)
-
-if text == original:
-    raise SystemExit('No Coach App changes made')
 path.write_text(text)
+
+plan_path = Path('src/pages/CoachAppTrainingPlan.tsx')
+plan = plan_path.read_text()
+missing_close = "</button></div>}\n   <label className=\"catp-notes\">"
+fixed_close = "</button></div>}\n   </section>\n   <label className=\"catp-notes\">"
+if missing_close not in plan:
+    raise SystemExit('Training plan session section closure not found')
+plan_path.write_text(plan.replace(missing_close, fixed_close, 1))
