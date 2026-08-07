@@ -23,6 +23,6 @@ jobs:
         run: |
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
-          git add src/pages/CoachApp.tsx
+          git add src/pages/CoachApp.tsx src/pages/CoachAppTrainingPlan.tsx
           git commit -m 'Connect app training plan to Match Flow'
           git push origin newone1
