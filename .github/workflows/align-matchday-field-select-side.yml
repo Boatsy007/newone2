@@ -1,0 +1,60 @@
+name: Align Match Day field with Select Side
+on:
+  push:
+    paths:
+      - '.github/workflows/align-matchday-field-select-side.yml'
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Update Match Day presentation only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/pages/CoachAppMatchDay.tsx')
+          text = path.read_text()
+          original = text
+
+          replacements = {
+            r"\.camd-oval\{.*?\}(?=\.camd-field-markings)": ".camd-oval{position:relative;isolation:isolate;display:grid;grid-template-rows:repeat(6,1fr);align-items:center;width:min(850px,100%);min-height:650px;margin:5px auto 0;padding:18px 36px;overflow:visible;border:3px solid #2cf18f;border-radius:50% / 46%;background:repeating-linear-gradient(90deg,#067b39 0 10%,#078b40 10% 20%);box-shadow:inset 0 0 30px rgba(0,0,0,.18),0 0 20px rgba(44,241,143,.14)}",
+            r"\.camd-field-markings\{.*?\}(?=\.camd-field-markings span)": ".camd-field-markings{position:absolute;z-index:-1;inset:12px 6%;overflow:hidden;border-radius:50% / 46%;pointer-events:none}",
+            r"\.camd-row\{.*?\}(?=\.camd-row\.edge-row)": ".camd-row{position:relative;z-index:2;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:center}",
+            r"\.camd-row\.edge-row\{.*?\}": ".camd-row.edge-row{width:100%;margin-left:0}.camd-row:first-of-type .camd-player:nth-child(2){transform:translateY(-14px)}.camd-row:nth-of-type(7) .camd-player:nth-child(2){transform:translateY(14px)}",
+            r"\.camd-player\{.*?\}(?=\.camd-player:active)": ".camd-player{position:relative;min-width:0;min-height:78px;overflow:hidden;border:2px solid rgba(255,255,255,.82);border-radius:8px;background:#f7f6f1;color:#111820;padding:0 0 4px;text-align:left;box-shadow:0 4px 0 rgba(0,0,0,.24);touch-action:manipulation;-webkit-touch-callout:none;user-select:none;transition:transform .09s ease,box-shadow .09s ease,filter .09s ease}",
+          }
+
+          for pattern, replacement in replacements.items():
+            text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+            if count != 1:
+              raise SystemExit(f'Expected one match for {pattern}, found {count}')
+
+          text = text.replace(".camd-row.edge-row{width:104%;margin-left:-2%}", ".camd-row.edge-row{width:100%;margin-left:0}")
+          text = text.replace(".camd-oval{width:95%;min-height:600px;padding:27px 12px;border-radius:48% / 38%}", ".camd-oval{width:min(92%,760px);min-height:680px;padding:20px 24px;border-radius:50% / 46%}")
+          text = text.replace(".camd-row{gap:5px}", ".camd-row{gap:7px}")
+          text = text.replace(".camd-player{min-height:83px}", ".camd-player{min-height:76px}")
+          text = text.replace(".camd-oval{width:min(96%,1120px);height:calc(100% - 101px);min-height:405px;max-height:480px;margin-top:2px;padding:17px 68px;border-radius:50% / 36%}", ".camd-oval{width:min(850px,74vw);height:calc(100% - 96px);min-height:410px;max-height:500px;margin:2px auto 0;padding:12px 28px;border-radius:50% / 46%}")
+          text = text.replace(".camd-row{gap:13px}", ".camd-row{gap:7px}")
+          text = text.replace(".camd-row.edge-row{width:110%;margin-left:-5%}", ".camd-row.edge-row{width:100%;margin-left:0}")
+          text = text.replace(".camd-player{min-height:62px}", ".camd-player{min-height:61px}")
+
+          if text == original:
+            raise SystemExit('No changes made')
+          path.write_text(text)
+          PY
+      - name: Commit change
+        run: |
+          git config user.name 'PlayFooty Automation'
+          git config user.email 'actions@playfooty.com.au'
+          git add src/pages/CoachAppMatchDay.tsx
+          git commit -m 'Match Select Side field styling in Match Day'
+          git push origin newone1
