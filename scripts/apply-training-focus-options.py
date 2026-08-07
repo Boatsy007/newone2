@@ -1,0 +1,52 @@
+from pathlib import Path
+
+p = Path('src/pages/CoachAppTrainingPlan.tsx')
+s = p.read_text()
+
+anchor = "function dateLabel(value:string){const date=new Date(`${value}T12:00:00`);return Number.isNaN(date.getTime())?value:date.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}\n"
+addition = """
+const focusGroups=[
+ {label:'Skills',options:['Kicking','Handball','Marking','Ground balls','Clean hands','Decision making','Skills under pressure','Opposite side','Goal kicking','Set shots']},
+ {label:'Ball movement',options:['Fast ball movement','Run and carry','Switching play','Corridor use','Wide play','Overlap run','Handball chains','Kick-mark control','Transition','Inside 50 entries','Rebound 50']},
+ {label:'Contest',options:['Contested ball','One-on-one','Aerial contest','Crumbing','Tackling','Pressure','Second efforts','Numbers at contest','Loose-ball gets','Body positioning']},
+ {label:'Stoppage',options:['Centre bounce','Boundary stoppage','Around-ground stoppage','Clearances','Ruck craft','Midfield connection','Stoppage exits','Defensive stoppage','Forward stoppage']},
+ {label:'Attack',options:['Forward structure','Forward craft','Leading patterns','Forward pressure','Scoring efficiency','Small forwards','Tall forwards','Creating space','Locking ball in','Attack from turnover']},
+ {label:'Defence',options:['Team defence','Backline structure','Defensive transition','Spoiling','Intercept marking','Defending leads','Ground-ball defence','Exit kicks','Protecting corridor','Defending inside 50']},
+ {label:'Team structure',options:['Full-ground structure','Team shape','Line connection','Role clarity','Game plan','Match simulation','Kick-ins','Zone defence','Man-on-man','Numbers behind ball','Wings and outlets']},
+ {label:'Physical',options:['Speed','Repeat efforts','Conditioning','Agility','Strength','Power','Running patterns','Contact work','Recovery','Modified training']},
+ {label:'Standards',options:['Communication','Leadership','Discipline','Composure','Work rate','Training intensity','Teamwork','Accountability','Confidence','Enjoyment']},
+]
+"""
+if 'const focusGroups=' not in s:
+    if anchor not in s:
+        raise SystemExit('dateLabel anchor not found')
+    s = s.replace(anchor, anchor + addition, 1)
+
+state_anchor = " const[view,setView]=useState<'PLAN'|'LIBRARY'>('PLAN'),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('')\n"
+state_add = """ const selectedFocus=useMemo(()=>new Set(focus.split(' · ').map(value=>value.trim()).filter(Boolean)),[focus])
+ function toggleFocus(option:string){setFocus(current=>{const next=new Set(current.split(' · ').map(value=>value.trim()).filter(Boolean));next.has(option)?next.delete(option):next.add(option);return Array.from(next).join(' · ')})}
+"""
+if 'function toggleFocus' not in s:
+    if state_anchor not in s:
+        raise SystemExit('state anchor not found')
+    s = s.replace(state_anchor, state_anchor + state_add, 1)
+
+old = '<label className="wide">Main focus<input value={focus} onChange={e=>setFocus(e.target.value)} placeholder="What must improve tonight?"/></label>'
+new = '''</section>
+   <section className="catp-focus"><div className="catp-focus-head"><div><span>Main focus</span><h2>What are we working on?</h2><p>Tap every focus that applies. Choose as many as needed.</p></div><b>{selectedFocus.size} selected</b></div><div className="catp-focus-groups">{focusGroups.map(group=><section key={group.label}><h3>{group.label}</h3><div>{group.options.map(option=><button type="button" key={option} className={selectedFocus.has(option)?'active':''} aria-pressed={selectedFocus.has(option)} onClick={()=>toggleFocus(option)}>{selectedFocus.has(option)?'✓ ':''}{option}</button>)}</div></section>)}</div>{selectedFocus.size>0&&<div className="catp-focus-clear"><span>{Array.from(selectedFocus).join(' · ')}</span><button type="button" onClick={()=>setFocus('')}>Clear all</button></div>}</section>
+   <section className="catp-meta catp-meta-after-focus">'''
+if old not in s:
+    raise SystemExit('main focus input not found')
+s = s.replace(old, new, 1)
+
+style_anchor = '.catp-quick,.catp-session,.catp-library{'
+styles = ".catp-meta-after-focus{display:none}.catp-focus{margin-top:11px;padding:16px;border:1px solid #d5e0e7;border-radius:16px;background:#fff}.catp-focus-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.catp-focus-head span{color:#159de1;font-size:10px;font-weight:950;letter-spacing:.12em;text-transform:uppercase}.catp-focus-head h2{margin:3px 0 0;font-size:31px}.catp-focus-head p{margin:4px 0 0;color:#687681;font-size:13px}.catp-focus-head>b{flex:none;border-radius:999px;background:#e9f6fd;padding:8px 12px;color:#087bb8;font-size:11px}.catp-focus-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.catp-focus-groups>section{padding:11px;border:1px solid #dce5eb;border-radius:12px;background:#f8fafc}.catp-focus-groups h3{margin:0 0 8px;font-size:20px}.catp-focus-groups>section>div{display:flex;flex-wrap:wrap;gap:6px}.catp-focus-groups button{min-height:38px;border:1px solid #cbd8e0;border-radius:999px;background:#fff;padding:7px 11px;color:#24333d;font-size:11px;font-weight:850;touch-action:manipulation}.catp-focus-groups button.active{border-color:#159de1;background:#092838;color:#fff;box-shadow:0 0 0 2px rgba(21,157,225,.14)}.catp-focus-clear{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:11px;border-top:1px solid #e2e9ee}.catp-focus-clear span{color:#566773;font-size:11px;font-weight:750}.catp-focus-clear button{flex:none;border:0;border-radius:9px;background:#eef2f5;padding:8px 11px;color:#8b2633;font-weight:900}"
+if '.catp-focus{' not in s:
+    if style_anchor not in s:
+        raise SystemExit('style anchor not found')
+    s = s.replace(style_anchor, styles + style_anchor, 1)
+
+s = s.replace('@media(max-width:800px){', '@media(max-width:800px){.catp-focus-groups{grid-template-columns:repeat(2,minmax(0,1fr))}', 1)
+s = s.replace('@media(max-width:540px){', '@media(max-width:540px){.catp-focus-groups{grid-template-columns:1fr}.catp-focus-head{align-items:center}.catp-focus-head h2{font-size:27px}', 1)
+
+p.write_text(s)
