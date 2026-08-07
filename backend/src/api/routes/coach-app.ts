@@ -49,10 +49,11 @@ async function loadActiveFixture(clubId: string, season: string | null, grade: s
       OR:[{ homeClubId:clubId },{ awayClubId:clubId }],
       ...(season ? { season } : {}),
       ...(grade ? { grade } : {}),
-      AND:[{ OR:[{ matchDate:{ gte:new Date(Date.now()-6*60*60*1000) } },{ matchDate:null }] }],
+      // Keep today's match active through match day, then roll automatically to the next dated fixture.
+      AND:[{ OR:[{ matchDate:{ gte:new Date(Date.now()-18*60*60*1000) } },{ matchDate:null }] }],
     },
     select:{ id:true,leagueId:true,season:true,grade:true,round:true,homeClubId:true,awayClubId:true,homeName:true,awayName:true,matchDate:true,venue:true },
-    orderBy:{ updatedAt:'desc' },
+    orderBy:[{ matchDate:'asc' },{ round:'asc' }],
     take:25,
   })
   return fixtures.sort((a,b)=>(a.matchDate?.getTime()??Number.MAX_SAFE_INTEGER)-(b.matchDate?.getTime()??Number.MAX_SAFE_INTEGER))[0] ?? null
