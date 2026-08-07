@@ -1,0 +1,29 @@
+{
+  "id": "/coach-app",
+  "name": "PlayFooty Coach",
+  "short_name": "PF Coach",
+  "description": "The focused PlayFooty coaching pilot for team selection and Match Day.",
+  "start_url": "/coach-app",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#07121b",
+  "theme_color": "#07121b",
+  "orientation": "any",
+  "lang": "en-AU",
+  "categories": ["sports", "productivity"],
+  "icons": [
+    {
+      "src": "/playfooty-coach-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
