@@ -1,4 +1,4 @@
-name: Enable Training Report Player Drag
+name: Connect Coach App Fixtures Results
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Apply compact training focus accordion
-        run: python scripts/apply-training-focus-accordion.py
+      - name: Connect fixtures and results
+        run: python scripts/connect-coach-fixtures-results.py
       - name: Install frontend
         run: npm ci
       - name: Install backend
@@ -27,6 +27,6 @@ jobs:
         run: |
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
-          git add src/pages/CoachAppTrainingPlan.tsx
-          git commit -m 'Collapse training focus options into expandable cards' || exit 0
+          git add src/pages/CoachApp.tsx
+          git commit -m 'Connect fixtures and results to Coach Tools' || exit 0
           git push origin HEAD:newone1
