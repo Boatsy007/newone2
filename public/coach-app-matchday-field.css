@@ -46,26 +46,29 @@
   font-size: 8px !important;
 }
 
-/* Keep the pocket cards on the normal three-column spacing used by every
-   other line. Only the central FF and FB cards travel to the field ends. */
+/* The field-markings div is the first div inside the oval, so the forward
+   line is the second div of its type. Target it explicitly instead of using
+   :first-of-type, which never matched the forward row. */
 .camd .camd-row.edge-row {
   width: 100% !important;
   margin-left: 0 !important;
 }
 
-.camd .camd-row:first-of-type .camd-player:nth-child(1),
-.camd .camd-row:first-of-type .camd-player:nth-child(3),
-.camd .camd-row:last-child .camd-player:nth-child(1),
-.camd .camd-row:last-child .camd-player:nth-child(3) {
-  transform: none;
+.camd .camd-oval > .camd-row.edge-row:nth-of-type(2) .camd-player:nth-child(1),
+.camd .camd-oval > .camd-row.edge-row:nth-of-type(2) .camd-player:nth-child(3),
+.camd .camd-oval > .camd-row.edge-row:last-child .camd-player:nth-child(1),
+.camd .camd-oval > .camd-row.edge-row:last-child .camd-player:nth-child(3) {
+  transform: none !important;
 }
 
-.camd .camd-row:first-of-type .camd-player:nth-child(2) {
-  transform: translateY(-52px);
+/* Full forward sits at the top end while both pockets remain on their row. */
+.camd .camd-oval > .camd-row.edge-row:nth-of-type(2) .camd-player:nth-child(2) {
+  transform: translateY(-52px) !important;
 }
 
-.camd .camd-row:last-child .camd-player:nth-child(2) {
-  transform: translateY(30px);
+/* Full back positioning was already correct and is intentionally unchanged. */
+.camd .camd-oval > .camd-row.edge-row:last-child .camd-player:nth-child(2) {
+  transform: translateY(30px) !important;
 }
 
 /* Portrait uses the tall coaches-board AFL oval shape. */
@@ -101,12 +104,12 @@
     min-height: 68px !important;
   }
 
-  .camd .camd-row:first-of-type .camd-player:nth-child(2) {
-    transform: translateY(-82px);
+  .camd .camd-oval > .camd-row.edge-row:nth-of-type(2) .camd-player:nth-child(2) {
+    transform: translateY(-82px) !important;
   }
 
-  .camd .camd-row:last-child .camd-player:nth-child(2) {
-    transform: translateY(42px);
+  .camd .camd-oval > .camd-row.edge-row:last-child .camd-player:nth-child(2) {
+    transform: translateY(42px) !important;
   }
 
   .camd .camd-bench {
@@ -159,12 +162,12 @@
     font-size: 7px !important;
   }
 
-  .camd .camd-row:first-of-type .camd-player:nth-child(2) {
-    transform: translateY(-42px);
+  .camd .camd-oval > .camd-row.edge-row:nth-of-type(2) .camd-player:nth-child(2) {
+    transform: translateY(-42px) !important;
   }
 
-  .camd .camd-row:last-child .camd-player:nth-child(2) {
-    transform: translateY(24px);
+  .camd .camd-oval > .camd-row.edge-row:last-child .camd-player:nth-child(2) {
+    transform: translateY(24px) !important;
   }
 
   .camd .camd-interchange {
