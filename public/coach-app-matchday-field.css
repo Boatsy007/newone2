@@ -1,0 +1,136 @@
+/* Coach App Match Day field proportions and compact player cards.
+   Isolated to the dedicated .camd app screen. */
+
+.camd .camd-oval {
+  box-sizing: border-box !important;
+}
+
+.camd .camd-player {
+  min-height: 72px !important;
+  border-radius: 8px !important;
+}
+
+.camd .camd-player > small {
+  padding: 2px 5px !important;
+  font-size: 7px !important;
+}
+
+.camd .camd-player > strong {
+  min-width: 27px !important;
+  padding: 2px 5px !important;
+  font-size: 12px !important;
+}
+
+.camd .camd-player > span {
+  min-height: 20px !important;
+  padding: 3px 4px 0 !important;
+  padding-right: 28px !important;
+  font-size: 8px !important;
+}
+
+.camd .player-data {
+  padding: 0 5px 1px !important;
+}
+
+.camd .player-data em {
+  font-size: 7px !important;
+}
+
+.camd .player-score {
+  gap: 3px !important;
+  padding: 0 3px !important;
+}
+
+.camd .player-score button {
+  min-height: 18px !important;
+  font-size: 8px !important;
+}
+
+/* Portrait uses the tall coaches-board AFL oval shape. */
+@media (orientation: portrait) and (max-width: 900px) {
+  .camd .camd-ground {
+    overflow: visible !important;
+  }
+
+  .camd .camd-oval {
+    width: 78% !important;
+    min-height: 675px !important;
+    margin-top: 7px !important;
+    padding: 38px 4px !important;
+    overflow: visible !important;
+    border-radius: 50% / 24% !important;
+  }
+
+  .camd .camd-field-markings {
+    overflow: hidden !important;
+    border-radius: 50% / 24% !important;
+  }
+
+  .camd .camd-row {
+    gap: 4px !important;
+  }
+
+  .camd .camd-row.edge-row {
+    width: 124% !important;
+    margin-left: -12% !important;
+  }
+
+  .camd .camd-player {
+    min-height: 68px !important;
+  }
+
+  .camd .camd-bench {
+    gap: 4px !important;
+  }
+}
+
+/* Landscape stays a wide AFL oval and lets the field dominate the screen. */
+@media (orientation: landscape) and (min-width: 900px) {
+  .camd .camd-ground {
+    padding-right: 4px !important;
+    padding-left: 4px !important;
+  }
+
+  .camd .camd-oval {
+    width: min(99%, 1180px) !important;
+    height: calc(100% - 89px) !important;
+    min-height: 410px !important;
+    max-height: 500px !important;
+    padding: 14px 58px !important;
+    overflow: visible !important;
+    border-radius: 50% / 34% !important;
+  }
+
+  .camd .camd-field-markings {
+    overflow: hidden !important;
+    border-radius: 50% / 34% !important;
+  }
+
+  .camd .camd-row {
+    gap: 9px !important;
+  }
+
+  .camd .camd-row.edge-row {
+    width: 116% !important;
+    margin-left: -8% !important;
+  }
+
+  .camd .camd-player {
+    min-height: 57px !important;
+  }
+
+  .camd .camd-player > span {
+    min-height: 16px !important;
+    font-size: 7px !important;
+  }
+
+  .camd .player-score button {
+    min-height: 15px !important;
+    font-size: 7px !important;
+  }
+
+  .camd .camd-interchange {
+    height: 72px !important;
+    margin-top: 2px !important;
+  }
+}
