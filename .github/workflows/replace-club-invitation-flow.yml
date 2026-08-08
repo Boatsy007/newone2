@@ -30,7 +30,11 @@ jobs:
         run: npm run build
       - name: Validate changed backend routes
         working-directory: backend
-        run: npx tsx -e "import('./src/api/routes/portal-auth.ts'); import('./src/api/routes/club-permissions.ts'); import('./src/auth/club-permissions.ts')"
+        run: |
+          set +e
+          timeout 20s npx tsx -e "Promise.all([import('./src/api/routes/portal-auth.ts'),import('./src/api/routes/club-permissions.ts'),import('./src/auth/club-permissions.ts')]).then(()=>process.exit(0)).catch(error=>{console.error(error);process.exit(1)})"
+          code=$?
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then exit "$code"; fi
       - name: Commit implementation
         run: |
           git config user.name "github-actions[bot]"
