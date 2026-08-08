@@ -1,4 +1,4 @@
-name: Build ChatGPT Match Reports
+name: Remove Legacy Match Day Tools
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Move Match Day tools under KPIs
-        run: python scripts/move-match-day-tools-under-kpis.py
+      - name: Remove old three-button strip
+        run: python scripts/remove-legacy-match-day-tools.py
       - name: Install frontend
         run: npm ci
       - name: Check frontend
@@ -26,5 +26,5 @@ jobs:
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
           git add src/pages/CoachAppMatchDay.tsx
-          git commit -m 'Move Game Plan and Whiteboard under Live KPIs' || exit 0
+          git commit -m 'Remove old Match Day Whiteboard Game Plan and KPIs strip' || exit 0
           git push origin HEAD:newone1
