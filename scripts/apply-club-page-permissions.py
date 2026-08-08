@@ -19,6 +19,9 @@ needle2="    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS \"club_p
 if "club_portal_invitations ADD COLUMN IF NOT EXISTS preset" not in t:
     t=t.replace(needle2, "    await prisma.$executeRawUnsafe(`ALTER TABLE club_portal_invitations ADD COLUMN IF NOT EXISTS preset TEXT DEFAULT 'CUSTOM'`)\n    await prisma.$executeRawUnsafe(`ALTER TABLE club_portal_invitations ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '[]'::jsonb`)\n"+needle2)
 t=t.replace(' created_at AS "createdAt", updated_at AS "updatedAt"`', ' created_at AS "createdAt", updated_at AS "updatedAt", preset, permissions`')
+# Login and every membership lookup must create/upgrade the schema before selecting permission columns.
+t=t.replace("export async function membershipsForUser(userId: string): Promise<ClubMembership[]> {\n  return prisma.$queryRawUnsafe", "export async function membershipsForUser(userId: string): Promise<ClubMembership[]> {\n  await ensureClubMembershipSchema()\n  return prisma.$queryRawUnsafe")
+t=t.replace("export async function membershipForClub(userId: string, clubId: string) {\n  const rows = await prisma.$queryRawUnsafe", "export async function membershipForClub(userId: string, clubId: string) {\n  await ensureClubMembershipSchema()\n  const rows = await prisma.$queryRawUnsafe")
 old="export async function issueClubInvitation(clubId: string, email: string, role: ClubRole, actorId: string) {\n  await ensureClubMembershipSchema(); const token = randomBytes(32).toString('hex')\n  await prisma.$executeRawUnsafe(`INSERT INTO club_portal_invitations (id,club_id,email,role,token_hash,invited_by,expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, randomUUID(), clubId, email.trim().toLowerCase(), role, hashToken(token), actorId, new Date(Date.now()+7*86400000))\n  return token\n}"
 new="export async function issueClubInvitation(clubId: string, email: string, role: ClubRole, actorId: string, access?: { preset?: ClubPermissionPreset; permissions?: ClubPermissionKey[] }) {\n  await ensureClubMembershipSchema(); const token = randomBytes(32).toString('hex')\n  const preset=access?.preset??'CUSTOM',permissions=access?.permissions??[]\n  await prisma.$executeRawUnsafe(`INSERT INTO club_portal_invitations (id,club_id,email,role,token_hash,invited_by,expires_at,preset,permissions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)`, randomUUID(), clubId, email.trim().toLowerCase(), role, hashToken(token), actorId, new Date(Date.now()+7*86400000),preset,JSON.stringify(permissions))\n  return token\n}"
 if old in t:t=t.replace(old,new)
@@ -60,13 +63,11 @@ t=t.replace("type Screen = 'CLUB_DASHBOARD' | 'DASHBOARD' |", "type Screen = 'CL
 t=t.replace("setClubs([]);setContext(next);setScreen(new URLSearchParams(window.location.search).get('screen')==='match-day'?'MATCH_DAY':'CLUB_DASHBOARD')", "setClubs([]);setContext(next);const requested=new URLSearchParams(window.location.search).get('screen');setScreen(requested==='match-day'?'MATCH_DAY':next.access?.defaultPage==='STATS'?'STATS':'CLUB_DASHBOARD')")
 t=t.replace("const pageLabel=screen==='CLUB_DASHBOARD'?'Club Dashboard':", "const pageLabel=screen==='CLUB_DASHBOARD'?'Club Dashboard':screen==='PERMISSIONS'?'Permissions':")
 t=t.replace("onOpen={(area:ClubAppArea)=>{if(area==='coaching')setScreen('DASHBOARD')}}", "allowedAreas={context.access?.allowedAreas} onOpen={(area:ClubAppArea)=>{if(area==='coaching')setScreen('DASHBOARD');if(area==='permissions')setScreen('PERMISSIONS')}}")
-# insert permission render before game plan chain
 needle="    {screen==='GAME_PLAN'?<CoachAppGamePlan"
 if "screen==='PERMISSIONS'?" not in t:
     t=t.replace(needle, "    {screen==='PERMISSIONS'?<CoachAppPermissions clubId={context.club.id} token={session.access_token} onExit={()=>setScreen('CLUB_DASHBOARD')}/>:screen==='GAME_PLAN'?<CoachAppGamePlan")
 t=t.replace("screen!=='DASHBOARD'&&screen!=='CLUB_DASHBOARD'?", "screen!=='DASHBOARD'&&screen!=='CLUB_DASHBOARD'&&screen!=='PERMISSIONS'?")
 p.write_text(t);print('Integrated permissions page')
 
-# Fix frontend member type timestamp
 p=Path('src/pages/CoachAppPermissions.tsx');t=p.read_text().replace("applicantName?:string|null}","applicantName?:string|null;updatedAt?:string}")
 p.write_text(t)
