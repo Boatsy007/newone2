@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# Keep the Club Dashboard as the stable entry point after login.
 path=Path('src/pages/CoachApp.tsx')
 text=path.read_text()
 
@@ -22,7 +23,6 @@ needle="    {screen==='DASHBOARD'&&<section className=\"coach-dashboard\">"
 if insert.strip() not in text:
     text=text.replace(needle, insert+needle)
 
-# Ensure fallback does not appear on club dashboard.
 text=text.replace("screen!=='DASHBOARD'?<section", "screen!=='DASHBOARD'&&screen!=='CLUB_DASHBOARD'?<section")
 
 path.write_text(text)
