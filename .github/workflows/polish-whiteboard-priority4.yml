@@ -12,6 +12,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: newone1
+      - name: Fix implementation script
+        run: python3 scripts/fix_priority4_script.py
       - name: Apply drawing polish
         run: python3 scripts/polish_whiteboard_priority4.py
       - name: Install frontend
@@ -22,7 +24,7 @@ jobs:
         run: npm run build
       - name: Commit implementation
         run: |
-          git config user.name "github-actions[bot]]"
+          git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/pages/CoachAppWhiteboardStage2.tsx
           git commit -m "Improve whiteboard drawing experience" || exit 0
