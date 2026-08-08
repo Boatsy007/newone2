@@ -1,4 +1,4 @@
-name: Remove Legacy Match Day Tools
+name: Remove Rendered Match Day Legacy Strip
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Remove old three-button strip
-        run: python scripts/remove-legacy-match-day-tools.py
+      - name: Remove rendered legacy strip
+        run: python scripts/remove-rendered-match-day-legacy-strip.py
       - name: Install frontend
         run: npm ci
       - name: Check frontend
@@ -26,5 +26,5 @@ jobs:
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
           git add src/pages/CoachAppMatchDay.tsx
-          git commit -m 'Remove old Match Day Whiteboard Game Plan and KPIs strip' || exit 0
+          git commit -m 'Remove rendered Match Day Whiteboard Game Plan and KPIs strip' || exit 0
           git push origin HEAD:newone1
