@@ -1,4 +1,4 @@
-name: Connect Live Match Return Navigation
+name: Build ChatGPT Match Reports
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Connect live return navigation
-        run: python scripts/add-live-match-return-navigation.py
+      - name: Add AI match report workflow
+        run: python scripts/add-ai-match-report.py
       - name: Install frontend
         run: npm ci
       - name: Install backend
@@ -27,6 +27,6 @@ jobs:
         run: |
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
-          git add src/pages/CoachApp.tsx src/pages/CoachAppGamePlan.tsx src/pages/ClubPortalWhiteboard.tsx
-          git commit -m 'Return Game Plan and Whiteboard to live Match Day' || exit 0
+          git add src/pages/CoachAppMatchDay.tsx backend/api/index.ts backend/.env.example
+          git commit -m 'Generate branded AI quarter and match reports' || exit 0
           git push origin HEAD:newone1
