@@ -1,0 +1,19 @@
+name: Audit Club Permissions Foundation
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - scripts/audit-club-permissions-foundation.py
+      - .github/workflows/audit-club-permissions-foundation.yml
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python scripts/audit-club-permissions-foundation.py
