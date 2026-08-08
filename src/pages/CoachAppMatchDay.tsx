@@ -91,7 +91,7 @@ export default function CoachAppMatchDay({clubId,sheetId,token,onBack,onGamePlan
         setState(current=>current?{...current,teamStats:remoteStats}:current)
       }catch{}
     }
-    const timer=window.setInterval(()=>void refresh(),1500)
+    const timer=window.setInterval(()=>void refresh(),300)
     return()=>{cancelled=true;window.clearInterval(timer)}
   },[clubId,sheetId,headers,sheet])
 
