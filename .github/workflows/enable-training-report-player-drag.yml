@@ -1,4 +1,4 @@
-name: Fix Coach App Stats Live Sheet
+name: Make Coach App Live Stats Instant
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Fix Stats live sheet resolution
-        run: python scripts/fix-coach-app-stats-live-sheet.py
+      - name: Speed up Match Day live stats
+        run: python scripts/make-live-stats-instant.py
       - name: Install frontend
         run: npm ci
       - name: Check frontend
@@ -25,6 +25,6 @@ jobs:
         run: |
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
-          git add src/pages/CoachApp.tsx src/pages/CoachAppStats.tsx
-          git commit -m 'Fix Coach App Stats connection to active live team sheet' || exit 0
+          git add src/pages/CoachAppMatchDay.tsx
+          git commit -m 'Make Match Day live stats refresh instantly' || exit 0
           git push origin HEAD:newone1
