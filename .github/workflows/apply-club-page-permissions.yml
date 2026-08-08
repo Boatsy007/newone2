@@ -23,12 +23,12 @@ jobs:
         run: python scripts/apply-club-page-permissions.py
       - name: Install frontend
         run: npm ci
-      - name: Check frontend
-        run: npm run build
       - name: Install backend
         working-directory: backend
         run: npm ci
-      - name: Check backend
+      - name: Check frontend
+        run: npm run build
+      - name: Check backend permission files
         working-directory: backend
         run: npx tsc --noEmit --pretty false
       - name: Commit
