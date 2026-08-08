@@ -1,0 +1,65 @@
+name: Polish Whiteboard Priority 1
+on:
+  push:
+    paths:
+      - '.github/workflows/polish-whiteboard-priority1.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Apply layout polish
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('src/pages/CoachAppWhiteboardStage2.tsx')
+          s=p.read_text()
+          if "const[moreOpen,setMoreOpen]" not in s:
+            s=s.replace("  const[playerDrawerOpen,setPlayerDrawerOpen]=useState(false)","  const[playerDrawerOpen,setPlayerDrawerOpen]=useState(false)\n  const[moreOpen,setMoreOpen]=useState(false)")
+          pattern=r"\{!presenting&&<header>.*?</header>\}"
+          replacement="""{!presenting&&<header className=\"wb-topbar\"><button className=\"back\" onClick={onExit}><ArrowLeft/> {returnToMatch?'Return to Match':'Back'}</button><div className=\"wb-title\"><span>PLAYFOOTY WHITEBOARD</span><b>{fixtureLabel}</b><small>Saved automatically</small></div><div className=\"wb-primary-actions\"><button onClick={()=>setPresenting(true)}><Presentation/>Present</button><button className=\"wb-more-button\" onClick={()=>setMoreOpen(v=>!v)} aria-expanded={moreOpen}><span>•••</span>More</button></div></header>}"""
+          s2,count=re.subn(pattern,replacement,s,count=1,flags=re.S)
+          if count!=1: raise SystemExit(f'header replacement count {count}')
+          s=s2
+          marker="    {playerDrawerOpen&&"
+          more="""    {moreOpen&&!presenting&&<div className=\"wb-more-popover\"><div className=\"wb-more-head\"><div><span>WHITEBOARD TOOLS</span><b>More actions</b></div><button onClick={()=>setMoreOpen(false)}><X/></button></div><section><h3>Coach</h3><div><button onClick={()=>{setMoreOpen(false);void analyseTactic('frame')}}><Sparkles/>Analyse</button><button onClick={()=>{setMoreOpen(false);void smartSetup()}}><BrainCircuit/>Smart Setup</button><button onClick={()=>{setMoreOpen(false);void compareFrames()}}><GitCompare/>Compare</button><button onClick={()=>{setMoreOpen(false);void gameModel()}}><BookOpen/>Game Model</button></div></section><section><h3>Share</h3><div><button onClick={()=>{setMoreOpen(false);void loadCloud()}}><Cloud/>Club Cloud</button><button onClick={()=>{setMoreOpen(false);void assignTeam()}}><Users/>Assign</button><button onClick={()=>{setMoreOpen(false);void showProgress()}}><BarChart3/>Progress</button><button onClick={()=>{setMoreOpen(false);void liveMeeting()}}><Radio/>{meetingActive?'End meeting':'Live meeting'}</button><button onClick={()=>{setMoreOpen(false);void toggleVoice()}}><Mic/>{recordingVoice?'Stop voice':'Voice-over'}</button><button onClick={()=>{setMoreOpen(false);void attachClip()}}><Film/>Attach clip</button><button onClick={()=>{setMoreOpen(false);void exportVideo()}}><Video/>Video</button><button onClick={()=>{setMoreOpen(false);exportPlay()}}><Download/>Export</button></div></section><section><h3>Review & library</h3><div><button onClick={()=>{setMoreOpen(false);void recordOutcome()}}><Target/>Outcome</button><button onClick={()=>{setMoreOpen(false);void tacticalReview()}}><BarChart3/>Review</button><button onClick={()=>{setMoreOpen(false);setLibraryOpen(true)}}><Library/>Local library</button><button onClick={()=>{setMoreOpen(false);savePlay()}}><Save/>Save play</button></div></section></div>}\n"""
+          if marker not in s: raise SystemExit('player drawer marker not found')
+          s=s.replace(marker,more+marker,1)
+          idx=s.rfind('`')
+          if idx<0: raise SystemExit('styles end not found')
+          css="""
+/* Stage 8 Priority 1 — simplified professional workspace */
+.cawb2{height:100dvh;min-height:100dvh;overflow:hidden;padding:0!important;background:#041018!important;display:grid!important;grid-template-rows:64px minmax(0,1fr)!important}
+.wb-topbar{height:64px!important;min-height:64px!important;padding:8px 14px!important;background:rgba(5,20,29,.97)!important;border-bottom:1px solid #173844!important;display:grid!important;grid-template-columns:auto minmax(0,1fr) auto!important;align-items:center!important;gap:14px!important;z-index:40!important}
+.wb-topbar .back,.wb-topbar button{min-height:44px!important;border-radius:12px!important}
+.wb-title{min-width:0;display:flex;flex-direction:column;align-items:center;line-height:1.15}.wb-title span{color:#20b8ff;font-size:10px;font-weight:900;letter-spacing:.13em}.wb-title b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.wb-title small{color:#74b98f;font-size:10px;margin-top:2px}.wb-primary-actions{display:flex;gap:8px}.wb-primary-actions button{background:#0c2633!important;border:1px solid #31505f!important;color:#fff!important;padding:9px 13px!important;display:flex!important;align-items:center!important;gap:7px!important}.wb-primary-actions button:first-child{background:#109ee8!important;border-color:#20b8ff!important}.wb-more-button span{font-size:18px;line-height:0;letter-spacing:1px}
+.cawb2>section:not(.cawb2-modal):not(.cawb2-library):not(.cawb2-analysis){min-height:0!important}
+.cawb2 .workspace,.cawb2 .cawb2-workspace{height:100%!important;min-height:0!important;display:grid!important;grid-template-columns:68px minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr) 92px!important;gap:0!important;padding:0!important}
+.cawb2 .tools,.cawb2 aside{grid-column:1!important;grid-row:1/3!important;width:68px!important;min-width:68px!important;background:#071923!important;border-right:1px solid #173844!important;padding:10px 8px!important;display:flex!important;flex-direction:column!important;gap:8px!important;overflow-y:auto!important;z-index:15!important}
+.cawb2 .tools button,.cawb2 aside button{width:52px!important;min-width:52px!important;height:52px!important;min-height:52px!important;padding:0!important;justify-content:center!important;border-radius:14px!important}.cawb2 .tools button span,.cawb2 aside button span{display:none!important}.cawb2 .tools button.active,.cawb2 aside button.active{background:#109ee8!important;border-color:#5ac8ff!important;box-shadow:0 0 0 2px rgba(32,184,255,.18)!important}
+.cawb2 .board,.cawb2 .cawb2-board{grid-column:2!important;grid-row:1!important;min-height:0!important;height:100%!important;margin:0!important;padding:8px!important;border:0!important;border-radius:0!important;background:#02090e!important;display:grid!important;place-items:center!important}.cawb2 .board svg,.cawb2 .cawb2-board svg{width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:contain!important;touch-action:none!important}
+.cawb2 .timeline,.cawb2 .cawb2-timeline{grid-column:2!important;grid-row:2!important;height:92px!important;min-height:92px!important;margin:0!important;padding:8px 12px!important;background:#071923!important;border-top:1px solid #173844!important;display:flex!important;align-items:center!important;gap:8px!important;overflow-x:auto!important;z-index:12!important}.cawb2 .timeline button,.cawb2 .cawb2-timeline button{min-height:52px!important;border-radius:12px!important;flex:0 0 auto!important}
+.wb-more-popover{position:fixed;right:14px;top:70px;width:min(520px,calc(100vw - 28px));max-height:calc(100dvh - 84px);overflow:auto;z-index:100;background:#071923;border:1px solid #31505f;border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.48);padding:14px}.wb-more-head{display:flex;justify-content:space-between;align-items:center;padding:2px 2px 12px;border-bottom:1px solid #173844}.wb-more-head div{display:flex;flex-direction:column}.wb-more-head span{color:#20b8ff;font-size:10px;font-weight:900;letter-spacing:.12em}.wb-more-head b{font-size:18px}.wb-more-head button{width:42px;height:42px;padding:0;justify-content:center}.wb-more-popover section{padding:13px 2px 4px}.wb-more-popover h3{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#8ca9b7;margin:0 0 8px}.wb-more-popover section>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.wb-more-popover section button{min-height:46px;justify-content:flex-start;background:#0c2633;border:1px solid #294955;border-radius:12px;color:#fff;padding:10px 12px;font-weight:800;display:flex;align-items:center;gap:8px}
+@media(max-width:760px){.wb-title small{display:none}.wb-primary-actions button{padding:9px 10px!important}.wb-primary-actions button svg{margin:0}.wb-primary-actions button{font-size:0}.wb-primary-actions button span{font-size:16px}.cawb2 .workspace,.cawb2 .cawb2-workspace{grid-template-columns:58px minmax(0,1fr)!important}.cawb2 .tools,.cawb2 aside{width:58px!important;min-width:58px!important;padding:8px 5px!important}.cawb2 .tools button,.cawb2 aside button{width:46px!important;min-width:46px!important;height:46px!important;min-height:46px!important}.wb-more-popover section>div{grid-template-columns:1fr}}
+"""
+          s=s[:idx]+css+s[idx:]
+          p.write_text(s)
+          PY
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm --prefix backend ci
+      - name: Build production app
+        run: npm run build
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          git commit -m "Simplify whiteboard workspace and controls"
+          git push origin HEAD:newone1
