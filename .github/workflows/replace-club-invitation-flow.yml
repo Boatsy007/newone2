@@ -20,11 +20,11 @@ jobs:
         run: python scripts/replace_club_invitation_flow.py
       - name: Install frontend
         run: npm ci
-      - name: Build frontend
-        run: npm run build
       - name: Install backend
         working-directory: backend
         run: npm ci
+      - name: Build frontend
+        run: npm run build
       - name: Validate changed backend routes
         working-directory: backend
         run: npx tsx -e "import('./src/api/routes/portal-auth.ts'); import('./src/api/routes/club-permissions.ts'); import('./src/auth/club-permissions.ts')"
