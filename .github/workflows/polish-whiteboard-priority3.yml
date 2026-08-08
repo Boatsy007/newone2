@@ -27,3 +27,4 @@ jobs:
           git add src/pages/CoachAppWhiteboardStage2.tsx
           git commit -m "Improve whiteboard player handling" || exit 0
           git push origin HEAD:newone1
+# rerun 2
