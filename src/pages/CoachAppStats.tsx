@@ -4,7 +4,7 @@ import { Check, Minus, Plus, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 type StatKey='inside50s'|'clearances'|'tackles'|'marks'|'rebound50s'|'onePercenters'|'freesAgainst'
 type TeamStats=Record<StatKey,number>
 type MatchState={quarter:number;teamStats?:Partial<TeamStats>;[key:string]:unknown}
-type Props={clubId:string;sheetId:string;token:string;onExit:()=>void}
+type Props={clubId:string;sheetId?:string|null;fixtureId:string;token:string;onExit:()=>void}
 
 const EMPTY_STATS:TeamStats={inside50s:0,clearances:0,tackles:0,marks:0,rebound50s:0,onePercenters:0,freesAgainst:0}
 const STATS:Array<{key:StatKey;label:string;short:string}>=[
@@ -17,7 +17,8 @@ const STATS:Array<{key:StatKey;label:string;short:string}>=[
   {key:'freesAgainst',label:'Frees Against',short:'FA'},
 ]
 
-export default function CoachAppStats({clubId,sheetId,token,onExit}:Props){
+export default function CoachAppStats({clubId,sheetId,fixtureId,token,onExit}:Props){
+  const[resolvedSheetId,setResolvedSheetId]=useState(sheetId||'')
   const[state,setState]=useState<MatchState|null>(null)
   const[loading,setLoading]=useState(true)
   const[error,setError]=useState('')
@@ -25,12 +26,27 @@ export default function CoachAppStats({clubId,sheetId,token,onExit}:Props){
   const[online,setOnline]=useState(navigator.onLine)
   const headers=useMemo<Record<string,string>>(()=>({authorization:`Bearer ${token}`}),[token])
   const jsonHeaders=useMemo<Record<string,string>>(()=>({...headers,'content-type':'application/json'}),[headers])
-  const endpoint=`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`
+  const endpoint=resolvedSheetId?`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(resolvedSheetId)}`:''
+
+  async function resolveSheet(){
+    if(resolvedSheetId)return resolvedSheetId
+    const createResponse=await fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`,{method:'POST',headers:jsonHeaders,body:JSON.stringify({fixtureId})})
+    const createPayload=await createResponse.json().catch(()=>({}))
+    if(!createResponse.ok&&createResponse.status!==409)throw new Error(createPayload.error||'Unable to connect to the live team sheet')
+    const contextResponse=await fetch(`/api/club-portal/coach-app/context?clubId=${encodeURIComponent(clubId)}`,{headers,cache:'no-store'})
+    const contextPayload=await contextResponse.json().catch(()=>({}))
+    const id=contextPayload.data?.teamSheet?.id as string|undefined
+    if(!contextResponse.ok||!id)throw new Error(contextPayload.error||'The live team sheet could not be found')
+    setResolvedSheetId(id)
+    return id
+  }
 
   async function load(silent=false){
     if(!silent)setLoading(true)
     try{
-      const response=await fetch(endpoint,{headers,cache:'no-store'})
+      const activeSheetId=await resolveSheet()
+      const activeEndpoint=`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(activeSheetId)}`
+      const response=await fetch(activeEndpoint,{headers,cache:'no-store'})
       const payload=await response.json().catch(()=>({}))
       if(!response.ok)throw new Error(payload.error||'Unable to load live match stats')
       setState(payload.data?.state||{quarter:1,teamStats:{...EMPTY_STATS}})
@@ -39,20 +55,22 @@ export default function CoachAppStats({clubId,sheetId,token,onExit}:Props){
     finally{if(!silent)setLoading(false)}
   }
 
-  useEffect(()=>{void load();const timer=window.setInterval(()=>void load(true),2500);return()=>window.clearInterval(timer)},[clubId,sheetId,token])
+  useEffect(()=>{setResolvedSheetId(sheetId||'');void load();const timer=window.setInterval(()=>void load(true),2500);return()=>window.clearInterval(timer)},[clubId,sheetId,fixtureId,token])
   useEffect(()=>{const update=()=>setOnline(navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update)}},[])
 
   async function changeStat(key:StatKey,delta:number){
     if(saving||!online)return
     setSaving(key)
     try{
-      const latestResponse=await fetch(endpoint,{headers,cache:'no-store'})
+      const activeSheetId=await resolveSheet()
+      const activeEndpoint=`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(activeSheetId)}`
+      const latestResponse=await fetch(activeEndpoint,{headers,cache:'no-store'})
       const latestPayload=await latestResponse.json().catch(()=>({}))
       if(!latestResponse.ok)throw new Error(latestPayload.error||'Unable to refresh live match')
       const latest=(latestPayload.data?.state||state||{quarter:1}) as MatchState
       const currentStats={...EMPTY_STATS,...(latest.teamStats||{})}
       const nextState={...latest,teamStats:{...currentStats,[key]:Math.max(0,currentStats[key]+delta)}}
-      const response=await fetch(endpoint,{method:'PUT',headers:jsonHeaders,body:JSON.stringify({state:nextState})})
+      const response=await fetch(activeEndpoint,{method:'PUT',headers:jsonHeaders,body:JSON.stringify({state:nextState})})
       const payload=await response.json().catch(()=>({}))
       if(!response.ok)throw new Error(payload.error||'Unable to save stat')
       setState(nextState);setError('')
