@@ -81,9 +81,11 @@ const membershipSelect = `id, user_id AS "userId", email, club_id AS "clubId", r
  invited_by AS "invitedBy", approved_by AS "approvedBy", approved_at AS "approvedAt", revoked_at AS "revokedAt",
  created_at AS "createdAt", updated_at AS "updatedAt", preset, permissions`
 export async function membershipsForUser(userId: string): Promise<ClubMembership[]> {
+  await ensureClubMembershipSchema()
   return prisma.$queryRawUnsafe<ClubMembership[]>(`SELECT ${membershipSelect} FROM club_portal_memberships WHERE user_id=$1 AND status<>'REVOKED' ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'PENDING' THEN 1 WHEN 'INVITED' THEN 2 ELSE 3 END, created_at`, userId)
 }
 export async function membershipForClub(userId: string, clubId: string) {
+  await ensureClubMembershipSchema()
   const rows = await prisma.$queryRawUnsafe<ClubMembership[]>(`SELECT ${membershipSelect} FROM club_portal_memberships WHERE user_id=$1 AND club_id=$2 LIMIT 1`, userId, clubId)
   return rows[0] ?? null
 }
