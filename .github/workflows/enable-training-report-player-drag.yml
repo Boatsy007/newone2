@@ -1,4 +1,4 @@
-name: Make Coach App Live Stats Instant
+name: Fix Live KPI Save Collision
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Speed up Match Day live stats
-        run: python scripts/make-live-stats-instant.py
+      - name: Preserve live KPI stats during Match Day saves
+        run: python scripts/fix-live-kpi-save-collision.py
       - name: Install frontend
         run: npm ci
       - name: Check frontend
@@ -26,5 +26,5 @@ jobs:
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
           git add src/pages/CoachAppMatchDay.tsx
-          git commit -m 'Make Match Day live stats refresh instantly' || exit 0
+          git commit -m 'Preserve live KPI updates during Match Day autosave' || exit 0
           git push origin HEAD:newone1
