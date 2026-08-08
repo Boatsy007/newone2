@@ -76,24 +76,16 @@ whiteboard = replace_once(
     "export default function ClubPortalWhiteboard(){\n const location=useLocation();const returnToMatch=new URLSearchParams(location.search).get('returnToMatch')==='1';\n const{clubId=''}=useParams();",
     'Whiteboard return context',
 )
-# Add a persistent return control immediately inside the page's main JSX, without changing whiteboard tools.
 marker = " return <"
 index = whiteboard.find(marker)
 if index < 0:
     raise SystemExit('Missing Whiteboard return JSX')
-# Locate first opening element end after return and insert conditional link as its first child.
 open_end = whiteboard.find('>', index + len(marker))
 if open_end < 0:
     raise SystemExit('Missing Whiteboard root opening tag')
-insert = "{returnToMatch&&<Link to=\"/coach-app?screen=match-day\" className=\"cpw-return-match\"><ArrowLeft/>Return to Match</Link>}"
+button_style = "{{position:'fixed',zIndex:2200,top:'max(12px, env(safe-area-inset-top))',right:'max(14px, env(safe-area-inset-right))',display:'flex',alignItems:'center',gap:7,minHeight:44,padding:'10px 15px',borderRadius:11,background:'#22c77a',color:'#06130c',textDecoration:'none',fontWeight:950,textTransform:'uppercase',boxShadow:'0 4px 0 #0b7546, 0 8px 22px rgba(0,0,0,.3)'}}"
+insert = f"{{returnToMatch&&<Link to=\"/coach-app?screen=match-day\" style={button_style}><ArrowLeft size={{18}}/>Return to Match</Link>}}"
 whiteboard = whiteboard[:open_end+1] + insert + whiteboard[open_end+1:]
-# Append standalone styling before final template-literal close.
-style_marker = "\n`\n"
-pos = whiteboard.rfind(style_marker)
-if pos < 0:
-    raise SystemExit('Missing Whiteboard styles close')
-return_css = "\n.cpw-return-match{position:fixed;z-index:2200;top:max(12px,env(safe-area-inset-top));right:max(14px,env(safe-area-inset-right));display:flex;align-items:center;gap:7px;min-height:44px;padding:10px 15px;border-radius:11px;background:#22c77a;color:#06130c;text-decoration:none;font-weight:950;text-transform:uppercase;box-shadow:0 4px 0 #0b7546,0 8px 22px rgba(0,0,0,.3)}.cpw-return-match:active{transform:translateY(4px);box-shadow:0 0 0 #0b7546,0 3px 8px rgba(0,0,0,.2)}.cpw-return-match svg{width:18px;height:18px}\n"
-whiteboard = whiteboard[:pos] + return_css + whiteboard[pos:]
 whiteboard_path.write_text(whiteboard)
 
 print('Connected Game Plan and Whiteboard return navigation to the live Match Day screen')
