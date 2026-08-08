@@ -12,9 +12,10 @@ import { matchReportRouter } from '../src/api/routes/match-report.js'
 import { whiteboardAnalysisRouter } from '../src/api/routes/whiteboard-analysis.js'
 import { whiteboardPlatformRouter } from '../src/api/routes/whiteboard-platform.js'
 import { whiteboardLearningRouter } from '../src/api/routes/whiteboard-learning.js'
+import { whiteboardLiveRouter } from '../src/api/routes/whiteboard-live.js'
 
 const app = express()
-app.use(express.json({ limit: '1mb' }))
+app.use(express.json({ limit: '8mb' }))
 app.use('/api/live-stream/realtime', liveRealtimeRouter)
 app.use('/api/live-stream', liveStreamRouter)
 app.use('/api/live-match/clubs/:clubId', augmentLiveMatchStream)
@@ -23,6 +24,7 @@ app.use('/api/match-report', matchReportRouter)
 app.use('/api/whiteboard-analysis', whiteboardAnalysisRouter)
 app.use('/api/whiteboard-platform', whiteboardPlatformRouter)
 app.use('/api/whiteboard-learning', whiteboardLearningRouter)
+app.use('/api/whiteboard-live', whiteboardLiveRouter)
 app.use(baseApp)
 
 export default app
