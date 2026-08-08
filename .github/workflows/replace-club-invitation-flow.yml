@@ -4,6 +4,7 @@ on:
     branches: [newone1]
     paths:
       - scripts/replace_club_invitation_flow.py
+      - scripts/fix_invitation_flow_types.py
       - .github/workflows/replace-club-invitation-flow.yml
 permissions:
   contents: write
@@ -17,7 +18,9 @@ jobs:
           ref: newone1
           fetch-depth: 0
       - name: Apply invitation replacement
-        run: python scripts/replace_club_invitation_flow.py
+        run: |
+          python scripts/replace_club_invitation_flow.py
+          python scripts/fix_invitation_flow_types.py
       - name: Install frontend
         run: npm ci
       - name: Install backend
