@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Check, ChevronRight, Save, Shield, Target, Users, Zap } from 'lucide-react'
 import { fetchClub, type ClubProfile } from '../lib/rankings'
+import CoachAppLoading from '../components/CoachAppLoading'
 
 type Fixture={id:string;leagueId:string;season:string;round:number|null;matchDate:string|null;homeClubId:string;homeClubName:string;awayClubId:string;awayClubName:string;venue?:string|null;venueName?:string|null;groundName?:string|null}
 type MvpRow={playerId:string|null;playerName:string;mvpPoints:number;rank:number;clubId:string}
@@ -45,7 +46,7 @@ export default function CoachAppGamePlan({clubId,clubName,token,fixture,returnTo
  const save=async()=>{setSaving(true);setMessage('');setError('');try{const next={...plan,updatedAt:new Date().toISOString()};localStorage.setItem(store,JSON.stringify(next));setPlan(next);setMessage('Game plan saved on this device.')}catch{setError('The game plan could not be saved.')}finally{setSaving(false)}}
  const selected=watch.filter(row=>plan.selectedPlayers.includes(row.key))
  const complete=plan.focus.length>0&&Boolean(plan.start)&&Boolean(plan.withBall)&&Boolean(plan.withoutBall)&&Boolean(plan.stoppage)
- if(loading)return <section className="cgp-state">Loading opposition plan…<style>{styles}</style></section>
+ if(loading)return <CoachAppLoading message="Opening game plan…"/>
  return <section className="cgp"><style>{styles}</style><div className="cgp-top"><button className={returnToMatch?'return-match':''} onClick={onExit}><ArrowLeft/>{returnToMatch?'Return to Match':'Coach Tools'}</button><div><span>{roundLabel}</span><h1>Game Plan</h1><p>{clubName} v {opponentName}{fixture?.matchDate?` · ${new Date(fixture.matchDate).toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}`:''}{fixture?.venue?` · ${fixture.venue}`:''}</p></div><button className="save" disabled={saving} onClick={()=>void save()}><Save/>{saving?'Saving':'Save'}</button></div>{message&&<div className="cgp-message ok">{message}</div>}{error&&<div className="cgp-message error">{error}</div>}
  <section className="opposition-card"><div><span>Opposition snapshot</span><h2>{opponentName}</h2><p>{opponent?.recentForm?.length?`Recent form ${opponent.recentForm.join(' ')}`:'Recent form not available'}</p></div><div className="snapshot"><b><small>Ladder</small>{opponent?.ladderPosition??'—'}</b><b><small>National</small>{opponent?.rank??'—'}</b><b><small>Rating</small>{opponent?.powerRating!=null?opponent.powerRating.toFixed(1):'—'}</b></div></section>
  <PlanSection icon={Target} step="1" title="Pick the three priorities" copy="Tap the main messages for the week."><div className="chips">{focusOptions.map(option=><button className={plan.focus.includes(option)?'selected':''} onClick={()=>toggleFocus(option)} key={option}>{plan.focus.includes(option)&&<Check/>}{option}</button>)}</div></PlanSection>

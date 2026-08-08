@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BookOpen, ChevronDown, ChevronUp, Copy, Dumbbell, Plus, Save, Trash2, X } from 'lucide-react'
+import CoachAppLoading from '../components/CoachAppLoading'
 
 type Drill={id:string;title:string;category:string|null;description:string|null;defaultMinutes:number}
 type Plan={id:string;planDate:string;title:string;startTime:string|null;location:string|null;focus:string|null;notes:string|null}
@@ -42,7 +43,7 @@ export default function CoachAppTrainingPlan({clubId,token,sessionNumber,fixture
  async function save(){setSaving(true);setError('');setMessage('');try{const r=await fetch(`/api/club-portal/training-plans/clubs/${encodeURIComponent(clubId)}/plans/${date}`,{method:'PUT',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({title,startTime,location,focus,notes,items})});const p=await r.json().catch(()=>({}));if(!r.ok)throw new Error(p.error||'Unable to save training plan');setMessage('Training plan saved to your library.');await load(date)}catch(e){setError(e instanceof Error?e.message:'Unable to save training plan')}finally{setSaving(false)}}
  async function deletePlan(){if(!plans.some(plan=>plan.planDate===date)||!window.confirm(`Delete the plan for ${dateLabel(date)}?`))return;setSaving(true);try{const r=await fetch(`/api/club-portal/training-plans/clubs/${encodeURIComponent(clubId)}/plans/${date}`,{method:'DELETE',headers});const p=await r.json().catch(()=>({}));if(!r.ok)throw new Error(p.error||'Unable to delete training plan');setMessage('Training plan deleted.');await load(date)}catch(e){setError(e instanceof Error?e.message:'Unable to delete training plan')}finally{setSaving(false)}}
  const total=items.reduce((sum,item)=>sum+Math.max(0,Number(item.durationMinutes)||0),0)
- if(loading)return <section className="catp-state"><style>{styles}</style><Dumbbell/><b>Opening training plans…</b></section>
+ if(loading)return <CoachAppLoading message="Opening training plans…"/>
  return <section className="catp"><style>{styles}</style>
   <div className="catp-tabs"><button className={view==='PLAN'?'active':''} onClick={()=>setView('PLAN')}><Dumbbell/>Plan</button><button className={view==='LIBRARY'?'active':''} onClick={()=>setView('LIBRARY')}><BookOpen/>Library <b>{plans.length}</b></button></div>
   {message&&<div className="catp-notice ok">{message}</div>}{error&&<div className="catp-notice error">{error}</div>}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Minus, Plus, RefreshCw, Wifi, WifiOff } from 'lucide-react'
+import CoachAppLoading from '../components/CoachAppLoading'
 
 type StatKey='inside50s'|'clearances'|'tackles'|'marks'|'rebound50s'|'onePercenters'|'freesAgainst'
 type TeamStats=Record<StatKey,number>
@@ -104,7 +105,7 @@ export default function CoachAppStats({clubId,sheetId,fixtureId,token,onExit}:Pr
   }
 
   const stats={...EMPTY_STATS,...(state?.teamStats||{})}
-  if(loading)return <main className="cast-state"><style>{styles}</style><RefreshCw className="spin"/><strong>Opening live stats…</strong></main>
+ if(loading)return <CoachAppLoading message="Opening live stats…"/>
   return <main className="cast"><style>{styles}</style>
     <header><div><span>Live match recorder</span><h1>Stats</h1><p>Tap as quickly as the game happens. Updates sync in the background.</p></div><div className={online?'online':'offline'}>{online?<Wifi/>:<WifiOff/>}{online?'Live':'Offline'}</div></header>
     <section className="cast-quarter"><span>Current quarter</span><strong>Q{state?.quarter||1}</strong><small>{syncing?'Syncing live…':'Ready for rapid entry'}</small></section>

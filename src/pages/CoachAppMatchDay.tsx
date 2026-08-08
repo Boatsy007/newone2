@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Download, Minus, Pause, Play, Plus, RefreshCw, SkipForward, Wifi, WifiOff, X } from 'lucide-react'
+import CoachAppLoading from '../components/CoachAppLoading'
 
 type Player = { id:string; clubPlayerId:string; playerName:string; jumperNumber:number|null; positionCode:string }
 type Sheet = { id:string; roundLabel:string; opponentName:string|null; matchDate:string|null; status:string; clubName?:string|null; clubLogoUrl?:string|null; players:Player[] }
@@ -121,8 +122,7 @@ export default function CoachAppMatchDay({clubId,sheetId,token,onBack,onGamePlan
   function saveReport(){const canvas=reportCanvas.current;if(!canvas)return;canvas.toBlob(blob=>{if(!blob)return;const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`${(sheet?.clubName||'team').replace(/[^a-z0-9]+/gi,'-').toLowerCase()}-${reportType}-report.png`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)},'image/png')}
 
   function toggleInjury(id:string){update(current=>{const slot=current.slots.find(item=>item.clubPlayerId===id);if(!slot||!INTERCHANGE_POSITIONS.has(slot.positionCode))return current;const injured=!slot.injured;const event:MatchEvent={id:crypto.randomUUID(),quarter:current.quarter,seconds:now(current),kind:'INJURY',label:`${slot.playerName} marked ${injured?'injured':'available'}`};return {...current,slots:current.slots.map(item=>item.clubPlayerId===id?{...item,injured}:item),events:[event,...current.events]}});if(navigator.vibrate)navigator.vibrate(40)}
-
-  if(loading)return <section className="camd-state"><style>{styles}</style><RefreshCw className="spin"/><b>Loading Match Day…</b></section>
+ if(loading)return <CoachAppLoading message="Opening Match Day…"/>
   if(error||!state||!sheet)return <section className="camd-state"><style>{styles}</style><b>{error||'Match Day unavailable'}</b><button onClick={onBack}>Return to Select Side</button></section>
   const seconds=now(state)
   const teamStats:TeamStats={...EMPTY_STATS,...(state.teamStats||{})}

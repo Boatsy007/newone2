@@ -10,6 +10,7 @@ import CoachAppFixturesResults from './CoachAppFixturesResults'
 import CoachAppLeagueLadder from './CoachAppLeagueLadder'
 import CoachAppGamePlan from './CoachAppGamePlan'
 import CoachAppStats from './CoachAppStats'
+import CoachAppLoading from '../components/CoachAppLoading'
 
 type Session = { access_token: string }
 type ClubChoice = { id: string; name: string; logoUrl: string | null; role: string }
@@ -107,7 +108,7 @@ export default function CoachApp(){
   }
 
   if(!session)return <main className="coach-login"><style>{styles}</style><section><div className="coach-mark">PF</div><span>PlayFooty Coach</span><h1>Coach Dashboard</h1><p>Sign in with your existing PlayFooty Club Portal account.</p><a href="/club-portal?returnTo=%2Fcoach-app"><LogIn size={19}/> Sign in</a><small>Your existing club permissions are used.</small></section></main>
-  if(loading)return <main className="coach-loading"><style>{styles}</style><RefreshCw className="spin"/><strong>Opening your team…</strong></main>
+ if(loading)return <CoachAppLoading message="Opening your team…"/>
   if(clubs.length)return <main className="coach-club-picker"><style>{styles}</style><section><span>PlayFooty Coach</span><h1>Choose a club</h1><p>Open any club you are authorised to manage.</p><div>{clubs.map(club=><button key={club.id} onClick={()=>chooseClub(club.id)}>{club.logoUrl?<img src={club.logoUrl} alt=""/>:<b>PF</b>}<i><strong>{club.name}</strong><small>{club.role.replaceAll('_',' ')}</small></i></button>)}</div><button className="logout" onClick={logout}>Log out</button></section></main>
   if(error&&!context)return <main className="coach-loading"><style>{styles}</style><ShieldCheck/><strong>{error}</strong><button onClick={()=>void loadContext()}>Try again</button><button onClick={logout}>Log out</button></main>
   if(!context)return null

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronRight, GripVertical, LogOut, Save, Users } from 'lucide-react'
+import CoachAppLoading from '../components/CoachAppLoading'
 
 const FIELD_ROWS = [
   ['FP_LEFT','FF','FP_RIGHT'],
@@ -161,8 +162,7 @@ export default function CoachAppSelectSide({ clubId, sheetId, token, onContinue,
     }catch(reason){setError(reason instanceof Error?reason.message:'Unable to save selection')}
     finally{setSaving(false)}
   }
-
-  if(loading)return <section className="cas-state">Loading your squad…</section>
+ if(loading)return <CoachAppLoading message="Opening team selection…"/>
 
   return <section className="cas-root" onPointerMove={pointerMove} onPointerUp={endPointerDrag} onPointerCancel={endPointerDrag}>
     <div className="cas-topline"><div><Users size={18}/><b>{selected.length} selected</b><span>{players.length} available</span></div><div className="cas-help">Drag a player into position, or tap two cards to swap.</div>{saved&&<span className="cas-saved"><Check size={15}/> Saved</span>}</div>

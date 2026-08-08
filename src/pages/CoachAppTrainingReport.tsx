@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Check, ChevronDown, ChevronUp, ClipboardCheck, Dumbbell, Save, ShieldAlert, Star, ThumbsDown, ThumbsUp, UserMinus, Users, X } from 'lucide-react'
+import CoachAppLoading from '../components/CoachAppLoading'
 
 type Status='ATTENDED'|'LATE'|'MODIFIED'|'EXCUSED'|'ABSENT'|'INJURED'
 type Performance='STANDOUT'|'SOLID'|'NEEDS_WORK'|'NOT_RATED'
@@ -158,8 +159,7 @@ export default function CoachAppTrainingReport({clubId,token,sessionNumber,fixtu
  const totals={attended:Object.values(entries).filter(item=>!['ABSENT','EXCUSED'].includes(item.status)).length,missed:Object.values(entries).filter(item=>['ABSENT','EXCUSED'].includes(item.status)).length,injured:Object.values(entries).filter(item=>item.status==='INJURED'||item.injuryDetail).length,standouts:Object.values(entries).filter(item=>item.performance==='STANDOUT').length}
  const activePlayer=players.find(player=>player.id===openPlayer)
  const activeEntry=openPlayer?entries[openPlayer]:undefined
-
- if(loading)return <section className="catr-state"><style>{styles}</style><ClipboardCheck/><b>Opening training report…</b></section>
+ if(loading)return <CoachAppLoading message="Opening training report…"/>
  return <section className="catr"><style>{styles}</style>
   <header className="catr-hero"><div><span>Match Flow · Step {sessionNumber===1?'2':'5'}</span><h1>Training Report</h1><p>Session {sessionNumber} · {dateLabel(date)}</p></div><label>Date<input type="date" value={date} onChange={event=>void load(event.target.value)}/></label></header>
   {message&&<div className="catr-notice ok">{message}</div>}{error&&<div className="catr-notice error">{error}</div>}

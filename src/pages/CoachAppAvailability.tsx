@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronRight, CircleHelp, LogOut, MessageCircle, RefreshCw, Search, X } from 'lucide-react'
+import CoachAppLoading from '../components/CoachAppLoading'
 
 type Status='AVAILABLE'|'UNAVAILABLE'|'UNSURE'|'TEST'|'UNLIKELY'|null
 type Player={id:string;playerName:string;jumperNumber:number|null;status:Status;reason:string|null;note:string|null;respondedAt:string|null;hasInvite:boolean}
@@ -72,8 +73,7 @@ export default function CoachAppAvailability({clubId,sheetId,token,onContinue,on
     return player.playerName.toLowerCase().includes(search.trim().toLowerCase())
   })
   const sheet=data?.sheets.find(item=>item.id===sheetId)
-
-  if(loading)return <section className="caa-state"><RefreshCw className="spin"/><b>Loading availability…</b><style>{styles}</style></section>
+ if(loading)return <CoachAppLoading message="Opening player availability…"/>
   return <section className="caa-root">
     <div className="caa-summary">
       <div><span>This week</span><h1>Player Availability</h1><p>{sheet?.roundLabel||'Current round'}{sheet?.opponentName?` · v ${sheet.opponentName}`:''}</p></div>
