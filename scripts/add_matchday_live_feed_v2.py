@@ -1,0 +1,43 @@
+from pathlib import Path
+
+path = Path('src/pages/CoachAppMatchDay.tsx')
+text = path.read_text()
+
+replacements = [
+("type MatchEvent = { id:string; quarter:number; seconds:number; kind:'SCORE'|'SWAP'|'QUARTER'|'INJURY'; label:string }", "type MatchEvent = { id:string; quarter:number; seconds:number; kind:'SCORE'|'SWAP'|'QUARTER'|'INJURY'|'UNDO'; label:string }"),
+("  const[rotation,setRotation]=useState<string[]>([])\n  const[loading,setLoading]=useState(true)", "  const[rotation,setRotation]=useState<string[]>([])\n  const[feedOpen,setFeedOpen]=useState(false)\n  const eventUndo=useRef(new Map<string,MatchState>())\n  const[loading,setLoading]=useState(true)"),
+("  function update(mutator:(current:MatchState)=>MatchState){setState(current=>current?mutator(current):current)}", "  function update(mutator:(current:MatchState)=>MatchState){setState(current=>current?mutator(current):current)}\n  function rememberEvent(eventId:string,current:MatchState){eventUndo.current.set(eventId,structuredClone(current));while(eventUndo.current.size>30){const oldest=eventUndo.current.keys().next().value;if(!oldest)break;eventUndo.current.delete(oldest)}}\n  function undoLatestEvent(){setState(current=>{if(!current?.events.length)return current;const latest=current.events[0];const snapshot=eventUndo.current.get(latest.id);if(!snapshot)return current;eventUndo.current.delete(latest.id);const event:MatchEvent={id:crypto.randomUUID(),quarter:snapshot.quarter,seconds:now(snapshot),kind:'UNDO',label:`Undid: ${latest.label}`};return {...snapshot,events:[event,...snapshot.events]}});setFeedOpen(false)}"),
+("const event:MatchEvent={id:crypto.randomUUID(),quarter,seconds:0,kind:'QUARTER',label:`Quarter ${quarter} started`};return {...tracked,quarter", "const event:MatchEvent={id:crypto.randomUUID(),quarter,seconds:0,kind:'QUARTER',label:`Quarter ${quarter} started`};rememberEvent(event.id,current);return {...tracked,quarter"),
+("const event:MatchEvent={id:crypto.randomUUID(),quarter:current.quarter,seconds:now(current),kind:'SCORE',label};return {...current", "const event:MatchEvent={id:crypto.randomUUID(),quarter:current.quarter,seconds:now(current),kind:'SCORE',label};rememberEvent(event.id,current);return {...current"),
+("const event:MatchEvent={id:crypto.randomUUID(),quarter:tracked.quarter,seconds:now(tracked),kind:'SWAP',label:`${first.playerName} swapped with ${second.playerName}`};return {...tracked", "const event:MatchEvent={id:crypto.randomUUID(),quarter:tracked.quarter,seconds:now(tracked),kind:'SWAP',label:`${first.playerName} swapped with ${second.playerName}`};rememberEvent(event.id,current);return {...tracked"),
+("const event:MatchEvent={id:crypto.randomUUID(),quarter:tracked.quarter,seconds:now(tracked),kind:'SWAP',label:`${path.length}-player rotation: ${names}`};\n      return {...tracked", "const event:MatchEvent={id:crypto.randomUUID(),quarter:tracked.quarter,seconds:now(tracked),kind:'SWAP',label:`${path.length}-player rotation: ${names}`};\n      rememberEvent(event.id,current)\n      return {...tracked"),
+("const event:MatchEvent={id:crypto.randomUUID(),quarter:current.quarter,seconds:now(current),kind:'INJURY',label:`${slot.playerName} marked ${injured?'injured':'available'}`};return {...current", "const event:MatchEvent={id:crypto.randomUUID(),quarter:current.quarter,seconds:now(current),kind:'INJURY',label:`${slot.playerName} marked ${injured?'injured':'available'}`};rememberEvent(event.id,current);return {...current"),
+]
+for old,new in replacements:
+    if old not in text:
+        raise SystemExit(f'missing required pattern: {old[:70]}')
+    text=text.replace(old,new,1)
+
+legend = '<small><i className="red"/> 0–2:30 <i className="orange"/> 2:30–5:00 <i className="green"/> 5:00+</small></section>'
+feed = '<small><i className="red"/> 0–2:30 <i className="orange"/> 2:30–5:00 <i className="green"/> 5:00+</small><MatchFeed events={state.events} canUndo={Boolean(state.events[0]&&eventUndo.current.has(state.events[0].id))} onUndo={undoLatestEvent} onViewAll={()=>setFeedOpen(true)}/></section>'
+if legend not in text:
+    raise SystemExit('interchange legend not found')
+text=text.replace(legend,feed,1)
+
+modal_anchor='    {reportOpen&&<div className="camd-report-modal">'
+feed_modal='    {feedOpen&&<div className="camd-feed-modal"><section><header><div><span>Live match history</span><h2>Match Feed</h2></div><button onClick={()=>setFeedOpen(false)}><X/></button></header><div className="camd-feed-list full">{state.events.length?state.events.map((event,index)=><article className={`feed-${event.kind.toLowerCase()}`} key={event.id}><time>Q{event.quarter} {formatTime(event.seconds)}</time><span>{event.label}</span>{index===0&&eventUndo.current.has(event.id)&&<button onClick={undoLatestEvent}>Undo this event</button>}</article>):<p>No match events recorded yet.</p>}</div></section></div>}\n'
+if modal_anchor not in text: raise SystemExit('report modal anchor missing')
+text=text.replace(modal_anchor,feed_modal+modal_anchor,1)
+
+component_anchor='function kpiStatus(value:number,target:number,lowerIsBetter=false)'
+feed_component='function MatchFeed({events,canUndo,onUndo,onViewAll}:{events:MatchEvent[];canUndo:boolean;onUndo:()=>void;onViewAll:()=>void}){const visible=events.slice(0,3);return <section className="camd-feed"><header><span>Live feed</span>{events.length>3&&<button onClick={onViewAll}>View all</button>}</header><div className="camd-feed-list">{visible.length?visible.map((event,index)=><article className={`feed-${event.kind.toLowerCase()}`} key={event.id}><time>Q{event.quarter} {formatTime(event.seconds)}</time><span>{event.label}</span>{index===0&&canUndo&&<button onClick={onUndo}>Undo</button>}</article>):<p>No events yet</p>}</div></section>}\n\n'
+if component_anchor not in text: raise SystemExit('component anchor missing')
+text=text.replace(component_anchor,feed_component+component_anchor,1)
+
+style_anchor='.camd-tools{display:none!important}'
+feed_styles='.camd-feed{width:100%;margin-top:10px;padding-top:9px;border-top:1px solid #263d4b}.camd-feed header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}.camd-feed header span{color:#39bfff;font-size:11px;font-weight:950;text-transform:uppercase}.camd-feed header button,.camd-feed-list article button{border:1px solid #3b5869;border-radius:6px;background:#132a38;padding:5px 7px;color:#fff;font-size:8px;font-weight:950;text-transform:uppercase}.camd-feed-list{display:grid;gap:5px}.camd-feed-list article{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:7px;padding:7px;border-left:3px solid #39bfff;border-radius:7px;background:#10222e}.camd-feed-list article.feed-score{border-left-color:#20d98b}.camd-feed-list article.feed-injury{border-left-color:#ff3348}.camd-feed-list article.feed-quarter{border-left-color:#ffb020}.camd-feed-list article.feed-undo{border-left-color:#b98cff}.camd-feed-list time{color:#83a1b3;font-size:8px;font-weight:950;white-space:nowrap}.camd-feed-list article span{overflow:hidden;font-size:9px;font-weight:800;line-height:1.15;text-overflow:ellipsis}.camd-feed-list p{margin:4px 0;color:#8196a3;font-size:9px}.camd-feed-modal{position:fixed;z-index:3100;inset:0;display:grid;place-items:center;padding:18px;background:rgba(0,0,0,.78);backdrop-filter:blur(8px)}.camd-feed-modal>section{width:min(760px,100%);max-height:90vh;overflow:auto;padding:16px;border:1px solid #315064;border-radius:18px;background:#0b1b26;box-shadow:0 24px 80px #000}.camd-feed-modal header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.camd-feed-modal header span{color:#39b8ff;font-size:10px;font-weight:950;text-transform:uppercase}.camd-feed-modal h2{margin:2px 0 0;font-family:\'Bebas Neue\',Impact,sans-serif;font-size:36px;text-transform:uppercase}.camd-feed-modal header button{display:grid;place-items:center;width:42px;height:42px;border:1px solid #385367;border-radius:10px;background:#122b3a;color:#fff}.camd-feed-list.full article{min-height:52px;padding:10px}.camd-feed-list.full article span{font-size:11px}\n'
+if style_anchor not in text: raise SystemExit('style anchor missing')
+text=text.replace(style_anchor,feed_styles+style_anchor,1)
+
+path.write_text(text)
+print('Match Day live feed added')
