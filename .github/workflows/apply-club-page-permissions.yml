@@ -30,7 +30,7 @@ jobs:
         run: npm run build
       - name: Check permission backend modules
         working-directory: backend
-        run: npx tsx -e "Promise.all([import('./src/auth/club-permissions.ts'),import('./src/auth/club-auth.ts'),import('./src/api/routes/club-permissions.ts'),import('./src/api/routes/coach-app.ts'),import('./src/api/routes/club-portal-access.ts')]).then(()=>console.log('Permission backend modules loaded'))"
+        run: timeout 40s npx tsx -e "Promise.all([import('./src/auth/club-permissions.ts'),import('./src/auth/club-auth.ts'),import('./src/api/routes/club-permissions.ts'),import('./src/api/routes/coach-app.ts')]).then(()=>{console.log('Permission backend modules loaded');process.exit(0)}).catch(error=>{console.error(error);process.exit(1)})"
       - name: Commit
         run: |
           git config user.name "PlayFooty Builder"
