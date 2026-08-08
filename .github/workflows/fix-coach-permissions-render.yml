@@ -1,0 +1,27 @@
+name: Fix Coach Permissions Render
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - scripts/fix-coach-permissions-render.py
+      - .github/workflows/fix-coach-permissions-render.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 1
+      - name: Apply render fix
+        run: python scripts/fix-coach-permissions-render.py
+      - name: Commit fix
+        run: |
+          git config user.name "PlayFooty Builder"
+          git config user.email "builder@playfooty.com.au"
+          git add src/pages/CoachApp.tsx
+          git commit -m "Render Coach App permissions page" || exit 0
+          git push origin newone1
