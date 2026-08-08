@@ -21,6 +21,15 @@ jobs:
           python-version: '3.x'
       - name: Apply permissions system
         run: python scripts/apply-club-page-permissions.py
+      - name: Fix generated screen narrowing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/pages/CoachApp.tsx')
+          text = path.read_text()
+          text = text.replace("screen!=='DASHBOARD'&&screen!=='CLUB_DASHBOARD'&&screen!=='PERMISSIONS'?", "screen!=='DASHBOARD'&&screen!=='CLUB_DASHBOARD'?")
+          path.write_text(text)
+          PY
       - name: Install frontend
         run: npm ci
       - name: Install backend
