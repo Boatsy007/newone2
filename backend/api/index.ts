@@ -13,6 +13,7 @@ import { whiteboardAnalysisRouter } from '../src/api/routes/whiteboard-analysis.
 import { whiteboardPlatformRouter } from '../src/api/routes/whiteboard-platform.js'
 import { whiteboardLearningRouter } from '../src/api/routes/whiteboard-learning.js'
 import { whiteboardLiveRouter } from '../src/api/routes/whiteboard-live.js'
+import { whiteboardIntelligenceRouter } from '../src/api/routes/whiteboard-intelligence.js'
 
 const app = express()
 app.use(express.json({ limit: '8mb' }))
@@ -25,6 +26,7 @@ app.use('/api/whiteboard-analysis', whiteboardAnalysisRouter)
 app.use('/api/whiteboard-platform', whiteboardPlatformRouter)
 app.use('/api/whiteboard-learning', whiteboardLearningRouter)
 app.use('/api/whiteboard-live', whiteboardLiveRouter)
+app.use('/api/whiteboard-intelligence', whiteboardIntelligenceRouter)
 app.use(baseApp)
 
 export default app
