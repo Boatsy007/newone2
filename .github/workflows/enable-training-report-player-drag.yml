@@ -1,4 +1,4 @@
-name: Connect Canonical Coach App Fixture Flow
+name: Build Responsive Coach Match Day
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Connect canonical fixture flow
-        run: python scripts/connect-coach-app-canonical-fixture-flow.py
+      - name: Apply responsive Match Day layout
+        run: python scripts/update-coach-match-day-responsive-kpis.py
       - name: Install frontend
         run: npm ci
       - name: Install backend
@@ -27,6 +27,6 @@ jobs:
         run: |
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
-          git add backend/src/api/routes/coach-app.ts src/pages/CoachApp.tsx src/pages/CoachAppGamePlan.tsx
-          git commit -m 'Connect Match Flow to canonical upcoming fixture' || exit 0
+          git add src/pages/CoachAppMatchDay.tsx src/pages/CoachApp.tsx
+          git commit -m 'Build responsive Match Day layout with live KPI panels' || exit 0
           git push origin HEAD:newone1
