@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 
+# Applies one full-screen loading experience across every current Coach App page.
 FILES = {
     'src/pages/CoachApp.tsx': 'Opening your team…',
     'src/pages/CoachAppTrainingPlan.tsx': 'Opening training plans…',
@@ -35,7 +36,6 @@ for filename, message in FILES.items():
     updated, count = pattern.subn(replacement, text, count=1)
 
     if count == 0:
-        # Some pages use a compact early return without parentheses around a compound condition.
         pattern = re.compile(r'^\s*if[^\n]*loading[^\n]*return\s+<[^\n]+$', re.MULTILINE)
         updated, count = pattern.subn(replacement, text, count=1)
 
