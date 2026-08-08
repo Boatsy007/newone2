@@ -17,6 +17,8 @@ jobs:
           python-version: '3.x'
       - name: Add AI match report workflow
         run: python scripts/add-ai-match-report.py
+      - name: Remove obsolete Full Stats prop
+        run: python scripts/fix-ai-match-report-prop.py
       - name: Install frontend
         run: npm ci
       - name: Install backend
@@ -29,6 +31,6 @@ jobs:
         run: |
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
-          git add src/pages/CoachAppMatchDay.tsx backend/api/index.ts backend/.env.example
+          git add src/pages/CoachApp.tsx src/pages/CoachAppMatchDay.tsx backend/api/index.ts backend/.env.example
           git commit -m 'Generate branded AI quarter and match reports' || exit 0
           git push origin HEAD:newone1
