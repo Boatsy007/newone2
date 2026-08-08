@@ -21,26 +21,26 @@ for filename, message in FILES.items():
     path = Path(filename)
     if not path.exists():
         raise SystemExit(f'Missing expected Coach App page: {filename}')
-    text = path.read_text()
+    original = path.read_text()
+    replacement = f" if(loading)return <CoachAppLoading message=\"{message}\"/>"
 
-    if IMPORT not in text:
-        lines = text.splitlines()
+    pattern = re.compile(r'^\s*if\([^\n]*loading[^\n]*\)return\s+<[^\n]+$', re.MULTILINE)
+    updated, count = pattern.subn(replacement, original, count=1)
+    if count == 0:
+        pattern = re.compile(r'^\s*if[^\n]*loading[^\n]*return\s+<[^\n]+$', re.MULTILINE)
+        updated, count = pattern.subn(replacement, original, count=1)
+
+    if count == 0:
+        print(f'Skipped {filename}: no standalone loading screen')
+        continue
+
+    if IMPORT not in updated:
+        lines = updated.splitlines()
         insert_at = 0
         while insert_at < len(lines) and lines[insert_at].startswith('import '):
             insert_at += 1
         lines.insert(insert_at, IMPORT)
-        text = '\n'.join(lines) + ('\n' if text.endswith('\n') else '')
-
-    replacement = f" if(loading)return <CoachAppLoading message=\"{message}\"/>"
-    pattern = re.compile(r'^\s*if\([^\n]*loading[^\n]*\)return\s+<[^\n]+$', re.MULTILINE)
-    updated, count = pattern.subn(replacement, text, count=1)
-
-    if count == 0:
-        pattern = re.compile(r'^\s*if[^\n]*loading[^\n]*return\s+<[^\n]+$', re.MULTILINE)
-        updated, count = pattern.subn(replacement, text, count=1)
-
-    if count == 0:
-        raise SystemExit(f'No loading early return found in {filename}')
+        updated = '\n'.join(lines) + ('\n' if updated.endswith('\n') else '')
 
     path.write_text(updated)
     print(f'Updated {filename}')
