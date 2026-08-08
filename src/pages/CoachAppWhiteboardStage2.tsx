@@ -331,4 +331,71 @@ const styles=`
 .tools button,.timeline button,.wb-primary-actions button{min-width:44px;min-height:44px}.tools button:disabled,.timeline button:disabled{opacity:.32!important;cursor:not-allowed!important}
 @media(max-width:900px) and (orientation:portrait){.cawb2{grid-template-rows:58px minmax(0,1fr)!important}.wb-topbar{height:58px!important;min-height:58px!important;padding:6px 8px!important}.wb-title span{display:none}.wb-title b{font-size:12px}.cawb2 .workspace,.cawb2 .cawb2-workspace{grid-template-columns:1fr!important;grid-template-rows:minmax(0,1fr) 82px 58px!important}.cawb2 .tools,.cawb2 aside.tools{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;min-width:0!important;height:58px!important;min-height:58px!important;grid-column:auto!important;grid-row:auto!important;flex-direction:row!important;justify-content:center!important;overflow-x:auto!important;border-right:0!important;border-top:1px solid #173844!important;padding:5px 8px!important;z-index:45!important}.cawb2 .tools hr{width:1px;height:38px;margin:4px 2px}.cawb2 .tools button{width:46px!important;min-width:46px!important;height:46px!important;min-height:46px!important}.cawb2 .board,.cawb2 .cawb2-board,.board-wrap{grid-column:1!important;grid-row:1!important;padding:4px!important}.cawb2 .timeline,.cawb2 .cawb2-timeline{grid-column:1!important;grid-row:2!important;height:82px!important;min-height:82px!important;padding:5px 8px!important;margin-bottom:58px!important}.timeline .frame-card{width:88px!important;min-width:88px!important;height:66px!important;grid-template-rows:43px 13px!important}.frame-thumb{height:43px}.frame-actions{display:none!important}.play-controls label,.play-controls .active{display:none!important}.drawing-controls{left:8px!important;right:8px!important;top:64px!important}.player-drawer{left:0!important;top:58px!important;width:100vw!important;bottom:58px!important}.wb-empty-board>div{max-width:270px;padding:17px}.legend{bottom:88px!important}}
 @media(prefers-reduced-motion:reduce){.cawb2 *,.cawb2 *::before,.cawb2 *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* Whiteboard direct-layout visibility repair */
+.cawb2:not(.presenting){
+  display:grid!important;
+  grid-template-columns:68px minmax(0,1fr)!important;
+  grid-template-rows:64px minmax(0,1fr) 92px!important;
+  height:100dvh!important;
+  min-height:100dvh!important;
+  overflow:hidden!important;
+}
+.cawb2:not(.presenting)>.wb-topbar{
+  grid-column:1 / -1!important;
+  grid-row:1!important;
+}
+.cawb2:not(.presenting)>.tools{
+  position:relative!important;
+  inset:auto!important;
+  grid-column:1!important;
+  grid-row:2 / 4!important;
+  width:68px!important;
+  min-width:68px!important;
+  height:auto!important;
+  min-height:0!important;
+  overflow-y:auto!important;
+}
+.cawb2:not(.presenting)>.board-wrap{
+  grid-column:2!important;
+  grid-row:2!important;
+  width:100%!important;
+  height:100%!important;
+  min-width:0!important;
+  min-height:0!important;
+  padding:8px!important;
+  overflow:hidden!important;
+}
+.cawb2:not(.presenting)>.board-wrap>svg{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  min-width:0!important;
+  min-height:0!important;
+  visibility:visible!important;
+  opacity:1!important;
+}
+.cawb2:not(.presenting)>.timeline{
+  grid-column:2!important;
+  grid-row:3!important;
+  width:100%!important;
+  height:92px!important;
+  min-height:92px!important;
+  margin:0!important;
+  overflow:hidden!important;
+}
+.cawb2.presenting>.board-wrap{
+  width:100%!important;
+  height:100%!important;
+  min-width:0!important;
+  min-height:0!important;
+}
+@media(max-width:900px) and (orientation:landscape){
+  .cawb2:not(.presenting){
+    grid-template-columns:64px minmax(0,1fr)!important;
+    grid-template-rows:58px minmax(0,1fr) 100px!important;
+  }
+  .cawb2:not(.presenting)>.tools{width:64px!important;min-width:64px!important}
+  .cawb2:not(.presenting)>.timeline{height:100px!important;min-height:100px!important}
+}
 `
