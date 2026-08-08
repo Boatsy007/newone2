@@ -77,6 +77,24 @@ export default function CoachAppMatchDay({clubId,sheetId,token,onBack,onGamePlan
   useEffect(()=>{const timer=window.setInterval(()=>setTick(value=>value+1),1000);return()=>window.clearInterval(timer)},[])
   useEffect(()=>{let live=true;setLoading(true);setError('');Promise.all([fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`,{headers}),fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{headers})]).then(async([sheetResponse,stateResponse])=>{const sheetPayload=await sheetResponse.json().catch(()=>({}));const statePayload=await stateResponse.json().catch(()=>({}));if(!sheetResponse.ok)throw new Error(sheetPayload.error||'Unable to load selected side');if(!stateResponse.ok)throw new Error(statePayload.error||'Unable to load Match Day');const current=(Array.isArray(sheetPayload.data)?sheetPayload.data:[]).find((item:Sheet)=>item.id===sheetId) as Sheet|undefined;if(!current)throw new Error('The active team sheet could not be found');const existing=statePayload.data?.state as MatchState|undefined;const previous=existing?normalise(existing):null;const slots=current.players.map(player=>{const saved=previous?.slots.find(slot=>slot.clubPlayerId===player.clubPlayerId);const onGround=isOnGround(player.positionCode);return {...player,onGround,plusMinus:saved?.plusMinus??0,goals:saved?.goals??0,behinds:saved?.behinds??0,onGroundSeconds:saved?.onGroundSeconds??0,benchEnteredAt:onGround?null:(saved?.positionCode===player.positionCode?saved.benchEnteredAt:null),injured:saved?.injured??false}});const next=previous?{...previous,sheetId,slots}:{sheetId,quarter:1,elapsed:0,runningSince:null,homeGoals:0,homeBehinds:0,awayGoals:0,awayBehinds:0,slots,events:[],totalTrackedSeconds:0,trackingUpdatedAt:null,teamStats:{...EMPTY_STATS}};if(live){setSheet(current);setState(next)}}).catch(value=>{if(live)setError(value instanceof Error?value.message:'Unable to load Match Day')}).finally(()=>{if(live)setLoading(false)});return()=>{live=false}},[clubId,sheetId,headers])
   useEffect(()=>{if(!state?.runningSince)return;const timer=window.setInterval(()=>{const currentTime=Date.now();setState(current=>{if(!current?.runningSince)return current;const previous=current.trackingUpdatedAt||currentTime;const delta=Math.max(0,Math.floor((currentTime-previous)/1000));if(delta<1)return current;return {...current,trackingUpdatedAt:previous+delta*1000,totalTrackedSeconds:current.totalTrackedSeconds+delta,slots:current.slots.map(slot=>slot.onGround?{...slot,onGroundSeconds:slot.onGroundSeconds+delta}:slot)}})},1000);return()=>window.clearInterval(timer)},[state?.runningSince])
+
+  useEffect(()=>{
+    if(!sheet)return
+    let cancelled=false
+    const refresh=async()=>{
+      try{
+        const response=await fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{headers,cache:'no-store'})
+        const payload=await response.json().catch(()=>({}))
+        const remote=payload.data?.state as MatchState|undefined
+        if(cancelled||!response.ok||!remote)return
+        const remoteStats={...EMPTY_STATS,...(remote.teamStats||{})}
+        setState(current=>current?{...current,teamStats:remoteStats}:current)
+      }catch{}
+    }
+    const timer=window.setInterval(()=>void refresh(),1500)
+    return()=>{cancelled=true;window.clearInterval(timer)}
+  },[clubId,sheetId,headers,sheet])
+
   useEffect(()=>{if(!state||!sheet)return;setSync('saving');const timer=window.setTimeout(()=>{fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{method:'PUT',headers:jsonHeaders,body:JSON.stringify({state})}).then(async response=>{const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||'Unable to save Match Day');setSync('saved')}).catch(()=>setSync('error'))},350);return()=>window.clearTimeout(timer)},[state,sheet,clubId,sheetId,jsonHeaders])
   useEffect(()=>{if(!state||!sheet)return;const elapsedSeconds=state.elapsed+(state.runningSince?Math.floor((Date.now()-state.runningSince)/1000):0);const publicLive=Boolean(state.runningSince||state.elapsed||state.events.length||state.homeGoals||state.homeBehinds||state.awayGoals||state.awayBehinds);const timer=window.setTimeout(()=>{fetch(`/api/live-match/clubs/${encodeURIComponent(clubId)}`,{method:'PUT',headers:jsonHeaders,body:JSON.stringify({teamSheetId:sheetId,roundLabel:sheet.roundLabel,opponentName:sheet.opponentName,matchDate:sheet.matchDate,quarter:state.quarter,elapsedSeconds,clockRunning:Boolean(state.runningSince),homeGoals:state.homeGoals,homeBehinds:state.homeBehinds,awayGoals:state.awayGoals,awayBehinds:state.awayBehinds,status:publicLive?'LIVE':'HIDDEN',lastEvent:state.events[0]?.label||null})}).catch(()=>undefined)},500);return()=>window.clearTimeout(timer)},[state,sheet,clubId,sheetId,jsonHeaders])
 
