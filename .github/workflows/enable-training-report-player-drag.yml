@@ -1,4 +1,4 @@
-name: Build Responsive Coach Match Day
+name: Build Portrait Match Day KPI Sidebar
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Apply responsive Match Day layout
-        run: python scripts/update-coach-match-day-responsive-kpis.py
+      - name: Apply portrait KPI sidebar layout
+        run: python scripts/set-match-day-portrait-kpi-sidebar.py
       - name: Install frontend
         run: npm ci
       - name: Install backend
@@ -27,6 +27,6 @@ jobs:
         run: |
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
-          git add src/pages/CoachAppMatchDay.tsx src/pages/CoachApp.tsx
-          git commit -m 'Build responsive Match Day layout with live KPI panels' || exit 0
+          git add src/pages/CoachAppMatchDay.tsx
+          git commit -m 'Use Select Side layout with KPI sidebar on portrait Match Day' || exit 0
           git push origin HEAD:newone1
