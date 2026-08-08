@@ -1,0 +1,38 @@
+name: Replace Club Invitation Flow
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - scripts/replace_club_invitation_flow.py
+      - .github/workflows/replace-club-invitation-flow.yml
+permissions:
+  contents: write
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Apply invitation replacement
+        run: python scripts/replace_club_invitation_flow.py
+      - name: Install frontend
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+      - name: Install backend
+        working-directory: backend
+        run: npm ci
+      - name: Validate changed backend routes
+        working-directory: backend
+        run: npx tsx -e "import('./src/api/routes/portal-auth.ts'); import('./src/api/routes/club-permissions.ts'); import('./src/auth/club-permissions.ts')"
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src/auth/club-permissions.ts backend/src/api/routes/club-permissions.ts backend/src/api/routes/portal-auth.ts src/pages/CoachAppJoin.tsx src/main.tsx src/lib/portalAuth.ts src/pages/ClubPortal.tsx src/pages/CoachAppPermissions.tsx
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Replace club invitation flow with app onboarding"
+          git push origin HEAD:newone1
