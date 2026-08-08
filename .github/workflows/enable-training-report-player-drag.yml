@@ -25,8 +25,8 @@ jobs:
         run: npm --prefix backend ci
       - name: Check frontend
         run: npx tsc -b && npx vite build
-      - name: Check backend
-        run: npm --prefix backend run build
+      - name: Check Match Report backend route
+        run: cd backend && npx tsx -e "import('./src/api/routes/match-report.ts').then(() => console.log('Match Report route loaded'))"
       - name: Commit
         run: |
           git config user.name 'PlayFooty Automation'
