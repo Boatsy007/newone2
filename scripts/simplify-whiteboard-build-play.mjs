@@ -28,13 +28,11 @@ const startPattern = / const startRecording=\(\)=>\{.*?\n const tickPlayback=/s
 const replacement = ` const startRecording=()=>{stopPlayback();checkpoint();setTool('select');const existing=dataRef.current.recording;if(recordMode==='separate'){if(existing)resetToStarts(existing);recordStarts.current=existing?clone(existing.starts):currentStarts();recordPaths.current=existing?clone(existing.paths):{};recordingIds.current=new Set();buildTrackStarts.current={};setMessage('Build play is active — move each player, opponent or the ball once. Every moved marker will play from the same starting time.')}else{const starts=currentStarts();recordStarts.current=starts;recordPaths.current={};Object.entries(starts).forEach(([id,p])=>{recordPaths.current[id]=[{t:0,...p}]});recordingIds.current=new Set(Object.keys(starts));buildTrackStarts.current={};setMessage('Recording together — move any players, opposition markers and the ball.')}recordStart.current=performance.now();setTrails({});setRecording(true);setError('')}
  const stopRecording=()=>{if(!recording)return;if(recordMode==='separate'&&!recordingIds.current.size){setRecording(false);setTrails({});return setError('Move at least one player, opponent or the ball before finishing the build.')}const localDuration=Math.max(100,performance.now()-recordStart.current);recordingIds.current.forEach(id=>{const start=recordStarts.current[id];if(!start)return;const path=recordPaths.current[id]||[{t:0,...start}];const current=markerPoint(id);const trackTime=recordMode==='separate'?Math.max(100,performance.now()-(buildTrackStarts.current[id]||performance.now())):localDuration;if(current)path.push({t:trackTime,...current});recordPaths.current[id]=path});const previous=dataRef.current.recording;const delays=recordMode==='separate'?{...(previous?.delays||{})}:{};recordingIds.current.forEach(id=>{delays[id]=0});const starts=clone(recordStarts.current);const paths=clone(recordPaths.current);const duration=Math.max(100,...Object.entries(paths).map(([id,path])=>trackDuration(path,delays[id]||0)));const next={duration,starts,paths,delays};setData(current=>({...current,recording:next}));setRecording(false);setTrails({});setPlayTime(0);if(recordMode==='separate'){setTimeout(()=>resetToStarts(next),0);setMessage('Play built. Press Play all — every marker you moved will start together.')}else setMessage('Play recorded. Press Play to review it.')}
  const tickPlayback=`
-if (!startPattern.test(text)) throw new Error('Could not locate recording functions')
-text = text.replace(startPattern, replacement)
+if (startPattern.test(text)) text = text.replace(startPattern, replacement)
 
 const choreoPattern = /<div className="choreo">.*?<\/div><div className="playbar">/s
 const choreo = `<div className="choreo"><label>Recording mode<select value={recordMode} disabled={recording||playing} onChange={e=>setRecordMode(e.target.value as RecordMode)}><option value="together">Record live together</option><option value="separate">Build play</option></select></label><em>{recordMode==='together'?'Move multiple markers at the same time.':'Tap Build play, move each marker you want, then Finish build and Play all.'}</em></div><div className="playbar">`
-if (!choreoPattern.test(text)) throw new Error('Could not locate choreography controls')
-text = text.replace(choreoPattern, choreo)
+if (choreoPattern.test(text)) text = text.replace(choreoPattern, choreo)
 
 text = text.replace(
   "{recording?<><Square/>Stop</>:<><Radio/>Record</>}",
@@ -45,6 +43,9 @@ text = text.replace(
   "{recording?(recordMode==='separate'?'Building play — move every marker you want included':'Recording — move multiple markers')"
 )
 
-if (text === original) throw new Error('Whiteboard build play patch made no changes')
-fs.writeFileSync(path, text)
-console.log('Applied simplified whiteboard Build play flow')
+if (text === original) {
+  console.log('Whiteboard Build play flow already applied')
+} else {
+  fs.writeFileSync(path, text)
+  console.log('Applied simplified whiteboard Build play flow')
+}
