@@ -14,7 +14,7 @@
   "categories": ["sports", "productivity"],
   "icons": [
     {
-      "src": "/playfooty-coach-icon.svg",
+      "src": "/playfooty-coach-icon.svg?v=20260808",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
