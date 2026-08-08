@@ -3,6 +3,9 @@ export type PortalClubAccount = {
   clubName: string
   logoUrl?: string | null
   role: string
+  permissions?: string[]
+  defaultPage?: string
+  legacyPortal?: boolean
 }
 
 export type PortalLeagueAccount = {

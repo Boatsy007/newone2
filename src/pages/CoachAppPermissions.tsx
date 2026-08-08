@@ -6,7 +6,7 @@ type PermissionKey =
   | 'coaching.dashboard'|'coaching.training-plan'|'coaching.training-report'|'coaching.availability'
   | 'coaching.select-team'|'coaching.game-plan'|'coaching.match-day'|'coaching.fixtures-results'
   | 'coaching.league-ladder'|'coaching.stats'|'studio.access'|'website.access'|'operations.access'
-  | 'analytics.access'|'permissions.manage'
+  | 'analytics.access'|'permissions.manage'|'legacy.portal'
 type Preset='FULL_ADMIN'|'COACH'|'ASSISTANT_COACH'|'STATS_RECORDER'|'OPERATIONS_VOLUNTEER'|'MEDIA_STUDIO'|'CUSTOM'
 type Member={id:string;userId:string;email:string;role:string;status:string;preset:Preset|null;permissions:PermissionKey[];effectivePermissions:PermissionKey[];applicantName?:string|null;updatedAt?:string}
 type Invitation={id:string;email:string;preset:Preset|null;permissions:PermissionKey[];expiresAt:string;acceptedAt:string|null;revokedAt:string|null}
@@ -18,13 +18,13 @@ const labels:Record<PermissionKey,string>={
   'coaching.availability':'Player availability','coaching.select-team':'Select team','coaching.game-plan':'Game plan',
   'coaching.match-day':'Match Day','coaching.fixtures-results':'Fixtures & results','coaching.league-ladder':'League ladder',
   'coaching.stats':'Live stats entry','studio.access':'Studio','website.access':'Website','operations.access':'Operations',
-  'analytics.access':'Analytics','permissions.manage':'Manage permissions',
+  'analytics.access':'Analytics','permissions.manage':'Manage permissions','legacy.portal':'Legacy Club Portal',
 }
 const presetLabels:Record<Preset,string>={FULL_ADMIN:'Full Administrator',COACH:'Coach',ASSISTANT_COACH:'Assistant Coach',STATS_RECORDER:'Stats Recorder',OPERATIONS_VOLUNTEER:'Operations Volunteer',MEDIA_STUDIO:'Media / Studio',CUSTOM:'Custom'}
 const groups=[
   {title:'Coaching',keys:Object.keys(labels).filter(k=>k.startsWith('coaching.')) as PermissionKey[]},
   {title:'Club areas',keys:['studio.access','website.access','operations.access','analytics.access'] as PermissionKey[]},
-  {title:'Administration',keys:['permissions.manage'] as PermissionKey[]},
+  {title:'Administration',keys:['permissions.manage','legacy.portal'] as PermissionKey[]},
 ]
 
 export default function CoachAppPermissions({clubId,token,onExit}:Props){

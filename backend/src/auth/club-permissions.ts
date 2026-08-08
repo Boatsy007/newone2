@@ -14,6 +14,7 @@ export const CLUB_PERMISSION_KEYS = [
   'operations.access',
   'analytics.access',
   'permissions.manage',
+  'legacy.portal',
 ] as const
 
 export type ClubPermissionKey = typeof CLUB_PERMISSION_KEYS[number]

@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto'
 import { Router } from 'express'
 import { publicRateLimit } from '../middleware/rate-limit.js'
 import { acceptClubInvitation, membershipsForUser, type AuthenticatedClubUser } from '../../auth/club-auth.js'
 import { acceptLeagueInvitation, membershipsForLeagueUser } from '../../auth/league-auth.js'
 import { prisma } from '../../db/client.js'
+import { defaultPermissionPage, effectiveClubPermissions } from '../../auth/club-permissions.js'
 
 const router = Router()
 router.use(publicRateLimit)
@@ -48,6 +50,29 @@ async function supabaseRequest(path: string, body: Record<string, unknown>, auth
   return { status: response.status, payload }
 }
 
+async function supabaseAdminCreateUser(email:string,password:string) {
+  const url=String(process.env.SUPABASE_URL??process.env.VITE_SUPABASE_URL??'').replace(/\/$/,'')
+  const serviceKey=String(process.env.SUPABASE_SERVICE_ROLE_KEY??'')
+  if(!url||!serviceKey)throw Object.assign(new Error('PlayFooty account creation is temporarily unavailable'),{status:503})
+  const response=await fetch(`${url}/auth/v1/admin/users`,{method:'POST',headers:{apikey:serviceKey,authorization:`Bearer ${serviceKey}`,'content-type':'application/json'},body:JSON.stringify({email,password,email_confirm:true,user_metadata:{source:'playfooty_club_invitation'}}),signal:AbortSignal.timeout(8000)})
+  const payload=await response.json().catch(()=>({})) as Record<string,unknown>
+  if(!response.ok){const message=String(payload.msg??payload.message??payload.error??'Unable to create account');throw Object.assign(new Error(message),{status:response.status})}
+  return payload
+}
+
+const inviteHash=(token:string)=>createHash('sha256').update(token).digest('hex')
+async function invitationDetails(token:string){
+  const rows=await prisma.$queryRawUnsafe<Array<{id:string;clubId:string;email:string;preset:string|null;permissions:string[];expiresAt:Date;clubName:string;clubLogoUrl:string|null}>>(`SELECT i.id,i.club_id AS "clubId",i.email,i.preset,i.permissions,i.expires_at AS "expiresAt",c.name AS "clubName",c.logo_url AS "clubLogoUrl" FROM club_portal_invitations i JOIN "Club" c ON c.id=i.club_id WHERE i.token_hash=$1 AND i.revoked_at IS NULL AND i.accepted_at IS NULL AND i.expires_at>NOW() LIMIT 1`,inviteHash(token))
+  return rows[0]??null
+}
+async function clubAccountsFor(user:AuthenticatedClubUser){
+  const memberships=(await membershipsForUser(user.id)).filter(item=>item.status==='ACTIVE')
+  const clubIds=[...new Set(memberships.map(item=>item.clubId))]
+  const clubs=clubIds.length?await prisma.club.findMany({where:{id:{in:clubIds},archivedAt:null},select:{id:true,name:true,logoUrl:true}}):[]
+  const byId=new Map(clubs.map(club=>[club.id,club]))
+  return memberships.map(membership=>{const permissions=effectiveClubPermissions(membership);return {clubId:membership.clubId,clubName:byId.get(membership.clubId)?.name??'Club',logoUrl:byId.get(membership.clubId)?.logoUrl??null,role:membership.role,permissions,defaultPage:defaultPermissionPage(permissions),legacyPortal:permissions.includes('legacy.portal')}})
+}
+
 async function relayAuth(res: import('express').Response, path: string, body: Record<string, unknown>, authorization?: string, method: 'POST' | 'PUT' = 'POST') {
   try {
     const result = await supabaseRequest(path, body, authorization, method)
@@ -75,6 +100,26 @@ function authenticatedUser(auth: AuthPayload, fallbackEmail: string): Authentica
   }
 }
 
+router.get('/club-invite/:token',async(req,res)=>{
+  try{const token=String(req.params.token??'').trim();if(!token)return res.status(400).json({error:'Invitation token is required'});const invite=await invitationDetails(token);if(!invite)return res.status(404).json({error:'This invitation is invalid, expired or has already been used'});return res.json({data:{email:invite.email,clubName:invite.clubName,clubLogoUrl:invite.clubLogoUrl,preset:invite.preset,permissions:invite.permissions,expiresAt:invite.expiresAt}})}catch(reason){return res.status(500).json({error:reason instanceof Error?reason.message:'Unable to open invitation'})}
+})
+
+router.post('/club-invite/:token/accept',async(req,res)=>{
+  const token=String(req.params.token??'').trim(),email=String(req.body?.email??'').trim().toLowerCase(),password=String(req.body?.password??''),mode=String(req.body?.mode??'signin')
+  if(!token||!email||password.length<8)return res.status(400).json({error:'Email and a password of at least 8 characters are required'})
+  try{
+    const invite=await invitationDetails(token);if(!invite)return res.status(404).json({error:'This invitation is invalid, expired or has already been used'})
+    if(invite.email!==email)return res.status(403).json({error:'Use the email address that received this invitation'})
+    if(mode==='signup')await supabaseAdminCreateUser(email,password)
+    const result=await supabaseRequest('token?grant_type=password',{email,password})
+    const auth=result.payload as AuthPayload,user=authenticatedUser(auth,email)
+    const membership=await acceptClubInvitation(user,token);if(!membership)return res.status(404).json({error:'This invitation could not be accepted'})
+    const accounts=await clubAccountsFor(user)
+    const accepted=accounts.find(account=>account.clubId===invite.clubId)
+    return res.json({...auth,club_accounts:accounts,accepted_club:accepted,redirect:'/coach-app'})
+  }catch(reason){const error=reason as Error&{status?:number};const message=error.message.includes('already been registered')?'A PlayFooty account already exists for this email. Choose “I already have an account” and sign in.':error.message;return res.status(error.status??503).json({error:message||'Unable to join this club'})}
+})
+
 router.post('/signin', async (req, res) => {
   const email = String(req.body?.email ?? '').trim().toLowerCase(), password = String(req.body?.password ?? '')
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' })
@@ -92,19 +137,7 @@ router.post('/signin-club', async (req, res) => {
     const user = authenticatedUser(auth, email)
     if (invite) await acceptClubInvitation(user, invite)
 
-    const memberships = (await membershipsForUser(user.id)).filter(item => item.status === 'ACTIVE')
-    const clubIds = [...new Set(memberships.map(item => item.clubId))]
-    const clubs = clubIds.length
-      ? await prisma.club.findMany({ where: { id: { in: clubIds }, archivedAt: null }, select: { id: true, name: true, logoUrl: true } })
-      : []
-    const clubById = new Map(clubs.map(club => [club.id, club]))
-    const clubAccounts = memberships.map(membership => ({
-      clubId: membership.clubId,
-      clubName: clubById.get(membership.clubId)?.name ?? 'Club',
-      logoUrl: clubById.get(membership.clubId)?.logoUrl ?? null,
-      role: membership.role,
-    }))
-
+    const clubAccounts=await clubAccountsFor(user)
     return res.json({ ...auth, club_accounts: clubAccounts })
   } catch (reason) {
     const error = reason as Error & { status?: number }
