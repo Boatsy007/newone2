@@ -1,0 +1,35 @@
+name: Enable Whiteboard Stage 2
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - src/pages/CoachAppWhiteboardStage2.tsx
+      - scripts/enable_whiteboard_stage2.py
+      - .github/workflows/enable-whiteboard-stage2.yml
+permissions:
+  contents: write
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Enable Stage 2
+        run: python scripts/enable_whiteboard_stage2.py
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm --prefix backend ci
+      - name: Build frontend
+        run: npm run build
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CoachApp.tsx
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Enable animated Stage 2 whiteboard"
+          git push origin HEAD:newone1
