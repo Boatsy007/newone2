@@ -3,7 +3,7 @@ on:
   push:
     branches: [newone1]
     paths:
-      - scripts/add_matchday_live_feed.py
+      - scripts/add_matchday_live_feed_v2.py
       - .github/workflows/add-matchday-live-feed.yml
 permissions:
   contents: write
@@ -17,7 +17,7 @@ jobs:
           ref: newone1
           fetch-depth: 0
       - name: Apply live feed
-        run: python scripts/add_matchday_live_feed.py
+        run: python scripts/add_matchday_live_feed_v2.py
       - name: Install frontend
         run: npm ci
       - name: Install backend
