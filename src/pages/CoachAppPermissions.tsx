@@ -8,7 +8,7 @@ type PermissionKey =
   | 'coaching.league-ladder'|'coaching.stats'|'studio.access'|'website.access'|'operations.access'
   | 'analytics.access'|'permissions.manage'
 type Preset='FULL_ADMIN'|'COACH'|'ASSISTANT_COACH'|'STATS_RECORDER'|'OPERATIONS_VOLUNTEER'|'MEDIA_STUDIO'|'CUSTOM'
-type Member={id:string;userId:string;email:string;role:string;status:string;preset:Preset|null;permissions:PermissionKey[];effectivePermissions:PermissionKey[];applicantName?:string|null}
+type Member={id:string;userId:string;email:string;role:string;status:string;preset:Preset|null;permissions:PermissionKey[];effectivePermissions:PermissionKey[];applicantName?:string|null;updatedAt?:string}
 type Invitation={id:string;email:string;preset:Preset|null;permissions:PermissionKey[];expiresAt:string;acceptedAt:string|null;revokedAt:string|null}
 type Payload={members:Member[];invitations:Invitation[];currentUserId:string;permissionKeys:PermissionKey[];presets:Record<Preset,PermissionKey[]>}
 

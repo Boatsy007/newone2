@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { prisma } from '../../db/client.js'
-import { authenticateClubUser, membershipsForUser, roleCan } from '../../auth/club-auth.js'
+import { authenticateClubUser, membershipsForUser } from '../../auth/club-auth.js'
+import { allowedClubAreas, defaultPermissionPage, effectiveClubPermissions } from '../../auth/club-permissions.js'
 import { publicRateLimit } from '../middleware/rate-limit.js'
 
 const router = Router()
@@ -99,8 +100,8 @@ router.use(authenticateClubUser)
 router.get('/context', async (req, res) => {
   try {
     await ensureCoachAppColumns()
-    const memberships = (await membershipsForUser(req.clubUser!.id)).filter(item => item.status === 'ACTIVE' && roleCan(item.role, 'team_selection'))
-    if (!memberships.length) return res.status(403).json({ error: 'This account does not have access to team selection' })
+    const memberships = (await membershipsForUser(req.clubUser!.id)).filter(item => item.status === 'ACTIVE' && effectiveClubPermissions(item).length > 0)
+    if (!memberships.length) return res.status(403).json({ error: 'This account does not have active app permissions' })
 
     const requestedClubId = typeof req.query.clubId === 'string' ? req.query.clubId.trim() : ''
     let membership = requestedClubId ? memberships.find(item => item.clubId === requestedClubId) : memberships[0]
@@ -148,7 +149,8 @@ router.get('/context', async (req, res) => {
     res.json({ data:{
       club,
       team: team ? { leagueId:team.leagueId,leagueName:team.league.name,season:team.season,grade:team.grade } : null,
-      membership:{ role:membership.role,canSelectTeam:true,canOverrideFixture:membership.role==='OWNER'||membership.role==='ADMIN' },
+      membership:{ role:membership.role,canSelectTeam:effectiveClubPermissions(membership).includes('coaching.select-team'),canOverrideFixture:membership.role==='OWNER'||membership.role==='ADMIN' },
+      access:{permissions:effectiveClubPermissions(membership),allowedAreas:allowedClubAreas(effectiveClubPermissions(membership)),defaultPage:defaultPermissionPage(effectiveClubPermissions(membership))},
       fixture: fixture ? {
         id:fixture.id,leagueId:fixture.leagueId,season:fixture.season,grade:fixture.grade,round:fixture.round,
         homeClubId:fixture.homeClubId,awayClubId:fixture.awayClubId,homeName:fixture.homeName,awayName:fixture.awayName,

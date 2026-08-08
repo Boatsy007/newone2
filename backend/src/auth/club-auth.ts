@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { prisma } from '../db/client.js'
+import { effectiveClubPermissions, type ClubPermissionKey, type ClubPermissionPreset } from './club-permissions.js'
 
 export const CLUB_ROLES = ['OWNER', 'ADMIN', 'TEAM_MANAGER', 'MEDIA_MANAGER', 'SPONSOR_MANAGER', 'VIEWER'] as const
 export const MEMBERSHIP_STATUSES = ['INVITED', 'PENDING', 'ACTIVE', 'SUSPENDED', 'REVOKED'] as const
@@ -13,6 +14,7 @@ export type ClubMembership = {
   applicantName: string | null; clubPosition: string | null; phone: string | null; reason: string | null
   reviewNotes: string | null; invitedBy: string | null; approvedBy: string | null; approvedAt: Date | null
   revokedAt: Date | null; createdAt: Date; updatedAt: Date
+  preset: ClubPermissionPreset | null; permissions: ClubPermissionKey[]
 }
 
 declare global { namespace Express { interface Request { clubUser?: AuthenticatedClubUser } } }
@@ -35,6 +37,8 @@ export function ensureClubMembershipSchema() {
       `ALTER TABLE club_portal_memberships ADD COLUMN IF NOT EXISTS phone TEXT`,
       `ALTER TABLE club_portal_memberships ADD COLUMN IF NOT EXISTS reason TEXT`,
       `ALTER TABLE club_portal_memberships ADD COLUMN IF NOT EXISTS review_notes TEXT`,
+      `ALTER TABLE club_portal_memberships ADD COLUMN IF NOT EXISTS preset TEXT DEFAULT 'CUSTOM'`,
+      `ALTER TABLE club_portal_memberships ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '[]'::jsonb`,
     ]) await prisma.$executeRawUnsafe(sql)
     await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "club_portal_memberships_user_club_unique" ON club_portal_memberships (user_id, club_id)`)
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "club_portal_memberships_club_status_idx" ON club_portal_memberships (club_id, status)`)
@@ -43,6 +47,8 @@ export function ensureClubMembershipSchema() {
       "token_hash" TEXT NOT NULL UNIQUE, "invited_by" TEXT NOT NULL, "expires_at" TIMESTAMPTZ NOT NULL,
       "accepted_by" TEXT, "accepted_at" TIMESTAMPTZ, "revoked_at" TIMESTAMPTZ, "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`)
+    await prisma.$executeRawUnsafe(`ALTER TABLE club_portal_invitations ADD COLUMN IF NOT EXISTS preset TEXT DEFAULT 'CUSTOM'`)
+    await prisma.$executeRawUnsafe(`ALTER TABLE club_portal_invitations ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '[]'::jsonb`)
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "club_portal_invites_email_idx" ON club_portal_invitations (email, expires_at)`)
     await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "club_portal_membership_audit" (
       "id" TEXT PRIMARY KEY, "membership_id" TEXT, "club_id" TEXT NOT NULL, "user_id" TEXT,
@@ -73,7 +79,7 @@ export async function authenticateClubUser(req: Request, res: Response, next: Ne
 const membershipSelect = `id, user_id AS "userId", email, club_id AS "clubId", role, status,
  applicant_name AS "applicantName", club_position AS "clubPosition", phone, reason, review_notes AS "reviewNotes",
  invited_by AS "invitedBy", approved_by AS "approvedBy", approved_at AS "approvedAt", revoked_at AS "revokedAt",
- created_at AS "createdAt", updated_at AS "updatedAt"`
+ created_at AS "createdAt", updated_at AS "updatedAt", preset, permissions`
 export async function membershipsForUser(userId: string): Promise<ClubMembership[]> {
   return prisma.$queryRawUnsafe<ClubMembership[]>(`SELECT ${membershipSelect} FROM club_portal_memberships WHERE user_id=$1 AND status<>'REVOKED' ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'PENDING' THEN 1 WHEN 'INVITED' THEN 2 ELSE 3 END, created_at`, userId)
 }
@@ -108,18 +114,19 @@ export async function createPendingMembership(user: AuthenticatedClubUser, clubI
   if (membership) await auditMembership(membership.id, clubId, user.id, 'CLAIM_SUBMITTED', user.id, claim)
   return membership
 }
-export async function issueClubInvitation(clubId: string, email: string, role: ClubRole, actorId: string) {
+export async function issueClubInvitation(clubId: string, email: string, role: ClubRole, actorId: string, access?: { preset?: ClubPermissionPreset; permissions?: ClubPermissionKey[] }) {
   await ensureClubMembershipSchema(); const token = randomBytes(32).toString('hex')
-  await prisma.$executeRawUnsafe(`INSERT INTO club_portal_invitations (id,club_id,email,role,token_hash,invited_by,expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, randomUUID(), clubId, email.trim().toLowerCase(), role, hashToken(token), actorId, new Date(Date.now()+7*86400000))
+  const preset=access?.preset??'CUSTOM',permissions=access?.permissions??[]
+  await prisma.$executeRawUnsafe(`INSERT INTO club_portal_invitations (id,club_id,email,role,token_hash,invited_by,expires_at,preset,permissions) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)`, randomUUID(), clubId, email.trim().toLowerCase(), role, hashToken(token), actorId, new Date(Date.now()+7*86400000),preset,JSON.stringify(permissions))
   return token
 }
 export async function acceptClubInvitation(user: AuthenticatedClubUser, token: string) {
   await ensureClubMembershipSchema()
-  const rows = await prisma.$queryRawUnsafe<Array<{id:string;clubId:string;email:string;role:ClubRole;invitedBy:string}>>(`SELECT id,club_id AS "clubId",email,role,invited_by AS "invitedBy" FROM club_portal_invitations WHERE token_hash=$1 AND revoked_at IS NULL AND accepted_at IS NULL AND expires_at>NOW() LIMIT 1`, hashToken(token))
+  const rows = await prisma.$queryRawUnsafe<Array<{id:string;clubId:string;email:string;role:ClubRole;invitedBy:string;preset:ClubPermissionPreset|null;permissions:ClubPermissionKey[]}>>(`SELECT id,club_id AS "clubId",email,role,invited_by AS "invitedBy",preset,permissions FROM club_portal_invitations WHERE token_hash=$1 AND revoked_at IS NULL AND accepted_at IS NULL AND expires_at>NOW() LIMIT 1`, hashToken(token))
   const invite = rows[0]; if (!invite) return null
   if (user.email && invite.email !== user.email) throw new Error('This invitation was sent to a different email address')
   await prisma.$transaction(async tx => {
-    await tx.$executeRawUnsafe(`INSERT INTO club_portal_memberships (id,user_id,email,club_id,role,status,invited_by,approved_by,approved_at) VALUES ($1,$2,$3,$4,$5,'ACTIVE',$6,$6,NOW()) ON CONFLICT (user_id,club_id) DO UPDATE SET role=EXCLUDED.role,status='ACTIVE',invited_by=EXCLUDED.invited_by,approved_by=EXCLUDED.approved_by,approved_at=NOW(),revoked_at=NULL,updated_at=NOW()`, randomUUID(), user.id, invite.email, invite.clubId, invite.role, invite.invitedBy)
+    await tx.$executeRawUnsafe(`INSERT INTO club_portal_memberships (id,user_id,email,club_id,role,status,invited_by,approved_by,approved_at,preset,permissions) VALUES ($1,$2,$3,$4,$5,'ACTIVE',$6,$6,NOW(),$7,$8::jsonb) ON CONFLICT (user_id,club_id) DO UPDATE SET role=EXCLUDED.role,status='ACTIVE',invited_by=EXCLUDED.invited_by,approved_by=EXCLUDED.approved_by,approved_at=NOW(),preset=EXCLUDED.preset,permissions=EXCLUDED.permissions,revoked_at=NULL,updated_at=NOW()`, randomUUID(), user.id, invite.email, invite.clubId, invite.role, invite.invitedBy,invite.preset??'CUSTOM',JSON.stringify(invite.permissions??[]))
     await tx.$executeRawUnsafe(`UPDATE club_portal_invitations SET accepted_by=$1,accepted_at=NOW() WHERE id=$2`, user.id, invite.id)
   })
   const membership = await membershipForClub(user.id, invite.clubId)
@@ -130,3 +137,4 @@ export async function auditMembership(membershipId:string|null, clubId:string, u
   await ensureClubMembershipSchema()
   await prisma.$executeRawUnsafe(`INSERT INTO club_portal_membership_audit (id,membership_id,club_id,user_id,action,actor_id,detail) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)`, randomUUID(), membershipId, clubId, userId, action, actorId, JSON.stringify(detail ?? {}))
 }
+export function clubUserCan(membership: ClubMembership, permission: ClubPermissionKey) { return effectiveClubPermissions(membership).includes(permission) }

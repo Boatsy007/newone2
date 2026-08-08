@@ -1,6 +1,6 @@
-import { BarChart3, ChevronRight, Clapperboard, Globe2, Settings2, ShieldCheck, Trophy } from 'lucide-react'
+import { BarChart3, ChevronRight, Clapperboard, Globe2, Settings2, ShieldCheck, Trophy, UsersRound } from 'lucide-react'
 
-export type ClubAppArea = 'coaching' | 'studio' | 'website' | 'operations' | 'analytics'
+export type ClubAppArea = 'coaching' | 'studio' | 'website' | 'operations' | 'analytics' | 'permissions'
 
 type Props = {
   clubName: string
@@ -15,6 +15,7 @@ const areas: Array<{key:ClubAppArea;title:string;description:string;icon:typeof 
   {key:'website',title:'Website',description:'Manage the club profile, public pages and website content.',icon:Globe2,live:false},
   {key:'operations',title:'Operations',description:'Coordinate volunteers, tasks, equipment and club activity.',icon:Settings2,live:false},
   {key:'analytics',title:'Analytics',description:'Review club, team, player and commercial performance.',icon:BarChart3,live:false},
+  {key:'permissions',title:'Permissions',description:'Add users and control access down to individual pages.',icon:UsersRound,live:true},
 ]
 
 export default function CoachAppClubDashboard({clubName,logoUrl,allowedAreas=areas.map(area=>area.key),onOpen}:Props){
