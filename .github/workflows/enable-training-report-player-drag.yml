@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Connect return navigation
+      - name: Connect live return navigation
         run: python scripts/add-live-match-return-navigation.py
       - name: Install frontend
         run: npm ci
