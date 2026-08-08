@@ -1,0 +1,84 @@
+name: Add Whiteboard Player Library
+on:
+  push:
+    paths:
+      - '.github/workflows/add-whiteboard-player-library.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Apply player library UI
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/pages/CoachAppWhiteboardStage2.tsx')
+          s=p.read_text()
+          s=s.replace("type Magnet={id:string;name:string;number:number|null;team:'US'|'THEM';x:number;y:number}","type Magnet={id:string;name:string;number:number|null;team:'US'|'THEM';x:number;y:number}\ntype PlayerOption={id:string;name:string;number:number|null;team:'US'|'THEM';position?:Point}")
+          s=s.replace("  const[tool,setTool]=useState<Tool>('MOVE')", "  const[tool,setTool]=useState<Tool>('MOVE')\n  const[playerDrawerOpen,setPlayerDrawerOpen]=useState(false)\n  const[playerTab,setPlayerTab]=useState<'US'|'THEM'|'GENERIC'>('US')\n  const[ourPlayers,setOurPlayers]=useState<PlayerOption[]>([])\n  const[oppositionPlayers,setOppositionPlayers]=useState<PlayerOption[]>(()=>Array.from({length:22},(_,index)=>({id:`opp-${index+1}`,name:`Opponent ${index+1}`,number:index+1,team:'THEM' as const})))")
+          old="""    fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{headers:{authorization:`Bearer ${token}`}})
+      .then(async response=>{const payload=await response.json() as SheetPayload;if(!response.ok)throw new Error('Unable to load selected team');const slots=payload.data?.state?.slots||[];const ours:Magnet[]=slots.map((slot,index)=>{const p=FIELD_POSITIONS[slot.positionCode]||{x:15+(index%6)*14,y:18+Math.floor(index/6)*15};return{id:slot.clubPlayerId,name:slot.playerName,number:slot.jumperNumber,team:'US',x:p.x,y:p.y}});const them:Magnet[]=Array.from({length:18},(_,index)=>({id:`opp-${index+1}`,name:`OPP ${index+1}`,number:index+1,team:'THEM' as const,x:14+(index%6)*14,y:12+Math.floor(index/6)*14}));setPlay(newPlay({magnets:[...ours,...them],strokes:[]}))})
+      .catch(()=>setPlay(newPlay(emptyBoard))).finally(()=>setLoading(false))"""
+          new="""    fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{headers:{authorization:`Bearer ${token}`}})
+      .then(async response=>{const payload=await response.json() as SheetPayload;if(!response.ok)throw new Error('Unable to load selected team');const slots=payload.data?.state?.slots||[];setOurPlayers(slots.map((slot,index)=>({id:slot.clubPlayerId,name:slot.playerName,number:slot.jumperNumber,team:'US' as const,position:FIELD_POSITIONS[slot.positionCode]||{x:15+(index%6)*14,y:18+Math.floor(index/6)*15}})));setPlay(newPlay(emptyBoard))})
+      .catch(()=>setPlay(newPlay(emptyBoard))).finally(()=>setLoading(false))"""
+          if old not in s: raise SystemExit('load block not found')
+          s=s.replace(old,new)
+          marker="  function clearBoard(){if(!confirm('Clear drawings on this frame?'))return;updateState({...state,strokes:[]})}"
+          replacement="""  function clearBoard(){if(!confirm('Clear this tactical frame?'))return;updateState({magnets:[],strokes:[]})}
+  function optionOnField(id:string){return state.magnets.some(item=>item.id===id)}
+  function togglePlayer(option:PlayerOption){
+    const exists=optionOnField(option.id)
+    if(exists){updateState({...state,magnets:state.magnets.filter(item=>item.id!==option.id)});return}
+    const count=state.magnets.length
+    const fallback={x:20+(count%5)*15,y:22+Math.floor(count/5)*14}
+    const position=option.position||fallback
+    updateState({...state,magnets:[...state.magnets,{id:option.id,name:option.name,number:option.number,team:option.team,x:position.x,y:position.y}]})
+  }
+  function addEntireTeam(team:'US'|'THEM'){
+    const source=team==='US'?ourPlayers:oppositionPlayers
+    const retained=state.magnets.filter(item=>item.team!==team)
+    const additions=source.map((option,index)=>{const fallback=team==='US'?{x:14+(index%6)*14,y:12+Math.floor(index/6)*14}:{x:14+(index%6)*14,y:18+Math.floor(index/6)*14};const position=option.position||fallback;return{id:option.id,name:option.name,number:option.number,team:option.team,x:position.x,y:position.y}})
+    updateState({...state,magnets:[...retained,...additions]})
+  }
+  function removeTeam(team:'US'|'THEM'){updateState({...state,magnets:state.magnets.filter(item=>item.team!==team)})}
+  function addGeneric(team:'US'|'THEM'){
+    const label=prompt(team==='US'?'Player name':'Opponent name',team==='US'?'Player':'Opponent')?.trim();if(!label)return
+    const numberText=prompt('Number (optional)','')||'';const number=numberText.trim()?Number(numberText):null
+    const id=`generic-${team.toLowerCase()}-${crypto.randomUUID()}`
+    togglePlayer({id,name:label,number:Number.isFinite(number as number)?number:null,team})
+  }"""
+          if marker not in s: raise SystemExit('clear marker not found')
+          s=s.replace(marker,replacement)
+          header_old="<button onClick={()=>void loadCloud()}><Cloud/>Club Cloud</button>"
+          header_new="<button onClick={()=>setPlayerDrawerOpen(true)}><Users/>Players</button><button onClick={()=>void loadCloud()}><Cloud/>Club Cloud</button>"
+          if header_old not in s: raise SystemExit('header marker not found')
+          s=s.replace(header_old,header_new,1)
+          modal_marker="    {analysisOpen&&"
+          drawer="""    {playerDrawerOpen&&<div className=\"cawb2-modal\"><section className=\"players-panel\"><header><div><span>PLAYER LIBRARY</span><h2>Build this frame</h2><p>Add only the players needed for this tactic.</p></div><button onClick={()=>setPlayerDrawerOpen(false)}><X/></button></header><div className=\"player-tabs\"><button className={playerTab==='US'?'active':''} onClick={()=>setPlayerTab('US')}>Our Team</button><button className={playerTab==='THEM'?'active':''} onClick={()=>setPlayerTab('THEM')}>Opposition</button><button className={playerTab==='GENERIC'?'active':''} onClick={()=>setPlayerTab('GENERIC')}>Generic</button></div>{playerTab!=='GENERIC'?<><div className=\"player-actions\"><button onClick={()=>addEntireTeam(playerTab)}>Add Entire Team</button><button onClick={()=>removeTeam(playerTab)}>Remove This Team</button></div><div className=\"player-grid\">{(playerTab==='US'?ourPlayers:oppositionPlayers).map(option=><button key={option.id} className={optionOnField(option.id)?'selected':''} onClick={()=>togglePlayer(option)}><b>{option.number??'–'}</b><span>{option.name}</span><small>{optionOnField(option.id)?'On field':'Tap to add'}</small></button>)}</div></>:<div className=\"generic-actions\"><button onClick={()=>addGeneric('US')}>+ Generic Our Player</button><button onClick={()=>addGeneric('THEM')}>+ Generic Opponent</button><p>Generic magnets are only added to this tactical frame.</p></div>}</section></div>}\n"""
+          if modal_marker not in s: raise SystemExit('modal marker not found')
+          s=s.replace(modal_marker,drawer+modal_marker,1)
+          style_marker=".cawb2-modal"
+          idx=s.rfind('`')
+          extra=""".players-panel{width:min(760px,94vw);max-height:88vh;overflow:auto;background:#081923;border:1px solid #244554;border-radius:22px;padding:18px}.players-panel header{display:flex!important;justify-content:space-between;align-items:flex-start}.players-panel header h2{margin:4px 0}.players-panel header p{margin:0;color:#9fb5c2}.player-tabs,.player-actions,.generic-actions{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap}.player-tabs button.active,.player-grid button.selected{background:#109ee8;border-color:#20b8ff}.player-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px}.player-grid button{min-height:74px;justify-content:flex-start;text-align:left}.player-grid button b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:50%;background:#153748}.player-grid button span{flex:1}.player-grid button small{display:block;color:#9fb5c2;font-size:10px}.generic-actions{flex-direction:column}.generic-actions p{color:#9fb5c2;margin:4px 0}.players-panel button{border:1px solid #31505f;background:#0c2230;color:#fff;border-radius:11px;padding:10px 12px;font-weight:800;display:flex;align-items:center;gap:8px}"""
+          if idx<0: raise SystemExit('styles end not found')
+          s=s[:idx]+extra+s[idx:]
+          p.write_text(s)
+          PY
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm --prefix backend ci
+      - name: Build production app
+        run: npm run build
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          git commit -m "Make whiteboard player placement flexible"
+          git push origin HEAD:newone1
