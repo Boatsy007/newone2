@@ -20,6 +20,9 @@ jobs:
         run: python scripts/update_matchday_interchange_controls.py
       - name: Install frontend
         run: npm ci
+      - name: Install backend
+        working-directory: backend
+        run: npm ci
       - name: Build frontend
         run: npm run build
       - name: Commit implementation
