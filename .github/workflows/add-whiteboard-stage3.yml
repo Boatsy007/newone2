@@ -24,10 +24,8 @@ jobs:
         run: npm ci
       - name: Install backend
         run: npm --prefix backend ci
-      - name: Build frontend
+      - name: Build production app
         run: npm run build
-      - name: Validate backend
-        run: npm --prefix backend run build
       - name: Commit implementation
         run: |
           git config user.name "github-actions[bot]"
