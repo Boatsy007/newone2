@@ -21,8 +21,10 @@ jobs:
         run: npm ci
       - name: Install backend
         run: npm --prefix backend ci
-      - name: Build
-        run: npm run build
+      - name: Check frontend
+        run: npx tsc -b && npx vite build
+      - name: Check backend
+        run: npm --prefix backend run build
       - name: Commit
         run: |
           git config user.name 'PlayFooty Automation'
