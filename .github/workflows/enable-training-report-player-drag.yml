@@ -1,4 +1,4 @@
-name: Add Match Day KPI Assistant Buttons
+name: Connect Coach App Live Stats
 on:
   push:
     paths:
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Add Match Day buttons
-        run: python scripts/add-match-day-kpi-assistant-buttons.py
+      - name: Connect live stats page
+        run: python scripts/connect-coach-app-live-stats.py
       - name: Install frontend
         run: npm ci
       - name: Check frontend
@@ -25,6 +25,6 @@ jobs:
         run: |
           git config user.name 'PlayFooty Automation'
           git config user.email 'actions@playfooty.com.au'
-          git add src/pages/CoachAppMatchDay.tsx
-          git commit -m 'Add Set KPIs and Assistant Coach Match Day buttons' || exit 0
+          git add src/pages/CoachApp.tsx src/pages/CoachAppMatchDay.tsx
+          git commit -m 'Connect Coach App live stats recorder to Match Day' || exit 0
           git push origin HEAD:newone1
