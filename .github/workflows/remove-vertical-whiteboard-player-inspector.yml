@@ -1,0 +1,37 @@
+name: Remove Vertical Whiteboard Player Inspector
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/scripts/remove_vertical_whiteboard_player_inspector.py'
+      - '.github/workflows/remove-vertical-whiteboard-player-inspector.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Remove legacy vertical player inspector
+        run: python .github/scripts/remove_vertical_whiteboard_player_inspector.py
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm ci
+        working-directory: backend
+      - name: Build production app
+        run: npm run build
+      - name: Commit implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+          else
+            git commit -m 'Remove legacy vertical Whiteboard player inspector'
+            git push origin newone1
+          fi
