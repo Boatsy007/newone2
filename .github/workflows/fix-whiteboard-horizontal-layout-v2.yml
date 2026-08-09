@@ -1,0 +1,38 @@
+name: Fix Whiteboard Horizontal Layout V2
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-whiteboard-horizontal-layout-v2.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Correct implementation script matcher
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/fix_whiteboard_horizontal_layout.py')
+          s=p.read_text()
+          s=s.replace('more_pattern = re.compile(r"(\\{moreOpen&&<(?:aside|div) className=\\\"wb-more-popover\\\"[^>]*>)")','more_pattern = re.compile(r"(\\{moreOpen(?:&&!presenting)?&&<(?:aside|div) className=\\\"wb-more-popover\\\"[^>]*>)")')
+          p.write_text(s)
+          PY
+      - name: Apply horizontal Whiteboard repair
+        run: python3 scripts/fix_whiteboard_horizontal_layout.py
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm --prefix backend ci
+      - name: Build production app
+        run: npm run build
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          git commit -m "Fix Whiteboard horizontal layout and player controls" || exit 0
+          git push origin HEAD:newone1
