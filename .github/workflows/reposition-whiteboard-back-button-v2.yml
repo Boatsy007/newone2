@@ -22,6 +22,7 @@ jobs:
           cache: npm
       - run: python .github/scripts/reposition_whiteboard_back_button_v2.py
       - run: npm ci
+      - run: npm --prefix backend ci
       - run: npm run build
       - name: Commit source change
         run: |
