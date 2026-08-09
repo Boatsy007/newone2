@@ -100,6 +100,26 @@ router.post('/clubs/:clubId/players', async (req,res) => {
   } catch(error){res.status(500).json({error:'failed to save club player',detail:String(error)})}
 })
 
+router.get('/clubs/:clubId/sheets/:sheetId/opposition', async (req,res) => {
+  try {
+    await ensureTables()
+    const current = await sheetForClub(req.params.sheetId, req.params.clubId)
+    if (!current) return res.status(404).json({ error:'Team sheet not found for this club' })
+    if (!current.fixtureId) return res.json({ data:null })
+    const fixtures = await prisma.$queryRawUnsafe<Array<{homeClubId:string|null;awayClubId:string|null}>>(`SELECT home_club_id AS "homeClubId",away_club_id AS "awayClubId" FROM football_fixtures WHERE id::text=$1 LIMIT 1`, current.fixtureId)
+    const fixture = fixtures[0]
+    if (!fixture) return res.json({ data:null })
+    const opponentClubId = fixture.homeClubId === req.params.clubId ? fixture.awayClubId : fixture.homeClubId
+    if (!opponentClubId) return res.json({ data:null })
+    const rows = await prisma.$queryRawUnsafe<Array<{id:string}>>(`SELECT id::text AS id FROM football_team_sheets WHERE club_id=$1 AND fixture_id=$2 AND status IN ('DRAFT','PUBLISHED') ORDER BY CASE WHEN status='PUBLISHED' THEN 0 ELSE 1 END,updated_at DESC LIMIT 1`, opponentClubId, current.fixtureId)
+    if (!rows[0]) return res.json({ data:null })
+    const opposition = await loadSheet(rows[0].id)
+    res.json({ data:opposition ? { ...opposition, clubId:undefined } : null })
+  } catch(error) {
+    res.status(500).json({ error:'failed to load opposition selected team',detail:String(error) })
+  }
+})
+
 router.get('/clubs/:clubId/sheets', async (req,res) => {
   try { await ensureTables(); const rows=await prisma.$queryRawUnsafe<Array<{id:string}>>(`SELECT id::text AS id FROM football_team_sheets WHERE club_id=$1 ORDER BY match_date DESC NULLS LAST,created_at DESC`,req.params.clubId); const data=await Promise.all(rows.map(row=>loadSheet(row.id))); res.json({data:data.filter(Boolean),positions:POSITIONS}) }
   catch(error){res.status(500).json({error:'failed to load team sheets',detail:String(error)})}

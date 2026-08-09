@@ -42,7 +42,7 @@ export default function CoachAppWhiteboardStage2({clubId,sheetId,token,fixtureLa
   const[resultPanel,setResultPanel]=useState<{title:string;body:string}|null>(null)
   const[playerTab,setPlayerTab]=useState<'US'|'THEM'|'GENERIC'>('US')
   const[ourPlayers,setOurPlayers]=useState<PlayerOption[]>([])
-  const[oppositionPlayers]=useState<PlayerOption[]>(()=>Array.from({length:22},(_,index)=>({id:`opp-${index+1}`,name:`Opponent ${index+1}`,number:index+1,team:'THEM' as const})))
+  const[oppositionPlayers,setOppositionPlayers]=useState<PlayerOption[]>(()=>Array.from({length:22},(_,index)=>({id:`opp-${index+1}`,name:`Opponent ${index+1}`,number:index+1,team:'THEM' as const})))
   const[play,setPlay]=useState<PlayState>(()=>newPlay(emptyBoard))
   const[undo,setUndo]=useState<PlayState[]>([])
   const[redo,setRedo]=useState<PlayState[]>([])
@@ -135,6 +135,18 @@ export default function CoachAppWhiteboardStage2({clubId,sheetId,token,fixtureLa
           team:'US' as const,
           position:FIELD_POSITIONS[player.positionCode]||{x:15+(index%6)*14,y:18+Math.floor(index/6)*15},
         })))
+        try{
+          const oppositionResponse=await fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}/opposition`,{headers,cache:'no-store'})
+          const oppositionPayload=await oppositionResponse.json().catch(()=>({}))
+          const opposition=Array.isArray(oppositionPayload.data?.players)?oppositionPayload.data.players:[]
+          if(live&&opposition.length)setOppositionPlayers(opposition.map((player:any,index:number)=>({
+            id:`opposition-${player.clubPlayerId||player.id}`,
+            name:player.playerName,
+            number:player.jumperNumber,
+            team:'THEM' as const,
+            position:FIELD_POSITIONS[player.positionCode]||{x:85-(index%6)*14,y:18+Math.floor(index/6)*15},
+          })))
+        }catch{}
       }catch{if(live)setOurPlayers([])}finally{if(live)setLoading(false)}
     }
     void loadPlayers()
