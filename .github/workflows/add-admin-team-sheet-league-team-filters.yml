@@ -1,0 +1,34 @@
+name: Add Admin Team Sheets League Team Filters
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/workflows/add-admin-team-sheet-league-team-filters.yml'
+      - '.github/scripts/add_admin_team_sheet_league_team_filters.py'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - run: python .github/scripts/add_admin_team_sheet_league_team_filters.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix backend ci
+      - run: npm run build
+      - name: Commit source change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -- backend/prisma/schema.prisma || true
+          git add src/pages/AdminTeamSheets.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Add league and team filters to Admin Team Sheets"
+          git push origin HEAD:newone1
