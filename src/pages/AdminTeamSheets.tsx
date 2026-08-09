@@ -19,7 +19,7 @@ export default function AdminTeamSheets(){
  const[clubs,setClubs]=useState<Club[]>([]),[clubId,setClubId]=useState(''),[players,setPlayers]=useState<Player[]>([]),[sheets,setSheets]=useState<Sheet[]>([]),[sheetId,setSheetId]=useState(''),[selected,setSelected]=useState<Selected[]>([]),[message,setMessage]=useState('')
  const[fixtures,setFixtures]=useState<Fixture[]>([]),[fixtureId,setFixtureId]=useState(''),[fixturesLoading,setFixturesLoading]=useState(false)
  const[playerName,setPlayerName]=useState(''),[jumper,setJumper]=useState(''),[roundLabel,setRoundLabel]=useState(''),[opponent,setOpponent]=useState(''),[matchDate,setMatchDate]=useState(''),[grade,setGrade]=useState('Senior Football'),[season,setSeason]=useState(String(new Date().getFullYear()))
- useEffect(()=>{fetch('/api/clubs').then(r=>r.json()).then((p:{data?:Club[]})=>setClubs(Array.isArray(p.data)?p.data:[])).catch(()=>setClubs([]))},[])
+ useEffect(()=>{fetch('/admin/team-sheets/clubs',{headers:authHeaders()}).then(r=>r.json()).then((p:{data?:Club[]})=>setClubs(Array.isArray(p.data)?p.data:[])).catch(()=>setClubs([]))},[])
  useEffect(()=>{if(!clubId){setPlayers([]);setSheets([]);setFixtures([]);setFixtureId('');return}void reload(clubId);void loadFixtures(clubId)},[clubId])
  const sheet=sheets.find(item=>item.id===sheetId)
  const fixture=fixtures.find(item=>item.id===fixtureId)

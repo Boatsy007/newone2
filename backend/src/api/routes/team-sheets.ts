@@ -201,6 +201,39 @@ publicRouter.get('/club/:clubId', async (req, res) => {
 })
 
 const adminRouter = Router()
+adminRouter.get('/clubs', async (_req, res) => {
+  try {
+    const clubs = await prisma.club.findMany({
+      where: {
+        sport: 'FOOTBALL',
+        archivedAt: null,
+        isActive: true,
+        leagueSeasons: { some: { isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } } },
+      },
+      select: {
+        id: true,
+        name: true,
+        leagueSeasons: {
+          where: { isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } },
+          orderBy: [{ season: 'desc' }, { updatedAt: 'desc' }],
+          take: 1,
+          select: { leagueId: true, grade: true, league: { select: { name: true } } },
+        },
+      },
+      orderBy: { name: 'asc' },
+    })
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+    res.json({ data: clubs.map(club => ({
+      clubId: club.id,
+      clubName: club.name,
+      leagueId: club.leagueSeasons[0]?.leagueId ?? null,
+      leagueName: club.leagueSeasons[0]?.league.name ?? '—',
+      grade: club.leagueSeasons[0]?.grade ?? null,
+    })) })
+  } catch (error) {
+    res.status(500).json({ error: 'failed to load team sheet clubs', detail: String(error) })
+  }
+})
 adminRouter.get('/club/:clubId/players', async (req, res) => {
   try {
     await ensureTeamSheetTables()
