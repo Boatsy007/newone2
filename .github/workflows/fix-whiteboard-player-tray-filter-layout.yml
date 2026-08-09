@@ -1,0 +1,37 @@
+name: Fix Whiteboard Player Tray Filter Layout
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/scripts/fix_whiteboard_player_tray_filter_layout.py'
+      - '.github/workflows/fix-whiteboard-player-tray-filter-layout.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Fix player tray filter layout
+        run: python .github/scripts/fix_whiteboard_player_tray_filter_layout.py
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm ci
+        working-directory: backend
+      - name: Build production app
+        run: npm run build
+      - name: Commit implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+          else
+            git commit -m 'Fix Whiteboard player tray filter layout'
+            git push origin newone1
+          fi
