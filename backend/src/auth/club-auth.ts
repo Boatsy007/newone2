@@ -84,10 +84,48 @@ export async function membershipsForUser(userId: string): Promise<ClubMembership
   await ensureClubMembershipSchema()
   return prisma.$queryRawUnsafe<ClubMembership[]>(`SELECT ${membershipSelect} FROM club_portal_memberships WHERE user_id=$1 AND status<>'REVOKED' ORDER BY CASE status WHEN 'ACTIVE' THEN 0 WHEN 'PENDING' THEN 1 WHEN 'INVITED' THEN 2 ELSE 3 END, created_at`, userId)
 }
+function normaliseClubName(value: unknown) {
+  return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
 export async function membershipForClub(userId: string, clubId: string) {
   await ensureClubMembershipSchema()
   const rows = await prisma.$queryRawUnsafe<ClubMembership[]>(`SELECT ${membershipSelect} FROM club_portal_memberships WHERE user_id=$1 AND club_id=$2 LIMIT 1`, userId, clubId)
-  return rows[0] ?? null
+  if (rows[0]) return rows[0]
+
+  const requested = await prisma.club.findUnique({
+    where: { id: clubId },
+    select: {
+      id: true,
+      name: true,
+      leagueSeasons: {
+        where: { isActive: true },
+        select: { leagueId: true, season: true, grade: true },
+      },
+    },
+  })
+  if (!requested) return null
+
+  const memberships = await prisma.$queryRawUnsafe<ClubMembership[]>(`SELECT ${membershipSelect} FROM club_portal_memberships WHERE user_id=$1 AND status='ACTIVE'`, userId)
+  for (const membership of memberships) {
+    const source = await prisma.club.findUnique({
+      where: { id: membership.clubId },
+      select: {
+        id: true,
+        name: true,
+        leagueSeasons: {
+          where: { isActive: true },
+          select: { leagueId: true, season: true, grade: true },
+        },
+      },
+    })
+    if (!source || normaliseClubName(source.name) !== normaliseClubName(requested.name)) continue
+    const sameTeam = source.leagueSeasons.some(sourceTeam => requested.leagueSeasons.some(requestedTeam =>
+      sourceTeam.leagueId === requestedTeam.leagueId && sourceTeam.season === requestedTeam.season && sourceTeam.grade === requestedTeam.grade
+    ))
+    if (sameTeam) return { ...membership, clubId }
+  }
+  return null
 }
 export async function requireActiveClubMembership(req: Request, res: Response, next: NextFunction) {
   const user = req.clubUser

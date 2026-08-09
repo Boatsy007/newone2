@@ -37,6 +37,28 @@ function dateKey(value: unknown) {
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0,10)
 }
 
+async function resolveCanonicalClub(club: { id:string; name:string; logoUrl:string|null; primaryColour:string|null; secondaryColour:string|null }, team: { leagueId:string; season:string; grade:string } | null) {
+  if (!team) return club
+  const directFixture = await prisma.footballFixture.findFirst({
+    where: { leagueId:team.leagueId, season:team.season, grade:team.grade, OR:[{homeClubId:club.id},{awayClubId:club.id}] },
+    select: { id:true },
+  })
+  if (directFixture) return club
+
+  const fixtures = await prisma.footballFixture.findMany({
+    where: { leagueId:team.leagueId, season:team.season, grade:team.grade },
+    select: { homeClubId:true, awayClubId:true, homeName:true, awayName:true },
+    orderBy: [{ matchDate:'desc' }, { round:'desc' }],
+    take: 80,
+  })
+  const expected = normalise(club.name)
+  const fixture = fixtures.find(item => normalise(item.homeName) === expected || normalise(item.awayName) === expected)
+  const canonicalId = fixture ? (normalise(fixture.homeName) === expected ? fixture.homeClubId : fixture.awayClubId) : null
+  if (!canonicalId || canonicalId === club.id) return club
+  const canonical = await prisma.club.findUnique({ where:{ id:canonicalId }, select:{ id:true,name:true,logoUrl:true,primaryColour:true,secondaryColour:true } })
+  return canonical ?? club
+}
+
 async function loadFixture(fixtureId: string, clubId: string): Promise<Fixture | null> {
   return prisma.footballFixture.findFirst({
     where:{ id:fixtureId,OR:[{ homeClubId:clubId },{ awayClubId:clubId }] },
@@ -138,13 +160,14 @@ router.get('/context', async (req, res) => {
     }
 
     membership = membership ?? memberships[0]
-    const club = await prisma.club.findUnique({ where:{ id:membership.clubId }, select:{ id:true,name:true,logoUrl:true,primaryColour:true,secondaryColour:true } })
-    if (!club) return res.status(404).json({ error: 'Authorised club not found' })
+    const authorisedClub = await prisma.club.findUnique({ where:{ id:membership.clubId }, select:{ id:true,name:true,logoUrl:true,primaryColour:true,secondaryColour:true } })
+    if (!authorisedClub) return res.status(404).json({ error: 'Authorised club not found' })
     const team = await prisma.clubLeagueSeason.findFirst({
-      where:{ clubId:club.id,isActive:true,league:{ sport:'FOOTBALL',archivedAt:null,isActive:true } },
+      where:{ clubId:authorisedClub.id,isActive:true,league:{ sport:'FOOTBALL',archivedAt:null,isActive:true } },
       orderBy:{ season:'desc' },
       select:{ leagueId:true,season:true,grade:true,league:{ select:{ name:true } } },
     })
+    const club = await resolveCanonicalClub(authorisedClub, team)
 
     const overrideId = typeof req.query.fixtureId === 'string' ? req.query.fixtureId.trim() : ''
     if (overrideId && membership.role !== 'OWNER' && membership.role !== 'ADMIN') return res.status(403).json({ error: 'Only a club administrator can override the active fixture' })
