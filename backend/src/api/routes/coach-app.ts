@@ -86,12 +86,29 @@ async function loadSheetForFixture(clubId: string, fixture: Fixture | null) {
     GROUP BY s.id
     ORDER BY s.updated_at DESC
   `, clubId, fixture.season, fixture.grade)
-  return candidates.find(sheet => {
+  const matched = candidates.find(sheet => {
     const sameRound = normalise(sheet.roundLabel) === normalise(fixture.round)
     const sameOpponent = normalise(sheet.opponentName) === normalise(opponent)
     const sameDate = dateKey(sheet.matchDate) === dateKey(fixture.matchDate)
     return (sameRound && sameOpponent) || (sameDate && sameOpponent) || (sameRound && sameDate)
-  }) ?? null
+  })
+  if (matched) return matched
+
+  // Admin-created sheets may pre-date fixture linking or use a different grade label.
+  // Fall back only to the most recently edited unlinked sheet for this same club, league and season.
+  const fallback = await prisma.$queryRawUnsafe<Sheet[]>(`
+    SELECT s.id::text AS id,s.club_id AS "clubId",s.fixture_id AS "fixtureId",s.season,s.grade,
+      s.round_label AS "roundLabel",s.opponent_name AS "opponentName",s.match_date AS "matchDate",s.status,
+      COUNT(tsp.id)::int AS "playerCount"
+    FROM football_team_sheets s
+    LEFT JOIN football_team_sheet_players tsp ON tsp.team_sheet_id=s.id
+    WHERE s.club_id=$1 AND s.league_id=$2 AND s.season=$3 AND s.fixture_id IS NULL
+    GROUP BY s.id
+    HAVING COUNT(tsp.id) > 0
+    ORDER BY (s.grade=$4) DESC,s.updated_at DESC
+    LIMIT 1
+  `, clubId, fixture.leagueId, fixture.season, fixture.grade)
+  return fallback[0] ?? null
 }
 
 router.use(publicRateLimit)
