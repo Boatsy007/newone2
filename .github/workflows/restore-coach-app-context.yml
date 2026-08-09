@@ -33,3 +33,5 @@ jobs:
           git add backend/src/api/routes/coach-app.ts
           git commit -m "Restore working Coach App context" || exit 0
           git push origin newone1
+
+# emergency restore trigger
