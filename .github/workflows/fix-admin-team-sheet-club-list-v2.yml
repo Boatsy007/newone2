@@ -1,0 +1,34 @@
+name: Fix Admin Team Sheets Club List V2
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/workflows/fix-admin-team-sheet-club-list-v2.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - run: python .github/scripts/fix_admin_team_sheet_club_list.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix backend ci
+      - run: npm run build
+      - name: Commit source change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src/api/routes/team-sheets.ts src/pages/AdminTeamSheets.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix Admin Team Sheets club list"
+          git restore backend/prisma/schema.prisma
+          git pull --rebase origin newone1
+          git push origin HEAD:newone1
