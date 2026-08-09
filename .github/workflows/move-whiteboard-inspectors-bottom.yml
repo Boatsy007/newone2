@@ -1,0 +1,37 @@
+name: Move Whiteboard Inspectors Bottom
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/scripts/move_whiteboard_inspectors_bottom.py'
+      - '.github/workflows/move-whiteboard-inspectors-bottom.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Apply bottom inspector layout
+        run: python .github/scripts/move_whiteboard_inspectors_bottom.py
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm ci
+        working-directory: backend
+      - name: Build production app
+        run: npm run build
+      - name: Commit implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+          else
+            git commit -m 'Move Whiteboard player and drawing profiles below oval'
+            git push origin newone1
+          fi
