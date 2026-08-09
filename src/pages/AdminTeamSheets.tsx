@@ -4,7 +4,7 @@ import Nav from '../components/layout/Nav'
 import TeamSheetSquadImporter from '../components/team-sheets/TeamSheetSquadImporter'
 import { getKey } from '../lib/admin'
 
-type Club={clubId:string;clubName:string;leagueName:string;leagueId?:string|null}
+type Club={clubId:string;sourceClubId?:string|null;clubName:string;leagueName:string;leagueId?:string|null;season?:string|null;grade?:string|null}
 type Player={id:string;playerId:string|null;playerName:string;jumperNumber:number|null;preferredPosition:string|null;active:boolean}
 type Selected={clubPlayerId:string;positionCode:string}
 type Sheet={id:string;clubId:string;leagueId:string|null;season:string;grade:string;roundLabel:string;opponentName:string|null;matchDate:string|null;status:string;players:Array<Player&{clubPlayerId:string;positionCode:string}>}
@@ -20,7 +20,7 @@ export default function AdminTeamSheets(){
  const[fixtures,setFixtures]=useState<Fixture[]>([]),[fixtureId,setFixtureId]=useState(''),[fixturesLoading,setFixturesLoading]=useState(false)
  const[playerName,setPlayerName]=useState(''),[jumper,setJumper]=useState(''),[roundLabel,setRoundLabel]=useState(''),[opponent,setOpponent]=useState(''),[matchDate,setMatchDate]=useState(''),[grade,setGrade]=useState('Senior Football'),[season,setSeason]=useState(String(new Date().getFullYear()))
  useEffect(()=>{fetch('/admin/team-sheets/clubs',{headers:authHeaders()}).then(r=>r.json()).then((p:{data?:Club[]})=>setClubs(Array.isArray(p.data)?p.data:[])).catch(()=>setClubs([]))},[])
- useEffect(()=>{if(!clubId){setPlayers([]);setSheets([]);setFixtures([]);setFixtureId('');return}void reload(clubId);void loadFixtures(clubId)},[clubId])
+ useEffect(()=>{if(!clubId){setPlayers([]);setSheets([]);setFixtures([]);setFixtureId('');return}let cancelled=false;void(async()=>{const team=clubs.find(item=>item.clubId===clubId);if(team?.sourceClubId&&team.sourceClubId!==clubId){setMessage('Connecting this team to its fixture record…');const response=await fetch(`/admin/team-sheets/club/${encodeURIComponent(clubId)}/reconcile-source`,{method:'POST',headers:jsonHeaders(),body:JSON.stringify({sourceClubId:team.sourceClubId,leagueId:team.leagueId,season:team.season,grade:team.grade})});if(!response.ok){const payload=await response.json().catch(()=>({})) as{error?:string};if(!cancelled)setMessage(payload.error||'The team mapping could not be repaired');return}}if(cancelled)return;await reload(clubId);await loadFixtures(clubId);if(team?.sourceClubId&&!cancelled)setMessage('Team connected to the correct league and fixture record.')} )();return()=>{cancelled=true}},[clubId,clubs])
  const sheet=sheets.find(item=>item.id===sheetId)
  const fixture=fixtures.find(item=>item.id===fixtureId)
  useEffect(()=>{if(!sheet){setSelected([]);return}setSelected(sheet.players.map(player=>({clubPlayerId:player.clubPlayerId,positionCode:player.positionCode})));setRoundLabel(sheet.roundLabel);setOpponent(sheet.opponentName??'');setMatchDate(sheet.matchDate?.slice(0,10)??'');setGrade(sheet.grade);setSeason(sheet.season)},[sheetId,sheets])

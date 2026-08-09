@@ -40,6 +40,7 @@ function ensureTeamSheetTables() {
         updated_at timestamptz NOT NULL DEFAULT now()
       )
     `)
+    await prisma.$executeRawUnsafe(`ALTER TABLE football_team_sheets ADD COLUMN IF NOT EXISTS fixture_id text NULL`)
     await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS football_team_sheets_identity ON football_team_sheets (club_id, season, grade, round_label)`)
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS football_team_sheets_public ON football_team_sheets (club_id, status, match_date DESC, created_at DESC)`)
     await prisma.$executeRawUnsafe(`
@@ -67,6 +68,10 @@ function normaliseRoundLabel(value: unknown) {
   if (!/^round\b/i.test(raw)) return raw
   const numberOrName = raw.replace(/^(?:round\s+)+/i, '').trim()
   return numberOrName ? `Round ${numberOrName}` : 'Round'
+}
+
+function normaliseTeamName(value: unknown) {
+  return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
 type PlayerContext = {
@@ -217,23 +222,107 @@ adminRouter.get('/clubs', async (_req, res) => {
           where: { isActive: true, league: { sport: 'FOOTBALL', archivedAt: null, isActive: true } },
           orderBy: [{ season: 'desc' }, { updatedAt: 'desc' }],
           take: 1,
-          select: { leagueId: true, grade: true, league: { select: { name: true } } },
+          select: { leagueId: true, season: true, grade: true, league: { select: { name: true } } },
         },
       },
       orderBy: { name: 'asc' },
     })
+
+    const mapped = await Promise.all(clubs.map(async club => {
+      const team = club.leagueSeasons[0]
+      if (!team) return null
+      const fixtures = await prisma.footballFixture.findMany({
+        where: { leagueId: team.leagueId, season: team.season, grade: team.grade },
+        select: { homeClubId: true, awayClubId: true, homeName: true, awayName: true },
+        orderBy: [{ matchDate: 'desc' }, { round: 'desc' }],
+        take: 80,
+      })
+      const direct = fixtures.some(fixture => fixture.homeClubId === club.id || fixture.awayClubId === club.id)
+      let canonicalClubId = club.id
+      if (!direct) {
+        const expected = normaliseTeamName(club.name)
+        const fixture = fixtures.find(item => normaliseTeamName(item.homeName) === expected || normaliseTeamName(item.awayName) === expected)
+        if (fixture) canonicalClubId = normaliseTeamName(fixture.homeName) === expected ? fixture.homeClubId ?? club.id : fixture.awayClubId ?? club.id
+      }
+      return {
+        clubId: canonicalClubId,
+        sourceClubId: canonicalClubId === club.id ? null : club.id,
+        clubName: club.name,
+        leagueId: team.leagueId,
+        leagueName: team.league.name,
+        season: team.season,
+        grade: team.grade,
+      }
+    }))
+    const data = [...new Map(mapped.filter(Boolean).map(item => [`${item!.leagueId}:${item!.clubId}`, item!])).values()]
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
-    res.json({ data: clubs.map(club => ({
-      clubId: club.id,
-      clubName: club.name,
-      leagueId: club.leagueSeasons[0]?.leagueId ?? null,
-      leagueName: club.leagueSeasons[0]?.league.name ?? '—',
-      grade: club.leagueSeasons[0]?.grade ?? null,
-    })) })
+    res.json({ data })
   } catch (error) {
     res.status(500).json({ error: 'failed to load team sheet clubs', detail: String(error) })
   }
 })
+
+adminRouter.post('/club/:clubId/reconcile-source', async (req, res) => {
+  try {
+    await ensureTeamSheetTables()
+    const canonicalClubId = String(req.params.clubId)
+    const sourceClubId = String(req.body?.sourceClubId ?? '')
+    const leagueId = String(req.body?.leagueId ?? '')
+    const season = String(req.body?.season ?? '')
+    const grade = String(req.body?.grade ?? '')
+    if (!sourceClubId || sourceClubId === canonicalClubId) return res.json({ data: { reconciled: false } })
+    if (!leagueId || !season || !grade) return res.status(400).json({ error: 'leagueId, season and grade are required' })
+
+    const [canonicalClub, sourceClub, sourceMembership, canonicalFixture] = await Promise.all([
+      prisma.club.findUnique({ where: { id: canonicalClubId }, select: { id: true, name: true } }),
+      prisma.club.findUnique({ where: { id: sourceClubId }, select: { id: true, name: true } }),
+      prisma.clubLeagueSeason.findFirst({ where: { clubId: sourceClubId, leagueId, season, grade, isActive: true }, select: { id: true } }),
+      prisma.footballFixture.findFirst({ where: { leagueId, season, grade, OR: [{ homeClubId: canonicalClubId }, { awayClubId: canonicalClubId }] }, select: { id: true } }),
+    ])
+    if (!canonicalClub || !sourceClub || !sourceMembership || !canonicalFixture) return res.status(400).json({ error: 'The selected source and fixture-linked team could not be validated' })
+    if (normaliseTeamName(canonicalClub.name) !== normaliseTeamName(sourceClub.name)) return res.status(400).json({ error: 'The selected source does not match the fixture-linked team' })
+
+    await prisma.$transaction(async tx => {
+      await tx.$executeRawUnsafe(`
+        INSERT INTO football_club_players (club_id,player_id,player_name,jumper_number,preferred_position,active,created_at,updated_at)
+        SELECT $1,player_id,player_name,jumper_number,preferred_position,active,created_at,now()
+        FROM football_club_players WHERE club_id=$2
+        ON CONFLICT (club_id,lower(player_name)) DO UPDATE SET
+          player_id=COALESCE(EXCLUDED.player_id,football_club_players.player_id),
+          jumper_number=COALESCE(EXCLUDED.jumper_number,football_club_players.jumper_number),
+          preferred_position=COALESCE(EXCLUDED.preferred_position,football_club_players.preferred_position),
+          active=EXCLUDED.active,updated_at=now()
+      `, canonicalClubId, sourceClubId)
+      await tx.$executeRawUnsafe(`
+        INSERT INTO football_team_sheets (club_id,league_id,season,grade,round_label,opponent_name,match_date,status,published_at,fixture_id,created_at,updated_at)
+        SELECT $1,league_id,season,grade,round_label,opponent_name,match_date,status,published_at,fixture_id,created_at,now()
+        FROM football_team_sheets
+        WHERE club_id=$2 AND season=$3 AND grade=$4 AND (league_id=$5 OR league_id IS NULL)
+        ON CONFLICT (club_id,season,grade,round_label) DO UPDATE SET
+          league_id=COALESCE(EXCLUDED.league_id,football_team_sheets.league_id),
+          opponent_name=COALESCE(EXCLUDED.opponent_name,football_team_sheets.opponent_name),
+          match_date=COALESCE(EXCLUDED.match_date,football_team_sheets.match_date),
+          fixture_id=COALESCE(EXCLUDED.fixture_id,football_team_sheets.fixture_id),
+          updated_at=now()
+      `, canonicalClubId, sourceClubId, season, grade, leagueId)
+      await tx.$executeRawUnsafe(`
+        INSERT INTO football_team_sheet_players (team_sheet_id,club_player_id,position_code)
+        SELECT target_sheet.id,target_player.id,source_position.position_code
+        FROM football_team_sheets source_sheet
+        JOIN football_team_sheets target_sheet ON target_sheet.club_id=$1 AND target_sheet.season=source_sheet.season AND target_sheet.grade=source_sheet.grade AND target_sheet.round_label=source_sheet.round_label
+        JOIN football_team_sheet_players source_position ON source_position.team_sheet_id=source_sheet.id
+        JOIN football_club_players source_player ON source_player.id=source_position.club_player_id
+        JOIN football_club_players target_player ON target_player.club_id=$1 AND lower(target_player.player_name)=lower(source_player.player_name)
+        WHERE source_sheet.club_id=$2 AND source_sheet.season=$3 AND source_sheet.grade=$4 AND (source_sheet.league_id=$5 OR source_sheet.league_id IS NULL)
+        ON CONFLICT DO NOTHING
+      `, canonicalClubId, sourceClubId, season, grade, leagueId)
+    })
+    res.json({ data: { reconciled: true, canonicalClubId, sourceClubId } })
+  } catch (error) {
+    res.status(500).json({ error: 'failed to reconcile team sheet mapping', detail: String(error) })
+  }
+})
+
 adminRouter.get('/club/:clubId/players', async (req, res) => {
   try {
     await ensureTeamSheetTables()
