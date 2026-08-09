@@ -1,0 +1,32 @@
+name: Connect Whiteboard Selected Team Fallback
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/connect-whiteboard-selected-team-fallback.yml'
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Apply selected-team fallback
+        run: python .github/scripts/connect_whiteboard_selected_team_fallback.py
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm ci
+        working-directory: backend
+      - name: Build production app
+        run: npm run build
+      - name: Commit implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          git diff --cached --quiet || git commit -m 'Connect Whiteboard to selected team with previous-game fallback'
+          git push origin HEAD:newone1
