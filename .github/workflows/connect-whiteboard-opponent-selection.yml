@@ -1,0 +1,38 @@
+name: Connect Whiteboard Opponent Selection
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/workflows/connect-whiteboard-opponent-selection.yml'
+      - '.github/scripts/connect_whiteboard_to_opponent_selection.py'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - run: python .github/scripts/connect_whiteboard_to_opponent_selection.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+      - run: npm ci
+      - run: npm --prefix backend ci
+      - run: npm run build
+      - name: Commit source change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -- backend/prisma/schema.prisma || true
+          git add backend/src/api/routes/club-team-sheets.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Connect Whiteboard to opponent selected side"
+          git push origin HEAD:newone1
