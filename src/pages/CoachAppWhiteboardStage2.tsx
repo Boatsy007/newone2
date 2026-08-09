@@ -825,4 +825,12 @@ const styles=`
 
 /* Selected players use the bottom context bar only */
 .magnet-inspector{display:none!important}
+
+/* Whiteboard back button position v2 */
+@media (orientation:landscape){
+  .cawb2 .wb-topbar > .back{
+    transform:translate(28px,-8px)!important;
+  }
+}
+
 `
