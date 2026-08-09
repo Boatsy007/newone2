@@ -10,6 +10,9 @@ type BoardState={magnets:Magnet[];strokes:Stroke[]}
 type Frame={id:string;name:string;state:BoardState}
 type PlayState={frames:Frame[];activeFrameId:string;speed:number;loop:boolean}
 type SavedPlay={id:string;name:string;fixtureLabel:string;savedAt:string;play:PlayState}
+type SelectedPlayer={id?:string;clubPlayerId:string;playerName:string;jumperNumber:number|null;positionCode:string}
+type TeamSheet={id:string;roundLabel?:string;matchDate?:string|null;status?:string;players?:SelectedPlayer[]}
+type TeamSheetListPayload={data?:TeamSheet[]}
 type SheetPayload={data?:{state?:{slots?:Array<{clubPlayerId:string;playerName:string;jumperNumber:number|null;positionCode:string}>;teamStats?:Record<string,number>;quarter?:number;homeGoals?:number;homeBehinds?:number;awayGoals?:number;awayBehinds?:number}}}
 type TacticalAnalysis={headline:string;summary:string;strengths:string[];risks:string[];adjustments:string[];coachMessage:string}
 type CloudPlay={id:string;title:string;category:string;visibility:string;notes:string|null;fixtureLabel:string|null;play:PlayState;shareToken?:string|null;updatedAt:string}
@@ -86,14 +89,56 @@ export default function CoachAppWhiteboardStage2({clubId,sheetId,token,fixtureLa
   const state=activeFrame?.state||emptyBoard
 
   useEffect(()=>{
+    let live=true
     try{setSaved(JSON.parse(localStorage.getItem(libraryKey)||'[]') as SavedPlay[])}catch{setSaved([])}
+    let restored=false
     const stored=localStorage.getItem(storageKey)
-    if(stored){try{setPlay(JSON.parse(stored) as PlayState);setLoading(false);return}catch{}}
-    const legacy=localStorage.getItem(legacyKey)
-    if(legacy){try{setPlay(newPlay(JSON.parse(legacy) as BoardState));setLoading(false);return}catch{}}
-    fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{headers:{authorization:`Bearer ${token}`}})
-      .then(async response=>{const payload=await response.json() as SheetPayload;if(!response.ok)throw new Error('Unable to load selected team');const slots=payload.data?.state?.slots||[];setOurPlayers(slots.map((slot,index)=>({id:slot.clubPlayerId,name:slot.playerName,number:slot.jumperNumber,team:'US' as const,position:FIELD_POSITIONS[slot.positionCode]||{x:15+(index%6)*14,y:18+Math.floor(index/6)*15}})));setPlay(newPlay(emptyBoard))})
-      .catch(()=>setPlay(newPlay(emptyBoard))).finally(()=>setLoading(false))
+    if(stored){try{setPlay(JSON.parse(stored) as PlayState);restored=true}catch{}}
+    if(!restored){const legacy=localStorage.getItem(legacyKey);if(legacy){try{setPlay(newPlay(JSON.parse(legacy) as BoardState));restored=true}catch{}}}
+    if(!restored)setPlay(newPlay(emptyBoard))
+
+    const headers={authorization:`Bearer ${token}`}
+    const loadPlayers=async()=>{
+      try{
+        const [sheetsResponse,stateResponse]=await Promise.all([
+          fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`,{headers,cache:'no-store'}),
+          fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{headers,cache:'no-store'}),
+        ])
+        const sheetsPayload=await sheetsResponse.json().catch(()=>({})) as TeamSheetListPayload
+        const statePayload=await stateResponse.json().catch(()=>({})) as SheetPayload
+        const sheets=Array.isArray(sheetsPayload.data)?sheetsPayload.data:[]
+        const current=sheets.find(sheet=>sheet.id===sheetId)
+        let players=(current?.players||[]).filter(player=>player.clubPlayerId&&player.playerName)
+
+        if(!players.length){
+          const currentTime=current?.matchDate?new Date(current.matchDate).getTime():Number.POSITIVE_INFINITY
+          const candidates=sheets
+            .filter(sheet=>sheet.id!==sheetId&&(sheet.players?.length||0)>0)
+            .map(sheet=>({sheet,time:sheet.matchDate?new Date(sheet.matchDate).getTime():0}))
+            .filter(item=>Number.isFinite(item.time)&&item.time<currentTime)
+            .sort((a,b)=>b.time-a.time)
+          const fallback=candidates[0]?.sheet||sheets
+            .filter(sheet=>sheet.id!==sheetId&&(sheet.players?.length||0)>0)
+            .sort((a,b)=>(b.matchDate?new Date(b.matchDate).getTime():0)-(a.matchDate?new Date(a.matchDate).getTime():0))[0]
+          players=(fallback?.players||[]).filter(player=>player.clubPlayerId&&player.playerName)
+        }
+
+        if(!players.length){
+          const slots=statePayload.data?.state?.slots||[]
+          players=slots.map(slot=>({clubPlayerId:slot.clubPlayerId,playerName:slot.playerName,jumperNumber:slot.jumperNumber,positionCode:slot.positionCode}))
+        }
+
+        if(live)setOurPlayers(players.map((player,index)=>({
+          id:player.clubPlayerId,
+          name:player.playerName,
+          number:player.jumperNumber,
+          team:'US' as const,
+          position:FIELD_POSITIONS[player.positionCode]||{x:15+(index%6)*14,y:18+Math.floor(index/6)*15},
+        })))
+      }catch{if(live)setOurPlayers([])}finally{if(live)setLoading(false)}
+    }
+    void loadPlayers()
+    return()=>{live=false}
   },[clubId,sheetId,token,storageKey,legacyKey,libraryKey])
 
   useEffect(()=>{if(loading)return;setSaveStatus('SAVING');if(saveTimerRef.current)window.clearTimeout(saveTimerRef.current);saveTimerRef.current=window.setTimeout(()=>{try{localStorage.setItem(storageKey,JSON.stringify(play));setSaveStatus(navigator.onLine?'SAVED':'OFFLINE')}catch{setSaveStatus('OFFLINE')}},350);return()=>{if(saveTimerRef.current)window.clearTimeout(saveTimerRef.current)}},[play,loading,storageKey])
