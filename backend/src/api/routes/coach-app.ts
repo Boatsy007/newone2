@@ -102,12 +102,11 @@ async function loadSheetForFixture(clubId: string, fixture: Fixture | null) {
       COUNT(tsp.id)::int AS "playerCount"
     FROM football_team_sheets s
     LEFT JOIN football_team_sheet_players tsp ON tsp.team_sheet_id=s.id
-    WHERE s.club_id=$1 AND s.league_id=$2 AND s.season=$3 AND s.fixture_id IS NULL
+    WHERE s.club_id=$1 AND s.season=$2 AND s.fixture_id IS NULL
     GROUP BY s.id
-    HAVING COUNT(tsp.id) > 0
-    ORDER BY (s.grade=$4) DESC,s.updated_at DESC
+    ORDER BY (s.league_id=$3) DESC,(s.grade=$4) DESC,s.updated_at DESC
     LIMIT 1
-  `, clubId, fixture.leagueId, fixture.season, fixture.grade)
+  `, clubId, fixture.season, fixture.leagueId, fixture.grade)
   return fallback[0] ?? null
 }
 
