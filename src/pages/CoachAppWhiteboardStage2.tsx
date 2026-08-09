@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import CoachAppLoading from '../components/CoachAppLoading'
 import { ArrowLeft, ChevronDown, ChevronUp, Circle, Copy, Eraser, Highlighter, Library, Minus, MousePointer2, Pause, Pencil, Play, Plus, Presentation, Redo2, Repeat2, Save, Share2, Cloud, History, Download, Users, BarChart3, Radio, Mic, Video, Film, BrainCircuit, GitCompare, Target, BookOpen, Sparkles, Square, Triangle, Trash2, Undo2, X } from 'lucide-react'
 
 type DrawingTool='PEN'|'LINE'|'HIGHLIGHT'|'ARROW'|'CIRCLE'|'SQUARE'|'TRIANGLE'
@@ -341,7 +342,7 @@ export default function CoachAppWhiteboardStage2({clubId,sheetId,token,fixtureLa
     try{const r=await fetch(`/api/whiteboard-intelligence/clubs/${encodeURIComponent(clubId)}/game-models`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify({title,phase,description,play})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Unable to save game model');alert('Club game-model template saved.')}catch(e){alert(e instanceof Error?e.message:'Unable to save game model')}
   }
   const strokes=[...state.strokes,...(drawing?[drawing]:[])]
-  if(loading)return <main className="cawb2-loading"><div className="wb-loader-mark"><span/><span/><span/><span/></div><b>PLAYFOOTY WHITEBOARD</b><p>Loading your selected team and tactics…</p></main>
+  if(loading)return <CoachAppLoading message="Loading your selected team and tactics…"/>
   return <main className={`cawb2 ${presenting?'presenting':''} ${playBuilderOpen?'play-builder-open':''}`}><style>{styles}</style>
     {!presenting&&<header className="wb-topbar"><button className="back" aria-label={returnToMatch?'Return to live match':'Back to Coach Tools'} onClick={onExit}><ArrowLeft/> {returnToMatch?'Return to Match':'Back'}</button><div className="wb-title"><span>PLAYFOOTY WHITEBOARD</span><b>{fixtureLabel}</b><small className={`save-state ${saveStatus.toLowerCase()}`}><i/>{saveStatus==='SAVING'?'Saving…':saveStatus==='OFFLINE'?'Saved on this iPad':'Saved'}</small></div><div className="wb-primary-actions"><button aria-label="Open presentation mode" onClick={()=>setPresenting(true)}><Presentation/>Present</button><button aria-label="Open more Whiteboard actions" className="wb-more-button" onClick={()=>setMoreOpen(v=>!v)} aria-expanded={moreOpen}><span>•••</span>More</button></div></header>}
     {!presenting&&<aside className="tools"><button title="Select and move" aria-label="Select and move players or drawings" aria-pressed={tool==='MOVE'} className={tool==='MOVE'?'active':''} onClick={()=>{setTool('MOVE');setDrawTrayOpen(false)}}><MousePointer2/><span>Move</span></button><button title="Add players" aria-label="Open player strip" aria-pressed={playerDrawerOpen} className={playerDrawerOpen?'active':''} onClick={()=>{setPlayerDrawerOpen(value=>!value);setDrawTrayOpen(false)}}><Users/><span>Players</span></button><button title="Drawing tools" aria-label="Open drawing tools" aria-pressed={drawTrayOpen} className={drawTrayOpen?'active':''} onClick={()=>{setDrawTrayOpen(value=>!value);setPlayerDrawerOpen(false);if(tool==='MOVE')setTool('PEN')}}><Pencil/><span>Draw</span></button><hr/><button title="Undo" aria-label="Undo last Whiteboard change" disabled={!undo.length} onClick={undoAction}><Undo2/><span>Undo</span></button><button title="Redo" aria-label="Redo Whiteboard change" disabled={!redo.length} onClick={redoAction}><Redo2/><span>Redo</span></button><button title="Clear current frame" aria-label="Clear players and drawings from current frame" onClick={clearBoard}><Trash2/><span>Clear</span></button></aside>}
@@ -488,6 +489,85 @@ const styles=`
 
 /* Grouped Whiteboard drawing tools */
 .draw-bottom-tray{position:fixed!important;z-index:88!important;left:74px!important;right:0!important;bottom:0!important;min-height:112px!important;padding:10px 12px!important;background:rgba(5,22,31,.98)!important;border-top:1px solid #2d5668!important;box-shadow:0 -18px 50px rgba(0,0,0,.42)!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto 42px!important;align-items:center!important;gap:14px!important;animation:wb-player-tray-in .18s ease both!important}.draw-tool-list{display:flex!important;align-items:center!important;gap:7px!important;overflow-x:auto!important;padding-bottom:2px!important}.draw-tool-list button{min-width:68px!important;height:68px!important;padding:7px 8px!important;border:1px solid #31505f!important;border-radius:12px!important;background:#0c2633!important;color:#d7e5ec!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:5px!important;font-size:9px!important;font-weight:900!important}.draw-tool-list button svg{width:22px!important;height:22px!important}.draw-tool-list button.active{background:#109ee8!important;border-color:#65d0ff!important;color:#fff!important;box-shadow:0 0 0 2px rgba(32,184,255,.2)!important}.draw-tool-list button.danger.active{background:#7a2632!important;border-color:#e45c6b!important}.draw-settings{display:grid!important;grid-template-columns:auto minmax(150px,220px) minmax(150px,220px)!important;align-items:center!important;gap:10px!important}.draw-settings label{display:grid!important;grid-template-columns:auto minmax(70px,1fr) 34px!important;align-items:center!important;gap:7px!important;color:#a8bbc5!important;font-size:9px!important;font-weight:900!important;text-transform:uppercase!important}.draw-settings input{accent-color:#20b8ff!important}.draw-settings b{color:#fff!important;text-align:right!important}.draw-close{width:42px!important;height:42px!important;padding:0!important;justify-content:center!important;border-radius:11px!important}.cawb2:has(.draw-bottom-tray) .legend{bottom:120px!important}@media(max-width:980px){.draw-bottom-tray{left:64px!important;grid-template-columns:minmax(0,1fr) 42px!important}.draw-settings{grid-column:1/-1!important;grid-template-columns:auto 1fr 1fr!important}.draw-close{grid-column:2!important;grid-row:1!important}.draw-tool-list{grid-column:1!important;grid-row:1!important}}@media(max-width:700px){.draw-bottom-tray{left:0!important;bottom:58px!important;min-height:170px!important;padding:8px!important}.draw-tool-list button{min-width:62px!important;height:62px!important}.draw-settings{grid-template-columns:auto 1fr!important}.draw-settings label:last-child{grid-column:2!important}.cawb2:has(.draw-bottom-tray) .legend{bottom:238px!important}}
+
+
+/* Compact iPad drawing tray */
+@media (min-width:701px){
+  .draw-bottom-tray{
+    min-height:88px!important;
+    height:88px!important;
+    padding:7px 9px!important;
+    grid-template-columns:minmax(0,1fr) 270px 36px!important;
+    gap:8px!important;
+  }
+  .draw-tool-list{
+    gap:5px!important;
+    overflow:visible!important;
+    min-width:0!important;
+    justify-content:space-between!important;
+  }
+  .draw-tool-list button{
+    min-width:0!important;
+    width:clamp(48px,6.2vw,62px)!important;
+    height:58px!important;
+    padding:4px!important;
+    border-radius:10px!important;
+    gap:2px!important;
+    flex:0 1 62px!important;
+  }
+  .draw-tool-list button svg{width:18px!important;height:18px!important}
+  .draw-tool-list button span{font-size:8px!important;line-height:1!important}
+  .draw-settings{
+    grid-template-columns:94px 1fr!important;
+    grid-template-rows:34px 34px!important;
+    gap:4px 7px!important;
+    min-width:0!important;
+  }
+  .draw-settings .zoom-controls{
+    grid-row:1/3!important;
+    display:grid!important;
+    grid-template-columns:repeat(3,29px)!important;
+    gap:3px!important;
+  }
+  .draw-settings .zoom-controls button{
+    min-width:29px!important;
+    width:29px!important;
+    height:31px!important;
+    min-height:31px!important;
+    padding:0!important;
+    border-radius:8px!important;
+    font-size:11px!important;
+  }
+  .draw-settings label{
+    grid-template-columns:48px minmax(54px,1fr) 25px!important;
+    gap:4px!important;
+    font-size:7px!important;
+    white-space:nowrap!important;
+  }
+  .draw-settings label input{width:100%!important;min-width:0!important}
+  .draw-settings label b{font-size:8px!important}
+  .draw-close{
+    width:36px!important;
+    height:36px!important;
+    min-width:36px!important;
+    min-height:36px!important;
+  }
+  .cawb2:has(.draw-bottom-tray) .legend{bottom:94px!important}
+}
+@media (min-width:701px) and (max-width:980px){
+  .draw-bottom-tray{
+    left:64px!important;
+    grid-template-columns:minmax(0,1fr) 240px 34px!important;
+  }
+  .draw-settings{
+    grid-column:auto!important;
+    grid-row:auto!important;
+    grid-template-columns:88px 1fr!important;
+  }
+  .draw-close{grid-column:auto!important;grid-row:auto!important}
+  .draw-tool-list{grid-column:auto!important;grid-row:auto!important}
+  .draw-tool-list button{width:clamp(43px,5.9vw,56px)!important;flex-basis:56px!important}
+}
 
 /* Whiteboard horizontal AFL workspace */
 .cawb2{grid-template-columns:74px minmax(0,1fr)!important;grid-template-rows:64px minmax(0,1fr)!important}
