@@ -1,0 +1,32 @@
+name: Reposition Whiteboard Back Button
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/workflows/reposition-whiteboard-back-button.yml'
+      - '.github/scripts/reposition_whiteboard_back_button.py'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: python .github/scripts/reposition_whiteboard_back_button.py
+      - run: npm ci
+      - run: npm run build
+      - name: Commit source change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Reposition Whiteboard back button"
+          git push origin HEAD:newone1
