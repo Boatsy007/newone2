@@ -1,0 +1,40 @@
+name: Fix Whiteboard AFL Field Markings
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-whiteboard-afl-markings.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Correct horizontal AFL field markings
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/pages/CoachAppWhiteboardStage2.tsx')
+          source = path.read_text()
+          old = '''<ellipse cx="80" cy="50" rx="74" ry="45" fill="#078b40" stroke="#39f49b" strokeWidth=".7"/><path d="M80 5v90M6 50h148" stroke="rgba(255,255,255,.38)" strokeWidth=".35"/><rect x="61" y="38" width="38" height="24" fill="none" stroke="rgba(255,255,255,.55)" strokeWidth=".4"/><circle cx="80" cy="50" r="5" fill="none" stroke="rgba(255,255,255,.6)" strokeWidth=".4"/><path d="M42 12 Q80 34 118 12M42 88 Q80 66 118 88" fill="none" stroke="rgba(255,255,255,.55)" strokeWidth=".4"/><path d="M70 5v7M76 4v9M84 4v9M90 5v7M70 95v-7M76 96v-9M84 96v-9M90 95v-7" stroke="#fff" strokeWidth=".45"/>'''
+          new = '''<ellipse cx="80" cy="50" rx="74" ry="45" fill="#078b40" stroke="#39f49b" strokeWidth=".7"/><path d="M80 5v90" stroke="rgba(255,255,255,.42)" strokeWidth=".35"/><rect x="66" y="38" width="28" height="24" fill="none" stroke="rgba(255,255,255,.58)" strokeWidth=".4"/><circle cx="80" cy="50" r="5" fill="none" stroke="rgba(255,255,255,.65)" strokeWidth=".4"/><circle cx="80" cy="50" r=".8" fill="rgba(255,255,255,.75)"/><path d="M6 18 Q43 50 6 82M154 18 Q117 50 154 82" fill="none" stroke="rgba(255,255,255,.58)" strokeWidth=".45"/><path d="M6 38h8M6 46h11M6 54h11M6 62h8M154 38h-8M154 46h-11M154 54h-11M154 62h-8" stroke="#fff" strokeWidth=".55" strokeLinecap="round"/><path d="M6 38v24M154 38v24" stroke="rgba(255,255,255,.5)" strokeWidth=".35"/>'''
+          if old not in source:
+              raise SystemExit('Current field-marking block was not found; no file changed')
+          source = source.replace(old, new, 1)
+          path.write_text(source)
+          PY
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm --prefix backend ci
+      - name: Build production app
+        run: npm run build
+      - name: Commit field marking fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          git commit -m "Fix Whiteboard AFL field markings" || exit 0
+          git push origin HEAD:newone1
