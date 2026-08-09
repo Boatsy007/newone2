@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 path = Path('backend/src/api/routes/coach-app.ts')
 text = path.read_text()
@@ -68,16 +69,11 @@ if 'async function ensureCanonicalFixtureSheet(' not in text:
         raise SystemExit('loadFixture anchor not found')
     text = text.replace(anchor, helper + anchor, 1)
 
-old = """    let sheet = await loadSheetForFixture(club.id, fixture)
-    if (!sheet && await reconcileExistingAliasSheet(club, team)) sheet = await loadSheetForFixture(club.id, fixture)
-"""
-new = """    let sheet = await loadSheetForFixture(club.id, fixture)
-    if (!sheet && await reconcileExistingAliasSheet(club, team)) sheet = await loadSheetForFixture(club.id, fixture)
-    if (!sheet && await ensureCanonicalFixtureSheet(club, team, fixture)) sheet = await loadSheetForFixture(club.id, fixture)
-"""
-if old in text:
-    text = text.replace(old, new, 1)
-elif 'ensureCanonicalFixtureSheet(club, team, fixture)' not in text:
-    raise SystemExit('sheet loading anchor not found')
+if 'ensureCanonicalFixtureSheet(club, team, fixture)' not in text:
+    pattern = r"(\s*if \(!sheet && await reconcileExistingAliasSheet\(club, team\)\) sheet = await loadSheetForFixture\(club\.id, fixture\)\n)"
+    replacement = r"\1    if (!sheet && await ensureCanonicalFixtureSheet(club, team, fixture)) sheet = await loadSheetForFixture(club.id, fixture)\n"
+    text, count = re.subn(pattern, replacement, text, count=1)
+    if count != 1:
+        raise SystemExit('sheet loading anchor not found')
 
 path.write_text(text)
