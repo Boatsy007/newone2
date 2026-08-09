@@ -134,7 +134,7 @@ async function reconcileExistingAliasSheet(club: { id:string; name:string }, tea
 }
 
 async function ensureCanonicalFixtureSheet(club: { id:string; name:string }, team: { leagueId:string; season:string; grade:string } | null, fixture: Fixture | null) {
-  const targetClubId = 'ba284591-89e1-4b64-878c-95508c2c74c02'
+  const targetClubId = 'ba284591-89e1-4b64-878c-9560e2c74c02'
   if (!team || !fixture || club.id !== targetClubId) return false
 
   const existing = await prisma.$queryRawUnsafe<Array<{id:string}>>(`
