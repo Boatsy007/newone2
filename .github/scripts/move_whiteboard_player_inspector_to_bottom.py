@@ -1,27 +1,21 @@
 from pathlib import Path
-import re
 
 path = Path('src/pages/CoachAppWhiteboardStage2.tsx')
 text = path.read_text()
 
-# Add a convenient selected player value next to the active board state.
-anchor = "  const state=activeFrame?.state||emptyBoard\n"
-addition = "  const selectedMagnet=state.magnets.find(item=>item.id===selectedMagnetId)||null\n"
-if addition not in text:
-    if anchor not in text:
+state_anchor = "  const state=activeFrame?.state||emptyBoard\n"
+selected_line = "  const selectedMagnet=state.magnets.find(item=>item.id===selectedMagnetId)||null\n"
+if selected_line not in text:
+    if state_anchor not in text:
         raise SystemExit('state anchor missing')
-    text = text.replace(anchor, anchor + addition, 1)
+    text = text.replace(state_anchor, state_anchor + selected_line, 1)
 
-# Replace the existing floating magnet inspector with a horizontal app-style bottom bar.
-pattern = re.compile(r"\{selectedMagnetId&&!presenting&&<section className=\"magnet-inspector\">.*?</section>\}", re.S)
-replacement = '''{selectedMagnet&&!presenting&&tool==='MOVE'&&<section className="player-selection-bar" aria-label="Selected player controls"><div className={`player-selection-avatar ${selectedMagnet.team==='US'?'us':'them'}`}><b>{selectedMagnet.number??'—'}</b></div><div className="player-selection-identity"><span>SELECTED PLAYER</span><strong>{selectedMagnet.name}</strong><small>{selectedMagnet.team==='US'?'Your team':'Opposition'}</small></div><label><span>Name</span><input value={selectedMagnet.name} onChange={event=>updateSelectedMagnet({name:event.target.value})}/></label><label className="number-field"><span>Number</span><input inputMode="numeric" value={selectedMagnet.number??''} onChange={event=>updateSelectedMagnet({number:event.target.value===''?null:Number(event.target.value)})}/></label><div className="player-selection-team"><button className={selectedMagnet.team==='US'?'active':''} onClick={()=>updateSelectedMagnet({team:'US'})}>Your team</button><button className={selectedMagnet.team==='THEM'?'active opposition':''} onClick={()=>updateSelectedMagnet({team:'THEM'})}>Opposition</button></div><button className="player-selection-action" onClick={duplicateSelectedMagnet}><Copy/><span>Duplicate</span></button><button className="player-selection-action danger" onClick={removeSelectedMagnet}><Trash2/><span>Remove</span></button><button className="player-selection-close" aria-label="Close selected player controls" onClick={()=>setSelectedMagnetId('')}><X/></button></section>}'''
-text, count = pattern.subn(replacement, text, count=1)
-if count == 0:
-    # Some builds use a truthy lookup expression rather than selectedMagnetId.
-    pattern2 = re.compile(r"\{!presenting&&selectedMagnetId&&<section className=\"magnet-inspector\">.*?</section>\}", re.S)
-    text, count = pattern2.subn(replacement, text, count=1)
-if count == 0:
-    raise SystemExit('floating magnet inspector JSX not found')
+bar = '''    {selectedMagnet&&!presenting&&tool==='MOVE'&&<section className="player-selection-bar" aria-label="Selected player controls"><div className={`player-selection-avatar ${selectedMagnet.team==='US'?'us':'them'}`}><b>{selectedMagnet.number??'—'}</b></div><div className="player-selection-identity"><span>SELECTED PLAYER</span><strong>{selectedMagnet.name}</strong><small>{selectedMagnet.team==='US'?'Your team':'Opposition'}</small></div><label><span>Name</span><input value={selectedMagnet.name} onChange={event=>updateSelectedMagnet({name:event.target.value})}/></label><label className="number-field"><span>Number</span><input inputMode="numeric" value={selectedMagnet.number??''} onChange={event=>updateSelectedMagnet({number:event.target.value===''?null:Number(event.target.value)})}/></label><div className="player-selection-team"><button className={selectedMagnet.team==='US'?'active':''} onClick={()=>updateSelectedMagnet({team:'US'})}>Your team</button><button className={selectedMagnet.team==='THEM'?'active opposition':''} onClick={()=>updateSelectedMagnet({team:'THEM'})}>Opposition</button></div><button className="player-selection-action" onClick={duplicateSelectedMagnet}><Copy/><span>Duplicate</span></button><button className="player-selection-action danger" onClick={removeSelectedMagnet}><Trash2/><span>Remove</span></button><button className="player-selection-close" aria-label="Close selected player controls" onClick={()=>setSelectedMagnetId('')}><X/></button></section>}\n'''
+insert_anchor = "    {playerDrawerOpen&&!presenting&&<section className=\"player-bottom-tray\">"
+if 'className="player-selection-bar"' not in text:
+    if insert_anchor not in text:
+        raise SystemExit('player tray insertion anchor missing')
+    text = text.replace(insert_anchor, bar + insert_anchor, 1)
 
 css_anchor = "/* Stage 8 Priority 4 — premium drawing */"
 css = r'''
