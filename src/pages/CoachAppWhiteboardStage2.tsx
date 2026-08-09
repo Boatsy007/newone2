@@ -825,4 +825,29 @@ const styles=`
 
 /* Selected players use the bottom context bar only */
 .magnet-inspector{display:none!important}
+
+/* Centre Whiteboard confirmation modal */
+.cawb2 > .cawb2-modal{
+  position:fixed!important;
+  inset:0!important;
+  width:100vw!important;
+  height:100dvh!important;
+  z-index:3200!important;
+  display:grid!important;
+  place-items:center!important;
+  padding:24px!important;
+  background:rgba(0,0,0,.68)!important;
+  backdrop-filter:blur(7px)!important;
+}
+.cawb2 > .cawb2-modal > .wb-native-dialog,
+.cawb2 > .cawb2-modal > .wb-result-panel{
+  position:relative!important;
+  inset:auto!important;
+  margin:0!important;
+  width:min(520px,calc(100vw - 48px))!important;
+  max-height:calc(100dvh - 48px)!important;
+  align-self:center!important;
+  justify-self:center!important;
+}
+
 `
