@@ -79,11 +79,15 @@ export default function CoachApp(){
       let next=await fetchContext(selectedClubId)
       if(!next)return
       if(next.fixture&&!next.teamSheet){
-        const sheetResponse=await fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(next.club.id)}/sheets`,{method:'POST',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({fixtureId:next.fixture.id})})
-        const sheetPayload=await sheetResponse.json().catch(()=>({}))
-        if(!sheetResponse.ok)throw new Error(sheetPayload.error||'Unable to open team selection')
-        next=await fetchContext(next.club.id)
-        if(!next)return
+        try{
+          const sheetResponse=await fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(next.club.id)}/sheets`,{method:'POST',headers:{...headers,'content-type':'application/json'},body:JSON.stringify({fixtureId:next.fixture.id})})
+          if(sheetResponse.ok){
+            const refreshed=await fetchContext(next.club.id)
+            if(refreshed)next=refreshed
+          }
+        }catch{
+          // Team-sheet setup is not allowed to block access to an authorised club.
+        }
       }
       setClubs([]);setContext(next);const requested=new URLSearchParams(window.location.search).get('screen');setScreen(requested==='match-day'?'MATCH_DAY':next.access?.defaultPage==='STATS'?'STATS':'CLUB_DASHBOARD')
       setClubId(next.club.id);localStorage.setItem(CLUB_KEY,next.club.id)
@@ -94,7 +98,7 @@ export default function CoachApp(){
   useEffect(()=>{void loadContext()},[session])
   useEffect(()=>{const update=()=>setOnline(navigator.onLine);window.addEventListener('online',update);window.addEventListener('offline',update);const visibility=()=>{if(!document.hidden)setSession(readSession())};document.addEventListener('visibilitychange',visibility);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update);document.removeEventListener('visibilitychange',visibility)}},[])
 
-  function chooseClub(id:string){setClubId(id);localStorage.setItem(CLUB_KEY,id);void loadContext(id)}
+  function chooseClub(id:string){setClubs([]);setContext(null);setClubId(id);localStorage.setItem(CLUB_KEY,id);void loadContext(id)}
   function changeClub(){localStorage.removeItem(CLUB_KEY);setClubId('');setContext(null);setClubs([]);void loadContext('')}
   function logout(){localStorage.removeItem(SESSION_KEY);localStorage.removeItem(CLUB_KEY);setSession(null);setContext(null);setClubs([]);setClubId('')}
   function openTool(key:ToolKey,sessionNumber?:number){
