@@ -309,10 +309,13 @@ router.get('/context', async (req, res) => {
     if (overrideId && !fixture) return res.status(404).json({ error: 'The selected fixture does not belong to this club' })
 
     let sheet = await loadSheetForFixture(club.id, fixture)
+    // The Club Portal selection may belong to the authorised club alias while fixtures use a canonical club ID.
+    // Reuse that existing selection read-only rather than creating or moving records during app login.
+    if (!sheet && authorisedClub.id !== club.id) sheet = await loadSheetForFixture(authorisedClub.id, fixture)
     if (!sheet && await reconcileExistingAliasSheet(club, team, fixture)) sheet = await loadSheetForFixture(club.id, fixture)
     if (!sheet && await ensureCanonicalFixtureSheet(club, team, fixture)) sheet = await loadSheetForFixture(club.id, fixture)
     if (sheet && fixture && !sheet.fixtureId) {
-      await prisma.$executeRawUnsafe(`UPDATE football_team_sheets SET fixture_id=$2,updated_at=NOW() WHERE id::text=$1 AND club_id=$3 AND fixture_id IS NULL`, sheet.id, fixture.id, club.id)
+      await prisma.$executeRawUnsafe(`UPDATE football_team_sheets SET fixture_id=$2,updated_at=NOW() WHERE id::text=$1 AND club_id=$3 AND fixture_id IS NULL`, sheet.id, fixture.id, sheet.clubId)
       sheet.fixtureId = fixture.id
     }
     const matchDayRows = sheet ? await prisma.$queryRawUnsafe<Array<{version:number;updatedAt:Date}>>(`SELECT version,updated_at AS "updatedAt" FROM club_match_day_state WHERE club_id=$1 AND sheet_id=$2 LIMIT 1`, club.id, sheet.id) : []
