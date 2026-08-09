@@ -1,0 +1,35 @@
+name: Add Coach App Team Sheet Diagnostics
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/workflows/add-coach-app-team-sheet-diagnostics.yml'
+      - '.github/scripts/add_coach_app_team_sheet_diagnostics.py'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - run: python .github/scripts/add_coach_app_team_sheet_diagnostics.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix backend ci
+      - run: npm run build
+      - name: Commit source change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git restore backend/prisma/schema.prisma || true
+          git add backend/src/api/routes/coach-app.ts src/pages/CoachApp.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Show Coach App team sheet diagnostics"
+          git pull --rebase --autostash origin newone1
+          git push origin HEAD:newone1
