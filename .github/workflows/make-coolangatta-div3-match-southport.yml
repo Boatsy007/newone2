@@ -1,0 +1,35 @@
+name: Make Coolangatta Div 3 Match Southport
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/workflows/make-coolangatta-div3-match-southport.yml'
+      - '.github/scripts/make_coolangatta_div3_match_southport.py'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - run: python .github/scripts/make_coolangatta_div3_match_southport.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix backend ci
+      - run: npm run build
+      - name: Commit source change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -- backend/prisma/schema.prisma || true
+          git add backend/src/api/routes/coach-app.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Make Coolangatta Div 3 team sheet match Southport flow"
+          git pull --rebase origin newone1
+          git push origin HEAD:newone1
