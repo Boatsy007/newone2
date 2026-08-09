@@ -581,4 +581,89 @@ const styles=`
 .player-drawer{display:none!important}
 .player-bottom-tray{position:fixed!important;z-index:90!important;left:74px!important;right:0!important;bottom:0!important;height:188px!important;padding:10px 12px 12px!important;background:rgba(5,22,31,.98)!important;border-top:1px solid #2d5668!important;box-shadow:0 -18px 50px rgba(0,0,0,.42)!important;display:grid!important;grid-template-rows:auto minmax(0,1fr)!important;gap:9px!important;animation:wb-player-tray-in .18s ease both!important}.player-bottom-tray header{display:grid!important;grid-template-columns:auto 1fr auto!important;align-items:center!important;gap:12px!important}.player-bottom-tray header span{display:block;color:#20b8ff;font-size:9px;font-weight:950;letter-spacing:.12em}.player-bottom-tray header b{font-size:15px}.player-tray-tabs{display:flex!important;justify-content:center!important;gap:7px!important}.player-tray-tabs button,.player-tray-actions button{min-height:40px!important;border:1px solid #31505f!important;border-radius:10px!important;background:#0c2633!important;color:#fff!important;padding:0 12px!important;font-weight:900!important}.player-tray-tabs button.active{background:#109ee8!important;border-color:#55c8ff!important}.player-tray-actions{display:flex!important;gap:7px!important}.player-tray-actions button:first-child{background:#109ee8!important;border-color:#55c8ff!important}.player-tray-actions button:last-child{width:40px!important;padding:0!important;justify-content:center!important}.player-tray-list{display:flex!important;gap:8px!important;overflow-x:auto!important;overflow-y:hidden!important;padding:1px 1px 5px!important;-webkit-overflow-scrolling:touch!important}.player-tray-list>button{flex:0 0 142px!important;height:104px!important;padding:9px!important;display:grid!important;grid-template-columns:34px 1fr!important;grid-template-rows:1fr auto!important;align-items:center!important;gap:3px 8px!important;border:1px solid #31505f!important;border-radius:13px!important;background:#0b2230!important;color:#fff!important;text-align:left!important}.player-tray-list>button>b{grid-row:1/3;display:grid!important;place-items:center!important;width:34px!important;height:34px!important;border-radius:10px!important;background:#06131c!important;font-size:14px!important}.player-tray-list>button>span{overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:12px!important;font-weight:900!important}.player-tray-list>button>small{color:#8fa9b7!important;font-size:9px!important}.player-tray-list>button.on-field{border-color:#20b8ff!important;background:#0d3d55!important;box-shadow:inset 0 0 0 1px rgba(32,184,255,.3)!important}.player-tray-list>button.on-field small{color:#63dca1!important}@keyframes wb-player-tray-in{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 @media(max-width:900px) and (orientation:landscape){.cawb2{grid-template-columns:64px minmax(0,1fr)!important}.player-bottom-tray{left:64px!important;height:170px!important}.player-tray-list>button{flex-basis:128px!important;height:88px!important}.cawb2>.board-wrap{padding:5px 8px!important}}
+
+
+/* Compact selected drawing adjustment bar */
+.stroke-inspector{
+  position:fixed!important;
+  z-index:95!important;
+  left:86px!important;
+  right:auto!important;
+  top:auto!important;
+  bottom:18px!important;
+  width:auto!important;
+  max-width:calc(100vw - 110px)!important;
+  min-height:54px!important;
+  padding:7px 9px!important;
+  border:1px solid #31505f!important;
+  border-radius:14px!important;
+  background:rgba(5,22,31,.98)!important;
+  box-shadow:0 12px 35px rgba(0,0,0,.42)!important;
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  gap:8px!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  white-space:nowrap!important;
+}
+.cawb2:has(.draw-bottom-tray) .stroke-inspector{bottom:96px!important}
+.stroke-inspector header{
+  display:flex!important;
+  align-items:center!important;
+  gap:7px!important;
+  min-width:max-content!important;
+  margin:0!important;
+  padding:0 8px 0 2px!important;
+  border-right:1px solid #294553!important;
+}
+.stroke-inspector header span{font-size:8px!important;margin:0!important}
+.stroke-inspector header b{font-size:12px!important;margin:0!important;max-width:86px!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.stroke-inspector header button{display:none!important}
+.stroke-inspector label{
+  display:grid!important;
+  grid-template-columns:auto 74px 30px!important;
+  align-items:center!important;
+  gap:5px!important;
+  min-width:145px!important;
+  margin:0!important;
+  font-size:8px!important;
+  line-height:1!important;
+}
+.stroke-inspector label input{width:74px!important;margin:0!important}
+.stroke-inspector label b{font-size:9px!important;text-align:right!important}
+.stroke-nudge{
+  display:flex!important;
+  grid-template-columns:none!important;
+  gap:4px!important;
+  margin:0!important;
+}
+.stroke-nudge button{
+  width:32px!important;
+  min-width:32px!important;
+  height:32px!important;
+  min-height:32px!important;
+  padding:0!important;
+  border-radius:8px!important;
+  justify-content:center!important;
+  font-size:13px!important;
+}
+.stroke-inspector .danger{
+  width:auto!important;
+  min-width:82px!important;
+  height:34px!important;
+  min-height:34px!important;
+  padding:0 10px!important;
+  border-radius:9px!important;
+  font-size:9px!important;
+  white-space:nowrap!important;
+}
+@media(max-width:900px) and (orientation:landscape){
+  .stroke-inspector{left:72px!important;max-width:calc(100vw - 84px)!important;min-height:48px!important;padding:5px 7px!important;gap:6px!important}
+  .cawb2:has(.draw-bottom-tray) .stroke-inspector{bottom:92px!important}
+  .stroke-inspector label{grid-template-columns:auto 58px 25px!important;min-width:122px!important}
+  .stroke-inspector label input{width:58px!important}
+  .stroke-nudge button{width:29px!important;min-width:29px!important;height:29px!important;min-height:29px!important}
+  .stroke-inspector .danger{min-width:72px!important;padding:0 8px!important}
+}
 `
