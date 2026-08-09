@@ -1,0 +1,29 @@
+name: Fix Whiteboard Field Boundary Markings
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-whiteboard-field-boundary-markings.yml'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Lock posts and arcs to oval boundary
+        run: python3 scripts/fix_whiteboard_field_boundary_markings.py
+      - name: Install frontend
+        run: npm ci
+      - name: Install backend
+        run: npm --prefix backend ci
+      - name: Build production app
+        run: npm run build
+      - name: Commit boundary marking fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          git commit -m "Align Whiteboard goals and arcs to oval boundary" || exit 0
+          git push origin HEAD:newone1
