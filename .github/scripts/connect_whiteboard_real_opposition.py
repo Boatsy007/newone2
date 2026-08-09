@@ -32,27 +32,26 @@ if endpoint.strip() not in text:
 
 page = Path('src/pages/CoachAppWhiteboardStage2.tsx')
 text = page.read_text()
-text = text.replace("  const[oppositionPlayers]=useState<PlayerOption[]>(()=>Array.from({length:22},(_,index)=>({id:`opp-${index+1}`,name:`Opponent ${index+1}`,number:index+1,team:'THEM' as const})))", "  const[oppositionPlayers,setOppositionPlayers]=useState<PlayerOption[]>(()=>Array.from({length:22},(_,index)=>({id:`opp-${index+1}`,name:`Opponent ${index+1}`,number:index+1,team:'THEM' as const})))")
-old = """    fetch(`/api/club-portal/match-day/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}`,{headers:{authorization:`Bearer ${token}`}})
-      .then(async response=>{const payload=await response.json() as SheetPayload;if(!response.ok)throw new Error('Unable to load selected team');const slots=payload.data?.state?.slots||[];setOurPlayers(slots.map((slot,index)=>({id:slot.clubPlayerId,name:slot.playerName,number:slot.jumperNumber,team:'US' as const,position:FIELD_POSITIONS[slot.positionCode]||{x:15+(index%6)*14,y:18+Math.floor(index/6)*15}})));setPlay(newPlay(emptyBoard))})
-      .catch(()=>setPlay(newPlay(emptyBoard))).finally(()=>setLoading(false))"""
-if old not in text:
-    # accommodate selected-team fallback implementation by locating final load block
-    start = text.find("    Promise.all([fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`")
-    if start < 0:
-        raise SystemExit('Whiteboard load block not found')
-    end_marker = ".finally(()=>setLoading(false))"
-    end = text.find(end_marker, start)
-    if end < 0:
-        raise SystemExit('Whiteboard load block end not found')
-    end += len(end_marker)
-    block = text[start:end]
-    # append opposition fetch to existing promise chain without changing canonical own-team logic
-    replacement = block.replace("Promise.all([", "Promise.all([")
-    # easiest: retain block, then add separate fetch before final loading completion by converting finally
-    replacement = replacement.replace(".finally(()=>setLoading(false))", ".finally(()=>setLoading(false))")
-    text = text[:end] + "\n    fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}/opposition`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'})\n      .then(async response=>{const payload=await response.json().catch(()=>({}));if(!response.ok||!payload.data?.players?.length)return;setOppositionPlayers(payload.data.players.map((player:any,index:number)=>({id:`opposition-${player.clubPlayerId||player.id}`,name:player.playerName,number:player.jumperNumber,team:'THEM' as const,position:FIELD_POSITIONS[player.positionCode]||{x:85-(index%6)*14,y:18+Math.floor(index/6)*15}})))})\n      .catch(()=>undefined)" + text[end:]
-else:
-    replacement = old + "\n    fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}/opposition`,{headers:{authorization:`Bearer ${token}`},cache:'no-store'})\n      .then(async response=>{const payload=await response.json().catch(()=>({}));if(!response.ok||!payload.data?.players?.length)return;setOppositionPlayers(payload.data.players.map((player:any,index:number)=>({id:`opposition-${player.clubPlayerId||player.id}`,name:player.playerName,number:player.jumperNumber,team:'THEM' as const,position:FIELD_POSITIONS[player.positionCode]||{x:85-(index%6)*14,y:18+Math.floor(index/6)*15}})))})\n      .catch(()=>undefined)"
-    text = text.replace(old, replacement, 1)
+old_state = "  const[oppositionPlayers]=useState<PlayerOption[]>(()=>Array.from({length:22},(_,index)=>({id:`opp-${index+1}`,name:`Opponent ${index+1}`,number:index+1,team:'THEM' as const})))"
+new_state = "  const[oppositionPlayers,setOppositionPlayers]=useState<PlayerOption[]>(()=>Array.from({length:22},(_,index)=>({id:`opp-${index+1}`,name:`Opponent ${index+1}`,number:index+1,team:'THEM' as const})))"
+text = text.replace(old_state, new_state)
+
+marker = "      }catch{if(live)setOurPlayers([])}finally{if(live)setLoading(false)}"
+insert = """        try{
+          const oppositionResponse=await fetch(`/api/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets/${encodeURIComponent(sheetId)}/opposition`,{headers,cache:'no-store'})
+          const oppositionPayload=await oppositionResponse.json().catch(()=>({}))
+          const opposition=Array.isArray(oppositionPayload.data?.players)?oppositionPayload.data.players:[]
+          if(live&&opposition.length)setOppositionPlayers(opposition.map((player:any,index:number)=>({
+            id:`opposition-${player.clubPlayerId||player.id}`,
+            name:player.playerName,
+            number:player.jumperNumber,
+            team:'THEM' as const,
+            position:FIELD_POSITIONS[player.positionCode]||{x:85-(index%6)*14,y:18+Math.floor(index/6)*15},
+          })))
+        }catch{}
+""" + marker
+if "sheets/${encodeURIComponent(sheetId)}/opposition" not in text:
+    if marker not in text:
+        raise SystemExit('Whiteboard load marker not found')
+    text = text.replace(marker, insert, 1)
 page.write_text(text)
