@@ -1,12 +1,9 @@
 from pathlib import Path
+import re
 
 path = Path('backend/src/api/routes/coach-app.ts')
 text = path.read_text()
 
-# Correct the canonical Coolangatta Tweed QFA Div 3 club ID shown by the live Coach App.
-text = text.replace('ba284591-89e1-4b64-878c-95508c2c74c02', 'ba284591-89e1-4b64-878c-9560e2c74c02')
-
-anchor = "async function loadFixture(fixtureId: string, clubId: string): Promise<Fixture | null> {"
 helper = r'''async function ensureCanonicalFixtureSheet(club: { id:string; name:string }, team: { leagueId:string; season:string; grade:string } | null, fixture: Fixture | null) {
   const targetClubId = 'ba284591-89e1-4b64-878c-9560e2c74c02'
   if (!team || !fixture || club.id !== targetClubId) return false
@@ -18,40 +15,12 @@ helper = r'''async function ensureCanonicalFixtureSheet(club: { id:string; name:
   `, targetClubId, fixture.id)
   if (existing[0]) return false
 
-  const sourceClubRows = await prisma.$queryRawUnsafe<Array<{clubId:string}>>(`
-    SELECT cp.club_id AS "clubId"
-    FROM football_club_players cp
-    LEFT JOIN clubs c ON c.id::text=cp.club_id
-    LEFT JOIN club_league_seasons cls ON cls.club_id::text=cp.club_id
-    WHERE cp.club_id<>$1
-      AND lower(COALESCE(c.name,'')) LIKE '%coolangatta%'
-      AND (cls.league_id::text=$2 OR cls.league_id IS NULL)
-      AND (cls.season=$3 OR cls.season IS NULL)
-      AND (lower(COALESCE(cls.grade,'')) LIKE '%div%3%' OR cls.grade IS NULL)
-    GROUP BY cp.club_id
-    ORDER BY COUNT(*) DESC
-    LIMIT 1
-  `, targetClubId, team.leagueId, team.season)
-  const sourceClubId = sourceClubRows[0]?.clubId ?? null
-
-  if (sourceClubId) {
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO football_club_players (club_id,player_id,player_name,jumper_number,preferred_position,active,created_at,updated_at)
-      SELECT $1,player_id,player_name,jumper_number,preferred_position,active,created_at,NOW()
-      FROM football_club_players WHERE club_id=$2
-      ON CONFLICT (club_id,lower(player_name)) DO UPDATE SET
-        player_id=COALESCE(EXCLUDED.player_id,football_club_players.player_id),
-        jumper_number=COALESCE(EXCLUDED.jumper_number,football_club_players.jumper_number),
-        preferred_position=COALESCE(EXCLUDED.preferred_position,football_club_players.preferred_position),
-        active=EXCLUDED.active,updated_at=NOW()
-    `, targetClubId, sourceClubId)
-  }
-
   const isHome = fixture.homeClubId === targetClubId
   const opponent = isHome ? fixture.awayName : fixture.homeName
-  const roundLabel = fixture.round ? `Round ${String(fixture.round).replace(/^Round\s+/i,'')}` : 'Upcoming fixture'
+  const roundLabel = fixture.round ? `Round ${String(fixture.round).replace(/^Round\\s+/i,'')}` : 'Upcoming fixture'
   const matchDate = fixture.matchDate ? fixture.matchDate.toISOString().slice(0,10) : null
 
+  // Create the canonical fixture-linked sheet first. Squad reconciliation must never block Coach App context.
   await prisma.$executeRawUnsafe(`
     INSERT INTO football_team_sheets
       (club_id,league_id,season,grade,round_label,opponent_name,match_date,status,fixture_id,created_at,updated_at)
@@ -62,20 +31,37 @@ helper = r'''async function ensureCanonicalFixtureSheet(club: { id:string; name:
       match_date=EXCLUDED.match_date,updated_at=NOW()
   `, targetClubId, fixture.leagueId, fixture.season, fixture.grade, roundLabel, opponent, matchDate, fixture.id)
 
+  // Best-effort copy of the existing Coolangatta squad. Any legacy-row mismatch is logged but cannot break login.
+  try {
+    const sourceClubRows = await prisma.$queryRawUnsafe<Array<{clubId:string}>>(`
+      SELECT cp.club_id AS "clubId"
+      FROM football_club_players cp
+      LEFT JOIN clubs c ON c.id::text=cp.club_id
+      WHERE cp.club_id<>$1 AND lower(COALESCE(c.name,'')) LIKE '%coolangatta%'
+      GROUP BY cp.club_id
+      ORDER BY COUNT(*) DESC
+      LIMIT 1
+    `, targetClubId)
+    const sourceClubId = sourceClubRows[0]?.clubId ?? null
+    if (sourceClubId) {
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO football_club_players
+          (club_id,player_id,player_name,jumper_number,preferred_position,active,created_at,updated_at)
+        SELECT $1,player_id,player_name,jumper_number,preferred_position,active,created_at,NOW()
+        FROM football_club_players WHERE club_id=$2
+        ON CONFLICT DO NOTHING
+      `, targetClubId, sourceClubId)
+    }
+  } catch (error) {
+    console.warn('Coolangatta Div 3 squad reconciliation skipped', error)
+  }
+
   return true
 }
 
 '''
-if 'async function ensureCanonicalFixtureSheet(' not in text:
-    if anchor not in text:
-        raise SystemExit('loadFixture anchor not found')
-    text = text.replace(anchor, helper + anchor, 1)
-
-call = "    if (!sheet && await ensureCanonicalFixtureSheet(club, team, fixture)) sheet = await loadSheetForFixture(club.id, fixture)\n"
-if 'ensureCanonicalFixtureSheet(club, team, fixture)' not in text:
-    marker = "    if (sheet && fixture && !sheet.fixtureId) {\n"
-    if marker not in text:
-        raise SystemExit('stable sheet insertion marker not found')
-    text = text.replace(marker, call + marker, 1)
-
+pattern = re.compile(r"async function ensureCanonicalFixtureSheet\([\s\S]*?\n}\n\nasync function loadFixture", re.MULTILINE)
+if not pattern.search(text):
+    raise SystemExit('ensureCanonicalFixtureSheet function not found')
+text = pattern.sub(helper + 'async function loadFixture', text, count=1)
 path.write_text(text)
