@@ -16,3 +16,4 @@ css = """
 """
 text = text.replace("\n`\n", css + "\n`\n", 1)
 path.write_text(text)
+# Triggered after the workflow existed so the source patch actually runs.
