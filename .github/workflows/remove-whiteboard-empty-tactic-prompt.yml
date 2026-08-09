@@ -1,0 +1,33 @@
+name: Remove Whiteboard Empty Tactic Prompt
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/workflows/remove-whiteboard-empty-tactic-prompt.yml'
+      - '.github/scripts/remove_whiteboard_empty_tactic_prompt.py'
+permissions:
+  contents: write
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - run: python .github/scripts/remove_whiteboard_empty_tactic_prompt.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Commit source change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/CoachAppWhiteboardStage2.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Remove Whiteboard build tactic prompt"
+          git pull --rebase origin newone1
+          git push origin HEAD:newone1
