@@ -1,0 +1,19 @@
+name: Audit Whiteboard Team Source
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/audit-whiteboard-team-source.yml'
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Find canonical match-day sheet routes
+        run: |
+          echo '=== route references ==='
+          grep -RIn --exclude-dir=node_modules --exclude-dir=.git "match-day/clubs\|sheets/:\|selected team\|previous.*sheet\|latest.*sheet" src server api backend 2>/dev/null | head -400 || true
+          echo '=== candidate route files ==='
+          find . -path '*node_modules*' -prune -o -type f \( -iname '*match*day*' -o -iname '*team*sheet*' -o -iname '*coach*app*' \) -print | head -300
