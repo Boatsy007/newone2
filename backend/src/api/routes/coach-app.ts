@@ -160,6 +160,20 @@ router.get('/context', async (req, res) => {
     }
     const matchDayRows = sheet ? await prisma.$queryRawUnsafe<Array<{version:number;updatedAt:Date}>>(`SELECT version,updated_at AS "updatedAt" FROM club_match_day_state WHERE club_id=$1 AND sheet_id=$2 LIMIT 1`, club.id, sheet.id) : []
     const matchDay = matchDayRows[0] ?? null
+    const teamSheetDiagnostics = !sheet ? await prisma.$queryRawUnsafe<Array<{
+      id:string;fixtureId:string|null;leagueId:string|null;season:string;grade:string;roundLabel:string|null;
+      opponentName:string|null;matchDate:string|null;status:string;playerCount:number;updatedAt:string
+    }>>(`
+      SELECT s.id::text AS id,s.fixture_id AS "fixtureId",s.league_id AS "leagueId",s.season,s.grade,
+        s.round_label AS "roundLabel",s.opponent_name AS "opponentName",s.match_date AS "matchDate",s.status,
+        COUNT(tsp.id)::int AS "playerCount",s.updated_at AS "updatedAt"
+      FROM football_team_sheets s
+      LEFT JOIN football_team_sheet_players tsp ON tsp.team_sheet_id=s.id
+      WHERE s.club_id=$1
+      GROUP BY s.id
+      ORDER BY s.updated_at DESC
+      LIMIT 10
+    `, club.id) : []
 
     res.set('Cache-Control','no-store, no-cache, must-revalidate')
     res.json({ data:{
@@ -173,6 +187,7 @@ router.get('/context', async (req, res) => {
         matchDate:fixture.matchDate,venue:fixture.venue,
       } : null,
       teamSheet:sheet,
+      teamSheetDiagnostics:!sheet?teamSheetDiagnostics:undefined,
       matchDay:matchDay ? { started:true,version:matchDay.version,updatedAt:matchDay.updatedAt } : { started:false },
       nextStep:matchDay?'MATCH_DAY':'SELECT_SIDE',
     } })
