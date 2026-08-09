@@ -17,6 +17,15 @@ jobs:
           fetch-depth: 0
       - name: Apply grouped drawing tools
         run: python .github/scripts/group_whiteboard_drawing_tools.py
+      - name: Correct generated drawing tray JSX
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('src/pages/CoachAppWhiteboardStage2.tsx')
+          text=path.read_text()
+          text=text.replace('</label>}</div><button className="draw-close"','</label></>}</div><button className="draw-close"',1)
+          path.write_text(text)
+          PY
       - name: Install frontend
         run: npm ci
       - name: Install backend
