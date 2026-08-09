@@ -1,0 +1,35 @@
+name: Restore Coach App Context
+
+on:
+  push:
+    branches: [newone1]
+    paths:
+      - '.github/workflows/restore-coach-app-context.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+          fetch-depth: 0
+      - name: Restore last working Coach App context
+        run: git checkout 5719122741cd2214f418032bcf141874c1965165 -- backend/src/api/routes/coach-app.ts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix backend ci
+      - run: npm run build
+      - name: Commit restore
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src/api/routes/coach-app.ts
+          git commit -m "Restore working Coach App context" || exit 0
+          git push origin newone1
