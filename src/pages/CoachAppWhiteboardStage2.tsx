@@ -345,12 +345,20 @@ export default function CoachAppWhiteboardStage2({clubId,sheetId,token,fixtureLa
     const description=prompt('Game-model principle','')||''
     try{const r=await fetch(`/api/whiteboard-intelligence/clubs/${encodeURIComponent(clubId)}/game-models`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify({title,phase,description,play})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Unable to save game model');alert('Club game-model template saved.')}catch(e){alert(e instanceof Error?e.message:'Unable to save game model')}
   }
+  const normalisePositionCode=(value?:string)=>String(value||'').trim().toUpperCase().replace(/[\s-]+/g,'_')
   const areaPositionCodes:Record<'FWD'|'MID'|'DEF',Set<string>>={
     FWD:new Set(['FF','FP_LEFT','FP_RIGHT','CHF','HFF_LEFT','HFF_RIGHT']),
-    MID:new Set(['RUCK','RR','ROVER','C','W_LEFT','W_RIGHT']),
+    MID:new Set([
+      'RUCK','R','RK',
+      'RR','RUCK_ROVER','RUCKROVER',
+      'ROVER','ROV',
+      'C','CENTRE','CENTER',
+      'W_LEFT','LEFT_WING','WING_LEFT','LEFTWING','LW',
+      'W_RIGHT','RIGHT_WING','WING_RIGHT','RIGHTWING','RW',
+    ]),
     DEF:new Set(['FB','BP_LEFT','BP_RIGHT','CHB','HBF_LEFT','HBF_RIGHT']),
   }
-  const trayPlayers=(playerTab==='US'?ourPlayers:oppositionPlayers).filter(option=>playerArea==='ALL'||Boolean(option.positionCode&&areaPositionCodes[playerArea].has(option.positionCode)))
+  const trayPlayers=(playerTab==='US'?ourPlayers:oppositionPlayers).filter(option=>playerArea==='ALL'||areaPositionCodes[playerArea].has(normalisePositionCode(option.positionCode)))
   const strokes=[...state.strokes,...(drawing?[drawing]:[])]
   if(loading)return <CoachAppLoading message="Loading your selected team and tactics…"/>
   return <main className={`cawb2 ${presenting?'presenting':''} ${playBuilderOpen?'play-builder-open':''}`}><style>{styles}</style>
