@@ -59,25 +59,40 @@ async function resolveCanonicalClub(club: { id:string; name:string; logoUrl:stri
   return canonical ?? club
 }
 
-async function reconcileExistingAliasSheet(club: { id:string; name:string }, team: { leagueId:string; season:string; grade:string } | null) {
-  if (!team) return false
-  const candidates = await prisma.club.findMany({
-    where: {
-      id: { not: club.id },
-      name: { equals: club.name, mode: 'insensitive' },
-      leagueSeasons: { some: { leagueId:team.leagueId, season:team.season, grade:team.grade, isActive:true } },
-    },
-    select: { id:true },
-  })
-  if (!candidates.length) return false
-  const sourceIds = candidates.map(item => item.id)
-  const sourceSheets = await prisma.$queryRawUnsafe<Array<{clubId:string}>>(`
-    SELECT club_id AS "clubId" FROM football_team_sheets
-    WHERE club_id = ANY($1::text[]) AND season=$2 AND (league_id=$3 OR league_id IS NULL)
-    ORDER BY updated_at DESC LIMIT 1
-  `, sourceIds, team.season, team.leagueId)
-  const sourceClubId = sourceSheets[0]?.clubId
-  if (!sourceClubId) return false
+async function reconcileExistingAliasSheet(club: { id:string; name:string }, team: { leagueId:string; season:string; grade:string } | null, fixture: Fixture | null) {
+  if (!team || !fixture) return false
+  const isHome = fixture.homeClubId === club.id
+  const opponent = isHome ? fixture.awayName : fixture.homeName
+  const targetTokens = new Set(normalise(club.name).split(' ').filter(token => token.length > 2 && !['qfa','div','division','gold','coast','senior','football'].includes(token)))
+
+  const rows = await prisma.$queryRawUnsafe<Array<{
+    sheetId:string;clubId:string;clubName:string;leagueId:string|null;season:string;grade:string;
+    roundLabel:string|null;opponentName:string|null;matchDate:string|null;updatedAt:string
+  }>>(`
+    SELECT s.id::text AS "sheetId",s.club_id AS "clubId",COALESCE(c.name,'') AS "clubName",
+      s.league_id AS "leagueId",s.season,s.grade,s.round_label AS "roundLabel",
+      s.opponent_name AS "opponentName",s.match_date AS "matchDate",s.updated_at AS "updatedAt"
+    FROM football_team_sheets s
+    LEFT JOIN clubs c ON c.id::text=s.club_id
+    WHERE s.club_id<>$1 AND s.season=$2 AND (s.league_id=$3 OR s.league_id IS NULL)
+    ORDER BY s.updated_at DESC
+    LIMIT 100
+  `, club.id, team.season, team.leagueId)
+
+  const scored = rows.map(row => {
+    const rowTokens = new Set(normalise(row.clubName).split(' ').filter(token => token.length > 2 && !['qfa','div','division','gold','coast','senior','football'].includes(token)))
+    const nameScore = [...targetTokens].filter(token => rowTokens.has(token)).length
+    const sameGrade = normalise(row.grade) === normalise(fixture.grade)
+    const sameOpponent = normalise(row.opponentName) === normalise(opponent)
+    const sameRound = normalise(row.roundLabel) === normalise(fixture.round)
+    const sameDate = dateKey(row.matchDate) === dateKey(fixture.matchDate)
+    const score = nameScore * 20 + (sameGrade ? 8 : 0) + (sameOpponent ? 12 : 0) + (sameRound ? 6 : 0) + (sameDate ? 6 : 0)
+    return { row, score, nameScore, sameOpponent, sameRound, sameDate }
+  }).filter(item => item.nameScore >= 1 && (item.sameOpponent || item.sameRound || item.sameDate))
+    .sort((a,b) => b.score - a.score)
+
+  const source = scored[0]?.row
+  if (!source) return false
 
   await prisma.$transaction(async tx => {
     await tx.$executeRawUnsafe(`
@@ -89,29 +104,31 @@ async function reconcileExistingAliasSheet(club: { id:string; name:string }, tea
         jumper_number=COALESCE(EXCLUDED.jumper_number,football_club_players.jumper_number),
         preferred_position=COALESCE(EXCLUDED.preferred_position,football_club_players.preferred_position),
         active=EXCLUDED.active,updated_at=NOW()
-    `, club.id, sourceClubId)
-    await tx.$executeRawUnsafe(`
-      INSERT INTO football_team_sheets (club_id,league_id,season,grade,round_label,opponent_name,match_date,status,published_at,fixture_id,created_at,updated_at)
-      SELECT $1,league_id,season,grade,round_label,opponent_name,match_date,status,published_at,fixture_id,created_at,NOW()
-      FROM football_team_sheets
-      WHERE club_id=$2 AND season=$3 AND (league_id=$4 OR league_id IS NULL)
+    `, club.id, source.clubId)
+
+    const targetSheets = await tx.$queryRawUnsafe<Array<{id:string}>>(`
+      INSERT INTO football_team_sheets
+        (club_id,league_id,season,grade,round_label,opponent_name,match_date,status,published_at,fixture_id,created_at,updated_at)
+      SELECT $1,$2,$3,$4,round_label,opponent_name,match_date,status,published_at,$5,created_at,NOW()
+      FROM football_team_sheets WHERE id::text=$6
       ON CONFLICT (club_id,season,grade,round_label) DO UPDATE SET
-        league_id=COALESCE(EXCLUDED.league_id,football_team_sheets.league_id),
-        opponent_name=COALESCE(EXCLUDED.opponent_name,football_team_sheets.opponent_name),
-        match_date=COALESCE(EXCLUDED.match_date,football_team_sheets.match_date),
-        status=EXCLUDED.status,published_at=EXCLUDED.published_at,updated_at=NOW()
-    `, club.id, sourceClubId, team.season, team.leagueId)
+        league_id=EXCLUDED.league_id,opponent_name=EXCLUDED.opponent_name,match_date=EXCLUDED.match_date,
+        status=EXCLUDED.status,published_at=EXCLUDED.published_at,fixture_id=EXCLUDED.fixture_id,updated_at=NOW()
+      RETURNING id::text AS id
+    `, club.id, fixture.leagueId, fixture.season, fixture.grade, fixture.id, source.sheetId)
+    const targetSheetId = targetSheets[0]?.id
+    if (!targetSheetId) throw new Error('Unable to create canonical Coolangatta Div 3 team sheet')
+
+    await tx.$executeRawUnsafe(`DELETE FROM football_team_sheet_players WHERE team_sheet_id::text=$1`, targetSheetId)
     await tx.$executeRawUnsafe(`
       INSERT INTO football_team_sheet_players (team_sheet_id,club_player_id,position_code)
-      SELECT target_sheet.id,target_player.id,source_position.position_code
-      FROM football_team_sheets source_sheet
-      JOIN football_team_sheets target_sheet ON target_sheet.club_id=$1 AND target_sheet.season=source_sheet.season AND target_sheet.grade=source_sheet.grade AND target_sheet.round_label=source_sheet.round_label
-      JOIN football_team_sheet_players source_position ON source_position.team_sheet_id=source_sheet.id
+      SELECT $1::uuid,target_player.id,source_position.position_code
+      FROM football_team_sheet_players source_position
       JOIN football_club_players source_player ON source_player.id=source_position.club_player_id
-      JOIN football_club_players target_player ON target_player.club_id=$1 AND lower(target_player.player_name)=lower(source_player.player_name)
-      WHERE source_sheet.club_id=$2 AND source_sheet.season=$3 AND (source_sheet.league_id=$4 OR source_sheet.league_id IS NULL)
+      JOIN football_club_players target_player ON target_player.club_id=$2 AND lower(target_player.player_name)=lower(source_player.player_name)
+      WHERE source_position.team_sheet_id::text=$3
       ON CONFLICT DO NOTHING
-    `, club.id, sourceClubId, team.season, team.leagueId)
+    `, targetSheetId, club.id, source.sheetId)
   })
   return true
 }
@@ -234,7 +251,7 @@ router.get('/context', async (req, res) => {
     if (overrideId && !fixture) return res.status(404).json({ error: 'The selected fixture does not belong to this club' })
 
     let sheet = await loadSheetForFixture(club.id, fixture)
-    if (!sheet && await reconcileExistingAliasSheet(club, team)) sheet = await loadSheetForFixture(club.id, fixture)
+    if (!sheet && await reconcileExistingAliasSheet(club, team, fixture)) sheet = await loadSheetForFixture(club.id, fixture)
     if (sheet && fixture && !sheet.fixtureId) {
       await prisma.$executeRawUnsafe(`UPDATE football_team_sheets SET fixture_id=$2,updated_at=NOW() WHERE id::text=$1 AND club_id=$3 AND fixture_id IS NULL`, sheet.id, fixture.id, club.id)
       sheet.fixtureId = fixture.id
