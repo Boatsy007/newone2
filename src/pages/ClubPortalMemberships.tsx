@@ -18,7 +18,7 @@ function fromProduct(p:Product):Draft{return{name:p.name,description:p.descripti
 
 export default function ClubPortalMemberships(){
  const{clubId=''}=useParams();const[current]=useState(()=>session());const[view,setView]=useState<'overview'|'products'>('overview');const[overview,setOverview]=useState<Overview|null>(null),[products,setProducts]=useState<Product[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[editing,setEditing]=useState<Product|null|undefined>(undefined),[draft,setDraft]=useState<Draft>(blank)
- const headers=useMemo<Record<string,string>>(()=>current?{authorization:`Bearer ${current.access_token}`}:{},[current])
+ const headers=useMemo(()=>current?{authorization:`Bearer ${current.access_token}`}:{},[current])
  async function request(path:string,options:RequestInit={}){const r=await fetch(path,{...options,headers:{...headers,...(options.headers as Record<string,string>|undefined)}});const p=await r.json().catch(()=>({})) as any;if(!r.ok)throw new Error(p.error||'Request failed');return p}
  async function load(){if(!current){setError('Sign in through the Club Portal to continue.');setLoading(false);return}setLoading(true);setError('');try{const[o,p]=await Promise.all([request(`/api/club-portal/memberships/clubs/${encodeURIComponent(clubId)}/overview`),request(`/api/club-portal/memberships/clubs/${encodeURIComponent(clubId)}/products`)]);setOverview(o.data);setProducts(Array.isArray(p.data)?p.data:[])}catch(e){setError(e instanceof Error?e.message:'Unable to load Memberships')}finally{setLoading(false)}}
  useEffect(()=>{void load()},[clubId,current?.access_token])
