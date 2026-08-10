@@ -1,6 +1,6 @@
-import { BarChart3, ChevronRight, Clapperboard, Globe2, Settings2, ShieldCheck, Trophy, UsersRound } from 'lucide-react'
+import { BarChart3, ChevronRight, Clapperboard, CreditCard, Globe2, Settings2, ShieldCheck, Trophy, UsersRound } from 'lucide-react'
 
-export type ClubAppArea = 'coaching' | 'studio' | 'website' | 'operations' | 'analytics' | 'permissions'
+export type ClubAppArea = 'coaching' | 'studio' | 'memberships' | 'website' | 'operations' | 'analytics' | 'permissions'
 
 type Props = {
   clubName: string
@@ -12,19 +12,25 @@ type Props = {
 const areas: Array<{key:ClubAppArea;title:string;description:string;icon:typeof Trophy;live:boolean}> = [
   {key:'coaching',title:'Coaching',description:'Plan the week, select the team and run Match Day.',icon:Trophy,live:true},
   {key:'studio',title:'Studio',description:'Create club media, graphics, articles and match content.',icon:Clapperboard,live:true},
+  {key:'memberships',title:'Memberships',description:'Create membership offers, manage members and digital cards.',icon:CreditCard,live:true},
   {key:'website',title:'Website',description:'Manage the club profile, public pages and website content.',icon:Globe2,live:false},
   {key:'operations',title:'Operations',description:'Coordinate volunteers, tasks, equipment and club activity.',icon:Settings2,live:false},
   {key:'analytics',title:'Analytics',description:'Review club, team, player and commercial performance.',icon:BarChart3,live:false},
   {key:'permissions',title:'Permissions',description:'Add users and control access down to individual pages.',icon:UsersRound,live:true},
 ]
 
+function currentClubId(){
+  try{return localStorage.getItem('playfooty.coachApp.club.v1')||''}catch{return''}
+}
+
 function openStudio(){
-  try{
-    const clubId=localStorage.getItem('playfooty.coachApp.club.v1')||''
-    if(clubId)window.location.assign(`/club-portal/${encodeURIComponent(clubId)}/studio`)
-  }catch{
-    // Keep the current dashboard available if local storage is unavailable.
-  }
+  const clubId=currentClubId()
+  if(clubId)window.location.assign(`/club-portal/${encodeURIComponent(clubId)}/studio`)
+}
+
+function openMemberships(){
+  const clubId=currentClubId()
+  if(clubId)window.location.assign(`/club-portal/${encodeURIComponent(clubId)}?area=memberships`)
 }
 
 export default function CoachAppClubDashboard({clubName,logoUrl,allowedAreas=areas.map(area=>area.key),onOpen}:Props){
@@ -38,7 +44,7 @@ export default function CoachAppClubDashboard({clubName,logoUrl,allowedAreas=are
     <div className="cacd-grid">{areas.map(area=>{
       const Icon=area.icon
       const canOpen=allowed.has(area.key)
-      return <button key={area.key} className={area.live&&canOpen?'live':''} disabled={!canOpen||!area.live} onClick={()=>area.key==='studio'?openStudio():onOpen(area.key)}>
+      return <button key={area.key} className={area.live&&canOpen?'live':''} disabled={!canOpen||!area.live} onClick={()=>area.key==='studio'?openStudio():area.key==='memberships'?openMemberships():onOpen(area.key)}>
         <i><Icon/></i><span><small>{area.live?'Available now':'Coming next'}</small><strong>{area.title}</strong><em>{area.description}</em></span>
         {area.live&&canOpen?<ChevronRight/>:<ShieldCheck/>}
       </button>
