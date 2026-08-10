@@ -125,14 +125,19 @@ router.get('/clubs/:clubId/sheets/:sheetId/opposition', async (req,res) => {
       if(!a||!b)return false
       return a===b || a.includes(b) || b.includes(a)
     }
+    const exactTeam = (left:unknown,right:unknown) => {
+      const a=normaliseTeam(left),b=normaliseTeam(right)
+      return Boolean(a&&b&&a===b)
+    }
 
-    // Resolve which fixture side the current sheet belongs to. IDs are authoritative when
-    // they match; legacy/authorised alias sheets fall back to their saved club/opponent names.
+    // The saved sheet already knows who it is playing. Use that first to identify which
+    // side of the canonical fixture is the logged-in team; IDs remain a fallback for clubs
+    // whose team-sheet owner id already matches the fixture club id.
     let currentIsHome:boolean|null=null
-    if (fixture.homeClubId===req.params.clubId || fixture.homeClubId===current.clubId) currentIsHome=true
-    else if (fixture.awayClubId===req.params.clubId || fixture.awayClubId===current.clubId) currentIsHome=false
-    else if (sameTeam(current.opponentName,fixture.awayName)) currentIsHome=true
+    if (sameTeam(current.opponentName,fixture.awayName)) currentIsHome=true
     else if (sameTeam(current.opponentName,fixture.homeName)) currentIsHome=false
+    else if (fixture.homeClubId===req.params.clubId || fixture.homeClubId===current.clubId) currentIsHome=true
+    else if (fixture.awayClubId===req.params.clubId || fixture.awayClubId===current.clubId) currentIsHome=false
     else if (sameTeam(current.clubName,fixture.homeName)) currentIsHome=true
     else if (sameTeam(current.clubName,fixture.awayName)) currentIsHome=false
 
@@ -141,9 +146,9 @@ router.get('/clubs/:clubId/sheets/:sheetId/opposition', async (req,res) => {
     const opponentCanonicalId = currentIsHome ? fixture.awayClubId : fixture.homeClubId
     const opponentName = currentIsHome ? fixture.awayName : fixture.homeName
     const currentTeamName = currentIsHome ? fixture.homeName : fixture.awayName
-    if (!opponentCanonicalId) return res.json({ data:null })
+    if (!opponentCanonicalId || !opponentName) return res.json({ data:null })
 
-    // Strongest relationship: the other selected side already linked to this exact fixture.
+    // If both teams saved against the same canonical fixture, this is the exact opposition.
     const linkedRows = await prisma.$queryRawUnsafe<Array<{id:string}>>(`
       SELECT s.id::text AS id
       FROM football_team_sheets s
@@ -160,45 +165,55 @@ router.get('/clubs/:clubId/sheets/:sheetId/opposition', async (req,res) => {
       return res.json({ data:opposition ? { ...opposition, clubId:undefined } : null })
     }
 
-    // Otherwise read existing selected sides for this competition and resolve the actual
-    // fixture opponent by both ends of the matchup: owner = opponent, opponent_name = us.
+    // Otherwise the fixture still tells us exactly which team to load. Search the existing
+    // selected sides for that team. Do not require the sheet to share the same alias club id,
+    // league-id mapping or opponent metadata; those are legacy/admin details. They only rank
+    // otherwise valid saved selections for the fixture opponent.
     const candidates = await prisma.$queryRawUnsafe<Array<{
-      id:string;clubId:string;clubName:string|null;fixtureId:string|null;grade:string;
-      roundLabel:string|null;opponentName:string|null;matchDate:string|null;status:string
+      id:string;clubId:string;clubName:string|null;leagueId:string|null;fixtureId:string|null;
+      season:string;grade:string;roundLabel:string|null;opponentName:string|null;
+      matchDate:string|null;status:string;updatedAt:string
     }>>(`
-      SELECT s.id::text AS id,s.club_id AS "clubId",c.name AS "clubName",s.fixture_id AS "fixtureId",
-        s.grade,s.round_label AS "roundLabel",s.opponent_name AS "opponentName",
-        s.match_date AS "matchDate",s.status
+      SELECT s.id::text AS id,s.club_id AS "clubId",c.name AS "clubName",s.league_id AS "leagueId",
+        s.fixture_id AS "fixtureId",s.season,s.grade,s.round_label AS "roundLabel",
+        s.opponent_name AS "opponentName",s.match_date AS "matchDate",s.status,
+        s.updated_at AS "updatedAt"
       FROM football_team_sheets s
       JOIN football_team_sheet_players tsp ON tsp.team_sheet_id=s.id
       LEFT JOIN clubs c ON c.id::text=s.club_id
-      WHERE s.season=$1 AND (s.league_id=$2 OR s.league_id IS NULL)
-        AND s.status IN ('DRAFT','PUBLISHED') AND s.id::text<>$3
+      WHERE s.season=$1 AND s.status IN ('DRAFT','PUBLISHED') AND s.id::text<>$2
       GROUP BY s.id,c.name
       HAVING COUNT(tsp.id)>0
       ORDER BY s.updated_at DESC
-      LIMIT 100
-    `, fixture.season, fixture.leagueId, current.id)
+      LIMIT 250
+    `, fixture.season, current.id)
 
     const dateKey=(value:unknown)=>{
       if(!value)return ''
-      const d=new Date(String(value));return Number.isNaN(d.getTime())?'':d.toISOString().slice(0,10)
+      const d=new Date(String(value))
+      return Number.isNaN(d.getTime())?'':d.toISOString().slice(0,10)
     }
+
     const ranked = candidates
-      .filter(sheet => (sheet.clubId===opponentCanonicalId || sameTeam(sheet.clubName,opponentName)) && sameTeam(sheet.opponentName,currentTeamName))
+      .filter(sheet => sheet.clubId===opponentCanonicalId || sameTeam(sheet.clubName,opponentName))
       .map(sheet => ({
         sheet,
-        score:(sheet.clubId===opponentCanonicalId?100:0)
-          +(sheet.fixtureId===current.fixtureId?80:0)
-          +(normaliseRound(sheet.grade)===normaliseRound(fixture.grade)?20:0)
-          +(normaliseRound(sheet.roundLabel)===normaliseRound(fixture.round)?10:0)
-          +(dateKey(sheet.matchDate)===dateKey(fixture.matchDate)?10:0)
-          +(sheet.status==='PUBLISHED'?2:0)
+        score:(sheet.clubId===opponentCanonicalId?200:0)
+          +(exactTeam(sheet.clubName,opponentName)?160:0)
+          +(sameTeam(sheet.clubName,opponentName)?80:0)
+          +(sheet.fixtureId===current.fixtureId?150:0)
+          +(sheet.leagueId===fixture.leagueId?40:0)
+          +(normaliseRound(sheet.grade)===normaliseRound(fixture.grade)?35:0)
+          +(sameTeam(sheet.opponentName,currentTeamName)?30:0)
+          +(normaliseRound(sheet.roundLabel)===normaliseRound(fixture.round)?15:0)
+          +(dateKey(sheet.matchDate)===dateKey(fixture.matchDate)?15:0)
+          +(sheet.status==='PUBLISHED'?3:0)
       }))
       .sort((a,b)=>b.score-a.score)
 
     const selected=ranked[0]?.sheet
     if (!selected) return res.json({ data:null })
+
     const opposition = await loadSheet(selected.id)
     res.json({ data:opposition ? { ...opposition, clubId:undefined } : null })
   } catch(error) {
