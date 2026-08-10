@@ -69,6 +69,7 @@ import ClubPortalAvailability from './pages/ClubPortalAvailability.tsx'
 import ClubPortalWhiteboard from './pages/ClubPortalWhiteboard.tsx'
 import ClubPortalNews from './pages/ClubPortalNews.tsx'
 import ClubPortalMedia from './pages/ClubPortalMedia.tsx'
+import ClubPortalStudio from './pages/ClubPortalStudio.tsx'
 import ClubPortalProfile from './pages/ClubPortalProfile.tsx'
 import ClubPortalSponsors from './pages/ClubPortalSponsors.tsx'
 import ClubPortalUsers from './pages/ClubPortalUsers.tsx'
@@ -167,6 +168,7 @@ createRoot(document.getElementById('root')!).render(
     <Route path="/club-portal/:clubId/whiteboard" element={<ClubPortalWhiteboard/>}/>
     <Route path="/club-portal/:clubId/volunteers" element={<ClubPortalVolunteers/>}/>
     <Route path="/club-portal/:clubId/equipment" element={<ClubPortalEquipment/>}/>
+    <Route path="/club-portal/:clubId/studio" element={<ClubPortalStudio/>}/>
     <Route path="/club-portal/:clubId/media" element={<ClubPortalMedia/>}/>
     <Route path="/club-portal/:clubId/news" element={<ClubPortalNews/>}/>
     <Route path="/club-portal/:clubId/profile" element={<ClubPortalProfile/>}/>

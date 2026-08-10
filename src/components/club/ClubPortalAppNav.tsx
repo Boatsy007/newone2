@@ -6,7 +6,7 @@ import ClubHqCommandCentre from './ClubHqCommandCentre'
 import ClubCoachingCommandCentre from './ClubCoachingCommandCentre'
 
 const COACHING_SECTIONS=new Set(['coaching','availability','team-selection','whiteboard'])
-const STUDIO_SECTIONS=new Set(['media','news'])
+const STUDIO_SECTIONS=new Set(['studio','media','news'])
 const ANALYTICS_SECTIONS=new Set(['analytics','activity'])
 type SectionItem={label:string;description:string;href:string;icon:typeof Home;active:boolean}
 type LoadingTarget={label:string;path:string;startedAt:number}
@@ -31,7 +31,7 @@ export default function ClubPortalAppNav(){
   {label:'Home',href:`/club-portal/${clubId}`,icon:Home,active:!section},
   {label:'Coaching',href:`/club-portal/${clubId}/coaching`,icon:ClipboardList,active:COACHING_SECTIONS.has(section)},
   {label:'Operations',href:`/club-portal/${clubId}/volunteers`,icon:Settings2,active:section==='volunteers'||section==='equipment'},
-  {label:'Studio',href:`/club-portal/${clubId}/media`,icon:Image,active:STUDIO_SECTIONS.has(section)},
+  {label:'Studio',href:`/club-portal/${clubId}/studio`,icon:Image,active:STUDIO_SECTIONS.has(section)},
   {label:'Analytics',href:`/club-portal/${clubId}/analytics`,icon:BarChart3,active:ANALYTICS_SECTIONS.has(section)},
   {label:'Profile',href:`/club-portal/${clubId}/profile`,icon:UserRound,active:['profile','sponsors','users','plans'].includes(section)},
  ]
@@ -53,7 +53,7 @@ function getLoadingLabel(pathname:string,search:string){
  if(section==='coaching'&&view==='opposition')return'Opposition'
  if(section==='coaching'&&view==='player-development')return'Development'
  if(section==='analytics'&&view==='media')return'Media Analytics'
- const labels:Record<string,string>={coaching:'Coaching',availability:'Availability','team-selection':'Team Selection',whiteboard:'Whiteboard',volunteers:'Volunteers & Rosters',equipment:'Equipment & Stocktake',media:'Studio',news:'Newsroom',analytics:'Club Analytics',activity:'Activity',profile:'Club Profile',sponsors:'Sponsors',users:'Users & Permissions',plans:'Plan'}
+ const labels:Record<string,string>={coaching:'Coaching',availability:'Availability','team-selection':'Team Selection',whiteboard:'Whiteboard',volunteers:'Volunteers & Rosters',equipment:'Equipment & Stocktake',studio:'Studio',media:'Media Library',news:'Newsroom',analytics:'Club Analytics',activity:'Activity',profile:'Club Profile',sponsors:'Sponsors',users:'Users & Permissions',plans:'Plan'}
  return labels[section]??'Club HQ'
 }
 function getSectionTitle(section:string){if(COACHING_SECTIONS.has(section))return'Coaching';if(section==='volunteers'||section==='equipment')return'Operations';if(STUDIO_SECTIONS.has(section))return'Studio';if(ANALYTICS_SECTIONS.has(section))return'Analytics';if(['profile','sponsors','users','plans'].includes(section))return'Profile';return''}
@@ -74,7 +74,8 @@ function getSectionItems(clubId:string,section:string,view:string|null):SectionI
   {label:'Equipment & Stocktake',description:'Inventory, condition and alerts',href:`/club-portal/${clubId}/equipment`,icon:PackageSearch,active:section==='equipment'},
  ]
  if(STUDIO_SECTIONS.has(section))return[
-  {label:'Studio',description:'Media command centre',href:`/club-portal/${clubId}/media`,icon:Image,active:section==='media'},
+  {label:'Studio',description:'Media command centre',href:`/club-portal/${clubId}/studio`,icon:Image,active:section==='studio'},
+  {label:'Media Library',description:'Shared club images and assets',href:`/club-portal/${clubId}/media`,icon:Image,active:section==='media'},
   {label:'Newsroom',description:'Create and publish club stories',href:`/club-portal/${clubId}/news`,icon:ClipboardList,active:section==='news'},
  ]
  if(ANALYTICS_SECTIONS.has(section))return[
