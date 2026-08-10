@@ -10,6 +10,7 @@ export const CLUB_PERMISSION_KEYS = [
   'coaching.league-ladder',
   'coaching.stats',
   'studio.access',
+  'memberships.access',
   'website.access',
   'operations.access',
   'analytics.access',
@@ -64,9 +65,10 @@ export function effectiveClubPermissions(input: { role: string; preset?: string 
 
 export function allowedClubAreas(permissions: readonly ClubPermissionKey[]) {
   const set = new Set(permissions)
-  const areas: Array<'coaching'|'studio'|'website'|'operations'|'analytics'|'permissions'> = []
+  const areas: Array<'coaching'|'studio'|'memberships'|'website'|'operations'|'analytics'|'permissions'> = []
   if ([...set].some(key => key.startsWith('coaching.'))) areas.push('coaching')
   if (set.has('studio.access')) areas.push('studio')
+  if (set.has('memberships.access')) areas.push('memberships')
   if (set.has('website.access')) areas.push('website')
   if (set.has('operations.access')) areas.push('operations')
   if (set.has('analytics.access')) areas.push('analytics')
@@ -78,5 +80,6 @@ export function defaultPermissionPage(permissions: readonly ClubPermissionKey[])
   if (permissions.length === 1 && permissions[0] === 'coaching.stats') return 'STATS'
   if (permissions.length === 1 && permissions[0] === 'operations.access') return 'OPERATIONS'
   if (permissions.length === 1 && permissions[0] === 'studio.access') return 'STUDIO'
+  if (permissions.length === 1 && permissions[0] === 'memberships.access') return 'MEMBERSHIPS'
   return 'CLUB_DASHBOARD'
 }
