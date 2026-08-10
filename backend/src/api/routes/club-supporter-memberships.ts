@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { prisma } from '../../db/client.js'
 import { authenticateClubUser, clubUserCan, membershipForClub, requireActiveClubMembership } from '../../auth/club-auth.js'
 
@@ -26,7 +26,7 @@ type MemberRow = {
   personId:string;firstName:string|null;lastName:string|null;displayName:string;email:string|null;phone:string|null;personCreatedAt:Date
   membershipId:string|null;productId:string|null;productName:string|null;membershipNumber:string|null;membershipStatus:string|null;season:string|null
   validFrom:Date|null;validUntil:Date|null;priceCents:number|null;currency:string|null;source:string|null;membershipCreatedAt:Date|null
-  paymentMethod:string|null;paymentAmountCents:number|null;paymentStatus:string|null;paymentPaidAt:Date|null
+  paymentMethod:string|null;paymentAmountCents:number|null;paymentStatus:string|null;paymentPaidAt:Date|null;digitalCardEnabled:boolean|null
 }
 
 export function ensureSupporterMembershipSchema() {
@@ -87,6 +87,14 @@ export function ensureSupporterMembershipSchema() {
     )`)
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS club_membership_history_person_idx ON club_membership_history (club_id, member_person_id, created_at DESC)`)
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS club_membership_history_membership_idx ON club_membership_history (membership_id, created_at DESC)`)
+
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS club_membership_credentials (
+      id TEXT PRIMARY KEY, club_id TEXT NOT NULL, membership_id TEXT NOT NULL, credential_token TEXT NOT NULL UNIQUE, card_access_token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'ACTIVE', issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), revoked_at TIMESTAMPTZ, replaced_by_id TEXT,
+      CONSTRAINT club_membership_credentials_status_check CHECK (status IN ('ACTIVE','REVOKED'))
+    )`)
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS club_membership_credentials_club_idx ON club_membership_credentials (club_id, membership_id, status)`)
+    await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS club_membership_credentials_active_membership_unique ON club_membership_credentials (membership_id) WHERE status='ACTIVE'`)
   })().catch(error => { schemaReady = null; throw error })
   return schemaReady
 }
@@ -124,7 +132,7 @@ async function membersForClub(clubId:string,filters:{search?:string;status?:stri
   if(filters.productId){params.push(filters.productId);where.push(`m.product_id=$${params.length}`)}
   return prisma.$queryRawUnsafe<MemberRow[]>(`SELECT p.id AS "personId",p.first_name AS "firstName",p.last_name AS "lastName",p.display_name AS "displayName",p.email,p.phone,p.created_at AS "personCreatedAt",
     m.id AS "membershipId",m.product_id AS "productId",pr.name AS "productName",m.membership_number AS "membershipNumber",m.status AS "membershipStatus",m.season,m.valid_from AS "validFrom",m.valid_until AS "validUntil",m.price_cents AS "priceCents",m.currency,m.source,m.created_at AS "membershipCreatedAt",
-    pu.payment_method AS "paymentMethod",pu.amount_cents AS "paymentAmountCents",pu.payment_status AS "paymentStatus",pu.paid_at AS "paymentPaidAt"
+    pu.payment_method AS "paymentMethod",pu.amount_cents AS "paymentAmountCents",pu.payment_status AS "paymentStatus",pu.paid_at AS "paymentPaidAt",pr.digital_card_enabled AS "digitalCardEnabled"
     FROM club_member_people p
     LEFT JOIN LATERAL (SELECT * FROM club_memberships mx WHERE mx.club_id=p.club_id AND mx.member_person_id=p.id ORDER BY CASE WHEN mx.status='ACTIVE' THEN 0 WHEN mx.status='PENDING' THEN 1 ELSE 2 END,mx.created_at DESC LIMIT 1) m ON TRUE
     LEFT JOIN club_membership_products pr ON pr.id=m.product_id
@@ -140,9 +148,25 @@ async function personHistory(clubId:string,personId:string){
   return{memberships,purchases,history}
 }
 
+function newCredentialToken(){return `pfm_${randomBytes(18).toString('base64url')}`}
+function newCardAccessToken(){return `pfc_${randomBytes(24).toString('base64url')}`}
+
+router.get('/card/:accessToken',async(req,res)=>{try{
+  await ensureSupporterMembershipSchema();const accessToken=clean(req.params.accessToken,120);if(!accessToken.startsWith('pfc_')){res.status(404).json({error:'Membership card not found'});return}
+  const rows=await prisma.$queryRawUnsafe<Array<{credentialToken:string;membershipId:string;membershipNumber:string|null;membershipStatus:string;season:string|null;validFrom:Date|null;validUntil:Date|null;productName:string;digitalCardEnabled:boolean;displayName:string;clubId:string;clubName:string;logoUrl:string|null;primaryColour:string|null;secondaryColour:string|null}>>(`SELECT c.credential_token AS "credentialToken",m.id AS "membershipId",m.membership_number AS "membershipNumber",m.status AS "membershipStatus",m.season,m.valid_from AS "validFrom",m.valid_until AS "validUntil",pr.name AS "productName",pr.digital_card_enabled AS "digitalCardEnabled",mp.display_name AS "displayName",cl.id AS "clubId",cl.name AS "clubName",cl.logo_url AS "logoUrl",cl.primary_colour AS "primaryColour",cl.secondary_colour AS "secondaryColour" FROM club_membership_credentials c JOIN club_memberships m ON m.id=c.membership_id AND m.club_id=c.club_id JOIN club_member_people mp ON mp.id=m.member_person_id AND mp.club_id=m.club_id LEFT JOIN club_membership_products pr ON pr.id=m.product_id JOIN clubs cl ON cl.id=m.club_id WHERE c.card_access_token=$1 AND c.status='ACTIVE' LIMIT 1`,accessToken);const row=rows[0];if(!row||!row.digitalCardEnabled){res.status(404).json({error:'Membership card not found'});return}
+  const expired=Boolean(row.validUntil&&row.validUntil.getTime()<Date.now());const status=expired&&row.membershipStatus==='ACTIVE'?'EXPIRED':row.membershipStatus
+  res.json({data:{club:{id:row.clubId,name:row.clubName,logoUrl:row.logoUrl,primaryColour:row.primaryColour,secondaryColour:row.secondaryColour},member:{displayName:row.displayName},membership:{id:row.membershipId,number:row.membershipNumber,status,season:row.season,validFrom:row.validFrom,validUntil:row.validUntil,productName:row.productName},credential:{token:row.credentialToken}}})
+}catch(error){res.status(500).json({error:'Unable to load membership card',detail:String(error)})}})
+
 router.use(authenticateClubUser)
 router.use('/clubs/:clubId',requireActiveClubMembership)
 router.use('/clubs/:clubId',(_req,res,next)=>{if(!canManageMemberships(res)){res.status(403).json({error:'Your club access does not include Memberships'});return}next()})
+
+router.post('/clubs/:clubId/memberships/:membershipId/card',async(req,res)=>{try{
+  await ensureSupporterMembershipSchema();const clubId=req.params.clubId,membershipId=req.params.membershipId;const rows=await prisma.$queryRawUnsafe<Array<{id:string;status:string;digitalCardEnabled:boolean}>>(`SELECT m.id,m.status,COALESCE(p.digital_card_enabled,false) AS "digitalCardEnabled" FROM club_memberships m LEFT JOIN club_membership_products p ON p.id=m.product_id WHERE m.id=$1 AND m.club_id=$2 LIMIT 1`,membershipId,clubId);const membership=rows[0];if(!membership){res.status(404).json({error:'Membership not found'});return}if(!membership.digitalCardEnabled){res.status(400).json({error:'Digital card is disabled for this membership product'});return}if(membership.status!=='ACTIVE'){res.status(400).json({error:'Only active memberships can issue a digital card'});return}
+  let credentials=await prisma.$queryRawUnsafe<Array<{cardAccessToken:string}>>(`SELECT card_access_token AS "cardAccessToken" FROM club_membership_credentials WHERE membership_id=$1 AND club_id=$2 AND status='ACTIVE' LIMIT 1`,membershipId,clubId);if(!credentials[0]){const id=randomUUID(),credentialToken=newCredentialToken(),cardAccessToken=newCardAccessToken();await prisma.$executeRawUnsafe(`INSERT INTO club_membership_credentials (id,club_id,membership_id,credential_token,card_access_token,status) VALUES ($1,$2,$3,$4,$5,'ACTIVE')`,id,clubId,membershipId,credentialToken,cardAccessToken);credentials=[{cardAccessToken}]}
+  res.json({data:{cardUrl:`/membership-card/${encodeURIComponent(credentials[0].cardAccessToken)}`},message:'Digital membership card ready'})
+}catch(error){res.status(500).json({error:'Unable to prepare digital membership card',detail:String(error)})}})
 
 router.get('/clubs/:clubId/overview',async(req,res)=>{try{await ensureSupporterMembershipSchema();const clubId=req.params.clubId;const [p,m]=await Promise.all([prisma.$queryRawUnsafe<Array<{status:string;count:bigint}>>(`SELECT status,COUNT(*)::bigint AS count FROM club_membership_products WHERE club_id=$1 GROUP BY status`,clubId),prisma.$queryRawUnsafe<Array<{count:bigint}>>(`SELECT COUNT(*)::bigint AS count FROM club_memberships WHERE club_id=$1 AND status='ACTIVE'`,clubId)]);const counts=Object.fromEntries(p.map(row=>[row.status,Number(row.count)]));res.json({data:{activeProducts:counts.ACTIVE||0,draftProducts:counts.DRAFT||0,archivedProducts:counts.ARCHIVED||0,activeMemberships:Number(m[0]?.count||0)}})}catch(error){res.status(500).json({error:'Unable to load memberships overview',detail:String(error)})}})
 router.get('/clubs/:clubId/products',async(req,res)=>{try{res.json({data:(await productsForClub(req.params.clubId)).map(serialise)})}catch(error){res.status(500).json({error:'Unable to load membership products',detail:String(error)})}})
@@ -182,6 +206,7 @@ router.patch('/clubs/:clubId/memberships/:membershipId',async(req,res)=>{try{
   const membershipNumber=clean(body.membershipNumber,80)||generatedMembershipNumber();const season=clean(body.season,30)||product?.season||null;const validFrom=body.validFrom!==undefined?dateValue(body.validFrom):product?.validFrom??null;const validUntil=body.validUntil!==undefined?dateValue(body.validUntil):product?.validUntil??null;const priceCents=intValue(body.priceCents,0,100000000,product?.priceCents??0)??0;const now=new Date()
   await prisma.$transaction(async tx=>{
     await tx.$executeRawUnsafe(`UPDATE club_memberships SET product_id=$1,membership_number=$2,status=$3,season=$4,valid_from=$5,valid_until=$6,price_cents=$7,activated_at=CASE WHEN $3='ACTIVE' AND activated_at IS NULL THEN $8 ELSE activated_at END,cancelled_at=CASE WHEN $3='CANCELLED' THEN $8 ELSE NULL END,updated_at=NOW() WHERE id=$9 AND club_id=$10`,productId,membershipNumber,status,season,validFrom,validUntil,priceCents,now,membershipId,clubId)
+    if(status==='CANCELLED')await tx.$executeRawUnsafe(`UPDATE club_membership_credentials SET status='REVOKED',revoked_at=NOW() WHERE membership_id=$1 AND club_id=$2 AND status='ACTIVE'`,membershipId,clubId)
     await tx.$executeRawUnsafe(`INSERT INTO club_membership_history (id,club_id,membership_id,member_person_id,action,from_status,to_status,details,actor_user_id) VALUES ($1,$2,$3,$4,'UPDATED',$5,$6,$7::jsonb,$8)`,randomUUID(),clubId,membershipId,current.memberPersonId,current.status,status,JSON.stringify({productId,season,validFrom,validUntil,priceCents}),req.clubUser?.id??null)
   })
   res.json({data:{membershipId,status},message:status==='CANCELLED'?'Membership cancelled':'Membership updated'})
