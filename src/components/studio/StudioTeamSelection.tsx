@@ -25,7 +25,7 @@ const FIELD_CODES=new Set(FIELD_ROWS.flat(2))
 
 function norm(value:string|null|undefined){return (value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
 function safeColour(value:string|null|undefined,fallback:string){return /^#[0-9a-f]{6}$/i.test(value||'')?value!:fallback}
-function dateLabel(value:string|null){if(!value)return'DATE TBC';const date=new Date(value);return Number.isNaN(date.getTime())?'DATE TBC':date.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).toUpperCase()}
+function dateLabel(value:string|null|undefined){if(!value)return'DATE TBC';const date=new Date(value);return Number.isNaN(date.getTime())?'DATE TBC':date.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).toUpperCase()}
 function shortName(name:string){const parts=name.trim().split(/\s+/);return parts.length>1?`${parts[0]}\n${parts.slice(1).join(' ')}`:name}
 async function loadImage(url:string|null){if(!url)return null;return new Promise<HTMLImageElement|null>(resolve=>{const image=new Image();image.crossOrigin='anonymous';image.onload=()=>resolve(image);image.onerror=()=>resolve(null);image.src=url})}
 function findPlayer(sheet:Sheet,codes:string[]){return sheet.players.find(player=>codes.includes(player.positionCode))||null}
