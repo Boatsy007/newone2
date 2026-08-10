@@ -1,0 +1,28 @@
+name: Install Stage 3 QR dependency
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/install-stage3-qrcode.yml
+permissions:
+  contents: write
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install qrcode
+      - run: npm install -D @types/qrcode
+      - name: Commit dependency files
+        run: |
+          git config user.name "playfooty-build"
+          git config user.email "actions@users.noreply.github.com"
+          git add package.json package-lock.json
+          git diff --cached --quiet || git commit -m "Add QR generation dependency for membership cards"
+          git push origin HEAD:newone1
