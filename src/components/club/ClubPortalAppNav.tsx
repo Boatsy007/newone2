@@ -16,7 +16,9 @@ export default function ClubPortalAppNav(){
  const match=pathname.match(/^\/club-portal\/([^/]+)(?:\/([^/?#]+))?(?:\/|$)/)
  const clubId=match?.[1]??''
  const section=match?.[2]??''
- const view=new URLSearchParams(search).get('view')
+ const searchParams=new URLSearchParams(search)
+ const view=searchParams.get('view')
+ const area=searchParams.get('area')
  const[profileHost,setProfileHost]=useState<Element|null>(null)
  const[loadingTarget,setLoadingTarget]=useState<LoadingTarget|null>(null)
  const finishTimer=useRef<number|null>(null)
@@ -27,6 +29,8 @@ export default function ClubPortalAppNav(){
  const loadingLabel=loadingTarget?.label??null
  const loadingCard=loadingLabel?createPortal(<div className="club-page-loading" role="status" aria-live="polite" aria-label={`Loading ${loadingLabel}`}><div className="club-page-loading-card"><LoaderCircle size={34}/><span>CLUB HQ</span><strong>Loading {loadingLabel}</strong><p>Please wait while your {loadingLabel.toLowerCase()} workspace opens.</p></div></div>,document.body):null
  if(!clubId||section==='whiteboard')return <><ClubHqCommandCentre/>{loadingCard}<style>{styles}</style></>
+ // Memberships is a self-contained Club App module, not a desktop Club HQ page.
+ if(!section&&area==='memberships')return <><ClubHqCommandCentre/>{loadingCard}<style>{styles}</style></>
  // Studio is a self-contained app dashboard. Do not inject Club HQ bottom/side navigation on this screen.
  if(section==='studio')return <><ClubHqCommandCentre/>{loadingCard}<style>{styles}</style></>
  const items=[
@@ -48,6 +52,8 @@ export default function ClubPortalAppNav(){
 function getLoadingLabel(pathname:string,search:string){
  const section=pathname.match(/^\/club-portal\/[^/]+(?:\/([^/?#]+))?/)?.[1]??''
  const view=new URLSearchParams(search).get('view')
+ const area=new URLSearchParams(search).get('area')
+ if(!section&&area==='memberships')return'Memberships'
  if(!section)return'Home'
  if(section==='coaching'&&view==='team')return'Team'
  if(section==='coaching'&&view==='training')return'Training'
