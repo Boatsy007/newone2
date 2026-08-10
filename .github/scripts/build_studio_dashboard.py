@@ -1,88 +1,41 @@
 from pathlib import Path
+import subprocess
 
-page = Path('src/pages/ClubPortalMedia.tsx')
-page.write_text(r'''import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowRight, BadgeDollarSign, ExternalLink, Image, Newspaper, Radio, ShieldCheck, Sparkles } from 'lucide-react'
-import Nav from '../components/layout/Nav'
-import Footer from '../components/layout/Footer'
-import { TeamLogo } from '../components/rankings/bits'
+media_original = subprocess.check_output([
+    'git','show','c3a6c46ad5fe4e634fe5e48a349f74165a4ae001:src/pages/ClubPortalMedia.tsx'
+], text=True)
+Path('src/pages/ClubPortalMedia.tsx').write_text(media_original)
 
-type Session={access_token:string}
-type Dashboard={club:{id:string;name:string;logoUrl:string|null;leagueName:string|null;stateName:string;season:string|null;grade:string|null;primaryColour:string|null};membership:{role:string}}
-type Article={id:string;slug:string;title:string;status:string;updatedAt:string;publishedAt:string|null}
-const KEY='playfooty.clubPortal.session.v1'
-function session():Session|null{try{const raw=localStorage.getItem(KEY);return raw?JSON.parse(raw) as Session:null}catch{return null}}
-function statusLabel(value:string){return value.replaceAll('_',' ').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase())}
-
-export default function ClubPortalMedia(){
- const{clubId=''}=useParams()
- const[data,setData]=useState<Dashboard|null>(null)
- const[articles,setArticles]=useState<Article[]>([])
- const[loading,setLoading]=useState(true)
- const[error,setError]=useState('')
- const token=session()?.access_token??''
- const headers=useMemo(()=>({authorization:`Bearer ${token}`}),[token])
- useEffect(()=>{let live=true;setLoading(true);setError('');if(!token){setError('Sign in through the Club Portal to continue.');setLoading(false);return()=>{live=false}}
-   void Promise.all([
-    fetch(`/api/club-portal/clubs/${encodeURIComponent(clubId)}/dashboard`,{headers}).then(async r=>{const p=await r.json() as{data?:Dashboard;error?:string};if(!r.ok||!p.data)throw new Error(p.error||'Unable to load Studio');return p.data}),
-    fetch(`/api/club-portal/clubs/${encodeURIComponent(clubId)}/news`,{headers}).then(async r=>{if(!r.ok)return[] as Article[];const p=await r.json() as{data?:Article[]};return Array.isArray(p.data)?p.data:[]}).catch(()=>[] as Article[])
-   ]).then(([dashboard,news])=>{if(!live)return;setData(dashboard);setArticles(news)}).catch(reason=>{if(live)setError(reason instanceof Error?reason.message:'Unable to load Studio')}).finally(()=>{if(live)setLoading(false)})
-   return()=>{live=false}
- },[clubId,headers,token])
- const published=articles.filter(item=>item.status==='PUBLISHED').length
- const drafts=articles.filter(item=>item.status==='DRAFT').length
- const waiting=articles.filter(item=>item.status==='APPROVED').length
- const accent=data?.club.primaryColour||'#42b8ff'
- return <><Nav/><main className="studio-page">{loading?<div className="studio-state"><span className="studio-spinner"/><strong>Loading Studio</strong></div>:error||!data?<section className="studio-error"><ShieldCheck size={38}/><h1>Studio unavailable</h1><p>{error||'This workspace is unavailable.'}</p><Link to="/club-portal">Return to Club Portal</Link></section>:<>
-  <header className="studio-hero" style={{'--studio-accent':accent} as React.CSSProperties}>
-   <div className="studio-club"><TeamLogo name={data.club.name} src={data.club.logoUrl??undefined} size={74}/><div><span>PLAYFOOTY STUDIO</span><h1>Run your club media.</h1><p>{data.club.name} · {[data.club.leagueName||data.club.stateName,data.club.season,data.club.grade].filter(Boolean).join(' · ')}</p></div></div>
-   <Link className="studio-public" to={`/team/${data.club.id}`}>View public club <ExternalLink size={15}/></Link>
-  </header>
-  <section className="studio-stats" aria-label="Studio status">
-   <article><b>{articles.length}</b><span>Articles</span></article><article><b>{drafts}</b><span>Drafts</span></article><article><b>{waiting}</b><span>Awaiting approval</span></article><article><b>{published}</b><span>Published</span></article>
-  </section>
-  <section className="studio-grid">
-   <Link className="studio-card primary" to={`/club-portal/${clubId}/news`}><i><Newspaper size={27}/></i><span><small>EDITORIAL</small><strong>Newsroom</strong><p>Create club stories, add feature images and submit them into the existing PlayFooty publishing workflow.</p></span><b>Open newsroom <ArrowRight size={16}/></b></Link>
-   <a className="studio-card" href={`/live-stream.html?clubId=${encodeURIComponent(clubId)}`}><i><Radio size={27}/></i><span><small>LIVE</small><strong>Live Stream Studio</strong><p>Broadcast from a phone camera with the live Match Day score, quarter and clock overlaid.</p></span><b>Open live studio <ArrowRight size={16}/></b></a>
-   <Link className="studio-card" to={`/club-portal/${clubId}/profile`}><i><Image size={27}/></i><span><small>BRAND</small><strong>Club Profile & Assets</strong><p>Manage the logo, colours, photos, links and club information already used across the public profile.</p></span><b>Manage brand <ArrowRight size={16}/></b></Link>
-   <Link className="studio-card" to={`/club-portal/${clubId}/sponsors`}><i><BadgeDollarSign size={27}/></i><span><small>COMMERCIAL</small><strong>Sponsors</strong><p>Manage sponsor logos, placements and links from the canonical club sponsorship records.</p></span><b>Manage sponsors <ArrowRight size={16}/></b></Link>
-  </section>
-  <section className="studio-recent"><header><div><span>CONTENT PIPELINE</span><h2>Recent stories</h2></div><Link to={`/club-portal/${clubId}/news`}>View newsroom <ArrowRight size={15}/></Link></header>{articles.length?<div>{articles.slice(0,5).map(article=><Link key={article.id} to={`/club-portal/${clubId}/news`}><i className={`status ${article.status.toLowerCase()}`}>{statusLabel(article.status)}</i><strong>{article.title}</strong><span>{new Date(article.updatedAt).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}</span></Link>)}</div>:<div className="studio-empty"><Sparkles size={24}/><p>No club stories yet. Open the Newsroom to create the first one.</p></div>}</section>
- </>}</main><Footer/><style>{styles}</style></>
-}
-
-const styles=`
-.studio-page{min-height:78vh;background:#061019;padding:24px clamp(12px,4vw,42px) 128px;color:#f7fbff}.studio-page,.studio-page *{box-sizing:border-box}.studio-page>*{max-width:1240px;margin-left:auto;margin-right:auto}.studio-state,.studio-error{min-height:60vh;display:grid;place-items:center;align-content:center;text-align:center}.studio-state{gap:14px}.studio-state strong{font:34px/1 'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.studio-spinner{width:34px;height:34px;border:3px solid rgba(66,184,255,.2);border-top-color:#42b8ff;border-radius:50%;animation:studio-spin .8s linear infinite}@keyframes studio-spin{to{transform:rotate(360deg)}}.studio-error h1{margin:12px 0 4px;font:54px/1 'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.studio-error p{color:#9cb0c0}.studio-error a{color:#42b8ff;font-weight:900}.studio-hero{position:relative;display:flex;align-items:center;justify-content:space-between;gap:22px;padding:24px 26px;border:1px solid #1b3445;border-left:5px solid var(--studio-accent);border-radius:20px;background:linear-gradient(125deg,#0b1721,#102b3d);overflow:hidden;box-shadow:0 24px 55px rgba(0,0,0,.22)}.studio-hero:after{content:'';position:absolute;width:330px;height:330px;right:-130px;top:-170px;border-radius:50%;background:radial-gradient(circle,rgba(66,184,255,.18),transparent 66%);pointer-events:none}.studio-club{display:flex;align-items:center;gap:17px;min-width:0;position:relative;z-index:1}.studio-club>div{min-width:0}.studio-club span,.studio-recent>header span{color:#42b8ff;font-size:10px;font-weight:950;letter-spacing:.18em}.studio-club h1{margin:6px 0 5px;font:clamp(3.4rem,7vw,6.2rem)/.82 'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.studio-club p{margin:0;color:#adc0cd;font-size:12px}.studio-public{position:relative;z-index:1;display:flex;align-items:center;gap:7px;padding:11px 14px;border:1px solid #355063;border-radius:999px;color:#fff;text-decoration:none;font-size:11px;font-weight:900;white-space:nowrap}.studio-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}.studio-stats article{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border:1px solid #173041;border-radius:13px;background:#0b1721}.studio-stats b{color:#42b8ff;font:30px/1 'Bebas Neue',Impact,sans-serif}.studio-stats span{color:#aabac6;font-size:10px;font-weight:850;text-transform:uppercase}.studio-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.studio-card{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:start;padding:20px;border:1px solid #173344;border-radius:17px;background:#0b1721;color:#fff;text-decoration:none;transition:transform .15s ease,border-color .15s ease}.studio-card:hover{transform:translateY(-2px);border-color:#2a6b91}.studio-card.primary{background:linear-gradient(135deg,#0d2231,#123d57);border-color:#245b7d}.studio-card>i{display:grid;place-items:center;width:48px;height:48px;border-radius:13px;background:#102c3e;color:#42b8ff}.studio-card>span{min-width:0}.studio-card small{display:block;color:#42b8ff;font-size:9px;font-weight:950;letter-spacing:.15em}.studio-card strong{display:block;margin-top:5px;font:34px/1 'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.studio-card p{margin:7px 0 0;color:#aebdca;font-size:12px;line-height:1.5}.studio-card>b{grid-column:2;display:flex;align-items:center;gap:6px;color:#fff;font-size:10px;text-transform:uppercase}.studio-recent{margin-top:12px;border:1px solid #173344;border-radius:17px;background:#0b1721;overflow:hidden}.studio-recent>header{display:flex;align-items:end;justify-content:space-between;gap:14px;padding:17px 19px;border-bottom:1px solid #173344}.studio-recent h2{margin:4px 0 0;font:36px/1 'Bebas Neue',Impact,sans-serif;text-transform:uppercase}.studio-recent>header a{display:flex;align-items:center;gap:6px;color:#42b8ff;text-decoration:none;font-size:10px;font-weight:900;text-transform:uppercase}.studio-recent>div>a{display:grid;grid-template-columns:120px minmax(0,1fr) auto;align-items:center;gap:12px;padding:13px 19px;border-top:1px solid #132a39;color:#fff;text-decoration:none}.studio-recent>div>a:first-child{border-top:0}.studio-recent>div>a strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.studio-recent>div>a>span{color:#7f95a5;font-size:11px}.status{justify-self:start;padding:6px 8px;border-radius:999px;background:#172b38;color:#a9bac5;font-style:normal;font-size:8px;font-weight:950;text-transform:uppercase}.status.published{background:#123b2a;color:#62e1a1}.status.approved{background:#3b3215;color:#ffd66b}.status.draft{background:#17354a;color:#76ccff}.studio-empty{display:flex;align-items:center;gap:10px;padding:22px;color:#9db0bd}.studio-empty p{margin:0}@media(max-width:850px){.studio-hero{align-items:flex-start;flex-direction:column}.studio-grid{grid-template-columns:1fr}}@media(max-width:620px){.studio-page{padding:10px 8px 116px}.studio-hero{padding:16px;border-radius:15px}.studio-club{gap:10px}.studio-club h1{font-size:clamp(3rem,14vw,4.5rem)}.studio-club p{font-size:10px}.studio-public{width:100%;justify-content:center}.studio-stats{grid-template-columns:repeat(2,1fr)}.studio-card{padding:15px;gap:10px}.studio-card>i{width:42px;height:42px}.studio-card strong{font-size:29px}.studio-card p{font-size:11px}.studio-recent>header{align-items:flex-start;flex-direction:column}.studio-recent>div>a{grid-template-columns:95px minmax(0,1fr);padding:12px}.studio-recent>div>a>span{grid-column:2}}
-`
-''')
+studio = subprocess.check_output([
+    'git','show','7f9f5acf1c13c4934ec541f1f42a8a305adfb6fa:src/pages/ClubPortalMedia.tsx'
+], text=True)
+studio = studio.replace('export default function ClubPortalMedia(){','export default function ClubPortalStudio(){',1)
+needle = "  <section className=\"studio-grid\">\n"
+media_card = "   <Link className=\"studio-card\" to={`/club-portal/${clubId}/media`}><i><Image size={27}/></i><span><small>ASSETS</small><strong>Media Library</strong><p>Upload and reuse player, match, milestone, sponsor and club images from the existing shared media library.</p></span><b>Open library <ArrowRight size={16}/></b></Link>\n"
+if media_card not in studio:
+    studio = studio.replace(needle, needle + media_card, 1)
+Path('src/pages/ClubPortalStudio.tsx').write_text(studio)
 
 main = Path('src/main.tsx')
 text = main.read_text()
-if "import ClubPortalMedia from './pages/ClubPortalMedia.tsx'" not in text:
-    anchor = "import ClubPortalNews from './pages/ClubPortalNews.tsx'\n"
-    if anchor not in text: raise SystemExit('main import anchor missing')
-    text = text.replace(anchor, anchor + "import ClubPortalMedia from './pages/ClubPortalMedia.tsx'\n", 1)
-route = '    <Route path="/club-portal/:clubId/media" element={<ClubPortalMedia/>}/>\n'
-if route not in text:
-    anchor = '    <Route path="/club-portal/:clubId/news" element={<ClubPortalNews/>}/>\n'
-    if anchor not in text: raise SystemExit('main route anchor missing')
-    text = text.replace(anchor, route + anchor, 1)
+if "import ClubPortalStudio from './pages/ClubPortalStudio.tsx'" not in text:
+    anchor = "import ClubPortalMedia from './pages/ClubPortalMedia.tsx'\n"
+    if anchor not in text: raise SystemExit('Studio import anchor missing')
+    text = text.replace(anchor, anchor + "import ClubPortalStudio from './pages/ClubPortalStudio.tsx'\n", 1)
+studio_route = '    <Route path="/club-portal/:clubId/studio" element={<ClubPortalStudio/>}/>\n'
+if studio_route not in text:
+    anchor = '    <Route path="/club-portal/:clubId/media" element={<ClubPortalMedia/>}/>\n'
+    if anchor not in text: raise SystemExit('Studio route anchor missing')
+    text = text.replace(anchor, studio_route + anchor, 1)
 main.write_text(text)
 
 nav = Path('src/components/club/ClubPortalAppNav.tsx')
 text = nav.read_text()
-text = text.replace("const ANALYTICS_SECTIONS=new Set(['analytics','activity'])", "const STUDIO_SECTIONS=new Set(['media','news'])\nconst ANALYTICS_SECTIONS=new Set(['analytics','activity'])")
-text = text.replace("{label:'Media',href:`/club-portal/${clubId}/media`,icon:Image,active:section==='media'||section==='news'||section==='milestones'},", "{label:'Studio',href:`/club-portal/${clubId}/media`,icon:Image,active:STUDIO_SECTIONS.has(section)},")
-text = text.replace("if(section==='analytics'&&view==='media')return'Media Analytics'", "if(section==='analytics'&&view==='media')return'Media Analytics'")
-text = text.replace("media:'Media Studio',news:'AI News',milestones:'Milestones'", "media:'Studio',news:'Newsroom'")
-old_title = "function getSectionTitle(section:string){if(COACHING_SECTIONS.has(section))return'Coaching';if(section==='volunteers'||section==='equipment')return'Operations';if(ANALYTICS_SECTIONS.has(section))return'Analytics';if(['profile','sponsors','users','plans'].includes(section))return'Profile';return''}"
-new_title = "function getSectionTitle(section:string){if(COACHING_SECTIONS.has(section))return'Coaching';if(section==='volunteers'||section==='equipment')return'Operations';if(STUDIO_SECTIONS.has(section))return'Studio';if(ANALYTICS_SECTIONS.has(section))return'Analytics';if(['profile','sponsors','users','plans'].includes(section))return'Profile';return''}"
-if old_title not in text: raise SystemExit('section title anchor missing')
-text = text.replace(old_title,new_title,1)
-studio_block = """ if(STUDIO_SECTIONS.has(section))return[\n  {label:'Studio',description:'Media command centre',href:`/club-portal/${clubId}/media`,icon:Image,active:section==='media'},\n  {label:'Newsroom',description:'Create and publish club stories',href:`/club-portal/${clubId}/news`,icon:ClipboardList,active:section==='news'},\n ]\n"""
-anchor = " if(ANALYTICS_SECTIONS.has(section))return[\n"
-if studio_block not in text:
-    if anchor not in text: raise SystemExit('studio nav insertion anchor missing')
-    text = text.replace(anchor, studio_block + anchor, 1)
+text = text.replace("const STUDIO_SECTIONS=new Set(['media','news'])", "const STUDIO_SECTIONS=new Set(['studio','media','news'])")
+text = text.replace("{label:'Studio',href:`/club-portal/${clubId}/media`,icon:Image,active:STUDIO_SECTIONS.has(section)},", "{label:'Studio',href:`/club-portal/${clubId}/studio`,icon:Image,active:STUDIO_SECTIONS.has(section)},")
+text = text.replace("media:'Studio',news:'Newsroom'", "studio:'Studio',media:'Media Library',news:'Newsroom'")
+old = " if(STUDIO_SECTIONS.has(section))return[\n  {label:'Studio',description:'Media command centre',href:`/club-portal/${clubId}/media`,icon:Image,active:section==='media'},\n  {label:'Newsroom',description:'Create and publish club stories',href:`/club-portal/${clubId}/news`,icon:ClipboardList,active:section==='news'},\n ]"
+new = " if(STUDIO_SECTIONS.has(section))return[\n  {label:'Studio',description:'Media command centre',href:`/club-portal/${clubId}/studio`,icon:Image,active:section==='studio'},\n  {label:'Media Library',description:'Shared club images and assets',href:`/club-portal/${clubId}/media`,icon:Image,active:section==='media'},\n  {label:'Newsroom',description:'Create and publish club stories',href:`/club-portal/${clubId}/news`,icon:ClipboardList,active:section==='news'},\n ]"
+if old not in text: raise SystemExit('Studio navigation block missing')
+text = text.replace(old,new,1)
 nav.write_text(text)
