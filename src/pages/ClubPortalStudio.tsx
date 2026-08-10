@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { CalendarDays, ChevronRight, CircleDollarSign, Newspaper, Radio, ShieldCheck, Sparkles, Trophy, UsersRound } from 'lucide-react'
 import StudioTeamSelection from '../components/studio/StudioTeamSelection'
 import StudioLiveMatch from '../components/studio/StudioLiveMatch'
+import StudioEvents from '../components/studio/StudioEvents'
 
 type Session={access_token:string}
 type Dashboard={club:{id:string;name:string;logoUrl:string|null;leagueName:string|null;stateName:string;season:string|null;grade:string|null;primaryColour:string|null};membership:{role:string}}
@@ -36,8 +37,9 @@ export default function ClubPortalStudio(){
  const fixtureMeta=[data.club.leagueName||data.club.stateName,data.club.season,data.club.grade].filter(Boolean).join(' · ')
  const teamSelection=view==='team-selection'
  const liveMatch=view==='live-match'
- const detailView=teamSelection||liveMatch
- const studioTitle=teamSelection?'TEAM SELECTION':liveMatch?'LIVE MATCH':'STUDIO DASHBOARD'
+ const events=view==='events'
+ const detailView=teamSelection||liveMatch||events
+ const studioTitle=teamSelection?'TEAM SELECTION':liveMatch?'LIVE MATCH':events?'EVENTS':'STUDIO DASHBOARD'
  return <main className="studio-app">
   <style>{styles}</style>
   <header className="studio-shell">
@@ -46,7 +48,7 @@ export default function ClubPortalStudio(){
    <div className="studio-actions"><button onClick={detailView?studioHome:backToClub}>{detailView?'Studio dashboard':'Club dashboard'}</button><button onClick={logout}>Log out</button></div>
   </header>
 
-  {teamSelection?<StudioTeamSelection clubId={clubId} token={token} club={data.club} onBack={studioHome}/>:liveMatch?<StudioLiveMatch clubId={clubId} token={token} club={data.club} onBack={studioHome}/>:<section className="studio-dashboard">
+  {teamSelection?<StudioTeamSelection clubId={clubId} token={token} club={data.club} onBack={studioHome}/>:liveMatch?<StudioLiveMatch clubId={clubId} token={token} club={data.club} onBack={studioHome}/>:events?<StudioEvents clubId={clubId} token={token} club={data.club} onBack={studioHome}/>:<section className="studio-dashboard">
    <div className="studio-intro"><span>CLUB CONTENT HUB</span><h1>CREATE. PUBLISH. GO LIVE.</h1><p>Everything your club needs to create match content, tell stories and keep supporters connected.</p></div>
 
    <section className="studio-tools">
@@ -54,7 +56,7 @@ export default function ClubPortalStudio(){
     <div className="studio-tool-grid">
      <Link to={`/club-portal/${clubId}/studio?view=team-selection`}><i><UsersRound/></i><span><small>TEAM MEDIA</small><strong>Team Selection</strong><em>Generate this week’s team graphic and social captions.</em></span><ChevronRight/></Link>
      <Link to={`/club-portal/${clubId}/studio?view=live-match`}><i><Trophy/></i><span><small>MATCH DAY MEDIA</small><strong>Live Match</strong><em>Create quarter-by-quarter score graphics, captions and goal-kicker updates.</em></span><ChevronRight/></Link>
-     <Link to={`/club-portal/${clubId}/activity`}><i><CalendarDays/></i><span><small>CLUB CALENDAR</small><strong>Events</strong><em>Create and manage club event content.</em></span><ChevronRight/></Link>
+     <Link to={`/club-portal/${clubId}/studio?view=events`}><i><CalendarDays/></i><span><small>CLUB EVENTS</small><strong>Events</strong><em>Build the event plan, safety guide and promotional poster in one automatic flow.</em></span><ChevronRight/></Link>
      <div className="studio-tool coming"><i><CircleDollarSign/></i><span><small>COMMUNITY</small><strong>Fundraising</strong><em>Campaigns, drives and fundraising content.</em><b>COMING NEXT</b></span><ShieldCheck/></div>
      <div className="studio-tool coming"><i><Sparkles/></i><span><small>PLAYER & CLUB</small><strong>Milestones</strong><em>Celebrate games, goals and club achievements.</em><b>COMING NEXT</b></span><ShieldCheck/></div>
      <Link to={`/club-portal/${clubId}/news`}><i><Newspaper/></i><span><small>EDITORIAL</small><strong>News</strong><em>Write, edit and publish club stories.</em></span><ChevronRight/></Link>
