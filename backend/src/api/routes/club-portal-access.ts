@@ -26,6 +26,7 @@ import { clubMilestonesRouter } from './club-milestones.js'
 import { clubMediaPublishingRouter } from './club-media-publishing.js'
 import { clubAiGraphicsRouter } from './club-ai-graphics.js'
 import { clubHqCoordinationRouter } from './club-hq-coordination.js'
+import { clubSupporterMembershipsRouter } from './club-supporter-memberships.js'
 import { adminClubMembershipsRouter } from '../../admin/club-memberships.js'
 
 const router = Router()
@@ -48,6 +49,7 @@ router.use('/coordination',clubHqCoordinationRouter)
 router.use('/ai-graphics',clubAiGraphicsRouter)
 router.use('/media-publishing',clubMediaPublishingRouter)
 router.use('/milestones',clubMilestonesRouter)
+router.use('/memberships',clubSupporterMembershipsRouter)
 router.use('/media',clubMediaRouter)
 router.use('/operations',clubOperationsRouter)
 router.use('/match-day',clubMatchDayRouter)
