@@ -32,7 +32,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -- backend/prisma/schema.prisma || true
-          git add src/pages/ClubPortalMedia.tsx src/main.tsx src/components/club/ClubPortalAppNav.tsx
+          git add src/pages/ClubPortalStudio.tsx src/pages/ClubPortalMedia.tsx src/main.tsx src/components/club/ClubPortalAppNav.tsx
           git diff --cached --quiet && exit 0
           git commit -m "Create Club Studio dashboard"
           git push origin HEAD:newone1
