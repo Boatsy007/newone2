@@ -1,0 +1,70 @@
+name: Apply Stage 3 membership card
+on:
+  push:
+    paths:
+      - .github/workflows/apply-stage3-membership-card.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - name: Apply isolated Stage 3 patches
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Backend: opaque credential domain + public card endpoint + admin card issue/view endpoint.
+          p=Path('backend/src/api/routes/club-supporter-memberships.ts')
+          s=p.read_text()
+          s=s.replace("import { randomUUID } from 'node:crypto'","import { randomBytes, randomUUID } from 'node:crypto'")
+          marker="    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS club_membership_history_membership_idx ON club_membership_history (membership_id, created_at DESC)`)\n"
+          addition="""\n    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS club_membership_credentials (\n      id TEXT PRIMARY KEY, club_id TEXT NOT NULL, membership_id TEXT NOT NULL, credential_token TEXT NOT NULL UNIQUE, card_access_token TEXT NOT NULL UNIQUE,\n      status TEXT NOT NULL DEFAULT 'ACTIVE', issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), revoked_at TIMESTAMPTZ, replaced_by_id TEXT,\n      CONSTRAINT club_membership_credentials_status_check CHECK (status IN ('ACTIVE','REVOKED'))\n    )`)\n    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS club_membership_credentials_club_idx ON club_membership_credentials (club_id, membership_id, status)`)\n    await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS club_membership_credentials_active_membership_unique ON club_membership_credentials (membership_id) WHERE status='ACTIVE'`)\n"""
+          if addition.strip() not in s:
+              s=s.replace(marker,marker+addition)
+          s=s.replace('paymentMethod:string|null;paymentAmountCents:number|null;paymentStatus:string|null;paymentPaidAt:Date|null\n}', 'paymentMethod:string|null;paymentAmountCents:number|null;paymentStatus:string|null;paymentPaidAt:Date|null;digitalCardEnabled:boolean|null\n}')
+          s=s.replace('pu.payment_method AS "paymentMethod",pu.amount_cents AS "paymentAmountCents",pu.payment_status AS "paymentStatus",pu.paid_at AS "paymentPaidAt"', 'pu.payment_method AS "paymentMethod",pu.amount_cents AS "paymentAmountCents",pu.payment_status AS "paymentStatus",pu.paid_at AS "paymentPaidAt",pr.digital_card_enabled AS "digitalCardEnabled"')
+          public_marker='router.use(authenticateClubUser)\n'
+          public_code="""function newCredentialToken(){return `pfm_${randomBytes(18).toString('base64url')}`}\nfunction newCardAccessToken(){return `pfc_${randomBytes(24).toString('base64url')}`}\n\nrouter.get('/card/:accessToken',async(req,res)=>{try{\n  await ensureSupporterMembershipSchema();const accessToken=clean(req.params.accessToken,120);if(!accessToken.startsWith('pfc_')){res.status(404).json({error:'Membership card not found'});return}\n  const rows=await prisma.$queryRawUnsafe<Array<{credentialToken:string;membershipId:string;membershipNumber:string|null;membershipStatus:string;season:string|null;validFrom:Date|null;validUntil:Date|null;productName:string;digitalCardEnabled:boolean;displayName:string;clubId:string;clubName:string;logoUrl:string|null;primaryColour:string|null;secondaryColour:string|null}>>(`SELECT c.credential_token AS "credentialToken",m.id AS "membershipId",m.membership_number AS "membershipNumber",m.status AS "membershipStatus",m.season,m.valid_from AS "validFrom",m.valid_until AS "validUntil",pr.name AS "productName",pr.digital_card_enabled AS "digitalCardEnabled",mp.display_name AS "displayName",cl.id AS "clubId",cl.name AS "clubName",cl.logo_url AS "logoUrl",cl.primary_colour AS "primaryColour",cl.secondary_colour AS "secondaryColour" FROM club_membership_credentials c JOIN club_memberships m ON m.id=c.membership_id AND m.club_id=c.club_id JOIN club_member_people mp ON mp.id=m.member_person_id AND mp.club_id=m.club_id LEFT JOIN club_membership_products pr ON pr.id=m.product_id JOIN clubs cl ON cl.id=m.club_id WHERE c.card_access_token=$1 AND c.status='ACTIVE' LIMIT 1`,accessToken);const row=rows[0];if(!row||!row.digitalCardEnabled){res.status(404).json({error:'Membership card not found'});return}\n  const expired=Boolean(row.validUntil&&row.validUntil.getTime()<Date.now());const status=expired&&row.membershipStatus==='ACTIVE'?'EXPIRED':row.membershipStatus\n  res.json({data:{club:{id:row.clubId,name:row.clubName,logoUrl:row.logoUrl,primaryColour:row.primaryColour,secondaryColour:row.secondaryColour},member:{displayName:row.displayName},membership:{id:row.membershipId,number:row.membershipNumber,status,season:row.season,validFrom:row.validFrom,validUntil:row.validUntil,productName:row.productName},credential:{token:row.credentialToken}}})\n}catch(error){res.status(500).json({error:'Unable to load membership card',detail:String(error)})}})\n\n"""
+          if "router.get('/card/:accessToken'" not in s:
+              s=s.replace(public_marker,public_code+public_marker)
+          admin_marker="router.get('/clubs/:clubId/overview'"
+          admin_code="""router.post('/clubs/:clubId/memberships/:membershipId/card',async(req,res)=>{try{\n  await ensureSupporterMembershipSchema();const clubId=req.params.clubId,membershipId=req.params.membershipId;const rows=await prisma.$queryRawUnsafe<Array<{id:string;status:string;digitalCardEnabled:boolean}>>(`SELECT m.id,m.status,COALESCE(p.digital_card_enabled,false) AS "digitalCardEnabled" FROM club_memberships m LEFT JOIN club_membership_products p ON p.id=m.product_id WHERE m.id=$1 AND m.club_id=$2 LIMIT 1`,membershipId,clubId);const membership=rows[0];if(!membership){res.status(404).json({error:'Membership not found'});return}if(!membership.digitalCardEnabled){res.status(400).json({error:'Digital card is disabled for this membership product'});return}if(membership.status!=='ACTIVE'){res.status(400).json({error:'Only active memberships can issue a digital card'});return}\n  let credentials=await prisma.$queryRawUnsafe<Array<{cardAccessToken:string}>>(`SELECT card_access_token AS "cardAccessToken" FROM club_membership_credentials WHERE membership_id=$1 AND club_id=$2 AND status='ACTIVE' LIMIT 1`,membershipId,clubId);if(!credentials[0]){const id=randomUUID(),credentialToken=newCredentialToken(),cardAccessToken=newCardAccessToken();await prisma.$executeRawUnsafe(`INSERT INTO club_membership_credentials (id,club_id,membership_id,credential_token,card_access_token,status) VALUES ($1,$2,$3,$4,$5,'ACTIVE')`,id,clubId,membershipId,credentialToken,cardAccessToken);credentials=[{cardAccessToken}]}\n  res.json({data:{cardUrl:`/membership-card/${encodeURIComponent(credentials[0].cardAccessToken)}`},message:'Digital membership card ready'})\n}catch(error){res.status(500).json({error:'Unable to prepare digital membership card',detail:String(error)})}})\n\n"""
+          if "memberships/:membershipId/card'" not in s:
+              s=s.replace(admin_marker,admin_code+admin_marker)
+          old="    await tx.$executeRawUnsafe(`UPDATE club_memberships SET product_id=$1,membership_number=$2,status=$3,season=$4,valid_from=$5,valid_until=$6,price_cents=$7,activated_at=CASE WHEN $3='ACTIVE' AND activated_at IS NULL THEN $8 ELSE activated_at END,cancelled_at=CASE WHEN $3='CANCELLED' THEN $8 ELSE NULL END,updated_at=NOW() WHERE id=$9 AND club_id=$10`,productId,membershipNumber,status,season,validFrom,validUntil,priceCents,now,membershipId,clubId)\n"
+          new=old+"    if(status==='CANCELLED')await tx.$executeRawUnsafe(`UPDATE club_membership_credentials SET status='REVOKED',revoked_at=NOW() WHERE membership_id=$1 AND club_id=$2 AND status='ACTIVE'`,membershipId,clubId)\n"
+          if "if(status==='CANCELLED')await tx.$executeRawUnsafe(`UPDATE club_membership_credentials" not in s:
+              s=s.replace(old,new)
+          p.write_text(s)
+
+          # Club Memberships UI: enable View Card for active digital-card memberships.
+          p=Path('src/pages/ClubPortalMemberships.tsx');s=p.read_text()
+          s=s.replace('paymentMethod:string|null;paymentAmountCents:number|null;paymentStatus:string|null}', 'paymentMethod:string|null;paymentAmountCents:number|null;paymentStatus:string|null;digitalCardEnabled:boolean|null}')
+          hook=" async function openHistory(m:Member){setBusy(true);try{const r=await request(`/api/club-portal/memberships/clubs/${clubId}/members/${m.personId}/history`);setHistory(r.data)}catch(e){setError(e instanceof Error?e.message:'Unable to load history')}finally{setBusy(false)}}\n"
+          fn=" async function openCard(m:Member){if(!m.membershipId)return;setBusy(true);try{const r=await request(`/api/club-portal/memberships/clubs/${clubId}/memberships/${m.membershipId}/card`,{method:'POST'});const url=String(r.data?.cardUrl||'');if(!url)throw new Error('Card link unavailable');window.open(url,'_blank','noopener,noreferrer')}catch(e){setError(e instanceof Error?e.message:'Unable to open digital membership card')}finally{setBusy(false)}}\n"
+          if 'async function openCard(m:Member)' not in s:s=s.replace(hook,hook+fn)
+          target='<div className="ms-member-actions"><button onClick={()=>editMember(m)}><Edit3/>Edit</button>'
+          replacement='<div className="ms-member-actions">{m.membershipStatus===\'ACTIVE\'&&m.digitalCardEnabled&&<button onClick={()=>void openCard(m)}><CreditCard/>View Card</button>}<button onClick={()=>editMember(m)}><Edit3/>Edit</button>'
+          s=s.replace(target,replacement)
+          s=s.replace('<button disabled>Cards<small>Stage 3</small></button>','<button disabled>Cards<small>Print cards in Stage 4</small></button>')
+          p.write_text(s)
+
+          # App route: member-facing card screen.
+          p=Path('src/main.tsx');s=p.read_text()
+          import_marker="import ResetPassword from './pages/ResetPassword.tsx'\n"
+          if "MembershipCard from './pages/MembershipCard.tsx'" not in s:s=s.replace(import_marker,import_marker+"import MembershipCard from './pages/MembershipCard.tsx'\n")
+          route_marker='    <Route path="/reset-password" element={<ResetPassword/>}/>\n'
+          if 'path="/membership-card/:accessToken"' not in s:s=s.replace(route_marker,route_marker+'    <Route path="/membership-card/:accessToken" element={<MembershipCard/>}/>\n')
+          p.write_text(s)
+          PY
+      - name: Commit Stage 3
+        run: |
+          git config user.name "playfooty-build"
+          git config user.email "actions@users.noreply.github.com"
+          git add backend/src/api/routes/club-supporter-memberships.ts src/pages/ClubPortalMemberships.tsx src/main.tsx
+          git diff --cached --quiet || git commit -m "Implement Stage 3 digital membership credentials and card"
+          git push origin HEAD:newone1
