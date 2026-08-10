@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { CalendarDays, ChevronRight, CircleDollarSign, Newspaper, Radio, ShieldCheck, Sparkles, Trophy, UsersRound } from 'lucide-react'
-import { TeamLogo } from '../components/rankings/bits'
+import StudioTeamSelection from '../components/studio/StudioTeamSelection'
 
 type Session={access_token:string}
 type Dashboard={club:{id:string;name:string;logoUrl:string|null;leagueName:string|null;stateName:string;season:string|null;grade:string|null;primaryColour:string|null};membership:{role:string}}
@@ -12,6 +12,8 @@ function session():Session|null{try{const raw=localStorage.getItem(KEY);return r
 export default function ClubPortalStudio(){
  const{clubId=''}=useParams()
  const navigate=useNavigate()
+ const[params]=useSearchParams()
+ const view=params.get('view')||''
  const[data,setData]=useState<Dashboard|null>(null)
  const[loading,setLoading]=useState(true)
  const[error,setError]=useState('')
@@ -25,26 +27,28 @@ export default function ClubPortalStudio(){
 
  function backToClub(){try{localStorage.setItem(CLUB_KEY,clubId)}catch{};navigate('/coach-app')}
  function logout(){try{localStorage.removeItem(KEY);localStorage.removeItem(CLUB_KEY)}catch{};navigate('/club-portal?returnTo=%2Fcoach-app')}
+ function studioHome(){navigate(`/club-portal/${clubId}/studio`)}
 
  if(loading)return <main className="studio-app-state"><style>{styles}</style><span className="studio-spinner"/><strong>Opening Studio…</strong></main>
  if(error||!data)return <main className="studio-app-state"><style>{styles}</style><ShieldCheck/><strong>Studio unavailable</strong><p>{error||'This workspace is unavailable.'}</p><button onClick={backToClub}>Back to Club App</button></main>
 
  const fixtureMeta=[data.club.leagueName||data.club.stateName,data.club.season,data.club.grade].filter(Boolean).join(' · ')
+ const teamSelection=view==='team-selection'
  return <main className="studio-app">
   <style>{styles}</style>
   <header className="studio-shell">
    <button className="studio-club" onClick={backToClub}>{data.club.logoUrl?<img src={data.club.logoUrl} alt=""/>:<div>PF</div>}<span><b>{data.club.name}</b><small>{fixtureMeta}</small></span></button>
-   <div className="studio-title"><b>PLAYFOOTY STUDIO</b><span>STUDIO DASHBOARD</span></div>
-   <div className="studio-actions"><button onClick={backToClub}>Club dashboard</button><button onClick={logout}>Log out</button></div>
+   <div className="studio-title"><b>PLAYFOOTY STUDIO</b><span>{teamSelection?'TEAM SELECTION':'STUDIO DASHBOARD'}</span></div>
+   <div className="studio-actions"><button onClick={teamSelection?studioHome:backToClub}>{teamSelection?'Studio dashboard':'Club dashboard'}</button><button onClick={logout}>Log out</button></div>
   </header>
 
-  <section className="studio-dashboard">
+  {teamSelection?<StudioTeamSelection clubId={clubId} token={token} club={data.club} onBack={studioHome}/>:<section className="studio-dashboard">
    <div className="studio-intro"><span>CLUB CONTENT HUB</span><h1>CREATE. PUBLISH. GO LIVE.</h1><p>Everything your club needs to create match content, tell stories and keep supporters connected.</p></div>
 
    <section className="studio-tools">
     <div className="studio-section-head"><div><span>OPEN DIRECTLY</span><h2>Studio Tools</h2></div><small>One dashboard for club content</small></div>
     <div className="studio-tool-grid">
-     <Link to={`/club-portal/${clubId}/team-selection`}><i><UsersRound/></i><span><small>TEAM MEDIA</small><strong>Team Selection</strong><em>Create and publish the selected side.</em></span><ChevronRight/></Link>
+     <Link to={`/club-portal/${clubId}/studio?view=team-selection`}><i><UsersRound/></i><span><small>TEAM MEDIA</small><strong>Team Selection</strong><em>Generate this week’s team graphic and social captions.</em></span><ChevronRight/></Link>
      <a href={`/coach-app?screen=match-day`}><i><Trophy/></i><span><small>MATCH DAY</small><strong>Live Game</strong><em>Open the live game and match-day content.</em></span><ChevronRight/></a>
      <Link to={`/club-portal/${clubId}/activity`}><i><CalendarDays/></i><span><small>CLUB CALENDAR</small><strong>Events</strong><em>Create and manage club event content.</em></span><ChevronRight/></Link>
      <div className="studio-tool coming"><i><CircleDollarSign/></i><span><small>COMMUNITY</small><strong>Fundraising</strong><em>Campaigns, drives and fundraising content.</em><b>COMING NEXT</b></span><ShieldCheck/></div>
@@ -53,7 +57,7 @@ export default function ClubPortalStudio(){
      <a className="broadcast" href={`/live-stream.html?clubId=${encodeURIComponent(clubId)}`}><i><Radio/></i><span><small>GO LIVE</small><strong>Live Broadcast</strong><em>Broadcast the match with PlayFooty overlays.</em></span><ChevronRight/></a>
     </div>
    </section>
-  </section>
+  </section>}
  </main>
 }
 
