@@ -12,6 +12,7 @@ const HIDDEN_PREFIXES=['/club-portal','/league-portal','/admin','/reset-password
 export default function PublicAppNav(){
  const{pathname}=useLocation()
  const[moreOpen,setMoreOpen]=useState(false)
+ const standalone=window.matchMedia('(display-mode: standalone)').matches||('standalone' in window.navigator&&(window.navigator as Navigator&{standalone?:boolean}).standalone===true)
  const hidden=HIDDEN_PREFIXES.some(prefix=>pathname.startsWith(prefix))
  const moreActive=['/news','/goal-kickers','/mvp','/highlights','/leagues','/notifications','/feed','/records'].some(prefix=>pathname.startsWith(prefix))
 
@@ -23,7 +24,7 @@ export default function PublicAppNav(){
   return()=>{document.body.classList.remove('pf-public-more-open');document.body.style.overflow=previous}
  },[moreOpen])
 
- if(hidden)return <><NativeAppBootstrap/><PlayFootyNavigationLoading/></>
+ if(hidden||standalone)return <><NativeAppBootstrap/><PlayFootyNavigationLoading/></>
  const items=[
   {label:'Home',href:'/',icon:Home,active:pathname==='/'},
   {label:'Rankings',href:'/rankings',icon:Trophy,active:pathname.startsWith('/rankings')||pathname.startsWith('/power-rankings')},
