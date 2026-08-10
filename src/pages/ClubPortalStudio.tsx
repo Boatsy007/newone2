@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { CalendarDays, ChevronRight, CircleDollarSign, Newspaper, Radio, ShieldCheck, Sparkles, Trophy, UsersRound } from 'lucide-react'
 import StudioTeamSelection from '../components/studio/StudioTeamSelection'
+import StudioLiveMatch from '../components/studio/StudioLiveMatch'
 
 type Session={access_token:string}
 type Dashboard={club:{id:string;name:string;logoUrl:string|null;leagueName:string|null;stateName:string;season:string|null;grade:string|null;primaryColour:string|null};membership:{role:string}}
@@ -34,22 +35,25 @@ export default function ClubPortalStudio(){
 
  const fixtureMeta=[data.club.leagueName||data.club.stateName,data.club.season,data.club.grade].filter(Boolean).join(' · ')
  const teamSelection=view==='team-selection'
+ const liveMatch=view==='live-match'
+ const detailView=teamSelection||liveMatch
+ const studioTitle=teamSelection?'TEAM SELECTION':liveMatch?'LIVE MATCH':'STUDIO DASHBOARD'
  return <main className="studio-app">
   <style>{styles}</style>
   <header className="studio-shell">
    <button className="studio-club" onClick={backToClub}>{data.club.logoUrl?<img src={data.club.logoUrl} alt=""/>:<div>PF</div>}<span><b>{data.club.name}</b><small>{fixtureMeta}</small></span></button>
-   <div className="studio-title"><b>PLAYFOOTY STUDIO</b><span>{teamSelection?'TEAM SELECTION':'STUDIO DASHBOARD'}</span></div>
-   <div className="studio-actions"><button onClick={teamSelection?studioHome:backToClub}>{teamSelection?'Studio dashboard':'Club dashboard'}</button><button onClick={logout}>Log out</button></div>
+   <div className="studio-title"><b>PLAYFOOTY STUDIO</b><span>{studioTitle}</span></div>
+   <div className="studio-actions"><button onClick={detailView?studioHome:backToClub}>{detailView?'Studio dashboard':'Club dashboard'}</button><button onClick={logout}>Log out</button></div>
   </header>
 
-  {teamSelection?<StudioTeamSelection clubId={clubId} token={token} club={data.club} onBack={studioHome}/>:<section className="studio-dashboard">
+  {teamSelection?<StudioTeamSelection clubId={clubId} token={token} club={data.club} onBack={studioHome}/>:liveMatch?<StudioLiveMatch clubId={clubId} token={token} club={data.club} onBack={studioHome}/>:<section className="studio-dashboard">
    <div className="studio-intro"><span>CLUB CONTENT HUB</span><h1>CREATE. PUBLISH. GO LIVE.</h1><p>Everything your club needs to create match content, tell stories and keep supporters connected.</p></div>
 
    <section className="studio-tools">
     <div className="studio-section-head"><div><span>OPEN DIRECTLY</span><h2>Studio Tools</h2></div><small>One dashboard for club content</small></div>
     <div className="studio-tool-grid">
      <Link to={`/club-portal/${clubId}/studio?view=team-selection`}><i><UsersRound/></i><span><small>TEAM MEDIA</small><strong>Team Selection</strong><em>Generate this week’s team graphic and social captions.</em></span><ChevronRight/></Link>
-     <a href={`/coach-app?screen=match-day`}><i><Trophy/></i><span><small>MATCH DAY</small><strong>Live Game</strong><em>Open the live game and match-day content.</em></span><ChevronRight/></a>
+     <Link to={`/club-portal/${clubId}/studio?view=live-match`}><i><Trophy/></i><span><small>MATCH DAY MEDIA</small><strong>Live Match</strong><em>Create quarter-by-quarter score graphics, captions and goal-kicker updates.</em></span><ChevronRight/></Link>
      <Link to={`/club-portal/${clubId}/activity`}><i><CalendarDays/></i><span><small>CLUB CALENDAR</small><strong>Events</strong><em>Create and manage club event content.</em></span><ChevronRight/></Link>
      <div className="studio-tool coming"><i><CircleDollarSign/></i><span><small>COMMUNITY</small><strong>Fundraising</strong><em>Campaigns, drives and fundraising content.</em><b>COMING NEXT</b></span><ShieldCheck/></div>
      <div className="studio-tool coming"><i><Sparkles/></i><span><small>PLAYER & CLUB</small><strong>Milestones</strong><em>Celebrate games, goals and club achievements.</em><b>COMING NEXT</b></span><ShieldCheck/></div>
