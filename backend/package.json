@@ -35,6 +35,7 @@
     "@prisma/client": "^5.22.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "passkit-generator": "^3.5.7",
     "playwright": "^1.61.1"
   },
   "devDependencies": {
