@@ -6,6 +6,7 @@ import * as ClipboardApi from 'expo-clipboard'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import { apiGet, apiRequest } from '../api'
+import { loadClubConnections } from '../connections'
 import { palette } from '../theme'
 import type { AuthSession, ClubAccount } from '../types'
 
@@ -31,7 +32,7 @@ export function StudioTeamSelectionScreen({club,session,onBack}:Props){
  const shot=useRef<ViewShot>(null),token=session.access_token
  const[context,setContext]=useState<Context|null>(null),[sheet,setSheet]=useState<Sheet|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('')
  const[primary,setPrimary]=useState('#082F6D'),[accent,setAccent]=useState('#42B8FF'),[style,setStyle]=useState<MediaStyle>('classic'),[imageUri,setImageUri]=useState(''),[caption,setCaption]=useState(''),[shortCaption,setShortCaption]=useState(''),[assetId,setAssetId]=useState('')
- function load(){setLoading(true);setError('');Promise.resolve().then(async()=>{const cp=await apiGet<{data?:Context}>(`/club-portal/coach-app/context?clubId=${encodeURIComponent(club.clubId)}`,token),next=cp.data??null;setContext(next);if(!next?.teamSheet){setSheet(null);return}const owner=next.teamSheet.clubId||next.club.id,payload=await apiGet<{data?:Sheet[]}>(`/club-portal/team-sheets/clubs/${encodeURIComponent(owner)}/sheets`,token),rows=Array.isArray(payload.data)?payload.data:[];setSheet(rows.find(item=>item.id===next.teamSheet?.id)??null)}).catch(reason=>setError(reason instanceof Error?reason.message:'Unable to load this week’s selected side')).finally(()=>setLoading(false))}
+ function load(){setLoading(true);setError('');loadClubConnections(club.clubId,token).then(connections=>{setContext(connections.context as unknown as Context|null);setSheet(connections.teamSheet as unknown as Sheet|null)}).catch(reason=>setError(reason instanceof Error?reason.message:'Unable to load this week’s selected side')).finally(()=>setLoading(false))}
  useEffect(load,[club.clubId,token])
  const selected=count(sheet),ready=Boolean(context?.fixture&&sheet&&selected>=22),opp=opponent(context,club),colourPrimary=safe(primary,'#082F6D'),colourAccent=safe(accent,'#42B8FF')
  const generated=useMemo(()=>context?captions(context,club):{primary:'',short:''},[context,club.clubName])
