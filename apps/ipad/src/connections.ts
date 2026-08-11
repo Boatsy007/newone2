@@ -19,6 +19,8 @@ export type ClubConnections = { context:CoachContext|null; fixture:ConnectedFixt
 const norm=(value:unknown)=>String(value??'').trim().toLowerCase().replace(/[^a-z0-9]+/g,' ')
 const roundNumber=(value:unknown)=>{const match=String(value??'').match(/\d+/);return match?Number(match[0]):null}
 const dateValue=(value:unknown)=>{const time=new Date(String(value??'')).getTime();return Number.isFinite(time)?time:Number.MAX_SAFE_INTEGER}
+const todayValue=()=>{const now=new Date();return new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime()}
+const isUpcoming=(fixture:ConnectedFixture)=>dateValue(fixture.matchDate)>=todayValue()
 const playerCount=(sheet:ConnectedSheet)=>sheet.players?.length??sheet.playerCount??0
 
 export function sheetMatchesFixture(sheet:ConnectedSheet,fixture:ConnectedFixture|null){
@@ -41,23 +43,24 @@ export function selectConnectedSheet(context:CoachContext|null,sheets:ConnectedS
 }
 
 export function selectConnectedFixture(context:CoachContext|null,fixtures:ConnectedFixture[],sheet:ConnectedSheet|null){
-  if(context?.fixture)return context.fixture
-  if(sheet?.fixtureId){const exact=fixtures.find(row=>row.id===sheet.fixtureId);if(exact)return exact}
-  if(sheet){const match=fixtures.find(row=>sheetMatchesFixture(sheet,row));if(match)return match}
-  return [...fixtures].sort((a,b)=>dateValue(a.matchDate)-dateValue(b.matchDate)||((roundNumber(b.round)??0)-(roundNumber(a.round)??0)))[0]??null
+  const upcoming=fixtures.filter(isUpcoming)
+  if(context?.fixture&&isUpcoming(context.fixture))return context.fixture
+  if(sheet?.fixtureId){const exact=upcoming.find(row=>row.id===sheet.fixtureId);if(exact)return exact}
+  if(sheet){const match=upcoming.find(row=>sheetMatchesFixture(sheet,row));if(match)return match}
+  return [...upcoming].sort((a,b)=>dateValue(a.matchDate)-dateValue(b.matchDate)||((roundNumber(a.round)??0)-(roundNumber(b.round)??0)))[0]??null
 }
 
 export async function loadClubConnections(clubId:string,accessToken:string):Promise<ClubConnections>{
   const [contextResult,fixtureResult,sheetResult]=await Promise.all([
-    apiGet<{data?:CoachContext}>(`/club-portal/coach-app/context?clubId=${encodeURIComponent(clubId)}`,accessToken).catch(()=>({data:undefined})),
-    apiGet<{data?:ConnectedFixture[]}>(`/fixtures/club/${encodeURIComponent(clubId)}?upcoming=true`).catch(()=>({data:[]})),
-    apiGet<{data?:ConnectedSheet[]}>(`/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`,accessToken).catch(()=>({data:[]})),
+    apiGet<{data?:CoachContext}>(`/club-portal/coach-app/context?clubId=${encodeURIComponent(clubId)}`,accessToken,6500).catch(()=>({data:undefined})),
+    apiGet<{data?:ConnectedFixture[]}>(`/fixtures/club/${encodeURIComponent(clubId)}?upcoming=true`,undefined,6500).catch(()=>({data:[]})),
+    apiGet<{data?:ConnectedSheet[]}>(`/club-portal/team-sheets/clubs/${encodeURIComponent(clubId)}/sheets`,accessToken,6500).catch(()=>({data:[]})),
   ])
   const context=contextResult.data??null
   let ownerClubId=context?.teamSheet?.clubId||context?.club?.id||clubId
   let sheets=Array.isArray(sheetResult.data)?sheetResult.data:[]
   if(ownerClubId!==clubId){
-    const owner=await apiGet<{data?:ConnectedSheet[]}>(`/club-portal/team-sheets/clubs/${encodeURIComponent(ownerClubId)}/sheets`,accessToken).catch(()=>({data:[]}))
+    const owner=await apiGet<{data?:ConnectedSheet[]}>(`/club-portal/team-sheets/clubs/${encodeURIComponent(ownerClubId)}/sheets`,accessToken,6500).catch(()=>({data:[]}))
     const rows=Array.isArray(owner.data)?owner.data:[]
     if(rows.length)sheets=rows
   }
