@@ -1,0 +1,49 @@
+name: Native Match Day scoreboard hotfix
+
+on:
+  push:
+    branches:
+      - native-ipad-app
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Apply Match Day scoreboard polish'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: native-ipad-app
+          fetch-depth: 0
+      - name: Patch Match Day scoreboard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('apps/ipad/src/screens/MatchDayScreen.tsx')
+          s=p.read_text()
+          old="Promise.all([apiGet<{data?:{logoUrl:string|null}}>(`/clubs/${encodeURIComponent(opponentId)}`).catch(()=>({data:undefined})),apiGet<{data?:{coverPhotoUrl:string|null}}>(`/club-covers/${encodeURIComponent(opponentId)}`).catch(()=>({data:undefined}))]).then(([profile,cover])=>setAwayVisual({logoUrl:profile.data?.logoUrl??null,coverPhotoUrl:cover.data?.coverPhotoUrl??null}))"
+          new="Promise.all([apiGet<any>(`/clubs/${encodeURIComponent(opponentId)}`).catch(()=>({data:undefined})),apiGet<any>(`/club-covers/${encodeURIComponent(opponentId)}`).catch(()=>({data:undefined}))]).then(([profile,cover])=>setAwayVisual({logoUrl:profile?.data?.logoUrl??profile?.data?.club?.logoUrl??profile?.logoUrl??profile?.club?.logoUrl??null,coverPhotoUrl:cover?.data?.coverPhotoUrl??cover?.coverPhotoUrl??null}))"
+          if old not in s: raise SystemExit('opponent visual target not found')
+          s=s.replace(old,new,1)
+          old2="scoreboard:{height:136,borderWidth:1,borderColor:palette.border,borderRadius:13,backgroundColor:'#fff',padding:6,flexDirection:'row',alignItems:'stretch',gap:5},scoreboardPortrait:{height:136},scoreTeam:{position:'relative',flex:1,borderRadius:10,overflow:'hidden',backgroundColor:'#F8FAFD',borderWidth:1,borderColor:'#E5EAF1'},scoreTeamAway:{},scoreCoverPhoto:{position:'absolute',left:'35%',right:'35%',top:0,bottom:0,opacity:.32},scoreCoverPlaceholder:{backgroundColor:'#EEF2F7',opacity:.6},scoreTeamContent:{flex:1,padding:7,justifyContent:'space-between'},scoreTeamContentAway:{},scorePrimary:{flexDirection:'row',alignItems:'center',gap:6},scorePrimaryAway:{flexDirection:'row-reverse'},scoreLogo:{width:42,height:42},scoreLogoPortrait:{width:34,height:34},scoreLogoFallback:{width:34,height:34,borderRadius:9,backgroundColor:palette.blueSoft,alignItems:'center',justifyContent:'center'},scoreLogoLetter:{fontSize:16,fontWeight:'900',color:palette.blue},scoreName:{flex:1,minWidth:0},sideLabel:{fontSize:6,fontWeight:'900',letterSpacing:.6,color:palette.muted},teamName:{fontSize:11,fontWeight:'900',color:palette.ink,marginTop:1},scoreDetail:{fontSize:9,fontWeight:'900',color:palette.blue,marginTop:1},total:{fontSize:34,fontWeight:'900',color:palette.ink,minWidth:40,textAlign:'center'},totalPortrait:{fontSize:34,minWidth:40},scoreActions:{flexDirection:'row',gap:5,marginTop:4},scoreActionsAway:{flexDirection:'row-reverse'},scoreAdd:{height:24,flex:1,borderRadius:6,backgroundColor:palette.blue,alignItems:'center',justifyContent:'center'},scoreAddText:{fontSize:6.5,fontWeight:'900',color:'#fff'},"
+          new2="scoreboard:{height:108,borderWidth:1,borderColor:palette.border,borderRadius:13,backgroundColor:'#fff',padding:5,flexDirection:'row',alignItems:'stretch',gap:0,position:'relative',overflow:'hidden'},scoreboardPortrait:{height:108},scoreTeam:{position:'relative',flex:1,borderRadius:9,overflow:'hidden',backgroundColor:'#F8FAFD',borderWidth:1,borderColor:'#E5EAF1'},scoreTeamAway:{},scoreCoverPhoto:{position:'absolute',left:0,right:0,top:0,bottom:0,width:'100%',height:'100%',opacity:.2},scoreCoverPlaceholder:{backgroundColor:'#EEF2F7',opacity:.6},scoreTeamContent:{flex:1,paddingHorizontal:7,paddingVertical:5,justifyContent:'space-between'},scoreTeamContentAway:{},scorePrimary:{flexDirection:'row',alignItems:'center',gap:6},scorePrimaryAway:{flexDirection:'row-reverse'},scoreLogo:{width:42,height:42},scoreLogoPortrait:{width:32,height:32},scoreLogoFallback:{width:32,height:32,borderRadius:9,backgroundColor:'rgba(231,242,255,.92)',alignItems:'center',justifyContent:'center'},scoreLogoLetter:{fontSize:16,fontWeight:'900',color:palette.blue},scoreName:{flex:1,minWidth:0},sideLabel:{fontSize:6,fontWeight:'900',letterSpacing:.6,color:palette.muted},teamName:{fontSize:10,fontWeight:'900',color:palette.ink,marginTop:1},scoreDetail:{fontSize:8.5,fontWeight:'900',color:palette.blue,marginTop:1},total:{fontSize:31,fontWeight:'900',color:palette.ink,minWidth:36,textAlign:'center'},totalPortrait:{fontSize:31,minWidth:36},scoreActions:{flexDirection:'row',gap:4,marginTop:2,width:'58%',alignSelf:'flex-start'},scoreActionsAway:{flexDirection:'row-reverse',alignSelf:'flex-end'},scoreAdd:{height:20,flex:1,borderRadius:5,backgroundColor:palette.blue,alignItems:'center',justifyContent:'center'},scoreAddText:{fontSize:5.8,fontWeight:'900',color:'#fff'},"
+          if old2 not in s: raise SystemExit('scoreboard style target not found')
+          s=s.replace(old2,new2,1)
+          old3="clock:{width:162,alignItems:'center',justifyContent:'center'},clockPortrait:{width:150}"
+          new3="clock:{position:'absolute',left:'50%',marginLeft:-75,width:150,top:3,bottom:3,zIndex:8,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,.88)',borderRadius:10},clockPortrait:{width:150}"
+          if old3 not in s: raise SystemExit('clock style target not found')
+          s=s.replace(old3,new3,1)
+          p.write_text(s)
+          PY
+      - name: Commit native Match Day scoreboard fix
+        shell: bash
+        run: |
+          git config user.name "PlayFooty Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/ipad/src/screens/MatchDayScreen.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Apply Match Day scoreboard polish"
+          git push origin HEAD:native-ipad-app
