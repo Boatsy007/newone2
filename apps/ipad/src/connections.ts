@@ -33,18 +33,18 @@ export function sheetMatchesFixture(sheet:ConnectedSheet,fixture:ConnectedFixtur
 }
 
 export function selectConnectedSheet(context:CoachContext|null,sheets:ConnectedSheet[],fixture:ConnectedFixture|null=context?.fixture??null){
-  const exact=context?.teamSheet?.id&&sheets.find(row=>row.id===context.teamSheet?.id)
+  const exact=context?.teamSheet?.id&&sheets.find(row=>row.id===context.teamSheet?.id&&(!fixture||sheetMatchesFixture(row,fixture)))
   if(exact)return exact
   const matching=sheets.filter(row=>sheetMatchesFixture(row,fixture)).sort((a,b)=>Number(b.status==='PUBLISHED')-Number(a.status==='PUBLISHED')||playerCount(b)-playerCount(a))
   if(matching[0])return matching[0]
-  if(context?.teamSheet)return {...context.teamSheet,players:context.teamSheet.players??[]}
+  if(context?.teamSheet&&(!fixture||sheetMatchesFixture(context.teamSheet,fixture)))return {...context.teamSheet,players:context.teamSheet.players??[]}
   if(fixture)return null
   return [...sheets].sort((a,b)=>Number(b.status==='PUBLISHED')-Number(a.status==='PUBLISHED')||playerCount(b)-playerCount(a)||dateValue(a.matchDate)-dateValue(b.matchDate))[0]??null
 }
 
 export function selectConnectedFixture(context:CoachContext|null,fixtures:ConnectedFixture[],sheet:ConnectedSheet|null){
   const upcoming=fixtures.filter(isUpcoming)
-  if(context?.fixture&&isUpcoming(context.fixture))return context.fixture
+  if(context?.fixture&&isUpcoming(context.fixture)&&upcoming.some(row=>row.id===context.fixture?.id))return context.fixture
   if(sheet?.fixtureId){const exact=upcoming.find(row=>row.id===sheet.fixtureId);if(exact)return exact}
   if(sheet){const match=upcoming.find(row=>sheetMatchesFixture(sheet,row));if(match)return match}
   return [...upcoming].sort((a,b)=>dateValue(a.matchDate)-dateValue(b.matchDate)||((roundNumber(a.round)??0)-(roundNumber(b.round)??0)))[0]??null
@@ -64,15 +64,18 @@ export async function loadClubConnections(clubId:string,accessToken:string):Prom
     const rows=Array.isArray(owner.data)?owner.data:[]
     if(rows.length)sheets=rows
   }
-  const fixtures=Array.isArray(fixtureResult.data)?fixtureResult.data:[]
+  // The backend can occasionally return a just-finished round from an "upcoming" endpoint.
+  // Re-apply the date boundary on-device so every native coaching workflow advances to the next match.
+  const fixtures=(Array.isArray(fixtureResult.data)?fixtureResult.data:[]).filter(isUpcoming)
   let fixture=selectConnectedFixture(context,fixtures,context?.teamSheet??null)
   const teamSheet=selectConnectedSheet(context,sheets,fixture)
   fixture=selectConnectedFixture(context,fixtures,teamSheet)
   ownerClubId=teamSheet?.clubId||ownerClubId
+  const currentSheets=fixture?sheets.filter(row=>row.id===teamSheet?.id||sheetMatchesFixture(row,fixture)):teamSheet?[teamSheet]:[]
   const resolvedContext:CoachContext=(context?{...context}:{fixture:null,teamSheet:null})
   resolvedContext.fixture=fixture
   resolvedContext.teamSheet=teamSheet
-  return {context:resolvedContext,fixture,teamSheet,fixtures,sheets,ownerClubId}
+  return {context:resolvedContext,fixture,teamSheet,fixtures,sheets:currentSheets,ownerClubId}
 }
 
 export const connectedPlayerCount=(sheet:ConnectedSheet|null)=>sheet?playerCount(sheet):0
