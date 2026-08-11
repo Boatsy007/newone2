@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "PlayFooty Club",
+    "slug": "playfooty-club",
+    "version": "0.1.0",
+    "orientation": "landscape",
+    "userInterfaceStyle": "light",
+    "scheme": "playfootyclub",
+    "ios": {
+      "supportsTablet": true,
+      "requireFullScreen": true,
+      "bundleIdentifier": "au.com.playfooty.club"
+    },
+    "plugins": ["expo-secure-store"]
+  }
+}
