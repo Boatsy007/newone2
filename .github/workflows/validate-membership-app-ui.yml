@@ -1,0 +1,26 @@
+name: Validate Membership App UI
+on:
+  push:
+    paths:
+      - .github/workflows/validate-membership-app-ui.yml
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: newone1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm --prefix backend ci --ignore-scripts
+      - name: Frontend typecheck
+        run: npx tsc -b
+      - name: Backend typecheck
+        run: npm --prefix backend exec tsc -- --noEmit
+      - name: Full production build
+        run: npm run build
