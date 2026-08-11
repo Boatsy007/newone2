@@ -1,12 +1,12 @@
 const API_BASE = 'https://www.playfooty.com.au/api'
 
-export async function apiGet<T>(path: string, accessToken?: string) {
-  return apiRequest<T>(path, { accessToken })
+export async function apiGet<T>(path: string, accessToken?: string, timeoutMs = 20000) {
+  return apiRequest<T>(path, { accessToken, timeoutMs })
 }
 
-export async function apiRequest<T>(path: string, options: { accessToken?: string; method?: string; body?: unknown } = {}) {
+export async function apiRequest<T>(path: string, options: { accessToken?: string; method?: string; body?: unknown; timeoutMs?: number } = {}) {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 20000)
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 20000)
   try {
     const response = await fetch(`${API_BASE}${path}`, {
       method: options.method ?? 'GET',
