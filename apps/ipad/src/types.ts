@@ -2,6 +2,7 @@ export type ClubAccount = {
   clubId: string
   clubName: string
   logoUrl?: string | null
+  coverImageUrl?: string | null
   role: string
   permissions?: string[]
   defaultPage?: string
