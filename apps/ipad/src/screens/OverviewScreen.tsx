@@ -19,10 +19,11 @@ import {
 import { useEffect, useState } from "react";
 import Svg, { Circle } from "react-native-svg";
 import { LineChart } from "../components/LineChart";
+import { connectedAwayName, connectedHomeName, connectedPlayerCount, connectedRoundLabel, loadClubConnections, type ClubConnections } from "../connections";
 import { palette } from "../theme";
-import type { ClubAccount } from "../types";
+import type { AuthSession, ClubAccount } from "../types";
 
-type Props = { club: ClubAccount; onSignOut: () => void };
+type Props = { club: ClubAccount; session: AuthSession; onSignOut: () => void };
 
 type SeasonRecord = {
   season: string | null;
@@ -81,8 +82,9 @@ const metrics = [
   },
 ];
 
-export function OverviewScreen({ club, onSignOut }: Props) {
+export function OverviewScreen({ club, session, onSignOut }: Props) {
   const [seasonRecord, setSeasonRecord] = useState<SeasonRecord | null>(null);
+  const [connections, setConnections] = useState<ClubConnections | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -124,6 +126,20 @@ export function OverviewScreen({ club, onSignOut }: Props) {
       active = false;
     };
   }, [club.clubId]);
+
+  useEffect(() => {
+    let active=true
+    loadClubConnections(club.clubId,session.access_token).then(value=>{if(active)setConnections(value)}).catch(()=>{if(active)setConnections(null)})
+    return()=>{active=false}
+  },[club.clubId,session.access_token])
+
+  const fixture=connections?.fixture??null
+  const sheet=connections?.teamSheet??null
+  const selectedPlayers=connectedPlayerCount(sheet)
+  const opponent=fixture?(fixture.homeClubId===club.clubId?connectedAwayName(fixture):connectedHomeName(fixture)):(sheet?.opponentName??'Opponent to be confirmed')
+  const fixtureDate=fixture?.matchDate??sheet?.matchDate
+  const fixtureDateLabel=fixtureDate?new Date(fixtureDate).toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'}):'Date to be confirmed'
+  const connectedMetrics=metrics.map(item=>item.label==='Upcoming activities'?{...item,value:fixture?'1':'—',detail:fixture?`${connectedRoundLabel(fixture,sheet)} · ${fixtureDateLabel}`:'No upcoming fixture'}:item)
 
   return (
     <View style={styles.page}>
@@ -202,7 +218,7 @@ export function OverviewScreen({ club, onSignOut }: Props) {
           </View>
         </View>
         <View style={styles.metrics}>
-          {metrics.map(({ label, value, detail, color, icon: Icon }) => (
+          {connectedMetrics.map(({ label, value, detail, color, icon: Icon }) => (
             <View key={label} style={styles.metric}>
               <View
                 style={[styles.metricIcon, { backgroundColor: `${color}16` }]}
@@ -244,15 +260,15 @@ export function OverviewScreen({ club, onSignOut }: Props) {
           </View>
           <View style={styles.sideColumn}>
             <Panel title="Next match">
-              <Text style={styles.emptyTitle}>Fixture connection next</Text>
+              <Text style={styles.emptyTitle}>{fixture?`${connectedRoundLabel(fixture,sheet)} · ${opponent}`:'No upcoming fixture'}</Text>
               <Text style={styles.emptyCopy}>
-                Your canonical upcoming fixture will appear here.
+                {fixture?`${fixtureDateLabel}${fixture.venue?` · ${fixture.venue}`:''}`:'No future fixture is currently available.'}
               </Text>
             </Panel>
             <Panel title="Club activity">
-              <Text style={styles.emptyTitle}>No recent activity</Text>
+              <Text style={styles.emptyTitle}>{sheet?`${selectedPlayers} players selected`:'No current team selected'}</Text>
               <Text style={styles.emptyCopy}>
-                Real club events will populate this feed.
+                {sheet?`${connectedRoundLabel(fixture,sheet)} · ${sheet.status.toLowerCase()}`:'Publish the Round 14 side in Team Selection to connect it here.'}
               </Text>
             </Panel>
           </View>
@@ -261,7 +277,7 @@ export function OverviewScreen({ club, onSignOut }: Props) {
           <Panel title="Weekly coaching flow">
             <Progress label="Training plan" />
             <Progress label="Availability" />
-            <Progress label="Team selection" />
+            <Progress label="Team selection" connected={selectedPlayers>0} />
           </Panel>
           <Panel title="Membership breakdown">
             <View style={styles.donutRow}>
@@ -327,12 +343,12 @@ function Panel({
     </View>
   );
 }
-function Progress({ label }: { label: string }) {
+function Progress({ label, connected=false }: { label: string; connected?: boolean }) {
   return (
     <View style={styles.progress}>
       <View style={styles.progressDot} />
       <Text>{label}</Text>
-      <Text style={styles.progressStatus}>Not connected</Text>
+      <Text style={styles.progressStatus}>{connected?'Connected':'Not connected'}</Text>
     </View>
   );
 }
@@ -400,7 +416,7 @@ const styles = StyleSheet.create({
   heroRow: { flexDirection: "row", gap: 14 },
   hero: {
     flex: 1,
-    height: 190,
+    height: 214,
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 14,
@@ -453,7 +469,7 @@ const styles = StyleSheet.create({
   },
   summary: {
     width: 320,
-    height: 190,
+    height: 214,
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 14,
@@ -473,7 +489,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 7,
   },
-  clubInfoList: { flex: 1, gap: 9, marginTop: 14 },
+  clubInfoList: { flex: 1, gap: 6, marginTop: 10 },
   ring: {
     width: 120,
     height: 120,
