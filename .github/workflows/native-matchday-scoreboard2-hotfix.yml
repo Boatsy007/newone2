@@ -1,0 +1,68 @@
+name: Native Match Day scoreboard 2 hotfix
+
+on:
+  push:
+    branches:
+      - native-ipad-app
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Apply Match Day scoreboard identity polish'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: native-ipad-app
+          fetch-depth: 0
+      - name: Patch Match Day scoreboard and bench scoring
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('apps/ipad/src/screens/MatchDayScreen.tsx')
+          s=p.read_text()
+
+          old="type Fixture={id:string;homeClubId:string;homeClubName:string;awayClubId:string;awayClubName:string}"
+          new="type Fixture={id:string;homeClubId:string;homeClubName:string;awayClubId:string;awayClubName:string;homeClubLogoUrl?:string|null;awayClubLogoUrl?:string|null;homeLogoUrl?:string|null;awayLogoUrl?:string|null;homeLogo?:string|null;awayLogo?:string|null}"
+          if old not in s: raise SystemExit('fixture type target not found')
+          s=s.replace(old,new,1)
+
+          old="useEffect(()=>{const current=sheets.find(item=>item.id===sheetId),fixture=fixtures.find(item=>item.id===current?.fixtureId),opponentId=fixture?(fixture.homeClubId===club.clubId?fixture.awayClubId:fixture.homeClubId):'';if(!opponentId){setAwayVisual({logoUrl:null,coverPhotoUrl:null});return}Promise.all([apiGet<any>(`/clubs/${encodeURIComponent(opponentId)}`).catch(()=>({data:undefined})),apiGet<any>(`/club-covers/${encodeURIComponent(opponentId)}`).catch(()=>({data:undefined}))]).then(([profile,cover])=>setAwayVisual({logoUrl:profile?.data?.logoUrl??profile?.data?.club?.logoUrl??profile?.logoUrl??profile?.club?.logoUrl??null,coverPhotoUrl:cover?.data?.coverPhotoUrl??cover?.coverPhotoUrl??null}))},[sheetId,sheets,fixtures,club.clubId])"
+          new="useEffect(()=>{const current=sheets.find(item=>item.id===sheetId),fixture=fixtures.find(item=>item.id===current?.fixtureId),isHome=fixture?.homeClubId===club.clubId,opponentId=fixture?(isHome?fixture.awayClubId:fixture.homeClubId):'',fixtureLogo=fixture?(isHome?(fixture.awayClubLogoUrl??fixture.awayLogoUrl??fixture.awayLogo??null):(fixture.homeClubLogoUrl??fixture.homeLogoUrl??fixture.homeLogo??null)):null;if(!opponentId){setAwayVisual({logoUrl:fixtureLogo,coverPhotoUrl:null});return}setAwayVisual(currentVisual=>({logoUrl:fixtureLogo??currentVisual.logoUrl,coverPhotoUrl:currentVisual.coverPhotoUrl}));Promise.all([apiGet<any>(`/clubs/${encodeURIComponent(opponentId)}`,undefined,6500).catch(()=>({data:undefined})),apiGet<any>(`/club-covers/${encodeURIComponent(opponentId)}`,undefined,6500).catch(()=>({data:undefined}))]).then(([profile,cover])=>{const data=profile?.data??profile??{};setAwayVisual({logoUrl:fixtureLogo??data?.logoUrl??data?.club?.logoUrl??null,coverPhotoUrl:data?.coverPhotoUrl??data?.coverUrl??data?.headerImageUrl??data?.heroImageUrl??cover?.data?.coverPhotoUrl??cover?.coverPhotoUrl??null})})},[sheetId,sheets,fixtures,club.clubId])"
+          if old not in s: raise SystemExit('opponent visual effect target not found')
+          s=s.replace(old,new,1)
+
+          old="<View style={styles.playerScoreRow}><Pressable onPress={event=>{event.stopPropagation();onPlayerScore(slot.clubPlayerId,6)}} style={styles.scoreMini}><Text style={styles.scoreMiniText}>G</Text></Pressable><Pressable onPress={event=>{event.stopPropagation();onPlayerScore(slot.clubPlayerId,1)}} style={styles.scoreMini}><Text style={styles.scoreMiniText}>B</Text></Pressable></View>"
+          new="{!bench?<View style={styles.playerScoreRow}><Pressable onPress={event=>{event.stopPropagation();onPlayerScore(slot.clubPlayerId,6)}} style={styles.scoreMini}><Text style={styles.scoreMiniText}>G</Text></Pressable><Pressable onPress={event=>{event.stopPropagation();onPlayerScore(slot.clubPlayerId,1)}} style={styles.scoreMini}><Text style={styles.scoreMiniText}>B</Text></Pressable></View>:null}"
+          if old not in s: raise SystemExit('player scoring row target not found')
+          s=s.replace(old,new,1)
+
+          old="scoreCoverPhoto:{position:'absolute',left:0,right:0,top:0,bottom:0,width:'100%',height:'100%',opacity:.2}"
+          new="scoreCoverPhoto:{position:'absolute',left:0,right:0,top:0,bottom:0,width:'100%',height:'100%',opacity:.42}"
+          if old not in s: raise SystemExit('cover photo style target not found')
+          s=s.replace(old,new,1)
+
+          old="scorePrimary:{flexDirection:'row',alignItems:'center',gap:6},scorePrimaryAway:{flexDirection:'row-reverse'}"
+          new="scorePrimary:{flexDirection:'row',alignItems:'center',gap:5,width:'72%'},scorePrimaryAway:{flexDirection:'row-reverse',alignSelf:'flex-end'}"
+          if old not in s: raise SystemExit('score primary style target not found')
+          s=s.replace(old,new,1)
+
+          old="scoreActions:{flexDirection:'row',gap:4,marginTop:2,width:'58%',alignSelf:'flex-start'},scoreActionsAway:{flexDirection:'row-reverse',alignSelf:'flex-end'}"
+          new="scoreActions:{flexDirection:'row',gap:4,marginTop:2,width:'46%',alignSelf:'flex-start'},scoreActionsAway:{flexDirection:'row-reverse',alignSelf:'flex-end'}"
+          if old not in s: raise SystemExit('score actions style target not found')
+          s=s.replace(old,new,1)
+
+          p.write_text(s)
+          PY
+      - name: Commit Match Day fix
+        shell: bash
+        run: |
+          git config user.name "PlayFooty Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/ipad/src/screens/MatchDayScreen.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Apply Match Day scoreboard identity polish"
+          git push origin HEAD:native-ipad-app
