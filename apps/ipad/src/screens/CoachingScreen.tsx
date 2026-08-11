@@ -19,7 +19,7 @@ import { apiGet } from '../api'
 import { palette } from '../theme'
 import type { AuthSession, ClubAccount } from '../types'
 
-type Props = { club: ClubAccount; session: AuthSession; onOpenTrainingPlan: (sessionNumber: 1 | 2) => void; onOpenTrainingReport: (sessionNumber: 1 | 2) => void }
+type Props = { club: ClubAccount; session: AuthSession; onOpenTrainingPlan: (sessionNumber: 1 | 2) => void; onOpenTrainingReport: (sessionNumber: 1 | 2) => void; onOpenAvailability: () => void }
 type Fixture = { id:string; season:string; grade:string; round:number|null; matchDate:string|null; homeClubId:string; homeClubName:string; awayClubId:string; awayClubName:string; venue?:string|null }
 type Sheet = { id:string; fixtureId:string|null; season:string; grade:string; roundLabel:string; opponentName:string|null; matchDate:string|null; status:string; players:Array<unknown> }
 type AvailabilityPlayer = { status:string|null; reason:string|null }
@@ -42,7 +42,7 @@ function dateLabel(value:string|null|undefined) {
   return Number.isNaN(date.getTime()) ? 'Date to be confirmed' : date.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})
 }
 
-export function CoachingScreen({ club, session, onOpenTrainingPlan, onOpenTrainingReport }: Props) {
+export function CoachingScreen({ club, session, onOpenTrainingPlan, onOpenTrainingReport, onOpenAvailability }: Props) {
   const [fixtures,setFixtures]=useState<Fixture[]>([])
   const [sheets,setSheets]=useState<Sheet[]>([])
   const [availability,setAvailability]=useState<Availability|null>(null)
@@ -92,7 +92,7 @@ export function CoachingScreen({ club, session, onOpenTrainingPlan, onOpenTraini
       </View>
       <View style={styles.stats}><Stat icon={Users} label="Available" value={counts.total?String(counts.available):'—'} tone={palette.green}/><Stat icon={Clock3} label="Awaiting response" value={counts.total?String(counts.pending):'—'} tone={palette.orange}/><Stat icon={Shield} label="Unavailable" value={counts.total?String(counts.unavailable):'—'} tone={palette.red}/><Stat icon={CalendarCheck} label="Test / unsure" value={counts.total?String(counts.test):'—'} tone={palette.purple}/></View>
       <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>COACHING OPERATIONS</Text><Text style={styles.sectionTitle}>Weekly workflow</Text></View><Text style={styles.sectionNote}>Open each step in order as the week progresses.</Text></View>
-      <View style={styles.workflow}>{flow.map((item,index)=>{const Icon=item.icon;const ready=status(item.key);const training=item.key==='plan-one'||item.key==='plan-two',report=item.key==='report-one'||item.key==='report-two';const action=training?()=>onOpenTrainingPlan(item.key==='plan-one'?1:2):report?()=>onOpenTrainingReport(item.key==='report-one'?1:2):undefined;return <Pressable key={`${item.key}-${index}`} onPress={action} style={[styles.flowCard,ready&&styles.flowReady]}><View style={[styles.flowIcon,ready&&styles.flowIconReady]}>{ready?<Check size={19} color="#fff"/>:<Icon size={20} color={palette.blue}/>}</View><View style={styles.flowCopy}><Text style={styles.flowEyebrow}>{item.eyebrow}</Text><Text style={styles.flowTitle}>{item.title}</Text><Text style={styles.flowDescription}>{ready?'Complete · '+item.copy:item.copy}</Text></View><ChevronRight size={18} color={palette.muted}/></Pressable>})}</View>
+      <View style={styles.workflow}>{flow.map((item,index)=>{const Icon=item.icon;const ready=status(item.key);const training=item.key==='plan-one'||item.key==='plan-two',report=item.key==='report-one'||item.key==='report-two';const action=training?()=>onOpenTrainingPlan(item.key==='plan-one'?1:2):report?()=>onOpenTrainingReport(item.key==='report-one'?1:2):item.key==='availability'?onOpenAvailability:undefined;return <Pressable key={`${item.key}-${index}`} onPress={action} style={[styles.flowCard,ready&&styles.flowReady]}><View style={[styles.flowIcon,ready&&styles.flowIconReady]}>{ready?<Check size={19} color="#fff"/>:<Icon size={20} color={palette.blue}/>}</View><View style={styles.flowCopy}><Text style={styles.flowEyebrow}>{item.eyebrow}</Text><Text style={styles.flowTitle}>{item.title}</Text><Text style={styles.flowDescription}>{ready?'Complete · '+item.copy:item.copy}</Text></View><ChevronRight size={18} color={palette.muted}/></Pressable>})}</View>
     </ScrollView>}
   </View>
 }
