@@ -7,7 +7,7 @@ import { TeamLogo } from '../components/rankings/bits'
 import ClubHqAiDailyBrief from '../components/club/ClubHqAiDailyBrief'
 import ClubHqUpcomingSchedule from '../components/club/ClubHqUpcomingSchedule'
 import ClubHqSponsorStatusSync from '../components/club/ClubHqSponsorStatusSync'
-import ClubPortalMemberships from './ClubPortalMemberships'
+import ClubAppMemberships from './ClubAppMemberships'
 
 type Dashboard = {
   club:{id:string;name:string;shortName:string|null;logoUrl:string|null;primaryColour:string|null;secondaryColour:string|null;state:string;stateName:string;leagueId:string|null;leagueName:string|null;season:string|null;grade:string|null}
@@ -41,7 +41,7 @@ export default function ClubPortalDashboard(){
     return()=>{live=false}
   },[clubId])
 
-  if(search.get('area')==='memberships')return <ClubPortalMemberships/>
+  if(search.get('area')==='memberships')return <ClubAppMemberships/>
   const accent=data?.club.primaryColour||'#2daaf5'
   const canManageMemberships=data?.membership.role==='OWNER'||data?.membership.role==='ADMIN'
 
