@@ -3,36 +3,51 @@ import { StyleSheet, Text, View } from 'react-native'
 import { Sidebar } from '../components/Sidebar'
 import { palette } from '../theme'
 import type { AppArea, AuthSession, ClubAccount } from '../types'
-import { CoachingScreen } from './CoachingScreen'
-import { TrainingPlanScreen } from './TrainingPlanScreen'
-import { TrainingReportScreen } from './TrainingReportScreen'
 import { AvailabilityScreen } from './AvailabilityScreen'
-import { TeamSelectionScreen } from './TeamSelectionScreen'
-import { MatchDayScreen } from './MatchDayScreen'
+import { CoachingScreen } from './CoachingScreen'
 import { GamePlanScreen } from './GamePlanScreen'
+import { MatchDayScreen } from './MatchDayScreen'
 import { OverviewScreen } from './OverviewScreen'
-import { StudioScreen, type StudioTool } from './StudioScreen'
-import { StudioTeamSelectionScreen } from './StudioTeamSelectionScreen'
-import { StudioLiveMatchScreen } from './StudioLiveMatchScreen'
+import { StudioBroadcastScreen } from './StudioBroadcastScreen'
 import { StudioEventsScreen } from './StudioEventsScreen'
 import { StudioFundraisingScreen } from './StudioFundraisingScreen'
+import { StudioLiveMatchScreen } from './StudioLiveMatchScreen'
 import { StudioMilestonesScreen } from './StudioMilestonesScreen'
 import { StudioNewsScreen } from './StudioNewsScreen'
-import { StudioBroadcastScreen } from './StudioBroadcastScreen'
+import { StudioScreen, type StudioTool } from './StudioScreen'
+import { StudioTeamSelectionScreen } from './StudioTeamSelectionScreen'
+import { TeamSelectionScreen } from './TeamSelectionScreen'
+import { TrainingPlanScreen } from './TrainingPlanScreen'
+import { TrainingReportScreen } from './TrainingReportScreen'
+import { WhiteboardScreen } from './WhiteboardScreen'
 
-type Props = { club: ClubAccount; session: AuthSession; onSwitchClub: () => void; onSignOut: () => void }
+type Props={club:ClubAccount;session:AuthSession;onSwitchClub:()=>void;onSignOut:()=>void}
 
 export function AppShell({club,session,onSwitchClub,onSignOut}:Props){
- const[area,setArea]=useState<AppArea>('overview')
- const[trainingSession,setTrainingSession]=useState<1|2|null>(null)
- const[reportSession,setReportSession]=useState<1|2|null>(null)
- const[availabilityOpen,setAvailabilityOpen]=useState(false)
- const[teamSelectionOpen,setTeamSelectionOpen]=useState(false)
- const[matchDayOpen,setMatchDayOpen]=useState(false)
- const[gamePlanOpen,setGamePlanOpen]=useState(false)
+ const[area,setArea]=useState<AppArea>('overview'),[trainingSession,setTrainingSession]=useState<1|2|null>(null),[reportSession,setReportSession]=useState<1|2|null>(null)
+ const[availabilityOpen,setAvailabilityOpen]=useState(false),[teamSelectionOpen,setTeamSelectionOpen]=useState(false),[matchDayOpen,setMatchDayOpen]=useState(false),[gamePlanOpen,setGamePlanOpen]=useState(false),[whiteboardOpen,setWhiteboardOpen]=useState(false)
  const[studioTool,setStudioTool]=useState<StudioTool|null>(null)
- function changeArea(next:AppArea){setTrainingSession(null);setReportSession(null);setAvailabilityOpen(false);setTeamSelectionOpen(false);setGamePlanOpen(false);setMatchDayOpen(false);setStudioTool(null);setArea(next)}
+ function changeArea(next:AppArea){setTrainingSession(null);setReportSession(null);setAvailabilityOpen(false);setTeamSelectionOpen(false);setGamePlanOpen(false);setMatchDayOpen(false);setWhiteboardOpen(false);setStudioTool(null);setArea(next)}
  function continueToMatch(){setGamePlanOpen(false);setMatchDayOpen(true)}
- return <View style={styles.app}>{!matchDayOpen&&<Sidebar active={area} club={club} onChange={changeArea} onSwitchClub={onSwitchClub}/>}<View style={styles.main}>{area==='overview'?<OverviewScreen club={club} onSignOut={onSignOut}/>:area==='coaching'&&trainingSession?<TrainingPlanScreen club={club} session={session} sessionNumber={trainingSession} onBack={()=>setTrainingSession(null)}/>:area==='coaching'&&reportSession?<TrainingReportScreen club={club} session={session} sessionNumber={reportSession} onBack={()=>setReportSession(null)}/>:area==='coaching'&&availabilityOpen?<AvailabilityScreen club={club} session={session} onBack={()=>setAvailabilityOpen(false)}/>:area==='coaching'&&teamSelectionOpen?<TeamSelectionScreen club={club} session={session} onBack={()=>setTeamSelectionOpen(false)}/>:area==='coaching'&&gamePlanOpen?<GamePlanScreen club={club} session={session} onBack={()=>setGamePlanOpen(false)} onContinue={continueToMatch}/>:area==='coaching'&&matchDayOpen?<MatchDayScreen club={club} session={session} onBack={()=>setMatchDayOpen(false)}/>:area==='coaching'?<CoachingScreen club={club} session={session} onOpenTrainingPlan={setTrainingSession} onOpenTrainingReport={setReportSession} onOpenAvailability={()=>setAvailabilityOpen(true)} onOpenTeamSelection={()=>setTeamSelectionOpen(true)} onOpenGamePlan={()=>setGamePlanOpen(true)} onOpenMatchDay={()=>setMatchDayOpen(true)}/>:area==='studio'&&studioTool==='team-selection'?<StudioTeamSelectionScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>:area==='studio'&&studioTool==='live-match'?<StudioLiveMatchScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>:area==='studio'&&studioTool==='events'?<StudioEventsScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>:area==='studio'&&studioTool==='fundraising'?<StudioFundraisingScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>:area==='studio'&&studioTool==='milestones'?<StudioMilestonesScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>:area==='studio'&&studioTool==='news'?<StudioNewsScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>:area==='studio'&&studioTool==='broadcast'?<StudioBroadcastScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>:area==='studio'?<StudioScreen club={club} session={session} onOpen={setStudioTool}/>:<View style={styles.coming}><Text style={styles.eyebrow}>PLAYFOOTY CLUB APP</Text><Text style={styles.title}>{area}</Text><Text style={styles.copy}>This completed PlayFooty module will be connected in its dedicated build stage.</Text></View>}</View></View>
+ let content:React.ReactNode
+ if(whiteboardOpen)content=<WhiteboardScreen club={club} session={session} onBack={()=>setWhiteboardOpen(false)}/>
+ else if(area==='overview')content=<OverviewScreen club={club} onSignOut={onSignOut}/>
+ else if(area==='coaching'&&trainingSession)content=<TrainingPlanScreen club={club} session={session} sessionNumber={trainingSession} onBack={()=>setTrainingSession(null)}/>
+ else if(area==='coaching'&&reportSession)content=<TrainingReportScreen club={club} session={session} sessionNumber={reportSession} onBack={()=>setReportSession(null)}/>
+ else if(area==='coaching'&&availabilityOpen)content=<AvailabilityScreen club={club} session={session} onBack={()=>setAvailabilityOpen(false)}/>
+ else if(area==='coaching'&&teamSelectionOpen)content=<TeamSelectionScreen club={club} session={session} onBack={()=>setTeamSelectionOpen(false)}/>
+ else if(area==='coaching'&&gamePlanOpen)content=<GamePlanScreen club={club} session={session} onBack={()=>setGamePlanOpen(false)} onContinue={continueToMatch}/>
+ else if(area==='coaching'&&matchDayOpen)content=<MatchDayScreen club={club} session={session} onBack={()=>setMatchDayOpen(false)} onWhiteboard={()=>setWhiteboardOpen(true)}/>
+ else if(area==='coaching')content=<CoachingScreen club={club} session={session} onOpenTrainingPlan={setTrainingSession} onOpenTrainingReport={setReportSession} onOpenAvailability={()=>setAvailabilityOpen(true)} onOpenTeamSelection={()=>setTeamSelectionOpen(true)} onOpenGamePlan={()=>setGamePlanOpen(true)} onOpenMatchDay={()=>setMatchDayOpen(true)} onOpenWhiteboard={()=>setWhiteboardOpen(true)}/>
+ else if(area==='studio'&&studioTool==='team-selection')content=<StudioTeamSelectionScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>
+ else if(area==='studio'&&studioTool==='live-match')content=<StudioLiveMatchScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>
+ else if(area==='studio'&&studioTool==='events')content=<StudioEventsScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>
+ else if(area==='studio'&&studioTool==='fundraising')content=<StudioFundraisingScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>
+ else if(area==='studio'&&studioTool==='milestones')content=<StudioMilestonesScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>
+ else if(area==='studio'&&studioTool==='news')content=<StudioNewsScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>
+ else if(area==='studio'&&studioTool==='broadcast')content=<StudioBroadcastScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>
+ else if(area==='studio')content=<StudioScreen club={club} session={session} onOpen={setStudioTool}/>
+ else content=<View style={styles.coming}><Text style={styles.eyebrow}>PLAYFOOTY CLUB APP</Text><Text style={styles.title}>{area}</Text><Text style={styles.copy}>This completed PlayFooty module will be connected in its dedicated build stage.</Text></View>
+ return <View style={styles.app}>{!matchDayOpen&&!whiteboardOpen&&<Sidebar active={area} club={club} onChange={changeArea} onSwitchClub={onSwitchClub}/>}<View style={styles.main}>{content}</View></View>
 }
 const styles=StyleSheet.create({app:{flex:1,flexDirection:'row',backgroundColor:palette.canvas},main:{flex:1},coming:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:palette.canvas},eyebrow:{fontSize:10,color:palette.blue,fontWeight:'900',letterSpacing:1.4},title:{fontSize:40,fontWeight:'900',color:palette.ink,textTransform:'capitalize',marginTop:5},copy:{fontSize:13,color:palette.muted,marginTop:7}})
