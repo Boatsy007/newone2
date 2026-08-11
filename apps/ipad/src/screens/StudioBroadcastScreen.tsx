@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Camera, Check, ExternalLink, Maximize2, Radio, RefreshCw, ShieldCheck, Smartphone } from 'lucide-react-native'
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { apiGet } from '../api'
+import { loadClubConnections } from '../connections'
 import { palette } from '../theme'
 import type { AuthSession, ClubAccount } from '../types'
 
@@ -10,7 +11,7 @@ type Context={fixture?:{round?:string|null;homeName?:string|null;awayName?:strin
 type Live={home?:{name?:string;score?:number;goals?:number;behinds?:number};away?:{name?:string;score?:number;goals?:number;behinds?:number};quarter?:number;clock?:string;latestEvent?:string}
 export function StudioBroadcastScreen({club,session,onBack}:Props){
  const[context,setContext]=useState<Context|null>(null),[live,setLive]=useState<Live|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('')
- async function load(){setLoading(true);setError('');try{const ctx=await apiGet<{data?:Context}>(`/club-portal/coach-app/context?clubId=${encodeURIComponent(club.clubId)}`,session.access_token);setContext(ctx.data??null);try{const state=await apiGet<{data?:Live}>(`/live-match/clubs/${encodeURIComponent(club.clubId)}`,session.access_token);setLive(state.data??null)}catch{setLive(null)}}catch(e){setError(e instanceof Error?e.message:'Broadcast status is unavailable.')}finally{setLoading(false)}}
+ async function load(){setLoading(true);setError('');try{const connections=await loadClubConnections(club.clubId,session.access_token);setContext(connections.context as unknown as Context|null);try{const state=await apiGet<{data?:Live}>(`/live-match/clubs/${encodeURIComponent(connections.ownerClubId)}`,session.access_token);setLive(state.data??null)}catch{setLive(null)}}catch(e){setError(e instanceof Error?e.message:'Broadcast status is unavailable.')}finally{setLoading(false)}}
  useEffect(()=>{void load()},[club.clubId,session.access_token])
  async function open(){const params=new URLSearchParams({clubId:club.clubId});const sheet=context?.teamSheet?.sheetId||context?.teamSheet?.id;if(sheet)params.set('sheetId',sheet);const url=`https://www.playfooty.com.au/live-stream.html?${params.toString()}`;if(!(await Linking.canOpenURL(url))){setError('The secure PlayFooty broadcaster could not be opened.');return}await Linking.openURL(url)}
  const fixture=context?.fixture,connected=Boolean(fixture),scoreHome=live?.home?.score??0,scoreAway=live?.away?.score??0
