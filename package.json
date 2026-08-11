@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test:goal-kickers": "npm --prefix backend test",
+    "test:goal-kickers": "npm --prefix backend ci --include=dev --ignore-scripts && npm --prefix backend test",
     "verify:home-records": "node scripts/verify-home-record-portals.mjs",
     "build": "node scripts/simplify-whiteboard-build-play.mjs && npm run test:goal-kickers && npm run verify:home-records && tsc -b && vite build",
     "lint": "oxlint",

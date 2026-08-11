@@ -7,7 +7,7 @@
   "scripts": {
     "schema:ensure": "node scripts/ensure-goal-kicker-player-id.mjs",
     "build": "npm run schema:ensure && prisma generate && tsc",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "postinstall": "npm run schema:ensure && prisma generate && PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium",
