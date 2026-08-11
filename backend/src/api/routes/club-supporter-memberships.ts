@@ -117,6 +117,16 @@ export function ensureSupporterMembershipSchema() {
       status TEXT NOT NULL DEFAULT 'ACTIVE', issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), revoked_at TIMESTAMPTZ, replaced_by_id TEXT,
       CONSTRAINT club_membership_credentials_status_check CHECK (status IN ('ACTIVE','REVOKED'))
     )`)
+    // Stage 3 originally created this table at runtime. Repair older production
+    // copies additively so issuing a card never replaces the QR credential or
+    // the canonical membership relationship.
+    await prisma.$executeRawUnsafe(`ALTER TABLE club_membership_credentials ADD COLUMN IF NOT EXISTS card_access_token TEXT`)
+    const credentialsMissingCardAccess=await prisma.$queryRawUnsafe<Array<{id:string}>>(`SELECT id FROM club_membership_credentials WHERE card_access_token IS NULL OR card_access_token=''`)
+    for(const credential of credentialsMissingCardAccess){
+      await prisma.$executeRawUnsafe(`UPDATE club_membership_credentials SET card_access_token=$1 WHERE id=$2 AND (card_access_token IS NULL OR card_access_token='')`,newCardAccessToken(),credential.id)
+    }
+    await prisma.$executeRawUnsafe(`ALTER TABLE club_membership_credentials ALTER COLUMN card_access_token SET NOT NULL`)
+    await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS club_membership_credentials_card_access_unique ON club_membership_credentials (card_access_token)`)
     await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS club_membership_credentials_club_idx ON club_membership_credentials (club_id, membership_id, status)`)
     await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS club_membership_credentials_active_membership_unique ON club_membership_credentials (membership_id) WHERE status='ACTIVE'`)
     await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS club_membership_card_designs (
@@ -221,8 +231,9 @@ router.put('/clubs/:clubId/card-design',async(req,res)=>{try{await ensureSupport
 router.post('/clubs/:clubId/memberships/:membershipId/card',async(req,res)=>{try{
   await ensureSupporterMembershipSchema();const clubId=req.params.clubId,membershipId=req.params.membershipId,format=clean(req.body?.format,20).toUpperCase()||'DIGITAL';if(!['DIGITAL','PRINT'].includes(format)){res.status(400).json({error:'Invalid membership card format'});return}const rows=await prisma.$queryRawUnsafe<Array<{id:string;status:string;digitalCardEnabled:boolean;physicalCardEnabled:boolean}>>(`SELECT m.id,m.status,COALESCE(p.digital_card_enabled,false) AS "digitalCardEnabled",COALESCE(p.physical_card_enabled,false) AS "physicalCardEnabled" FROM club_supporter_memberships m LEFT JOIN club_membership_products p ON p.id=m.product_id WHERE m.id=$1 AND m.club_id=$2 LIMIT 1`,membershipId,clubId);const membership=rows[0];if(!membership){res.status(404).json({error:'Membership not found'});return}if(format==='DIGITAL'&&!membership.digitalCardEnabled){res.status(400).json({error:'Digital card is disabled for this membership product'});return}if(format==='PRINT'&&!membership.physicalCardEnabled){res.status(400).json({error:'Printable card is disabled for this membership product'});return}if(membership.status!=='ACTIVE'){res.status(400).json({error:'Only active memberships can issue a membership card'});return}
   let credentials=await prisma.$queryRawUnsafe<Array<{cardAccessToken:string}>>(`SELECT card_access_token AS "cardAccessToken" FROM club_membership_credentials WHERE membership_id=$1 AND club_id=$2 AND status='ACTIVE' LIMIT 1`,membershipId,clubId);if(!credentials[0]){const id=randomUUID(),credentialToken=newCredentialToken(),cardAccessToken=newCardAccessToken();await prisma.$executeRawUnsafe(`INSERT INTO club_membership_credentials (id,club_id,membership_id,credential_token,card_access_token,status) VALUES ($1,$2,$3,$4,$5,'ACTIVE')`,id,clubId,membershipId,credentialToken,cardAccessToken);credentials=[{cardAccessToken}]}
+  if(!credentials[0].cardAccessToken)throw new Error('Active membership credential has no card access token')
   res.json({data:{cardUrl:`/membership-card/${encodeURIComponent(credentials[0].cardAccessToken)}${format==='PRINT'?'?print=1':''}`},message:format==='PRINT'?'Printable membership card ready':'Digital membership card ready'})
-}catch(error){res.status(500).json({error:'Unable to prepare digital membership card',detail:String(error)})}})
+}catch(error){console.error('Prepare digital membership card',error);res.status(500).json({error:'Unable to prepare digital membership card',detail:String(error)})}})
 
 router.get('/clubs/:clubId/gate/events',async(req,res)=>{try{
   await ensureSupporterMembershipSchema();const clubId=req.params.clubId;const fixtures=await prisma.footballFixture.findMany({where:{matchDate:{gte:new Date(Date.now()-18*60*60*1000),lte:new Date(Date.now()+21*24*60*60*1000)},OR:[{homeClubId:clubId},{awayClubId:clubId}]},orderBy:{matchDate:'asc'},take:12,select:{id:true,round:true,homeClubId:true,awayClubId:true,homeName:true,awayName:true,matchDate:true,venue:true,grade:true,season:true}});const counts=fixtures.length?await prisma.$queryRawUnsafe<Array<{fixtureId:string;count:bigint}>>(`SELECT fixture_id AS "fixtureId",COUNT(*)::bigint AS count FROM club_membership_checkins WHERE club_id=$1 AND fixture_id=ANY($2::text[]) AND result='ADMITTED' GROUP BY fixture_id`,clubId,fixtures.map(f=>f.id)):[];const byFixture=new Map(counts.map(row=>[row.fixtureId,Number(row.count)]));res.json({data:fixtures.map(f=>({...f,isHome:f.homeClubId===clubId,admitted:byFixture.get(f.id)||0}))})
