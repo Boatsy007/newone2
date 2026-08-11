@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Activity, ArrowLeft, Check, Clock3, RefreshCw, Save, ShieldAlert, UserCheck, UserX, Users } from 'lucide-react-native'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { apiGet, apiRequest } from '../api'
+import { loadClubConnections } from '../connections'
 import { palette } from '../theme'
 import type { AuthSession, ClubAccount } from '../types'
 
@@ -22,7 +23,7 @@ export function AvailabilityScreen({club,session,onBack}:Props){
  const[data,setData]=useState<Overview|null>(null),[sheetId,setSheetId]=useState(''),[drafts,setDrafts]=useState<Record<string,Player>>({}),[selected,setSelected]=useState(''),[loading,setLoading]=useState(true),[saving,setSaving]=useState(''),[error,setError]=useState(''),[message,setMessage]=useState('')
  const token=session.access_token
  async function load(nextSheetId=sheetId){setLoading(true);setError('');try{const query=nextSheetId?`?sheetId=${encodeURIComponent(nextSheetId)}`:'';const payload=await apiGet<{data?:Overview}>(`/club-portal/availability/clubs/${encodeURIComponent(club.clubId)}/overview${query}`,token);if(!payload.data)throw new Error('Availability data is unavailable');setData(payload.data);setSheetId(payload.data.selectedSheetId??'');setDrafts(Object.fromEntries(payload.data.players.map(player=>[player.id,{...player}])))}catch(reason){setError(reason instanceof Error?reason.message:'Unable to load player availability')}finally{setLoading(false)}}
- useEffect(()=>{void load('')},[club.clubId,token])
+ useEffect(()=>{setLoading(true);loadClubConnections(club.clubId,token).then(connections=>load(connections.teamSheet?.id??'')).catch(()=>load(''))},[club.clubId,token])
  function patch(id:string,value:Partial<Player>){setDrafts(current=>({...current,[id]:{...current[id]!,...value}}))}
  async function savePlayer(player:Player){if(!sheetId||!player.status)return;setSaving(player.id);setError('');setMessage('');try{const reason=player.status==='UNAVAILABLE'?(player.reason??'OTHER'):player.reason;await apiRequest(`/club-portal/availability/clubs/${encodeURIComponent(club.clubId)}/sheets/${encodeURIComponent(sheetId)}/players/${encodeURIComponent(player.id)}/override`,{method:'PUT',accessToken:token,body:{status:player.status,reason,note:player.note??'',injuryGrade:reason==='INJURY'?(player.injuryGrade??'MEDIUM'):null,overrideReason:'Updated by coach in the PlayFooty iPad app'}});setMessage(`${player.playerName}'s availability was saved.`);setSelected('');await load(sheetId)}catch(reason){setError(reason instanceof Error?reason.message:'Unable to save availability')}finally{setSaving('')}}
  const players=data?.players.map(player=>drafts[player.id]??player)??[]
