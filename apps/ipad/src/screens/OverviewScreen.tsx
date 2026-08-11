@@ -16,12 +16,39 @@ import {
   Text,
   View,
 } from "react-native";
+import { useEffect, useState } from "react";
 import Svg, { Circle } from "react-native-svg";
 import { LineChart } from "../components/LineChart";
 import { palette } from "../theme";
 import type { ClubAccount } from "../types";
 
 type Props = { club: ClubAccount; onSignOut: () => void };
+
+type SeasonRecord = {
+  season: string | null;
+  leagueName: string | null;
+  ladderPosition: number | null;
+  wins: number;
+  losses: number;
+  percentage: number;
+};
+
+type DirectoryClub = {
+  clubId: string;
+  wins: number;
+  losses: number;
+  percentage: number;
+};
+
+type DirectoryResponse = {
+  season?: string | null;
+  states?: Array<{
+    leagues: Array<{
+      name: string;
+      clubs: DirectoryClub[];
+    }>;
+  }>;
+};
 
 const metrics = [
   {
@@ -55,6 +82,49 @@ const metrics = [
 ];
 
 export function OverviewScreen({ club, onSignOut }: Props) {
+  const [seasonRecord, setSeasonRecord] = useState<SeasonRecord | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("https://www.playfooty.com.au/api/directory", {
+      headers: { accept: "application/json" },
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Club season data unavailable");
+        return (await response.json()) as DirectoryResponse;
+      })
+      .then((payload) => {
+        for (const state of payload.states ?? []) {
+          for (const league of state.leagues) {
+            const index = league.clubs.findIndex(
+              (entry) => entry.clubId === club.clubId,
+            );
+            if (index >= 0) {
+              const entry = league.clubs[index]!;
+              if (active) {
+                setSeasonRecord({
+                  season: payload.season ?? null,
+                  leagueName: league.name,
+                  ladderPosition: index + 1,
+                  wins: entry.wins,
+                  losses: entry.losses,
+                  percentage: entry.percentage,
+                });
+              }
+              return;
+            }
+          }
+        }
+        if (active) setSeasonRecord(null);
+      })
+      .catch(() => {
+        if (active) setSeasonRecord(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [club.clubId]);
+
   return (
     <View style={styles.page}>
       <View style={styles.top}>
@@ -99,56 +169,34 @@ export function OverviewScreen({ club, onSignOut }: Props) {
               <Text style={styles.clubName}>{club.clubName}</Text>
               <Text style={styles.clubMeta}>Club operations dashboard</Text>
               <View style={styles.heroStats}>
-                <Info label="SEASON" value="Current" />
-                <Info label="ROLE" value={club.role.replaceAll("_", " ")} />
-                <Info label="STATUS" value="Active" />
+                <Info
+                  label="LADDER"
+                  value={seasonRecord?.ladderPosition ? `#${seasonRecord.ladderPosition}` : "—"}
+                />
+                <Info label="WINS" value={seasonRecord ? String(seasonRecord.wins) : "—"} />
+                <Info label="LOSSES" value={seasonRecord ? String(seasonRecord.losses) : "—"} />
+                <Info
+                  label="PERCENTAGE"
+                  value={seasonRecord ? `${seasonRecord.percentage.toFixed(1)}%` : "—"}
+                />
               </View>
             </View>
           </View>
           <View style={styles.summary}>
             <View style={styles.summaryHead}>
-              <Text style={styles.panelTitle}>Club summary</Text>
+              <Text style={styles.panelTitle}>Club Information</Text>
               <View style={styles.season}>
-                <Text>Current season⌄</Text>
+                <Text>{seasonRecord?.season ?? "Current season"}</Text>
               </View>
             </View>
-            <View style={styles.summaryBody}>
-              <View style={styles.ring}>
-                <Svg width={112} height={112}>
-                  <Circle
-                    cx={56}
-                    cy={56}
-                    r={45}
-                    stroke="#E9EDF3"
-                    strokeWidth={10}
-                    fill="none"
-                  />
-                  <Circle
-                    cx={56}
-                    cy={56}
-                    r={45}
-                    stroke={palette.blue}
-                    strokeWidth={10}
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeDasharray="180 283"
-                    rotation="-90"
-                    origin="56,56"
-                  />
-                </Svg>
-                <View style={styles.ringText}>
-                  <Text style={styles.ringValue}>LIVE</Text>
-                  <Text style={styles.ringLabel}>CLUB</Text>
-                </View>
-              </View>
-              <View style={styles.summaryList}>
-                <SummaryLine label="Account" value="Connected" />
-                <SummaryLine label="Club access" value="Verified" />
-                <SummaryLine label="Dashboard" value="Stage 1" />
-              </View>
+            <View style={styles.clubInfoList}>
+              <SummaryLine label="Club" value={club.clubName} />
+              <SummaryLine label="Competition" value={seasonRecord?.leagueName ?? "—"} />
+              <SummaryLine label="Season" value={seasonRecord?.season ?? "—"} />
+              <SummaryLine label="Your role" value={club.role.replaceAll("_", " ")} />
             </View>
             <Pressable style={styles.detailsButton}>
-              <Text>View club analytics</Text>
+              <Text>View club profile</Text>
               <ChevronRight size={17} />
             </Pressable>
           </View>
@@ -352,7 +400,7 @@ const styles = StyleSheet.create({
   heroRow: { flexDirection: "row", gap: 14 },
   hero: {
     flex: 1,
-    minHeight: 220,
+    height: 190,
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 14,
@@ -361,14 +409,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#FCFDFF",
   },
   clubVisual: {
-    width: "40%",
+    width: "32%",
     backgroundColor: palette.blueSoft,
     alignItems: "center",
     justifyContent: "center",
   },
-  heroLogo: { width: "78%", height: "78%" },
-  heroInitial: { fontSize: 110, fontWeight: "900", color: palette.blue },
-  heroCopy: { flex: 1, justifyContent: "center", padding: 22 },
+  heroLogo: { width: "70%", height: "70%" },
+  heroInitial: { fontSize: 82, fontWeight: "900", color: palette.blue },
+  heroCopy: { flex: 1, justifyContent: "center", padding: 18 },
   heroLabel: {
     fontSize: 9,
     color: palette.blue,
@@ -376,14 +424,19 @@ const styles = StyleSheet.create({
     letterSpacing: 1.3,
   },
   clubName: {
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: "900",
     color: palette.ink,
-    lineHeight: 34,
+    lineHeight: 29,
     marginTop: 5,
   },
   clubMeta: { fontSize: 12, color: palette.muted, marginTop: 5 },
-  heroStats: { flexDirection: "row", gap: 28, marginTop: 25 },
+  heroStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 15,
+    marginTop: 18,
+  },
   infoLabel: {
     fontSize: 8,
     color: palette.muted,
@@ -400,6 +453,7 @@ const styles = StyleSheet.create({
   },
   summary: {
     width: 320,
+    height: 190,
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 14,
@@ -419,7 +473,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 7,
   },
-  summaryBody: { flexDirection: "row", alignItems: "center", marginTop: 12 },
+  clubInfoList: { flex: 1, gap: 9, marginTop: 14 },
   ring: {
     width: 120,
     height: 120,
