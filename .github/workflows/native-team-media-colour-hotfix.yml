@@ -1,0 +1,41 @@
+name: Native Team Selection Media colour hotfix
+
+on:
+  push:
+    branches:
+      - native-ipad-app
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Fix Team Selection Media colour swatches'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: native-ipad-app
+          fetch-depth: 0
+      - name: Patch Team Selection Media colours
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('apps/ipad/src/screens/StudioTeamSelectionScreen.tsx')
+          s=p.read_text()
+          old='''<View style={styles.builder}><Step number="1" eyebrow="CHOOSE COLOURS" title="Set the look."/><View style={styles.colourRow}><ColourField label="PRIMARY" value={primary} onChange={value=>{setPrimary(value);setImageUri('')}}/><ColourField label="ACCENT" value={accent} onChange={value=>{setAccent(value);setImageUri('')}}/></View><View style={styles.swatches}>{SWATCHES.map(value=><Pressable key={value} onPress={()=>{setAccent(value);setImageUri('')}} style={[styles.swatch,{backgroundColor:value},value==='#FFFFFF'&&styles.swatchLight]}/>)}</View>'''
+          new='''<View style={styles.builder}><Step number="1" eyebrow="CHOOSE COLOURS" title="Set the look."/><View style={styles.colourRow}><ColourField label="PRIMARY" value={primary} onChange={value=>{setPrimary(value);setImageUri('')}}/><ColourField label="ACCENT" value={accent} onChange={value=>{setAccent(value);setImageUri('')}}/></View><Text style={styles.inputLabel}>PRIMARY COLOUR</Text><View style={styles.swatches}>{SWATCHES.map(value=><Pressable key={`primary-${value}`} onPress={()=>{setPrimary(value);setImageUri('')}} style={[styles.swatch,{backgroundColor:value},value==='#FFFFFF'&&styles.swatchLight]}/>)}</View><Text style={styles.inputLabel}>ACCENT COLOUR</Text><View style={styles.swatches}>{SWATCHES.map(value=><Pressable key={`accent-${value}`} onPress={()=>{setAccent(value);setImageUri('')}} style={[styles.swatch,{backgroundColor:value},value==='#FFFFFF'&&styles.swatchLight]}/>)}</View>'''
+          if old not in s:
+              raise SystemExit('colour swatch target not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+      - name: Commit Team Selection Media colour fix
+        shell: bash
+        run: |
+          git config user.name "PlayFooty Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/ipad/src/screens/StudioTeamSelectionScreen.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix Team Selection Media colour swatches"
+          git push origin HEAD:native-ipad-app
