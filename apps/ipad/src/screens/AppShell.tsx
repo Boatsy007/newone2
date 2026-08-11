@@ -48,6 +48,7 @@ export function AppShell({club,session,onSwitchClub,onSignOut}:Props){
  else if(area==='studio'&&studioTool==='broadcast')content=<StudioBroadcastScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>
  else if(area==='studio')content=<StudioScreen club={club} session={session} onOpen={setStudioTool}/>
  else content=<View style={styles.coming}><Text style={styles.eyebrow}>PLAYFOOTY CLUB APP</Text><Text style={styles.title}>{area}</Text><Text style={styles.copy}>This completed PlayFooty module will be connected in its dedicated build stage.</Text></View>
- return <View style={styles.app}>{!matchDayOpen&&!whiteboardOpen&&<Sidebar active={area} club={club} onChange={changeArea} onSwitchClub={onSwitchClub}/>}<View style={styles.main}>{content}</View></View>
+ const hideSidebar=matchDayOpen||whiteboardOpen||teamSelectionOpen
+ return <View style={styles.app}>{!hideSidebar&&<Sidebar active={area} club={club} onChange={changeArea} onSwitchClub={onSwitchClub}/>}<View style={styles.main}>{content}</View></View>
 }
 const styles=StyleSheet.create({app:{flex:1,flexDirection:'row',backgroundColor:palette.canvas},main:{flex:1},coming:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:palette.canvas},eyebrow:{fontSize:10,color:palette.blue,fontWeight:'900',letterSpacing:1.4},title:{fontSize:40,fontWeight:'900',color:palette.ink,textTransform:'capitalize',marginTop:5},copy:{fontSize:13,color:palette.muted,marginTop:7}})
