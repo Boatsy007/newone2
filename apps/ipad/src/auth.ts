@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store'
 import type { AuthSession } from './types'
 
-const API_BASE = 'https://playfooty.com.au/api'
+const API_BASE = 'https://www.playfooty.com.au/api'
 const SESSION_KEY = 'playfooty.native.club.session.v1'
 
 type AuthError = { error_description?: string; msg?: string; error?: string }
