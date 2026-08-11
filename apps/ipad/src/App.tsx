@@ -13,7 +13,7 @@ export default function App() {
   const [session,setSession]=useState<AuthSession|null>(null)
   const [club,setClub]=useState<ClubAccount|null>(null)
   useEffect(()=>{void restoreSession().then(value=>{setSession(value);if(value?.club_accounts?.length===1)setClub(value.club_accounts[0]??null)}).finally(()=>setRestoring(false))},[])
-  async function login(email:string,password:string){const result=await signIn(email,password);const clubs=result.club_accounts??[];if(!clubs.length)throw new Error('This login is not linked to an active club. Contact PlayFooty to be invited.');await saveSession(result);setSession(result);if(clubs.length===1)setClub(clubs[0]??null)}
+  async function login(email:string,password:string){const result=await signIn(email,password);const clubs=result.club_accounts??[];if(!clubs.length)throw new Error('This login is not linked to an active club. Contact PlayFooty to be invited.');setSession(result);if(clubs.length===1)setClub(clubs[0]??null);void saveSession(result).catch(()=>{})}
   async function signOut(){await saveSession(null);setSession(null);setClub(null)}
   if(restoring)return <View style={styles.loading}><ActivityIndicator size="large" color={palette.blue}/></View>
   return <><StatusBar style="dark"/>{!session?<SignInScreen onSubmit={login}/>:!club?<ClubPickerScreen clubs={session.club_accounts??[]} onChoose={setClub} onSignOut={signOut}/>:<AppShell club={club} onSwitchClub={()=>setClub(null)} onSignOut={signOut}/>}</>

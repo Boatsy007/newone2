@@ -7,11 +7,24 @@ const SESSION_KEY = 'playfooty.native.club.session.v1'
 type AuthError = { error_description?: string; msg?: string; error?: string }
 
 async function authRequest(path: string, body: Record<string, unknown>) {
-  const response = await fetch(`${API_BASE}/portal-auth/${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify(body),
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 20000)
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}/portal-auth/${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+  } catch (reason) {
+    if (reason instanceof Error && reason.name === 'AbortError') {
+      throw new Error('PlayFooty sign-in timed out. Check your connection and try again.')
+    }
+    throw new Error('Unable to reach PlayFooty sign-in. Check your connection and try again.')
+  } finally {
+    clearTimeout(timeout)
+  }
   const payload = (await response.json().catch(() => ({}))) as AuthSession & AuthError
   if (!response.ok) {
     throw new Error(payload.error_description || payload.msg || payload.error || 'PlayFooty account request failed')
