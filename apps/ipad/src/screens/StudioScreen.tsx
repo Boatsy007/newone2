@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react-native'
 import { CalendarDays, ChevronRight, CircleDollarSign, Image as ImageIcon, Newspaper, Radio, RefreshCw, Sparkles, Trophy, UsersRound } from 'lucide-react-native'
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { apiGet } from '../api'
+import { connectedPlayerCount, connectedRoundLabel, loadClubConnections, type ClubConnections } from '../connections'
 import { palette } from '../theme'
 import type { AuthSession, ClubAccount } from '../types'
 
 export type StudioTool = 'team-selection' | 'live-match' | 'events' | 'fundraising' | 'milestones' | 'news' | 'broadcast'
 type Props = { club: ClubAccount; session: AuthSession; onOpen: (tool: StudioTool) => void }
-type Context = { fixture: { round:string|null; homeName:string; awayName:string }|null; teamSheet:{playerCount:number}|null }
 type Tool = { key: StudioTool; eyebrow: string; title: string; copy: string; icon: LucideIcon; tone: string }
 
 const TOOLS: Tool[] = [
@@ -22,17 +21,17 @@ const TOOLS: Tool[] = [
 ]
 
 export function StudioScreen({club,session,onOpen}:Props){
- const[context,setContext]=useState<Context|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('')
- function load(){setLoading(true);setError('');apiGet<{data?:Context}>(`/club-portal/coach-app/context?clubId=${encodeURIComponent(club.clubId)}`,session.access_token).then(payload=>setContext(payload.data??null)).catch(reason=>setError(reason instanceof Error?reason.message:'Studio data is unavailable')).finally(()=>setLoading(false))}
+ const[connections,setConnections]=useState<ClubConnections|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('')
+ function load(){setLoading(true);setError('');loadClubConnections(club.clubId,session.access_token).then(setConnections).catch(reason=>setError(reason instanceof Error?reason.message:'Studio data is unavailable')).finally(()=>setLoading(false))}
  useEffect(load,[club.clubId,session.access_token])
- const selected=context?.teamSheet?.playerCount??0,selectionReady=selected>=22,matchReady=Boolean(context?.teamSheet),round=context?.fixture?.round??'Upcoming match'
+ const selected=connectedPlayerCount(connections?.teamSheet??null),selectionReady=selected>=22,matchReady=Boolean(connections?.teamSheet),round=connectedRoundLabel(connections?.fixture??null,connections?.teamSheet??null)
  return <View style={styles.page}>
   <View style={styles.topbar}><View><Text style={styles.title}>Studio</Text><Text style={styles.subtitle}>Create club media, publish updates and go live.</Text></View><Pressable onPress={load} style={styles.refresh}><RefreshCw size={18} color={palette.ink}/></Pressable></View>
   {loading?<View style={styles.state}><ActivityIndicator size="large" color={palette.blue}/><Text style={styles.stateCopy}>Opening Studio workspace…</Text></View>:<ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
    {error?<View style={styles.alert}><Text style={styles.alertTitle}>Connected status unavailable</Text><Text style={styles.alertCopy}>{error}</Text></View>:null}
    <View style={styles.heroRow}>
     <View style={styles.clubCard}><View style={styles.cardHeading}><View><Text style={styles.eyebrow}>CLUB CONTENT HUB</Text><Text style={styles.heroTitle}>Create. Publish. Go live.</Text></View><ImageIcon size={20} color={palette.blue}/></View><View style={styles.clubBody}>{club.logoUrl?<Image source={{uri:club.logoUrl}} resizeMode="contain" style={styles.logo}/>:<View style={styles.logoFallback}><Text style={styles.logoText}>{club.clubName.slice(0,1)}</Text></View>}<View style={styles.clubCopy}><Text style={styles.clubName}>{club.clubName}</Text><Text style={styles.clubMeta}>Everything your club needs to keep supporters connected.</Text><View style={styles.roundChip}><Text style={styles.roundText}>{round}</Text></View></View></View></View>
-    <View style={styles.readiness}><View style={styles.cardHeading}><View><Text style={styles.eyebrow}>CURRENT MATCH</Text><Text style={styles.panelTitle}>Media readiness</Text></View><Sparkles size={19} color={palette.blue}/></View><View style={styles.readyList}><ReadyLine label="Selected side" detail={`${selected}/22 players`} ready={selectionReady}/><ReadyLine label="Live Match" detail={matchReady?'Connected':'Waiting for selection'} ready={matchReady}/><ReadyLine label="Fixture" detail={context?.fixture?'Connected':'Not resolved'} ready={Boolean(context?.fixture)}/></View></View>
+    <View style={styles.readiness}><View style={styles.cardHeading}><View><Text style={styles.eyebrow}>CURRENT MATCH</Text><Text style={styles.panelTitle}>Media readiness</Text></View><Sparkles size={19} color={palette.blue}/></View><View style={styles.readyList}><ReadyLine label="Selected side" detail={`${selected}/22 players`} ready={selectionReady}/><ReadyLine label="Live Match" detail={matchReady?'Connected':'Waiting for selection'} ready={matchReady}/><ReadyLine label="Fixture" detail={connections?.fixture?'Connected':'Not resolved'} ready={Boolean(connections?.fixture)}/></View></View>
    </View>
    <View style={styles.stats}><Stat icon={UsersRound} label="Team selection" value={selectionReady?'Ready':`${selected}/22`} tone={palette.blue}/><Stat icon={Trophy} label="Live match" value={matchReady?'Connected':'Waiting'} tone={palette.green}/><Stat icon={Newspaper} label="News" value="Create" tone={palette.orange}/><Stat icon={Radio} label="Broadcast" value="Go live" tone={palette.red}/></View>
    <View style={styles.sectionHead}><View><Text style={styles.eyebrow}>CONTENT OPERATIONS</Text><Text style={styles.sectionTitle}>Studio tools</Text></View><Text style={styles.sectionNote}>Every workflow uses your connected club and match data.</Text></View>
