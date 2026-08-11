@@ -3,7 +3,7 @@
     "name": "PlayFooty Club",
     "slug": "playfooty-club",
     "version": "0.1.0",
-    "orientation": "landscape",
+    "orientation": "default",
     "userInterfaceStyle": "light",
     "scheme": "playfootyclub",
     "ios": {
