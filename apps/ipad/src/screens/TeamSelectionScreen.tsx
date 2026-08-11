@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, CalendarDays, Check, ChevronRight, RefreshCw, Save, Send, ShieldAlert, Trophy, Users } from 'lucide-react-native'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { apiGet, apiRequest } from '../api'
+import { loadClubConnections } from '../connections'
 import { AflOval } from '../components/AflOval'
 import { palette } from '../theme'
 import type { AuthSession, ClubAccount } from '../types'
@@ -25,9 +26,10 @@ export function TeamSelectionScreen({club,session,onBack}:Props){
  const token=session.access_token,sheet=sheets.find(item=>item.id===sheetId)??null
  const used=useMemo(()=>new Set(selected.map(item=>item.clubPlayerId)),[selected])
  async function load(preferredSheetId?:string){
-  const [fixturePayload,sheetPayload]=await Promise.all([apiGet<{data?:Fixture[]}>(`/fixtures/club/${encodeURIComponent(club.clubId)}?upcoming=true`).catch(()=>({data:[]})),apiGet<{data?:Sheet[]}>(`/club-portal/team-sheets/clubs/${encodeURIComponent(club.clubId)}/sheets`,token)])
-  const nextSheets=Array.isArray(sheetPayload.data)?sheetPayload.data:[];setFixtures(Array.isArray(fixturePayload.data)?fixturePayload.data:[]);setSheets(nextSheets)
-  const nextId=preferredSheetId&&nextSheets.some(item=>item.id===preferredSheetId)?preferredSheetId:sheetId&&nextSheets.some(item=>item.id===sheetId)?sheetId:(nextSheets[0]?.id??'');setSheetId(nextId)
+  const connections=await loadClubConnections(club.clubId,token)
+  const nextSheets=connections.sheets as Sheet[];setFixtures(connections.fixtures as Fixture[]);setSheets(nextSheets)
+  const canonicalId=connections.teamSheet?.id
+  const nextId=preferredSheetId&&nextSheets.some(item=>item.id===preferredSheetId)?preferredSheetId:sheetId&&nextSheets.some(item=>item.id===sheetId)?sheetId:canonicalId&&nextSheets.some(item=>item.id===canonicalId)?canonicalId:(nextSheets[0]?.id??'');setSheetId(nextId)
  }
  useEffect(()=>{setLoading(true);load().catch(reason=>setError(reason instanceof Error?reason.message:'Unable to open team selection')).finally(()=>setLoading(false))},[club.clubId,token])
  useEffect(()=>{if(!sheet){setPlayers([]);setSelected([]);return}setSelected(sheet.players.map(item=>({clubPlayerId:item.clubPlayerId,positionCode:item.positionCode})));apiGet<{data?:Player[]}>(`/club-portal/team-sheets/clubs/${encodeURIComponent(club.clubId)}/players?sheetId=${encodeURIComponent(sheet.id)}`,token).then(payload=>setPlayers(Array.isArray(payload.data)?payload.data:[])).catch(reason=>setError(reason instanceof Error?reason.message:'Unable to load the squad'))},[sheetId,sheets])
