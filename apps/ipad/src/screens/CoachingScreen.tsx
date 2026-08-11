@@ -17,6 +17,7 @@ import {
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import Svg, { Circle } from 'react-native-svg'
 import { apiGet } from '../api'
+import { connectedAwayName, connectedHomeName, connectedRoundLabel, loadClubConnections, selectConnectedSheet, sheetMatchesFixture, type CoachContext } from '../connections'
 import { palette } from '../theme'
 import type { AuthSession, ClubAccount } from '../types'
 
@@ -49,6 +50,7 @@ export function CoachingScreen({ club, session, onOpenTrainingPlan, onOpenTraini
   const [sheets,setSheets]=useState<Sheet[]>([])
   const [availability,setAvailability]=useState<Availability|null>(null)
   const [plans,setPlans]=useState<Plan[]>([])
+  const [canonical,setCanonical]=useState<CoachContext|null>(null)
   const [grade,setGrade]=useState('')
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
@@ -57,24 +59,27 @@ export function CoachingScreen({ club, session, onOpenTrainingPlan, onOpenTraini
   function load() {
     setLoading(true);setError('')
     Promise.all([
+      loadClubConnections(club.clubId,token),
       apiGet<{data?:Fixture[]}>(`/fixtures/club/${encodeURIComponent(club.clubId)}?upcoming=true`).catch(()=>({data:[]})),
       apiGet<{data?:Sheet[]}>(`/club-portal/team-sheets/clubs/${encodeURIComponent(club.clubId)}/sheets`,token),
       apiGet<{data?:Availability}>(`/club-portal/availability/clubs/${encodeURIComponent(club.clubId)}/overview`,token).catch(()=>({data:undefined})),
       apiGet<{data?:{plans?:Plan[]}}>(`/club-portal/training-plans/clubs/${encodeURIComponent(club.clubId)}`,token).catch(()=>({data:undefined})),
-    ]).then(([fixturePayload,sheetPayload,availabilityPayload,planPayload])=>{
-      const nextFixtures=Array.isArray(fixturePayload.data)?fixturePayload.data:[]
-      const nextSheets=Array.isArray(sheetPayload.data)?sheetPayload.data:[]
+    ]).then(([connections,fixturePayload,sheetPayload,availabilityPayload,planPayload])=>{
+      const nextFixtures=(connections.fixtures.length?connections.fixtures:Array.isArray(fixturePayload.data)?fixturePayload.data:[]) as Fixture[]
+      const nextSheets=(connections.sheets.length?connections.sheets:Array.isArray(sheetPayload.data)?sheetPayload.data:[]) as Sheet[]
+      setCanonical(connections.context)
       setFixtures(nextFixtures);setSheets(nextSheets);setAvailability(availabilityPayload.data??null);setPlans(planPayload.data?.plans??[])
       const grades=[...new Set([...nextFixtures.map(item=>item.grade),...nextSheets.map(item=>item.grade)].filter(Boolean))]
-      setGrade(current=>current&&grades.includes(current)?current:(grades[0]??''))
+      setGrade(current=>current&&grades.includes(current)?current:(connections.context?.team?.grade&&grades.includes(connections.context.team.grade)?connections.context.team.grade:(grades[0]??'')))
     }).catch(reason=>setError(reason instanceof Error?reason.message:'Unable to open Coaching')).finally(()=>setLoading(false))
   }
   useEffect(load,[club.clubId,token])
 
   const grades=useMemo(()=>[...new Set([...fixtures.map(item=>item.grade),...sheets.map(item=>item.grade)].filter(Boolean))],[fixtures,sheets])
-  const fixture=fixtures.find(item=>!grade||item.grade===grade)??fixtures[0]??null
-  const sheet=sheets.find(item=>(!grade||item.grade===grade)&&(item.fixtureId===fixture?.id||item.id===availability?.selectedSheetId))??sheets.find(item=>!grade||item.grade===grade)??null
-  const opponent=fixture?(fixture.homeClubId===club.clubId?fixture.awayClubName:fixture.homeClubName):(sheet?.opponentName??'Opponent to be confirmed')
+  const canonicalGrade=canonical?.team?.grade
+  const fixture=(canonical?.fixture&&(!grade||!canonicalGrade||grade===canonicalGrade)?canonical.fixture as unknown as Fixture:null)??fixtures.find(item=>(!grade||item.grade===grade)&&sheets.some(sheet=>sheetMatchesFixture(sheet as never,item as never)))??fixtures.find(item=>!grade||item.grade===grade)??fixtures[0]??null
+  const sheet=selectConnectedSheet(canonical,sheets as never[],fixture as never) as unknown as Sheet|null
+  const opponent=fixture?(fixture.homeClubId===club.clubId?(fixture.awayClubName??connectedAwayName(fixture as never)):(fixture.homeClubName??connectedHomeName(fixture as never))):(sheet?.opponentName??'Opponent to be confirmed')
   const counts=useMemo(()=>{
     const players=availability?.players??[]
     return {available:players.filter(row=>row.status==='AVAILABLE').length,unavailable:players.filter(row=>row.status==='UNAVAILABLE').length,test:players.filter(row=>row.status==='TEST'||row.status==='UNSURE'||row.status==='UNLIKELY').length,pending:players.filter(row=>!row.status).length,total:players.length}
@@ -89,7 +94,7 @@ export function CoachingScreen({ club, session, onOpenTrainingPlan, onOpenTraini
     <View style={styles.topbar}><View><Text style={styles.title}>Coaching</Text><Text style={styles.subtitle}>Plan the week, select the side and run match day.</Text></View><View style={styles.gradePicker}>{grades.length?grades.map(item=><Pressable key={item} onPress={()=>setGrade(item)} style={[styles.gradeChip,grade===item&&styles.gradeChipActive]}><Text numberOfLines={1} style={[styles.gradeText,grade===item&&styles.gradeTextActive]}>{item}</Text></Pressable>):<Text style={styles.noGrade}>No grade connected</Text>}</View><Pressable onPress={load} style={styles.refresh}><RefreshCw size={18} color={palette.ink}/></Pressable></View>
     {loading?<View style={styles.state}><ActivityIndicator size="large" color={palette.blue}/><Text>Opening coaching workspace…</Text></View>:error?<View style={styles.state}><Shield size={35} color={palette.red}/><Text style={styles.errorTitle}>Coaching unavailable</Text><Text style={styles.stateCopy}>{error}</Text><Pressable onPress={load} style={styles.retry}><Text>Try again</Text></Pressable></View>:<ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.heroRow}>
-        <View style={styles.matchCard}><View style={styles.cardHeading}><View><Text style={styles.eyebrow}>NEXT MATCH</Text><Text style={styles.matchTitle}>{fixture?.round==null?(sheet?.roundLabel??'Upcoming match'):`Round ${fixture.round}`}</Text></View><Text style={styles.matchDate}>{dateLabel(fixture?.matchDate??sheet?.matchDate)}</Text></View><View style={styles.teams}><Team logo={club.logoUrl} name={club.clubName}/><View style={styles.versus}><Text style={styles.versusText}>VS</Text><Text numberOfLines={1} style={styles.venue}>{fixture?.venue??'Venue TBC'}</Text></View><Team name={opponent}/></View></View>
+        <View style={styles.matchCard}><View style={styles.cardHeading}><View><Text style={styles.eyebrow}>NEXT MATCH</Text><Text style={styles.matchTitle}>{connectedRoundLabel(fixture as never,sheet as never)}</Text></View><Text style={styles.matchDate}>{dateLabel(fixture?.matchDate??sheet?.matchDate)}</Text></View><View style={styles.teams}><Team logo={club.logoUrl} name={club.clubName}/><View style={styles.versus}><Text style={styles.versusText}>VS</Text><Text numberOfLines={1} style={styles.venue}>{fixture?.venue??'Venue TBC'}</Text></View><Team name={opponent}/></View></View>
         <View style={styles.readiness}><View style={styles.cardHeading}><View><Text style={styles.eyebrow}>CURRENT WEEK</Text><Text style={styles.panelTitle}>Week readiness</Text></View><Sparkles size={19} color={palette.blue}/></View><View style={styles.readinessBody}><View style={styles.ring}><Svg width={104} height={104}><Circle cx={52} cy={52} r={41} stroke="#E9EDF3" strokeWidth={9} fill="none"/><Circle cx={52} cy={52} r={41} stroke={palette.blue} strokeWidth={9} fill="none" strokeLinecap="round" strokeDasharray={`${completed/3*258} 258`} rotation="-90" origin="52,52"/></Svg><View style={styles.ringCopy}><Text style={styles.ringNumber}>{completed}/3</Text><Text style={styles.ringLabel}>READY</Text></View></View><View style={styles.checks}><ReadyLine label="Training plan" ready={planReady}/><ReadyLine label="Availability" ready={responseReady}/><ReadyLine label="Selected side" ready={selectionReady}/></View></View></View>
       </View>
       <View style={styles.stats}><Stat icon={Users} label="Available" value={counts.total?String(counts.available):'—'} tone={palette.green}/><Stat icon={Clock3} label="Awaiting response" value={counts.total?String(counts.pending):'—'} tone={palette.orange}/><Stat icon={Shield} label="Unavailable" value={counts.total?String(counts.unavailable):'—'} tone={palette.red}/><Stat icon={CalendarCheck} label="Test / unsure" value={counts.total?String(counts.test):'—'} tone={palette.purple}/></View>
