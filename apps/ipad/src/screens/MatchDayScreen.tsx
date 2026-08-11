@@ -7,7 +7,7 @@ import { AflOval } from '../components/AflOval'
 import { palette } from '../theme'
 import type { AuthSession, ClubAccount } from '../types'
 
-type Props={club:ClubAccount;session:AuthSession;onBack:()=>void}
+type Props={club:ClubAccount;session:AuthSession;onBack:()=>void;onWhiteboard:()=>void}
 type SheetPlayer={id:string;clubPlayerId:string;playerName:string;jumperNumber:number|null;positionCode:string}
 type Sheet={id:string;fixtureId:string|null;roundLabel:string;opponentName:string|null;matchDate:string|null;status:string;players:SheetPlayer[]}
 type Fixture={id:string;homeClubId:string;homeClubName:string;awayClubId:string;awayClubName:string}
@@ -36,12 +36,14 @@ const isOnGround=(code:string)=>FIELD.has(code)
 const currentSeconds=(state:MatchState)=>state.elapsed+(state.runningSince?Math.floor((Date.now()-state.runningSince)/1000):0)
 const normalise=(state:MatchState):MatchState=>({...state,teamStats:{...EMPTY_STATS,...(state.teamStats??{})},kpiTargets:{...DEFAULT_TARGETS,...(state.kpiTargets??{})},scoreUndo:Array.isArray(state.scoreUndo)?state.scoreUndo:[],totalTrackedSeconds:Number(state.totalTrackedSeconds)||0,trackingUpdatedAt:state.runningSince?(Number(state.trackingUpdatedAt)||Date.now()):null,slots:state.slots.map(slot=>{const onGround=isOnGround(slot.positionCode),onGroundSeconds=Number(slot.onGroundSeconds)||0;return {...slot,onGround,goals:Number(slot.goals)||0,behinds:Number(slot.behinds)||0,plusMinus:Number(slot.plusMinus)||0,onGroundSeconds,benchSeconds:Number(slot.benchSeconds)||0,benchEnteredAt:typeof slot.benchEnteredAt==='number'?slot.benchEnteredAt:null,fresh:typeof slot.fresh==='boolean'?slot.fresh:!onGround&&onGroundSeconds===0,injured:Boolean(slot.injured)}})})
 
-export function MatchDayScreen({club,session,onBack}:Props){
+export function MatchDayScreen({club,session,onBack,onWhiteboard}:Props){
  const[sheets,setSheets]=useState<Sheet[]>([]),[sheetId,setSheetId]=useState(''),[state,setState]=useState<MatchState|null>(null),[selected,setSelected]=useState('')
  const[fixtures,setFixtures]=useState<Fixture[]>([]),[homeVisual,setHomeVisual]=useState<TeamVisual>({logoUrl:club.logoUrl??null,coverPhotoUrl:null}),[awayVisual,setAwayVisual]=useState<TeamVisual>({logoUrl:null,coverPhotoUrl:null})
  const[loading,setLoading]=useState(true),[opening,setOpening]=useState(false),[error,setError]=useState(''),[sync,setSync]=useState<'saved'|'saving'|'error'>('saved'),[,setTick]=useState(0)
  const[planOpen,setPlanOpen]=useState(false),[planLoading,setPlanLoading]=useState(false),[gamePlan,setGamePlan]=useState<GamePlan|null>(null),[planError,setPlanError]=useState('')
- const[rotation,setRotation]=useState<string[]>([]),[manualKpis,setManualKpis]=useState(true),[resetOpen,setResetOpen]=useState(false),[kpiOpen,setKpiOpen]=useState(false),[whiteboardOpen,setWhiteboardOpen]=useState(false)
+ const[rotation,setRotation]=useState<string[]>([]),[manualKpis,setManualKpis]=useState(true),[resetOpen,setResetOpen]=useState(false),[kpiOpen,setKpiOpen]=useState(false)
+ const whiteboardOpen=false
+ const setWhiteboardOpen=(open:boolean)=>{if(open)onWhiteboard()}
  const[reportOpen,setReportOpen]=useState(false),[reportLoading,setReportLoading]=useState(false),[report,setReport]=useState<MatchReport|null>(null),[reportError,setReportError]=useState('')
  const saveTimer=useRef<ReturnType<typeof setTimeout>|null>(null),lastTap=useRef<{id:string;time:number}>({id:'',time:0}),sheet=sheets.find(item=>item.id===sheetId)??null,token=session.access_token
  useEffect(()=>{const timer=setInterval(()=>setTick(value=>value+1),1000);return()=>clearInterval(timer)},[])
