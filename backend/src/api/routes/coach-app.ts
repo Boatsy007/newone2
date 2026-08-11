@@ -191,6 +191,31 @@ async function ensureCanonicalFixtureSheet(club: { id:string; name:string }, tea
   return true
 }
 
+async function ensureAuthorisedFixtureSheet(club: { id:string; name:string }, fixture: Fixture | null) {
+  if (!fixture) return false
+  const existing = await prisma.$queryRawUnsafe<Array<{id:string}>>(`
+    SELECT id::text AS id FROM football_team_sheets
+    WHERE club_id=$1 AND fixture_id=$2
+    LIMIT 1
+  `, club.id, fixture.id)
+  if (existing[0]) return false
+
+  const isHome = fixture.homeClubId === club.id || normalise(fixture.homeName) === normalise(club.name)
+  const opponent = isHome ? fixture.awayName : fixture.homeName
+  const roundLabel = fixture.round ? `Round ${String(fixture.round).replace(/^Round\s+/i,'')}` : 'Upcoming fixture'
+  const matchDate = fixture.matchDate ? fixture.matchDate.toISOString().slice(0,10) : null
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO football_team_sheets
+      (club_id,league_id,season,grade,round_label,opponent_name,match_date,status,fixture_id,created_at,updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,'DRAFT',$8,NOW(),NOW())
+    ON CONFLICT (club_id,fixture_id) WHERE fixture_id IS NOT NULL DO UPDATE SET
+      league_id=EXCLUDED.league_id,season=EXCLUDED.season,grade=EXCLUDED.grade,
+      round_label=EXCLUDED.round_label,opponent_name=EXCLUDED.opponent_name,
+      match_date=EXCLUDED.match_date,updated_at=NOW()
+  `, club.id, fixture.leagueId, fixture.season, fixture.grade, roundLabel, opponent, matchDate, fixture.id)
+  return true
+}
+
 async function loadFixture(fixtureId: string, clubId: string): Promise<Fixture | null> {
   return prisma.footballFixture.findFirst({
     where:{ id:fixtureId,OR:[{ homeClubId:clubId },{ awayClubId:clubId }] },
@@ -308,17 +333,18 @@ router.get('/context', async (req, res) => {
       : await loadActiveFixture(club.id, team?.season ?? null, team?.grade ?? null)
     if (overrideId && !fixture) return res.status(404).json({ error: 'The selected fixture does not belong to this club' })
 
-    let sheet = await loadSheetForFixture(club.id, fixture)
-    // The Club Portal selection may belong to the authorised club alias while fixtures use a canonical club ID.
-    // Reuse that existing selection read-only rather than creating or moving records during app login.
-    if (!sheet && authorisedClub.id !== club.id) sheet = await loadSheetForFixture(authorisedClub.id, fixture)
-    if (!sheet && await reconcileExistingAliasSheet(club, team, fixture)) sheet = await loadSheetForFixture(club.id, fixture)
-    if (!sheet && await ensureCanonicalFixtureSheet(club, team, fixture)) sheet = await loadSheetForFixture(club.id, fixture)
+    // Protected team-sheet and Match Day routes authorise against the club that owns the
+    // coach's membership. Prefer that club's saved sheet even when fixture discovery had to
+    // resolve a canonical fixture club ID.
+    let sheet = await loadSheetForFixture(authorisedClub.id, fixture)
+    if (!sheet && authorisedClub.id === club.id && await reconcileExistingAliasSheet(club, team, fixture)) sheet = await loadSheetForFixture(club.id, fixture)
+    if (!sheet && authorisedClub.id === club.id && await ensureCanonicalFixtureSheet(club, team, fixture)) sheet = await loadSheetForFixture(club.id, fixture)
+    if (!sheet && await ensureAuthorisedFixtureSheet(authorisedClub, fixture)) sheet = await loadSheetForFixture(authorisedClub.id, fixture)
     if (sheet && fixture && !sheet.fixtureId) {
       await prisma.$executeRawUnsafe(`UPDATE football_team_sheets SET fixture_id=$2,updated_at=NOW() WHERE id::text=$1 AND club_id=$3 AND fixture_id IS NULL`, sheet.id, fixture.id, sheet.clubId)
       sheet.fixtureId = fixture.id
     }
-    const matchDayRows = sheet ? await prisma.$queryRawUnsafe<Array<{version:number;updatedAt:Date}>>(`SELECT version,updated_at AS "updatedAt" FROM club_match_day_state WHERE club_id=$1 AND sheet_id=$2 LIMIT 1`, club.id, sheet.id) : []
+    const matchDayRows = sheet ? await prisma.$queryRawUnsafe<Array<{version:number;updatedAt:Date}>>(`SELECT version,updated_at AS "updatedAt" FROM club_match_day_state WHERE club_id=$1 AND sheet_id=$2 LIMIT 1`, sheet.clubId, sheet.id) : []
     const matchDay = matchDayRows[0] ?? null
     const teamSheetDiagnostics = !sheet ? await prisma.$queryRawUnsafe<Array<{
       id:string;fixtureId:string|null;leagueId:string|null;season:string;grade:string;roundLabel:string|null;
