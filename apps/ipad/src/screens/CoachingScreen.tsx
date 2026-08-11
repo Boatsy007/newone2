@@ -58,19 +58,16 @@ export function CoachingScreen({ club, session, onOpenTrainingPlan, onOpenTraini
 
   function load() {
     setLoading(true);setError('')
-    Promise.all([
-      loadClubConnections(club.clubId,token),
-      apiGet<{data?:Fixture[]}>(`/fixtures/club/${encodeURIComponent(club.clubId)}?upcoming=true`).catch(()=>({data:[]})),
-      apiGet<{data?:Sheet[]}>(`/club-portal/team-sheets/clubs/${encodeURIComponent(club.clubId)}/sheets`,token),
-      apiGet<{data?:Availability}>(`/club-portal/availability/clubs/${encodeURIComponent(club.clubId)}/overview`,token).catch(()=>({data:undefined})),
-      apiGet<{data?:{plans?:Plan[]}}>(`/club-portal/training-plans/clubs/${encodeURIComponent(club.clubId)}`,token).catch(()=>({data:undefined})),
-    ]).then(([connections,fixturePayload,sheetPayload,availabilityPayload,planPayload])=>{
-      const nextFixtures=(connections.fixtures.length?connections.fixtures:Array.isArray(fixturePayload.data)?fixturePayload.data:[]) as Fixture[]
-      const nextSheets=(connections.sheets.length?connections.sheets:Array.isArray(sheetPayload.data)?sheetPayload.data:[]) as Sheet[]
+    loadClubConnections(club.clubId,token).then(connections=>{
+      const nextFixtures=connections.fixtures as Fixture[]
+      const nextSheets=connections.sheets as Sheet[]
       setCanonical(connections.context)
-      setFixtures(nextFixtures);setSheets(nextSheets);setAvailability(availabilityPayload.data??null);setPlans(planPayload.data?.plans??[])
+      setFixtures(nextFixtures);setSheets(nextSheets)
       const grades=[...new Set([...nextFixtures.map(item=>item.grade),...nextSheets.map(item=>item.grade)].filter(Boolean))]
       setGrade(current=>current&&grades.includes(current)?current:(connections.context?.team?.grade&&grades.includes(connections.context.team.grade)?connections.context.team.grade:(grades[0]??'')))
+      setLoading(false)
+      void apiGet<{data?:Availability}>(`/club-portal/availability/clubs/${encodeURIComponent(club.clubId)}/overview`,token,6500).then(payload=>setAvailability(payload.data??null)).catch(()=>setAvailability(null))
+      void apiGet<{data?:{plans?:Plan[]}}>(`/club-portal/training-plans/clubs/${encodeURIComponent(club.clubId)}`,token,6500).then(payload=>setPlans(payload.data?.plans??[])).catch(()=>setPlans([]))
     }).catch(reason=>setError(reason instanceof Error?reason.message:'Unable to open Coaching')).finally(()=>setLoading(false))
   }
   useEffect(load,[club.clubId,token])
