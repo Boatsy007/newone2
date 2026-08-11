@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Check, ChevronRight, Plus, Save, Shield, Target, Trash2, Users, Zap } from 'lucide-react-native'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { apiGet, apiRequest } from '../api'
+import { loadClubConnections } from '../connections'
 import { palette } from '../theme'
 import type { AuthSession, ClubAccount } from '../types'
 
@@ -20,7 +21,7 @@ export function GamePlanScreen({club,session,onBack,onContinue}:Props){
  const[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('')
  const[threatName,setThreatName]=useState(''),[threatNumber,setThreatNumber]=useState(''),[threatPosition,setThreatPosition]=useState(''),[threatNotes,setThreatNotes]=useState(''),[matchupId,setMatchupId]=useState('')
  const token=session.access_token,sheet=sheets.find(item=>item.id===sheetId)??null
- useEffect(()=>{apiGet<{data?:Sheet[]}>(`/club-portal/team-sheets/clubs/${encodeURIComponent(club.clubId)}/sheets`,token).then(payload=>{const rows=(Array.isArray(payload.data)?payload.data:[]).filter(item=>item.players.length);setSheets(rows);setSheetId(rows.find(item=>item.status==='PUBLISHED')?.id??rows[0]?.id??'')}).catch(reason=>setError(reason instanceof Error?reason.message:'Unable to load team sheets')).finally(()=>setLoading(false))},[club.clubId,token])
+ useEffect(()=>{loadClubConnections(club.clubId,token).then(connections=>{const rows=(connections.sheets as Sheet[]).filter(item=>item.players.length);setSheets(rows);setSheetId(connections.teamSheet?.id&&rows.some(item=>item.id===connections.teamSheet?.id)?connections.teamSheet.id:(rows.find(item=>item.status==='PUBLISHED')?.id??rows[0]?.id??''))}).catch(reason=>setError(reason instanceof Error?reason.message:'Unable to load team sheets')).finally(()=>setLoading(false))},[club.clubId,token])
  useEffect(()=>{if(!sheetId){setDraft(blank);setThreats([]);return}setLoading(true);setError('');apiGet<{data?:{plan:Plan|null;players:ClubPlayer[]}}>(`/club-portal/opposition/clubs/${encodeURIComponent(club.clubId)}/sheets/${encodeURIComponent(sheetId)}`,token).then(payload=>{const plan=payload.data?.plan;setDraft({overview:plan?.overview??'',teamInstructions:plan?.teamInstructions??'',stoppagePlan:plan?.stoppagePlan??'',kickInPlan:plan?.kickInPlan??'',quarterTimeReminders:plan?.quarterTimeReminders??''});setThreats(plan?.threats??[]);setPlayers(payload.data?.players??[])}).catch(reason=>setError(reason instanceof Error?reason.message:'Unable to open game plan')).finally(()=>setLoading(false))},[sheetId])
  function field(key:keyof Draft,value:string){setDraft(current=>({...current,[key]:value}))}
  function togglePriority(value:string){const current=draft.teamInstructions.split('\n').map(item=>item.trim()).filter(Boolean);const next=current.includes(value)?current.filter(item=>item!==value):[...current,value];field('teamInstructions',next.join('\n'))}
