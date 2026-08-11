@@ -36,6 +36,7 @@ export function selectConnectedSheet(context:CoachContext|null,sheets:ConnectedS
   const matching=sheets.filter(row=>sheetMatchesFixture(row,fixture)).sort((a,b)=>Number(b.status==='PUBLISHED')-Number(a.status==='PUBLISHED')||playerCount(b)-playerCount(a))
   if(matching[0])return matching[0]
   if(context?.teamSheet)return {...context.teamSheet,players:context.teamSheet.players??[]}
+  if(fixture)return null
   return [...sheets].sort((a,b)=>Number(b.status==='PUBLISHED')-Number(a.status==='PUBLISHED')||playerCount(b)-playerCount(a)||dateValue(a.matchDate)-dateValue(b.matchDate))[0]??null
 }
 
