@@ -31,7 +31,7 @@ export function AppShell({club,session,onSwitchClub,onSignOut}:Props){
  function continueToMatch(){setGamePlanOpen(false);setMatchDayOpen(true)}
  let content:React.ReactNode
  if(whiteboardOpen)content=<WhiteboardScreen club={club} session={session} onBack={()=>setWhiteboardOpen(false)}/>
- else if(area==='overview')content=<OverviewScreen club={club} onSignOut={onSignOut}/>
+ else if(area==='overview')content=<OverviewScreen club={club} session={session} onSignOut={onSignOut}/>
  else if(area==='coaching'&&trainingSession)content=<TrainingPlanScreen club={club} session={session} sessionNumber={trainingSession} onBack={()=>setTrainingSession(null)}/>
  else if(area==='coaching'&&reportSession)content=<TrainingReportScreen club={club} session={session} sessionNumber={reportSession} onBack={()=>setReportSession(null)}/>
  else if(area==='coaching'&&availabilityOpen)content=<AvailabilityScreen club={club} session={session} onBack={()=>setAvailabilityOpen(false)}/>
