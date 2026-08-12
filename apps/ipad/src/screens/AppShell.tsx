@@ -8,6 +8,7 @@ import { CoachingScreen } from './CoachingScreen'
 import { GamePlanScreen } from './GamePlanScreen'
 import { LiveStatsScreen } from './LiveStatsScreen'
 import { MatchDayScreen } from './MatchDayScreen'
+import { MembershipsScreen } from './MembershipsScreen'
 import { OperationsScreen } from './OperationsScreen'
 import { OverviewScreen } from './OverviewScreen'
 import { StudioBroadcastScreen } from './StudioBroadcastScreen'
@@ -51,6 +52,7 @@ export function AppShell({club,session,onSwitchClub,onSignOut}:Props){
  else if(area==='studio'&&studioTool==='news')content=<StudioNewsScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>
  else if(area==='studio'&&studioTool==='broadcast')content=<StudioBroadcastScreen club={club} session={session} onBack={()=>setStudioTool(null)}/>
  else if(area==='studio')content=<StudioScreen club={club} session={session} onOpen={setStudioTool}/>
+ else if(area==='memberships')content=<MembershipsScreen club={club} session={session}/>
  else if(area==='operations'&&timekeeperOpen)content=<TimekeeperScreen club={club} session={session} onBack={()=>setTimekeeperOpen(false)}/>
  else if(area==='operations'&&liveStatsOpen)content=<LiveStatsScreen club={club} session={session} onBack={()=>setLiveStatsOpen(false)}/>
  else if(area==='operations')content=<OperationsScreen club={club} session={session} onOpenTimekeeper={()=>setTimekeeperOpen(true)} onOpenStats={()=>setLiveStatsOpen(true)}/>
