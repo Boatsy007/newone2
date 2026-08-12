@@ -2,12 +2,15 @@ import { apiGet, apiRequest } from './api'
 
 export type StatKey='inside50s'|'clearances'|'tackles'|'marks'|'rebound50s'|'onePercenters'|'freesAgainst'
 export type TeamStats=Record<StatKey,number>
+type RemoteSlot={onGround?:boolean;onGroundSeconds?:number;benchSeconds?:number;[key:string]:unknown}
 export type RemoteMatchState={
   sheetId:string
   quarter:number
   elapsed:number
   runningSince:number|null
   trackingUpdatedAt?:number|null
+  totalTrackedSeconds?:number
+  slots?:RemoteSlot[]
   teamStats?:Partial<TeamStats>
   kpiTargets?:Partial<TeamStats>
   [key:string]:unknown
@@ -42,6 +45,15 @@ export async function mutateRemoteMatchState(clubId:string,sheetId:string,token:
 
 export function remoteElapsed(state:RemoteMatchState,now=Date.now()){
   return Math.max(0,Number(state.elapsed)||0)+(state.runningSince?Math.max(0,Math.floor((now-Number(state.runningSince))/1000)):0)
+}
+
+export function accrueRemoteTracking(state:RemoteMatchState,now=Date.now()){
+  if(!state.runningSince)return state
+  const previous=Number(state.trackingUpdatedAt)||Number(state.runningSince)||now
+  const delta=Math.max(0,Math.floor((now-previous)/1000))
+  if(delta<1)return {...state,trackingUpdatedAt:now}
+  const slots=Array.isArray(state.slots)?state.slots.map(slot=>slot.onGround?{...slot,onGroundSeconds:(Number(slot.onGroundSeconds)||0)+delta}:{...slot,benchSeconds:(Number(slot.benchSeconds)||0)+delta}):state.slots
+  return {...state,trackingUpdatedAt:now,totalTrackedSeconds:(Number(state.totalTrackedSeconds)||0)+delta,slots}
 }
 
 export function formatMatchClock(seconds:number){
