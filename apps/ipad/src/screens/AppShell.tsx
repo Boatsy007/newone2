@@ -58,6 +58,9 @@ export function AppShell({club,session,onSwitchClub,onSignOut}:Props){
  else if(area==='operations')content=<OperationsScreen club={club} session={session} onOpenTimekeeper={()=>setTimekeeperOpen(true)} onOpenStats={()=>setLiveStatsOpen(true)}/>
  else content=<View style={styles.coming}><Text style={styles.eyebrow}>PLAYFOOTY CLUB APP</Text><Text style={styles.title}>{area}</Text><Text style={styles.copy}>This completed PlayFooty module will be connected in its dedicated build stage.</Text></View>
  const hideSidebar=matchDayOpen||whiteboardOpen||teamSelectionOpen||timekeeperOpen||liveStatsOpen
- return <View style={styles.app}>{!hideSidebar&&<Sidebar active={area} club={club} onChange={changeArea} onSwitchClub={onSwitchClub}/>}<View style={styles.main}>{content}</View></View>
+ return <View style={styles.app}>
+  {!hideSidebar?<View style={styles.sidebarLayer}><Sidebar active={area} club={club} onChange={changeArea} onSwitchClub={onSwitchClub}/></View>:null}
+  <View style={styles.main}>{content}</View>
+ </View>
 }
-const styles=StyleSheet.create({app:{flex:1,flexDirection:'row',backgroundColor:palette.canvas},main:{flex:1},coming:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:palette.canvas},eyebrow:{fontSize:10,color:palette.blue,fontWeight:'900',letterSpacing:1.4},title:{fontSize:40,fontWeight:'900',color:palette.ink,textTransform:'capitalize',marginTop:5},copy:{fontSize:13,color:palette.muted,marginTop:7}})
+const styles=StyleSheet.create({app:{flex:1,flexDirection:'row',backgroundColor:palette.canvas},sidebarLayer:{zIndex:50,elevation:50},main:{flex:1,zIndex:1,elevation:0},coming:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:palette.canvas},eyebrow:{fontSize:10,color:palette.blue,fontWeight:'900',letterSpacing:1.4},title:{fontSize:40,fontWeight:'900',color:palette.ink,textTransform:'capitalize',marginTop:5},copy:{fontSize:13,color:palette.muted,marginTop:7}})
