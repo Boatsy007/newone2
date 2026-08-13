@@ -1,0 +1,22 @@
+import { BarChart3, CreditCard, IdCard, Megaphone, QrCode, RefreshCw, Sparkles, Target, Upload, Users, WalletCards } from 'lucide-react-native'
+import { View } from 'react-native'
+import { ActionTile, Donut, MetricTile, SectionHeader, StatusPill, Surface, premium } from './PremiumUI'
+
+type Overview={activeProducts:number;draftProducts:number;archivedProducts:number;activeMemberships:number}
+type Member={membershipStatus:string|null;digitalCardEnabled:boolean|null;physicalCardEnabled:boolean|null}
+type Product={status:string}
+type Props={overview:Overview|null;members:Member[];products:Product[];onOpen:(view:string)=>void}
+
+export function PremiumMembershipDashboard({overview,members,products,onOpen}:Props){
+ const activeCards=members.filter(m=>m.membershipStatus==='ACTIVE'&&(m.digitalCardEnabled||m.physicalCardEnabled)).length
+ const totalMembers=members.length,activeMembers=overview?.activeMemberships??members.filter(m=>m.membershipStatus==='ACTIVE').length
+ const modules=[
+  ['members','Members','People, status, history and payments.',Users,premium.blue,'MANAGE'],['products','Membership Types','Build every offer the club sells.',CreditCard,premium.purple,'PRODUCTS'],['cards','Cards','Digital, print, email and member credentials.',IdCard,premium.green,'CARDS'],['gate','Gate','Fast entry scanning using the same secure credential.',QrCode,premium.orange,'ENTRY'],['ai','AI Growth','Season-aware opportunities using real club context.',Sparkles,'#EA4AAA','AI'],['import','Import Members','Bring existing member records into PlayFooty.',Upload,'#23A9C7','IMPORT'],['reports','Reports','Growth, attendance and commercial reporting.',BarChart3,'#4C6FFF','REPORTS'],['campaigns','Campaigns','Promote membership products and retention.',Megaphone,'#E85D75','CAMPAIGNS'],['renewals','Renewals','Review expiring memberships and retention.',RefreshCw,'#1FA77A','RENEW'],['targets','Targets','Set membership and revenue goals.',Target,'#7C4DFF','GOALS'],['card-design','Card Designer','Create the club’s branded digital and printed cards.',CreditCard,'#176BFF','DESIGN'],['wallet','Wallet Passes','Apple and wallet provider readiness.',WalletCards,'#526071','WALLET']
+ ] as const
+ return <View style={{gap:16}}>
+  <View style={{flexDirection:'row',gap:12}}><MetricTile icon={Users} label="Active members" value={String(activeMembers)} meta={`${totalMembers} member records`} tone={premium.blue}/><MetricTile icon={CreditCard} label="Active products" value={String(overview?.activeProducts??0)} meta={`${overview?.draftProducts??0} drafts`} tone={premium.purple}/><MetricTile icon={IdCard} label="Active cards" value={String(activeCards)} meta="Digital or printable" tone={premium.green}/><MetricTile icon={Target} label="Total products" value={String(products.length)} meta={`${overview?.archivedProducts??0} archived`} tone={premium.orange}/></View>
+  <View style={{flexDirection:'row',gap:14}}><Surface style={{flex:1,minHeight:260,padding:18}}><View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'}}><SectionHeader eyebrow="MEMBERSHIP HEALTH" title="Active member base"/><StatusPill label={activeMembers?'LIVE DATA':'NO MEMBERS'} tone={activeMembers?premium.green:premium.orange}/></View><View style={{flex:1,flexDirection:'row',alignItems:'center',justifyContent:'space-around'}}><Donut value={activeMembers} max={Math.max(totalMembers,1)} label="ACTIVE" tone={premium.blue} size={150}/><View style={{gap:12,minWidth:230}}><MetricTile icon={Users} label="Member records" value={String(totalMembers)} meta="All statuses" tone={premium.blue}/></View></View></Surface><Surface style={{width:360,minHeight:260,padding:18}}><SectionHeader eyebrow="QUICK ACCESS" title="Member journey"/><View style={{marginTop:18,gap:12}}><StatusPill label="SELL MEMBERSHIP" tone={premium.blue}/><StatusPill label="ISSUE CARD" tone={premium.purple}/><StatusPill label="SCAN ENTRY" tone={premium.green}/><StatusPill label="RENEW & RETAIN" tone={premium.orange}/></View></Surface></View>
+  <SectionHeader eyebrow="MEMBERSHIP OPERATIONS" title="Everything in one place" detail="Every tool continues using the existing canonical membership records and APIs."/>
+  <View style={{flexDirection:'row',flexWrap:'wrap',gap:12}}>{modules.map(([view,title,copy,icon,tone,badge])=><ActionTile key={view} icon={icon} title={title} copy={copy} tone={tone} badge={badge} onPress={()=>onOpen(view)}/>)}</View>
+ </View>
+}
